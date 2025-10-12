@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JTF Team Management Portal</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e'
+                        },
+                        secondary: {
+                            50: '#fdf4ff',
+                            100: '#fae8ff',
+                            200: '#f5d0fe',
+                            300: '#f0abfc',
+                            400: '#e879f9',
+                            500: '#d946ef',
+                            600: '#c026d3',
+                            700: '#a21caf',
+                            800: '#86198f',
+                            900: '#701a75'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #0ea5e9;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+            <div class="loading-spinner"></div>
+            <p style="margin-top: 20px; color: #6b7280;">Loading JTF Portal...</p>
+        </div>
+    </div>
+
+    <script type="text/babel">
+        // Google Apps Script Service
+        const isDevelopment = typeof google === 'undefined' || !google.script;
+
+        class GoogleAppsScriptService {
+            // Mock data for development
+            mockPersonnel = [
+                {
+                    PersonnelID: 1,
+                    FirstName: "John",
+                    LastName: "Doe",
+                    PrimaryEmail: "john.doe@email.com",
+                    PrimaryPhone: "555-0123",
+                    Instagram: "@johndoe",
+                    Birthday: "1990-01-15"
+                },
+                {
+                    PersonnelID: 2,
+                    FirstName: "Jane",
+                    LastName: "Smith",
+                    PrimaryEmail: "jane.smith@email.com",
+                    PrimaryPhone: "555-0124",
+                    Instagram: "@janesmith",
+                    Birthday: "1988-06-22"
+                }
+            ];
+
+            mockShows = [
+                {
+                    ShowID: 1,
+                    ShowDate: "2024-12-15",
+                    ShowTime: "19:30",
+                    ShowTypeID: 1,
+                    DirectorID: 1,
+                    Venue: "Main Theater",
+                    Status: "Scheduled"
+                }
+            ];
+
+            mockClasses = [
+                {
+                    OfferingID: 1,
+                    ClassLevelID: 1,
+                    StartDate: "2024-11-01",
+                    EndDate: "2024-12-20",
+                    TeacherPersonnelID: 2,
+                    VenueOrRoom: "Studio A",
+                    MaxStudents: 12,
+                    Status: "Open"
+                }
+            ];
+
+            mockInventory = [
+                {
+                    ItemID: 1,
+                    ItemName: "Microphone",
+                    Category: "Audio Equipment",
+                    Quantity: 5,
+                    Location: "Storage Room A",
+                    Notes: "Wireless mics for performances"
+                }
+            ];
+
+            async callServerFunction(functionName, ...args) {
+                if (isDevelopment) {
+                    return this.getMockData(functionName, ...args);
+                }
+
+                try {
+                    const result = await new Promise((resolve, reject) => {
+                        google.script.run
+                            .withSuccessHandler(resolve)
+                            .withFailureHandler(reject)
+                            [functionName](...args);
+                    });
+
+                    return { success: true, data: result };
+                } catch (error) {
+                    console.error(`Error calling ${functionName}:`, error);
+                    return { success: false, error: error.toString() };
+                }
+            }
+
+            getMockData(functionName, ...args) {
+                return new Promise(resolve => {
+                    setTimeout(() => {
+                        try {
+                            let data;
+                            
+                            switch (functionName) {
+                                case 'getAllPersonnel':
+                                    data = this.mockPersonnel;
+                                    break;
+                                case 'getAllShows':
+                                    data = this.mockShows;
+                                    break;
+                                case 'getAllClasses':
+                                    data = this.mockClasses;
+                                    break;
+                                case 'getAllInventory':
+                                    data = this.mockInventory;
+                                    break;
+                                case 'getDashboardStats':
+                                    data = {
+                                        totalPersonnel: this.mockPersonnel.length,
+                                        activeStudents: 25,
+                                        upcomingShows: this.mockShows.length,
+                                        activeClasses: this.mockClasses.length
+                                    };
+                                    break;
+                                case 'createPersonnel':
+                                case 'updatePersonnel':
+                                    data = args[0];
+                                    break;
+                                case 'deletePersonnel':
+                                    data = { deleted: true };
+                                    break;
+                                default:
+                                    data = [];
+                            }
+                            
+                            resolve({ success: true, data });
+                        } catch (error) {
+                            resolve({ success: false, error: error.toString() });
+                        }
+                    }, 500);
+                });
+            }
+
+            // API Methods
+            async getAllPersonnel() {
+                return this.callServerFunction('getAllPersonnel');
+            }
+
+            async createPersonnel(personnel) {
+                return this.callServerFunction('createPersonnel', personnel);
+            }
+
+            async updatePersonnel(personnel) {
+                return this.callServerFunction('updatePersonnel', personnel);
+            }
+
+            async deletePersonnel(personnelId) {
+                return this.callServerFunction('deletePersonnel', personnelId);
+            }
+
+            async getAllShows() {
+                return this.callServerFunction('getAllShows');
+            }
+
+            async getAllClasses() {
+                return this.callServerFunction('getAllClasses');
+            }
+
+            async getAllInventory() {
+                return this.callServerFunction('getAllInventory');
+            }
+
+            async getDashboardStats() {
+                return this.callServerFunction('getDashboardStats');
+            }
+
+            async enrollStudents(offeringId, studentIds) {
+                return this.callServerFunction('enrollStudents', offeringId, studentIds);
+            }
+
+            async createInventoryItem(item) {
+                return this.callServerFunction('createInventoryItem', item);
+            }
+
+            async updateInventoryItem(item) {
+                return this.callServerFunction('updateInventoryItem', item);
+            }
+
+            async deleteInventoryItem(itemId) {
+                return this.callServerFunction('deleteInventoryItem', itemId);
+            }
+        }
+
+        const gasService = new GoogleAppsScriptService();
+
+        // React Components
+        const { useState, useEffect, createElement: e } = React;
+
+        // Loader Component
+        function Loader({ text = 'Loading...' }) {
+            return e('div', { className: 'flex flex-col items-center justify-center p-4' },
+                e('div', { className: 'loading-spinner' }),
+                e('p', { className: 'mt-2 text-sm text-gray-600' }, text)
+            );
+        }
+
+        // Message Component
+        function Message({ type, message, onClose }) {
+            const typeClasses = {
+                success: "bg-green-50 text-green-800 border border-green-200",
+                error: "bg-red-50 text-red-800 border border-red-200",
+                warning: "bg-yellow-50 text-yellow-800 border border-yellow-200",
+                info: "bg-blue-50 text-blue-800 border border-blue-200"
+            };
+
+            const iconClasses = {
+                success: "✓",
+                error: "✗",
+                warning: "⚠",
+                info: "ℹ"
+            };
+
+            return e('div', { className: `p-4 rounded-lg flex items-center justify-between ${typeClasses[type]}` },
+                e('div', { className: 'flex items-center' },
+                    e('span', { className: 'mr-2 font-semibold' }, iconClasses[type]),
+                    e('span', null, message)
+                ),
+                onClose && e('button', {
+                    onClick: onClose,
+                    className: 'ml-4 hover:opacity-70 transition-opacity'
+                }, '×')
+            );
+        }
+
+        // StatCard Component
+        function StatCard({ title, value, icon, color = 'blue' }) {
+            const colorClasses = {
+                blue: 'bg-blue-50 text-blue-600 border-blue-200',
+                green: 'bg-green-50 text-green-600 border-green-200',
+                purple: 'bg-purple-50 text-purple-600 border-purple-200',
+                orange: 'bg-orange-50 text-orange-600 border-orange-200'
+            };
+
+            return e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                e('div', { className: 'flex items-center justify-between' },
+                    e('div', null,
+                        e('p', { className: 'text-sm font-medium text-gray-600 mb-1' }, title),
+                        e('p', { className: 'text-3xl font-bold text-gray-900' }, value)
+                    ),
+                    e('div', { className: `w-12 h-12 rounded-lg border flex items-center justify-center text-xl ${colorClasses[color]}` }, icon)
+                )
+            );
+        }
+
+        // PersonCard Component
+        function PersonCard({ person, onClick }) {
+            const getInitials = (firstName, lastName) => {
+                return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+            };
+
+            return e('div', {
+                onClick: onClick,
+                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+            },
+                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                    e('div', { className: 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold' },
+                        getInitials(person.FirstName, person.LastName)
+                    ),
+                    e('div', null,
+                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                        e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
+                    )
+                )
+            );
+        }
+
+        // PersonnelModal Component
+        function PersonnelModal({ isOpen, mode, person, onClose, onSave }) {
+            const [formData, setFormData] = useState({
+                FirstName: '',
+                LastName: '',
+                PrimaryEmail: '',
+                PrimaryPhone: '',
+                Instagram: '',
+                Birthday: ''
+            });
+            const [isLoading, setIsLoading] = useState(false);
+
+            useEffect(() => {
+                if (person) {
+                    setFormData(person);
+                } else {
+                    setFormData({
+                        FirstName: '',
+                        LastName: '',
+                        PrimaryEmail: '',
+                        PrimaryPhone: '',
+                        Instagram: '',
+                        Birthday: ''
+                    });
+                }
+            }, [person, isOpen]);
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setIsLoading(true);
+                
+                try {
+                    await onSave(formData);
+                    onClose();
+                } catch (error) {
+                    console.error('Error saving personnel:', error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            if (!isOpen) return null;
+
+            const isEditable = mode === 'edit' || mode === 'create';
+            const title = mode === 'create' ? 'Add New Personnel' : 
+                         mode === 'edit' ? 'Edit Personnel' : 'Personnel Details';
+
+            return e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+                e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto' },
+                    e('div', { className: 'flex justify-between items-center mb-6' },
+                        e('h2', { className: 'text-xl font-semibold text-gray-900' }, title),
+                        e('button', {
+                            onClick: onClose,
+                            className: 'text-gray-400 hover:text-gray-600 text-xl'
+                        }, '×')
+                    ),
+
+                    isLoading ? e(Loader) : 
+                    e('form', { onSubmit: handleSubmit },
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
+                            // First Name
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'First Name'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'text',
+                                    value: formData.FirstName || '',
+                                    onChange: (e) => handleInputChange('FirstName', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    required: true
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.FirstName)
+                            ),
+                            
+                            // Last Name
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Name'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'text',
+                                    value: formData.LastName || '',
+                                    onChange: (e) => handleInputChange('LastName', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    required: true
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.LastName)
+                            ),
+
+                            // Email
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'email',
+                                    value: formData.PrimaryEmail || '',
+                                    onChange: (e) => handleInputChange('PrimaryEmail', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    required: true
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.PrimaryEmail)
+                            ),
+
+                            // Phone
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Phone'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'tel',
+                                    value: formData.PrimaryPhone || '',
+                                    onChange: (e) => handleInputChange('PrimaryPhone', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.PrimaryPhone)
+                            ),
+
+                            // Instagram
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Instagram'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'text',
+                                    value: formData.Instagram || '',
+                                    onChange: (e) => handleInputChange('Instagram', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    placeholder: '@username'
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.Instagram)
+                            ),
+
+                            // Birthday
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
+                                isEditable ? 
+                                e('input', {
+                                    type: 'date',
+                                    value: formData.Birthday ? formData.Birthday.toString().split('T')[0] : '',
+                                    onChange: (e) => handleInputChange('Birthday', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                }) :
+                                e('p', { className: 'py-2 text-gray-900' }, 
+                                    formData.Birthday ? new Date(formData.Birthday).toLocaleDateString() : ''
+                                )
+                            )
+                        ),
+
+                        e('div', { className: 'flex justify-end space-x-3' },
+                            e('button', {
+                                type: 'button',
+                                onClick: onClose,
+                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, mode === 'view' ? 'Close' : 'Cancel'),
+                            
+                            isEditable && e('button', {
+                                type: 'submit',
+                                disabled: isLoading,
+                                className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50'
+                            }, mode === 'create' ? 'Create' : 'Save Changes')
+                        )
+                    )
+                )
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard() {
+            const [stats, setStats] = useState(null);
+            const [isLoading, setIsLoading] = useState(true);
+
+            useEffect(() => {
+                loadDashboardData();
+            }, []);
+
+            const loadDashboardData = async () => {
+                try {
+                    const response = await gasService.getDashboardStats();
+                    if (response.success && response.data) {
+                        setStats(response.data);
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard data:', error);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading dashboard...' });
+            }
+
+            if (!stats) {
+                return e('div', { className: 'p-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Dashboard'),
+                    e('p', { className: 'text-gray-600' }, 'Unable to load dashboard data.')
+                );
+            }
+
+            return e('div', { className: 'p-6' },
+                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Dashboard'),
+                
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8' },
+                    e(StatCard, {
+                        title: 'Total Personnel',
+                        value: stats.totalPersonnel,
+                        icon: '👥',
+                        color: 'blue'
+                    }),
+                    e(StatCard, {
+                        title: 'Active Students',
+                        value: stats.activeStudents,
+                        icon: '🎭',
+                        color: 'green'
+                    }),
+                    e(StatCard, {
+                        title: 'Upcoming Shows',
+                        value: stats.upcomingShows,
+                        icon: '🎪',
+                        color: 'purple'
+                    }),
+                    e(StatCard, {
+                        title: 'Active Classes',
+                        value: stats.activeClasses,
+                        icon: '📚',
+                        color: 'orange'
+                    })
+                ),
+
+                e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-6' },
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Recent Activity'),
+                        e('p', { className: 'text-gray-600' }, 'Dashboard activity feed coming soon...')
+                    ),
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Quick Actions'),
+                        e('div', { className: 'space-y-2' },
+                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Add New Person'),
+                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Schedule Show'),
+                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Create Class')
+                        )
+                    )
+                )
+            );
+        }
+
+        // PersonnelDirectory Component
+        function PersonnelDirectory() {
+            const [personnel, setPersonnel] = useState([]);
+            const [filteredPersonnel, setFilteredPersonnel] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedPerson, setSelectedPerson] = useState(null);
+            const [modalMode, setModalMode] = useState('view');
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadPersonnel();
+            }, []);
+
+            useEffect(() => {
+                const filtered = personnel.filter(person =>
+                    `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                setFilteredPersonnel(filtered);
+            }, [personnel, searchTerm]);
+
+            const loadPersonnel = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllPersonnel();
+                    if (response.success && response.data) {
+                        setPersonnel(response.data);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error loading personnel data' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handlePersonClick = (person) => {
+                setSelectedPerson(person);
+                setModalMode('view');
+                setIsModalOpen(true);
+            };
+
+            const handleAddNew = () => {
+                setSelectedPerson(null);
+                setModalMode('create');
+                setIsModalOpen(true);
+            };
+
+            const handleSavePerson = async (personData) => {
+                try {
+                    let response;
+                    if (modalMode === 'create') {
+                        response = await gasService.createPersonnel(personData);
+                    } else {
+                        response = await gasService.updatePersonnel(personData);
+                    }
+
+                    if (response.success) {
+                        setMessage({ 
+                            type: 'success', 
+                            text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
+                        });
+                        loadPersonnel();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error saving personnel' });
+                }
+            };
+
+            const handleCloseModal = () => {
+                setIsModalOpen(false);
+                setSelectedPerson(null);
+            };
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
+                    e('button', {
+                        onClick: handleAddNew,
+                        className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                    }, 'Add New Person')
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search by name or email...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading personnel...' }) :
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                    filteredPersonnel.map((person) =>
+                        e(PersonCard, {
+                            key: person.PersonnelID,
+                            person: person,
+                            onClick: () => handlePersonClick(person)
+                        })
+                    )
+                ),
+
+                e(PersonnelModal, {
+                    isOpen: isModalOpen,
+                    mode: modalMode,
+                    person: selectedPerson,
+                    onClose: handleCloseModal,
+                    onSave: handleSavePerson
+                })
+            );
+        }
+
+        // Sidebar Component
+        function Sidebar({ currentPage, onNavigate }) {
+            const navigationItems = [
+                { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+                { id: 'personnel', label: 'Personnel', icon: '👥' },
+                { id: 'classes', label: 'Classes', icon: '🎭' },
+                { id: 'shows', label: 'Shows', icon: '🎪' },
+                { id: 'inventory', label: 'Inventory', icon: '📦' },
+                { id: 'scheduling', label: 'Schedule', icon: '📅' }
+            ];
+
+            return e('div', { className: 'bg-white shadow-sm border-r h-full w-64 flex flex-col' },
+                e('div', { className: 'p-6 border-b' },
+                    e('h1', { className: 'text-xl font-bold text-gray-900' }, 'JTF Portal'),
+                    e('p', { className: 'text-sm text-gray-600' }, 'Team Management')
+                ),
+                
+                e('nav', { className: 'flex-1 p-4' },
+                    e('ul', { className: 'space-y-2' },
+                        navigationItems.map((item) =>
+                            e('li', { key: item.id },
+                                e('button', {
+                                    onClick: () => onNavigate(item.id),
+                                    className: `w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                                        currentPage === item.id
+                                            ? 'bg-primary-100 text-primary-700'
+                                            : 'text-gray-700 hover:bg-gray-100'
+                                    }`
+                                },
+                                    e('span', { className: 'text-lg' }, item.icon),
+                                    e('span', { className: 'font-medium' }, item.label)
+                                )
+                            )
+                        )
+                    )
+                ),
+                
+                e('div', { className: 'p-4 border-t' },
+                    e('p', { className: 'text-xs text-gray-500' }, '© 2024 JTF Team Portal')
+                )
+            );
+        }
+
+        // Placeholder Components for other pages
+        function ClassRegistration() {
+            return e('div', { className: 'p-6' },
+                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Class Registration'),
+                e('p', { className: 'text-gray-600' }, 'Class registration functionality coming soon...')
+            );
+        }
+
+        function Shows() {
+            return e('div', { className: 'p-6' },
+                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Shows'),
+                e('p', { className: 'text-gray-600' }, 'Show management functionality coming soon...')
+            );
+        }
+
+        function Inventory() {
+            return e('div', { className: 'p-6' },
+                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Inventory'),
+                e('p', { className: 'text-gray-600' }, 'Inventory management functionality coming soon...')
+            );
+        }
+
+        function Scheduling() {
+            return e('div', { className: 'p-6' },
+                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Schedule'),
+                e('p', { className: 'text-gray-600' }, 'Scheduling functionality coming soon...')
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [currentPage, setCurrentPage] = useState('dashboard');
+
+            const renderPage = () => {
+                switch (currentPage) {
+                    case 'dashboard':
+                        return e(Dashboard);
+                    case 'personnel':
+                        return e(PersonnelDirectory);
+                    case 'classes':
+                        return e(ClassRegistration);
+                    case 'shows':
+                        return e(Shows);
+                    case 'inventory':
+                        return e(Inventory);
+                    case 'scheduling':
+                        return e(Scheduling);
+                    default:
+                        return e(Dashboard);
+                }
+            };
+
+            return e('div', { className: 'flex h-screen bg-gray-50' },
+                e(Sidebar, { currentPage: currentPage, onNavigate: setCurrentPage }),
+                e('main', { className: 'flex-1 overflow-auto' }, renderPage())
+            );
+        }
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(e(App));
+    </script>
+</body>
+</html>

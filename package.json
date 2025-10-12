@@ -1,0 +1,20 @@
+{
+  "name": "jtf-team-management-portal",
+  "version": "1.0.0",
+  "description": "Team Management Portal for JTF Improv/Theater Group",
+  "main": "index.js",
+  "scripts": {
+    "push": "clasp push",
+    "deploy": "clasp deploy",
+    "open": "clasp open",
+    "setup": "clasp create --type webapp --title \"JTF Team Management Portal\"",
+    "init": "npm run setup && npm run push"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "@types/google-apps-script": "^1.0.83"
+  },
+  "author": "JTF Team",
+  "license": "MIT"
+}
