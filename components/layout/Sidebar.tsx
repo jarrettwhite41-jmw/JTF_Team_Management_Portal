@@ -10,9 +10,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
   const navigationItems: NavigationItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'personnel', label: 'Personnel', icon: '👥' },
+    { id: 'student-directory', label: 'Students', icon: '🎓' },
     { id: 'cast', label: 'Cast', icon: '🎭' },
-    { id: 'classes', label: 'Classes', icon: '�' },
-    { id: 'shows', label: 'Shows', icon: '�' },
+    { id: 'classes', label: 'Classes', icon: '📚' },
+    { id: 'shows', label: 'Shows', icon: '🎬' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' }
   ];

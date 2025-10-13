@@ -59,13 +59,26 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
   const loadStudents = async () => {
     try {
       const response = await gasService.getAllStudents();
-      // The response from the server is nested, so we need to access response.data.data
-      if (response.success && response.data && Array.isArray(response.data.data)) {
-        setStudents(response.data.data);
-      } else {
-        console.error('Failed to load students or data is not an array:', response);
-        setStudents([]);
+      console.log('getAllStudents response:', response);
+      
+      // Handle different response structures
+      let studentData: Personnel[] = [];
+      
+      if (response.success) {
+        if (Array.isArray(response.data)) {
+          // Direct array response
+          studentData = response.data;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          // Nested data structure
+          studentData = response.data.data;
+        } else if (response.data && typeof response.data === 'object') {
+          // Check if response.data itself has the array structure
+          studentData = [];
+        }
       }
+      
+      console.log('Setting students to:', studentData);
+      setStudents(studentData);
     } catch (error) {
       console.error('Error loading students:', error);
       setStudents([]);
@@ -204,7 +217,7 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredPersonnel.map((person: PersonnelWithDetails) => {
             if (!person) return null;
-            const isStudent = students.some(s => s.PersonnelID === person.PersonnelID);
+            const isStudent = Array.isArray(students) && students.some(s => s.PersonnelID === person.PersonnelID);
             return (
               <PersonCard
                 key={person.PersonnelID}
