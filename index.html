@@ -259,6 +259,31 @@
             async deleteInventoryItem(itemId) {
                 return this.callServerFunction('deleteInventoryItem', itemId);
             }
+
+            // ===================================================================
+            // STUDENT MANAGEMENT API METHODS
+            // These methods interact with student profile and enrollment data
+            // ===================================================================
+
+            // READ: Get comprehensive student profile data
+            async getStudentProfile(personnelId) {
+                return this.callServerFunction('getStudentProfile', personnelId);
+            }
+
+            // READ: Get all students for dropdown selection
+            async getAllStudents() {
+                return this.callServerFunction('getAllStudents');
+            }
+
+            // READ: Get active class offerings for enrollment
+            async getActiveClassOfferings() {
+                return this.callServerFunction('getActiveClassOfferings');
+            }
+
+            // CREATE: Enroll a single student in a class
+            async enrollStudent(studentId, offeringId) {
+                return this.callServerFunction('enrollStudent', studentId, offeringId);
+            }
         }
 
         const gasService = new GoogleAppsScriptService();
@@ -339,6 +364,183 @@
                     e('div', null,
                         e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.Lastname}`),
                         e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
+                    )
+                )
+            );
+        }
+
+        // StudentProfile Component
+        function StudentProfile({ studentId, onBack }) {
+            const [student, setStudent] = useState(null);
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadStudentProfile();
+            }, [studentId]);
+
+            const loadStudentProfile = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getStudentProfile(studentId);
+                    if (response.success) {
+                        setStudent(response.data);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load student profile' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error loading student profile' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading student profile...' });
+            }
+
+            if (!student) {
+                return e('div', { className: 'p-6' },
+                    e('button', {
+                        onClick: onBack,
+                        className: 'mb-4 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors'
+                    }, '← Back'),
+                    message && e(Message, {
+                        type: message.type,
+                        message: message.text
+                    })
+                );
+            }
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex items-center justify-between mb-6' },
+                    e('div', { className: 'flex items-center' },
+                        e('button', {
+                            onClick: onBack,
+                            className: 'mr-4 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors'
+                        }, '← Back'),
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 
+                            `${student.FirstName} ${student.Lastname} - Student Profile`
+                        )
+                    )
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                // Student Information Panel
+                e('div', { className: 'grid grid-cols-1 lg:grid-cols-3 gap-6' },
+                    // Basic Information
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Basic Information'),
+                        e('div', { className: 'space-y-3' },
+                            e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Email'),
+                                e('p', { className: 'text-gray-900' }, student.PrimaryEmail)
+                            ),
+                            e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Phone'),
+                                e('p', { className: 'text-gray-900' }, student.PrimaryPhone || 'Not provided')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Birthday'),
+                                e('p', { className: 'text-gray-900' }, 
+                                    student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'Not provided'
+                                )
+                            ),
+                            student.StudentInfo && e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Student Since'),
+                                e('p', { className: 'text-gray-900' }, 
+                                    student.StudentInfo.StartDate ? new Date(student.StudentInfo.StartDate).toLocaleDateString() : 'Unknown'
+                                )
+                            )
+                        )
+                    ),
+
+                    // Current Enrollments
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Current Enrollments'),
+                        student.Enrollments && student.Enrollments.length > 0 ? 
+                            e('div', { className: 'space-y-3' },
+                                student.Enrollments
+                                    .filter(e => e.Status === 'Active')
+                                    .map((enrollment, index) =>
+                                        e('div', { 
+                                            key: index,
+                                            className: 'p-3 bg-green-50 rounded-lg border border-green-200'
+                                        },
+                                            e('p', { className: 'font-medium text-green-800' }, 
+                                                `Class ID: ${enrollment.OfferingID}`
+                                            ),
+                                            e('p', { className: 'text-sm text-green-600' }, 
+                                                `Enrolled: ${enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString() : 'Unknown'}`
+                                            )
+                                        )
+                                    )
+                            ) :
+                            e('p', { className: 'text-gray-600 italic' }, 'No current enrollments')
+                    ),
+
+                    // Class Progression
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Class Progression'),
+                        student.ClassProgression && student.ClassProgression.length > 0 ?
+                            e('div', { className: 'space-y-2' },
+                                student.ClassProgression.map((progression, index) =>
+                                    e('div', { 
+                                        key: index,
+                                        className: 'p-2 bg-blue-50 rounded border border-blue-200'
+                                    },
+                                        e('p', { className: 'text-sm font-medium text-blue-800' }, 
+                                            `Level ${progression.CurrentLevel || 'Unknown'}`
+                                        ),
+                                        progression.CompletionDate && e('p', { className: 'text-xs text-blue-600' }, 
+                                            `Completed: ${new Date(progression.CompletionDate).toLocaleDateString()}`
+                                        )
+                                    )
+                                )
+                            ) :
+                            e('p', { className: 'text-gray-600 italic' }, 'No progression data available')
+                    )
+                ),
+
+                // Enrollment History
+                student.Enrollments && student.Enrollments.length > 0 && e('div', { className: 'mt-6 bg-white rounded-lg shadow-sm border p-6' },
+                    e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Enrollment History'),
+                    e('div', { className: 'overflow-x-auto' },
+                        e('table', { className: 'min-w-full divide-y divide-gray-200' },
+                            e('thead', { className: 'bg-gray-50' },
+                                e('tr', null,
+                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Class ID'),
+                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Enrollment Date'),
+                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status')
+                                )
+                            ),
+                            e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                                student.Enrollments.map((enrollment, index) =>
+                                    e('tr', { key: index },
+                                        e('td', { className: 'px-4 py-2 text-sm text-gray-900' }, enrollment.OfferingID),
+                                        e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
+                                            enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString() : 'Unknown'
+                                        ),
+                                        e('td', { className: 'px-4 py-2' },
+                                            e('span', { 
+                                                className: `inline-block px-2 py-1 text-xs rounded-full ${
+                                                    enrollment.Status === 'Active' ? 'bg-green-100 text-green-800' :
+                                                    enrollment.Status === 'Completed' ? 'bg-blue-100 text-blue-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`
+                                            }, enrollment.Status)
+                                        )
+                                    )
+                                )
+                            )
+                        )
                     )
                 )
             );
@@ -1033,8 +1235,9 @@
             const navigationItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '📊' },
                 { id: 'personnel', label: 'Personnel', icon: '👥' },
+                { id: 'student-directory', label: 'Students', icon: '🎓' },
                 { id: 'cast', label: 'Cast', icon: '🎭' },
-                { id: 'classes', label: 'Classes', icon: '🎓' },
+                { id: 'classes', label: 'Classes', icon: '📚' },
                 { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
                 { id: 'scheduling', label: 'Schedule', icon: '📅' }
@@ -1102,16 +1305,149 @@
             );
         }
 
+        // StudentDirectory Component
+        function StudentDirectory({ onNavigateToStudent }) {
+            const [students, setStudents] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadStudents();
+            }, []);
+
+            const loadStudents = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllStudents();
+                    console.log('getAllStudents response in StudentDirectory:', response);
+                    
+                    if (response.success && Array.isArray(response.data)) {
+                        setStudents(response.data);
+                    } else if (response.success && response.data && Array.isArray(response.data.data)) {
+                        setStudents(response.data.data);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load students.' });
+                        setStudents([]);
+                    }
+                } catch (error) {
+                    console.error('Error loading students:', error);
+                    setMessage({ type: 'error', text: 'Error loading students.' });
+                    setStudents([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const filteredStudents = students.filter(student =>
+                `${student.FirstName} ${student.Lastname || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
+                    e('p', { className: 'text-sm text-gray-600' }, `${filteredStudents.length} students`)
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search by name or email...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading students...' }) :
+                filteredStudents.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8' },
+                        e('p', null, 'No students found.'),
+                        e('button', {
+                            onClick: loadStudents,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Reload')
+                    )
+                ) : (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filteredStudents.map(student =>
+                            e('div', {
+                                key: student.PersonnelID,
+                                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                onClick: () => onNavigateToStudent && onNavigateToStudent(student.PersonnelID)
+                            },
+                                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                                    e('div', { className: 'w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold' },
+                                        `${(student.FirstName || '').charAt(0)}${(student.Lastname || student.LastName || '').charAt(0)}`.toUpperCase()
+                                    ),
+                                    e('div', null,
+                                        e('h3', { className: 'font-semibold text-gray-900' }, 
+                                            `${student.FirstName} ${student.Lastname || student.LastName || ''}`
+                                        ),
+                                        e('p', { className: 'text-sm text-gray-600' }, student.PrimaryEmail)
+                                    )
+                                ),
+                                e('div', { className: 'text-sm text-gray-600' },
+                                    e('p', null, `Phone: ${student.PrimaryPhone || 'N/A'}`),
+                                    e('p', null, `Birthday: ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
+                                ),
+                                e('button', {
+                                    className: 'mt-3 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors',
+                                    onClick: (e) => { 
+                                        e.stopPropagation(); 
+                                        onNavigateToStudent && onNavigateToStudent(student.PersonnelID); 
+                                    }
+                                }, 'View Profile')
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
         // Main App Component
         function App() {
             const [currentPage, setCurrentPage] = useState('dashboard');
+            const [selectedStudentId, setSelectedStudentId] = useState(null);
+            const [showStudentProfile, setShowStudentProfile] = useState(false);
+
+            const handleNavigateToStudentProfile = (studentId) => {
+                setSelectedStudentId(studentId);
+                setShowStudentProfile(true);
+            };
+
+            const handleBackToStudentDirectory = () => {
+                setShowStudentProfile(false);
+                setSelectedStudentId(null);
+                setCurrentPage('student-directory');
+            };
 
             const renderPage = () => {
+                if (showStudentProfile && selectedStudentId) {
+                    return e(StudentProfile, {
+                        studentId: selectedStudentId,
+                        onBack: handleBackToStudentDirectory
+                    });
+                }
+
                 switch (currentPage) {
                     case 'dashboard':
                         return e(Dashboard);
                     case 'personnel':
                         return e(PersonnelDirectory);
+                    case 'student-directory':
+                        return e(StudentDirectory, {
+                            onNavigateToStudent: handleNavigateToStudentProfile
+                        });
                     case 'cast':
                         return e(CastDirectory);
                     case 'classes':
@@ -1128,7 +1464,10 @@
             };
 
             return e('div', { className: 'flex h-screen bg-gray-50' },
-                e(Sidebar, { currentPage: currentPage, onNavigate: setCurrentPage }),
+                e(Sidebar, { currentPage: currentPage, onNavigate: (page) => {
+                    setShowStudentProfile(false);
+                    setCurrentPage(page);
+                }}),
                 e('main', { className: 'flex-1 overflow-auto' }, renderPage())
             );
         }
