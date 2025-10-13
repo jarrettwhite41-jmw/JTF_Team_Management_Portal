@@ -1248,8 +1248,9 @@
             const navigationItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '📊' },
                 { id: 'personnel', label: 'Personnel', icon: '👥' },
+                { id: 'student-directory', label: 'Students', icon: '🎓' },
                 { id: 'cast', label: 'Cast', icon: '🎭' },
-                { id: 'classes', label: 'Classes', icon: '🎓' },
+                { id: 'classes', label: 'Classes', icon: '📚' },
                 { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
                 { id: 'scheduling', label: 'Schedule', icon: '📅' }
@@ -1289,6 +1290,114 @@
         }
 
         // Placeholder Components for other pages
+        function StudentDirectory({ onNavigateToStudent }) {
+            const [students, setStudents] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadStudents();
+            }, []);
+
+            const loadStudents = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllStudents();
+                    console.log('getAllStudents response in StudentDirectory:', response);
+                    
+                    if (response.success && Array.isArray(response.data)) {
+                        setStudents(response.data);
+                    } else if (response.success && response.data && Array.isArray(response.data.data)) {
+                        setStudents(response.data.data);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load students.' });
+                        setStudents([]);
+                    }
+                } catch (error) {
+                    console.error('Error loading students:', error);
+                    setMessage({ type: 'error', text: 'Error loading students.' });
+                    setStudents([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const filteredStudents = students.filter(student =>
+                `${student.FirstName} ${student.Lastname || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
+            );
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
+                    e('p', { className: 'text-sm text-gray-600' }, `${filteredStudents.length} students`)
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search by name or email...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading students...' }) :
+                filteredStudents.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8' },
+                        e('p', null, 'No students found.'),
+                        e('button', {
+                            onClick: loadStudents,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Reload')
+                    )
+                ) : (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filteredStudents.map(student =>
+                            e('div', {
+                                key: student.PersonnelID,
+                                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                onClick: () => onNavigateToStudent && onNavigateToStudent(student.PersonnelID)
+                            },
+                                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                                    e('div', { className: 'w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold' },
+                                        `${(student.FirstName || '').charAt(0)}${(student.Lastname || student.LastName || '').charAt(0)}`.toUpperCase()
+                                    ),
+                                    e('div', null,
+                                        e('h3', { className: 'font-semibold text-gray-900' }, 
+                                            `${student.FirstName} ${student.Lastname || student.LastName || ''}`
+                                        ),
+                                        e('p', { className: 'text-sm text-gray-600' }, student.PrimaryEmail)
+                                    )
+                                ),
+                                e('div', { className: 'text-sm text-gray-600' },
+                                    e('p', null, `Phone: ${student.PrimaryPhone || 'N/A'}`),
+                                    e('p', null, `Birthday: ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
+                                ),
+                                e('button', {
+                                    className: 'mt-3 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors',
+                                    onClick: (e) => { 
+                                        e.stopPropagation(); 
+                                        onNavigateToStudent && onNavigateToStudent(student.PersonnelID); 
+                                    }
+                                }, 'View Profile')
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
         function ClassRegistration() {
             return e('div', { className: 'p-6' },
                 e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Class Registration'),
@@ -1348,6 +1457,13 @@
                     case 'personnel':
                         return e(PersonnelDirectory, {
                             onNavigateToStudentProfile: handleNavigateToStudentProfile
+                        });
+                    case 'student-directory':
+                        return e(StudentDirectory, {
+                            onNavigateToStudent: (studentId) => {
+                                setSelectedStudentId(studentId);
+                                setShowStudentProfile(true);
+                            }
                         });
                     case 'cast':
                         return e(CastDirectory);
