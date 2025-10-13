@@ -13,6 +13,7 @@ interface PersonnelDirectoryProps {
 
 export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNavigateToStudent }) => {
   const [personnel, setPersonnel] = useState<PersonnelWithDetails[]>([]);
+  const [students, setStudents] = useState<Personnel[]>([]);
   const [filteredPersonnel, setFilteredPersonnel] = useState<PersonnelWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,12 +26,14 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
 
   useEffect(() => {
     loadPersonnel();
+    loadStudents();
   }, []);
 
   useEffect(() => {
-    const filtered = personnel.filter(person =>
-      `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
+    const filtered = personnel.filter((person: PersonnelWithDetails) =>
+      person && person.FirstName && person.LastName &&
+      (`${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (person.PrimaryEmail && person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())))
     );
     setFilteredPersonnel(filtered);
   }, [personnel, searchTerm]);
@@ -39,15 +42,32 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
     setIsLoading(true);
     try {
       const response = await gasService.getAllPersonnel();
-      if (response.success && response.data) {
+      if (response.success && Array.isArray(response.data)) {
         setPersonnel(response.data);
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
+        setMessage({ type: 'error', text: response.error || 'Failed to load personnel. Data may be in an incorrect format.' });
+        setPersonnel([]);
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error loading personnel data' });
+      setPersonnel([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadStudents = async () => {
+    try {
+      const response = await gasService.getAllStudents();
+      if (response.success && Array.isArray(response.data)) {
+        setStudents(response.data);
+      } else {
+        console.error('Failed to load students', response.error);
+        setStudents([]);
+      }
+    } catch (error) {
+      console.error('Error loading students:', error);
+      setStudents([]);
     }
   };
 
@@ -148,7 +168,7 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
           type="text"
           placeholder="Search by name or email..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
       </div>
@@ -181,14 +201,19 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredPersonnel.map((person) => (
-            <PersonCard
-              key={person.PersonnelID}
-              person={person}
-              onClick={() => handlePersonClick(person)}
-              onNavigateToStudent={onNavigateToStudent}
-            />
-          ))}
+          {filteredPersonnel.map((person: PersonnelWithDetails) => {
+            if (!person) return null;
+            const isStudent = students.some(s => s.PersonnelID === person.PersonnelID);
+            return (
+              <PersonCard
+                key={person.PersonnelID}
+                person={person}
+                isStudent={isStudent}
+                onClick={() => handlePersonClick(person)}
+                onNavigateToStudent={onNavigateToStudent}
+              />
+            );
+          })}
         </div>
       )}
 
