@@ -35,18 +35,19 @@ export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">
-            {(castMember as any).FullName || `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'}
+            {`${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'}
           </h3>
-          <p className="text-sm text-purple-600 font-medium">{castMember.Role || 'No role assigned'}</p>
+          <p className="text-sm text-gray-600">{castMember.PrimaryEmail || 'No email'}</p>
         </div>
       </div>
       <div className="space-y-1 text-sm text-gray-600">
-        <p>Show Date: {formatDate(castMember.ShowDate)}</p>
-        <p>Venue: {castMember.Venue || 'TBD'}</p>
+        <p>Last Show: {formatDate((castMember as any).LastShowDate)}</p>
+        <p>Phone: {castMember.PrimaryPhone || 'No phone'}</p>
+        <p>Birthday: {formatDate((castMember as any).Birthday)}</p>
         {castMember.Status && (
           <span
             className={`inline-block px-2 py-1 text-xs rounded-full ${
-              castMember.Status === 'Scheduled'
+              castMember.Status === 'Active'
                 ? 'bg-green-100 text-green-800'
                 : 'bg-red-100 text-red-800'
             }`}

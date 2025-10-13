@@ -373,17 +373,18 @@
                     ),
                     e('div', { className: 'flex-1' },
                         e('h3', { className: 'font-semibold text-gray-900' }, 
-                            castMember.FullName || `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
+                            `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
                         ),
-                        e('p', { className: 'text-sm text-purple-600 font-medium' }, castMember.Role || 'No role assigned')
+                        e('p', { className: 'text-sm text-gray-600' }, castMember.PrimaryEmail || 'No email')
                     )
                 ),
                 e('div', { className: 'space-y-1 text-sm text-gray-600' },
-                    e('p', null, `Show Date: ${formatDate(castMember.ShowDate)}`),
-                    e('p', null, `Venue: ${castMember.Venue || 'TBD'}`),
+                    e('p', null, `Last Show: ${formatDate(castMember.LastShowDate)}`),
+                    e('p', null, `Phone: ${castMember.PrimaryPhone || 'No phone'}`),
+                    e('p', null, `Birthday: ${formatDate(castMember.Birthday)}`),
                     castMember.Status && e('span', { 
                         className: `inline-block px-2 py-1 text-xs rounded-full ${
-                            castMember.Status === 'Scheduled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            castMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`
                     }, castMember.Status)
                 )
@@ -880,8 +881,8 @@
             useEffect(() => {
                 const filtered = castMembers.filter(member =>
                     `${member.FirstName} ${member.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    member.Role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    member.Venue.toLowerCase().includes(searchTerm.toLowerCase())
+                    (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
                 );
                 setFilteredCastMembers(filtered);
             }, [castMembers, searchTerm]);
@@ -930,7 +931,7 @@
                 e('div', { className: 'mb-6' },
                     e('input', {
                         type: 'text',
-                        placeholder: 'Search by name, role, or venue...',
+                        placeholder: 'Search by name, email, or phone...',
                         value: searchTerm,
                         onChange: (e) => setSearchTerm(e.target.value),
                         className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
@@ -989,29 +990,25 @@
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
-                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName} ${selectedCastMember.LastName}`)
+                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Role'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.Role)
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Cast Member ID'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.CastMemberID || 'N/A')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Date'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowDate ? new Date(selectedCastMember.ShowDate).toLocaleDateString() : 'TBD')
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.LastShowDate && selectedCastMember.LastShowDate !== 'N/A' ? new Date(selectedCastMember.LastShowDate).toLocaleDateString() : 'N/A')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Time'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowTime || 'TBD')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Venue'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.Venue || 'TBD')
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.Birthday ? new Date(selectedCastMember.Birthday).toLocaleDateString() : 'Not available')
                             ),
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
                                 e('span', { 
                                     className: `inline-block px-2 py-1 text-xs rounded-full ${
-                                        selectedCastMember.Status === 'Scheduled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                        selectedCastMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                     }`
                                 }, selectedCastMember.Status || 'Unknown')
                             ),

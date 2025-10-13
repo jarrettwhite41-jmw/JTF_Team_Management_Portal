@@ -21,8 +21,8 @@ export const CastDirectory: React.FC = () => {
   useEffect(() => {
     const filtered = castMembers.filter(member =>
       `${member.FirstName} ${member.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.Role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.Venue.toLowerCase().includes(searchTerm.toLowerCase())
+      (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredCastMembers(filtered);
   }, [castMembers, searchTerm]);
@@ -84,7 +84,7 @@ export const CastDirectory: React.FC = () => {
       <div className="mb-6">
         <input
           type="text"
-          placeholder="Search by name, role, or venue..."
+          placeholder="Search by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -152,28 +152,24 @@ export const CastDirectory: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <p className="text-gray-900">{`${selectedCastMember.FirstName} ${selectedCastMember.LastName}`}</p>
+                <p className="text-gray-900">{`${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                <p className="text-gray-900">{selectedCastMember.Role}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cast Member ID</label>
+                <p className="text-gray-900">{(selectedCastMember as any).CastMemberID || 'N/A'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Show Date</label>
-                <p className="text-gray-900">{formatDate(selectedCastMember.ShowDate)}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Show Date</label>
+                <p className="text-gray-900">{formatDate((selectedCastMember as any).LastShowDate)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Show Time</label>
-                <p className="text-gray-900">{selectedCastMember.ShowTime || 'TBD'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                <p className="text-gray-900">{selectedCastMember.Venue || 'TBD'}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                <p className="text-gray-900">{formatDate((selectedCastMember as any).Birthday)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <span className={`inline-block px-2 py-1 text-xs rounded-full ${
-                  selectedCastMember.Status === 'Scheduled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  selectedCastMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                 }`}>
                   {selectedCastMember.Status || 'Unknown'}
                 </span>

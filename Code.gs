@@ -21,6 +21,7 @@ const SHEET_CONFIG = {
   // Cast member tracking
   castMemberView: 'Cast Member View',        // Cast member directory view
   castMemberInfo: 'CastMemberInfo',          // Cast member details table
+  showCastView: 'Show Cast View',            // Show cast assignments view
   
   // Relationship/Junction tables
   showPerformances: 'ShowPerformances',      // Cast assignments to shows
@@ -750,6 +751,10 @@ function getAllCastMembers() {
     const showsSheet = getSheet(SHEET_CONFIG.showInformation);
     const allShows = sheetToObjects(showsSheet);
     
+    // Get Show Cast View data for last show dates
+    const showCastViewSheet = getSheet(SHEET_CONFIG.showCastView);
+    const showCastViewData = sheetToObjects(showCastViewSheet);
+    
     // Create cast member records with enriched data
     const castMembers = castMemberViewData.map(castMemberView => {
       // Find the cast member info to get PersonnelID
@@ -761,36 +766,50 @@ function getAllCastMembers() {
       const person = castMemberInfo ? 
         allPersonnel.find(p => p.PersonnelID == castMemberInfo.PersonnelID) : null;
       
-      // Find current/recent performance for this cast member
-      const performance = allPerformances.find(perf => 
-        perf.CastMemberID == castMemberView.CastMemberID
+      // Find last show date from Show Cast View or ShowPerformances
+      let lastShowDate = 'N/A';
+      
+      // First try Show Cast View
+      const showCastEntry = showCastViewData.find(entry => 
+        entry.CastMemberID == castMemberView.CastMemberID
       );
       
-      // Find the show details if there's a performance
-      const show = performance ? 
-        allShows.find(s => s.ShowID == performance.ShowID) : null;
+      if (showCastEntry && showCastEntry.ShowDate) {
+        lastShowDate = showCastEntry.ShowDate;
+      } else {
+        // Fallback to ShowPerformances table
+        const performance = allPerformances.find(perf => 
+          perf.CastMemberID == castMemberView.CastMemberID
+        );
+        
+        if (performance) {
+          const show = allShows.find(s => s.ShowID == performance.ShowID);
+          if (show && show.ShowDate) {
+            lastShowDate = show.ShowDate;
+          }
+        }
+      }
+      
+      // Get proper first and last names
+      const fullName = castMemberView.FullName || castMemberView['Full Name'] || '';
+      const firstName = person ? person.FirstName : (fullName.split(' ')[0] || 'Unknown');
+      const lastName = person ? person.LastName : (fullName.split(' ').slice(1).join(' ') || 'Person');
       
       return {
         CastMemberID: castMemberView.CastMemberID,
-        FullName: castMemberView.FullName || castMemberView['Full Name'], // Handle both possible column names
+        FullName: fullName,
         
         // Personnel details (if linked)
         PersonnelID: castMemberInfo ? castMemberInfo.PersonnelID : null,
-        FirstName: person ? person.FirstName : (castMemberView.FullName || '').split(' ')[0] || 'Unknown',
-        LastName: person ? person.LastName : (castMemberView.FullName || '').split(' ').slice(1).join(' ') || 'Person',
+        FirstName: firstName,
+        LastName: lastName,
         PrimaryEmail: person ? person.PrimaryEmail : '',
         PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
         
-        // Performance details (if available)
-        PerformanceID: performance ? performance.PerformanceID : null,
-        ShowID: performance ? performance.ShowID : null,
-        Role: performance ? performance.Role : 'No current role',
-        
-        // Show details (if available)
-        ShowDate: show ? show.ShowDate : '',
-        ShowTime: show ? show.ShowTime : '',
-        Venue: show ? show.Venue : '',
-        Status: show ? show.Status : ''
+        // Last show information
+        LastShowDate: lastShowDate,
+        Status: person ? (person.Status || 'Active') : 'Unknown'
       };
     });
     

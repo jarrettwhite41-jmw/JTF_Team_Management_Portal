@@ -95,10 +95,9 @@ export interface CastMemberWithDetails extends ShowPerformances {
   PrimaryEmail: string;
   PrimaryPhone: string;
   PersonnelID?: number;
-  // Show details
-  ShowDate: string;
-  ShowTime: string;
-  Venue: string;
+  Birthday?: string;
+  // Show details - updated structure
+  LastShowDate?: string;
   Status: string;
 }
 
