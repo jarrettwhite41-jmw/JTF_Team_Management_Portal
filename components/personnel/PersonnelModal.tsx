@@ -8,6 +8,8 @@ interface PersonnelModalProps {
   person?: Personnel;
   onClose: () => void;
   onSave: (person: Personnel | Omit<Personnel, 'PersonnelID'>) => Promise<void>;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 export const PersonnelModal: React.FC<PersonnelModalProps> = ({
@@ -15,7 +17,9 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   mode,
   person,
   onClose,
-  onSave
+  onSave,
+  onEdit,
+  onDelete
 }) => {
   const [formData, setFormData] = useState<Partial<Personnel>>({
     FirstName: '',
@@ -191,7 +195,7 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={onClose}
@@ -199,6 +203,26 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
               >
                 {mode === 'view' ? 'Close' : 'Cancel'}
               </button>
+              
+              {mode === 'view' && person && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onEdit}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+              
               {isEditable && (
                 <button
                   type="submit"
