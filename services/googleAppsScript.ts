@@ -286,6 +286,23 @@ class GoogleAppsScriptService {
   async enrollStudent(offeringId: number, studentId: number): Promise<ApiResponse<boolean>> {
     return this.callServerFunction<boolean>('enrollStudent', offeringId, studentId);
   }
+
+  // New Student Management Methods for Student Tab
+  async enrollPersonAsStudent(personnelId: number, offeringId: number): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('enrollPersonAsStudent', personnelId, offeringId);
+  }
+
+  async getAllStudentsWithDetails(): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getAllStudentsWithDetails');
+  }
+
+  async getStudentProfileData(studentId: number): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('getStudentProfileData', studentId);
+  }
+
+  async getUpcomingClasses(): Promise<ApiResponse<ClassOfferings[]>> {
+    return this.callServerFunction<ClassOfferings[]>('getUpcomingClasses');
+  }
 }
 
 export const gasService = new GoogleAppsScriptService();
