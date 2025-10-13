@@ -115,6 +115,33 @@ export interface ClassWithDetails extends ClassOfferings {
   CurrentEnrollment?: number;
 }
 
+// Student Types
+export interface StudentInfo extends Personnel {
+  currentLevel?: string;
+  classesCompleted?: number;
+  activeEnrollments?: number;
+}
+
+export interface EnrollmentWithDetails extends StudentEnrollments {
+  className?: string;
+  classLevel?: string;
+  teacher?: string;
+  startDate?: Date | string;
+  endDate?: Date | string;
+}
+
+export interface ClassLevelProgression {
+  level: string;
+  completed: boolean;
+  completionDate?: Date | string;
+}
+
+export interface StudentProfile {
+  student: StudentInfo;
+  enrollments: EnrollmentWithDetails[];
+  progression: ClassLevelProgression[];
+}
+
 // UI State Types
 export interface DashboardStats {
   totalPersonnel: number;
@@ -148,7 +175,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
