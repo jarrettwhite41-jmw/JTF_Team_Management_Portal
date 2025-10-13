@@ -266,12 +266,18 @@
             // ===================================================================
 
             // READ: Get comprehensive student profile data (uses StudentID from StudentInfo table)
+            // Updated: 2025-10-13 - Now calls getStudentProfileData backend function
             async getStudentProfile(studentId) {
+                console.log('=== gasService.getStudentProfile called ===');
+                console.log('Calling backend: getStudentProfileData with studentId:', studentId);
                 return this.callServerFunction('getStudentProfileData', studentId);
             }
 
             // READ: Get all students with full details (joins StudentInfo + Personnel)
+            // Updated: 2025-10-13 - Now calls getAllStudentsWithDetails backend function
             async getAllStudents() {
+                console.log('=== gasService.getAllStudents called ===');
+                console.log('Calling backend: getAllStudentsWithDetails');
                 return this.callServerFunction('getAllStudentsWithDetails');
             }
 
@@ -382,13 +388,25 @@
             const loadStudentProfile = async () => {
                 setIsLoading(true);
                 try {
+                    console.log('=== Loading Student Profile ===');
+                    console.log('StudentID:', studentId);
                     const response = await gasService.getStudentProfile(studentId);
+                    console.log('getStudentProfile response:', response);
+                    
                     if (response.success) {
+                        console.log('Student data received:', response.data);
+                        console.log('FirstName:', response.data?.FirstName);
+                        console.log('Lastname:', response.data?.Lastname);
+                        console.log('PrimaryEmail:', response.data?.PrimaryEmail);
+                        console.log('PrimaryPhone:', response.data?.PrimaryPhone);
+                        console.log('Birthday:', response.data?.Birthday);
                         setStudent(response.data);
                     } else {
+                        console.error('Failed to load student:', response.error);
                         setMessage({ type: 'error', text: response.error || 'Failed to load student profile' });
                     }
                 } catch (error) {
+                    console.error('Error loading student profile:', error);
                     setMessage({ type: 'error', text: 'Error loading student profile' });
                 } finally {
                     setIsLoading(false);
@@ -420,9 +438,21 @@
                             className: 'mr-4 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors'
                         }, '← Back'),
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 
-                            `${student.FirstName || ''} ${student.Lastname || ''} - Student Profile`
+                            `${student.FirstName || 'Unknown'} ${student.Lastname || 'Student'} - Student Profile`
                         )
                     )
+                ),
+
+                // Debug info (remove after fixing)
+                e('div', { className: 'mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-xs' },
+                    e('p', { className: 'font-bold mb-2' }, 'DEBUG INFO (Remove after fixing):'),
+                    e('p', null, `FirstName: ${student.FirstName || 'MISSING'}`),
+                    e('p', null, `Lastname: ${student.Lastname || 'MISSING'}`),
+                    e('p', null, `PrimaryEmail: ${student.PrimaryEmail || 'MISSING'}`),
+                    e('p', null, `PrimaryPhone: ${student.PrimaryPhone || 'MISSING'}`),
+                    e('p', null, `Birthday: ${student.Birthday || 'MISSING'}`),
+                    e('p', null, `Has Enrollments: ${student.Enrollments ? student.Enrollments.length : 'NO'}`),
+                    e('p', null, `Has Progression: ${student.Progression ? student.Progression.length : 'NO'}`)
                 ),
 
                 message && e('div', { className: 'mb-4' },
