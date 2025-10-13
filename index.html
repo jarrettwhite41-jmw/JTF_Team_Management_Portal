@@ -265,14 +265,14 @@
             // These methods interact with student profile and enrollment data
             // ===================================================================
 
-            // READ: Get comprehensive student profile data
-            async getStudentProfile(personnelId) {
-                return this.callServerFunction('getStudentProfile', personnelId);
+            // READ: Get comprehensive student profile data (uses StudentID from StudentInfo table)
+            async getStudentProfile(studentId) {
+                return this.callServerFunction('getStudentProfileData', studentId);
             }
 
-            // READ: Get all students for dropdown selection
+            // READ: Get all students with full details (joins StudentInfo + Personnel)
             async getAllStudents() {
-                return this.callServerFunction('getAllStudents');
+                return this.callServerFunction('getAllStudentsWithDetails');
             }
 
             // READ: Get active class offerings for enrollment
@@ -420,7 +420,7 @@
                             className: 'mr-4 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors'
                         }, '← Back'),
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 
-                            `${student.FirstName} ${student.Lastname} - Student Profile`
+                            `${student.FirstName || ''} ${student.Lastname || ''} - Student Profile`
                         )
                     )
                 ),
@@ -441,7 +441,7 @@
                         e('div', { className: 'space-y-3' },
                             e('div', null,
                                 e('label', { className: 'text-sm font-medium text-gray-600' }, 'Email'),
-                                e('p', { className: 'text-gray-900' }, student.PrimaryEmail)
+                                e('p', { className: 'text-gray-900' }, student.PrimaryEmail || 'Not provided')
                             ),
                             e('div', null,
                                 e('label', { className: 'text-sm font-medium text-gray-600' }, 'Phone'),
@@ -453,11 +453,19 @@
                                     student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'Not provided'
                                 )
                             ),
-                            student.StudentInfo && e('div', null,
+                            student.EnrollmentDate && e('div', null,
                                 e('label', { className: 'text-sm font-medium text-gray-600' }, 'Student Since'),
                                 e('p', { className: 'text-gray-900' }, 
-                                    student.StudentInfo.StartDate ? new Date(student.StudentInfo.StartDate).toLocaleDateString() : 'Unknown'
+                                    new Date(student.EnrollmentDate).toLocaleDateString()
                                 )
+                            ),
+                            student.StudentStatus && e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Status'),
+                                e('p', { className: 'text-gray-900' }, student.StudentStatus)
+                            ),
+                            student.CurrentLevel && e('div', null,
+                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Current Level'),
+                                e('p', { className: 'text-gray-900' }, `Level ${student.CurrentLevel}`)
                             )
                         )
                     ),
@@ -468,17 +476,26 @@
                         student.Enrollments && student.Enrollments.length > 0 ? 
                             e('div', { className: 'space-y-3' },
                                 student.Enrollments
-                                    .filter(e => e.Status === 'Active')
+                                    .filter(e => e.Status === 'Active' || e.Status === 'Enrolled' || e.Status === 'In Progress')
                                     .map((enrollment, index) =>
                                         e('div', { 
                                             key: index,
                                             className: 'p-3 bg-green-50 rounded-lg border border-green-200'
                                         },
                                             e('p', { className: 'font-medium text-green-800' }, 
-                                                `Class ID: ${enrollment.OfferingID}`
+                                                enrollment.ClassLevelName || `Class Offering ${enrollment.OfferingID}`
+                                            ),
+                                            enrollment.TeacherName && e('p', { className: 'text-sm text-green-700' }, 
+                                                `Teacher: ${enrollment.TeacherName}`
+                                            ),
+                                            enrollment.VenueOrRoom && e('p', { className: 'text-sm text-green-600' }, 
+                                                `Location: ${enrollment.VenueOrRoom}`
                                             ),
                                             e('p', { className: 'text-sm text-green-600' }, 
                                                 `Enrolled: ${enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString() : 'Unknown'}`
+                                            ),
+                                            enrollment.StartDate && e('p', { className: 'text-xs text-green-500' }, 
+                                                `${new Date(enrollment.StartDate).toLocaleDateString()}${enrollment.EndDate ? ' - ' + new Date(enrollment.EndDate).toLocaleDateString() : ''}`
                                             )
                                         )
                                     )
@@ -489,18 +506,26 @@
                     // Class Progression
                     e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
                         e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Class Progression'),
-                        student.ClassProgression && student.ClassProgression.length > 0 ?
+                        student.Progression && student.Progression.length > 0 ?
                             e('div', { className: 'space-y-2' },
-                                student.ClassProgression.map((progression, index) =>
+                                student.Progression.map((progression, index) =>
                                     e('div', { 
                                         key: index,
-                                        className: 'p-2 bg-blue-50 rounded border border-blue-200'
+                                        className: `p-2 rounded border ${
+                                            progression.Status === 'Completed' 
+                                                ? 'bg-blue-50 border-blue-200' 
+                                                : 'bg-yellow-50 border-yellow-200'
+                                        }`
                                     },
-                                        e('p', { className: 'text-sm font-medium text-blue-800' }, 
-                                            `Level ${progression.CurrentLevel || 'Unknown'}`
+                                        e('p', { className: `text-sm font-medium ${
+                                            progression.Status === 'Completed' ? 'text-blue-800' : 'text-yellow-800'
+                                        }` }, 
+                                            progression.LevelName || `Level ${progression.ClassLevelID}`
                                         ),
-                                        progression.CompletionDate && e('p', { className: 'text-xs text-blue-600' }, 
-                                            `Completed: ${new Date(progression.CompletionDate).toLocaleDateString()}`
+                                        progression.CompletionDate && e('p', { className: `text-xs ${
+                                            progression.Status === 'Completed' ? 'text-blue-600' : 'text-yellow-600'
+                                        }` }, 
+                                            `${progression.Status === 'Completed' ? 'Completed' : 'Started'}: ${new Date(progression.CompletionDate).toLocaleDateString()}`
                                         )
                                     )
                                 )
@@ -516,7 +541,8 @@
                         e('table', { className: 'min-w-full divide-y divide-gray-200' },
                             e('thead', { className: 'bg-gray-50' },
                                 e('tr', null,
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Class ID'),
+                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Class'),
+                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Teacher'),
                                     e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Enrollment Date'),
                                     e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status')
                                 )
@@ -524,14 +550,19 @@
                             e('tbody', { className: 'bg-white divide-y divide-gray-200' },
                                 student.Enrollments.map((enrollment, index) =>
                                     e('tr', { key: index },
-                                        e('td', { className: 'px-4 py-2 text-sm text-gray-900' }, enrollment.OfferingID),
+                                        e('td', { className: 'px-4 py-2 text-sm text-gray-900' }, 
+                                            enrollment.ClassLevelName || `Offering ${enrollment.OfferingID}`
+                                        ),
+                                        e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
+                                            enrollment.TeacherName || 'N/A'
+                                        ),
                                         e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
                                             enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString() : 'Unknown'
                                         ),
                                         e('td', { className: 'px-4 py-2' },
                                             e('span', { 
                                                 className: `inline-block px-2 py-1 text-xs rounded-full ${
-                                                    enrollment.Status === 'Active' ? 'bg-green-100 text-green-800' :
+                                                    enrollment.Status === 'Active' || enrollment.Status === 'Enrolled' || enrollment.Status === 'In Progress' ? 'bg-green-100 text-green-800' :
                                                     enrollment.Status === 'Completed' ? 'bg-blue-100 text-blue-800' :
                                                     'bg-gray-100 text-gray-800'
                                                 }`
@@ -1381,9 +1412,9 @@
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
                         filteredStudents.map(student =>
                             e('div', {
-                                key: student.PersonnelID,
+                                key: student.StudentID || student.PersonnelID,
                                 className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
-                                onClick: () => onNavigateToStudent && onNavigateToStudent(student.PersonnelID)
+                                onClick: () => onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID)
                             },
                                 e('div', { className: 'flex items-center space-x-3 mb-3' },
                                     e('div', { className: 'w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold' },
@@ -1404,7 +1435,7 @@
                                     className: 'mt-3 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors',
                                     onClick: (e) => { 
                                         e.stopPropagation(); 
-                                        onNavigateToStudent && onNavigateToStudent(student.PersonnelID); 
+                                        onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID); 
                                     }
                                 }, 'View Profile')
                             )
