@@ -8,28 +8,55 @@ import { Shows } from './pages/Shows';
 import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
 import { StudentProfile } from './pages/StudentProfile';
+import { StudentDirectory } from './pages/StudentDirectory';
 import { PageType } from './types';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [activeDirectoryTab, setActiveDirectoryTab] = useState<'personnel' | 'students'>('personnel');
 
   const handleNavigateToStudentProfile = (studentId: number) => {
     setSelectedStudentId(studentId);
     setCurrentPage('student-profile');
   };
 
-  const handleBackToPersonnel = () => {
+  const handleBackToDirectory = () => {
     setSelectedStudentId(null);
-    setCurrentPage('personnel');
+    setCurrentPage(activeDirectoryTab === 'students' ? 'student-directory' : 'personnel');
   };
+
+  const renderDirectoryTabs = () => (
+    <div className="flex space-x-2 mb-6 px-6 pt-6">
+      <button
+        className={`px-4 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors ${activeDirectoryTab === 'personnel' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        onClick={() => { setActiveDirectoryTab('personnel'); setCurrentPage('personnel'); }}
+      >
+        Personnel
+      </button>
+      <button
+        className={`px-4 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors ${activeDirectoryTab === 'students' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+        onClick={() => { setActiveDirectoryTab('students'); setCurrentPage('student-directory'); }}
+      >
+        Students
+      </button>
+    </div>
+  );
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
       case 'personnel':
-        return <PersonnelDirectory onNavigateToStudent={handleNavigateToStudentProfile} />;
+        return <>
+          {renderDirectoryTabs()}
+          <PersonnelDirectory />
+        </>;
+      case 'student-directory':
+        return <>
+          {renderDirectoryTabs()}
+          <StudentDirectory onNavigateToStudent={handleNavigateToStudentProfile} />
+        </>;
       case 'cast':
         return <CastDirectory />;
       case 'classes':
@@ -44,8 +71,8 @@ const App: React.FC = () => {
         return selectedStudentId ? 
           <StudentProfile 
             studentId={selectedStudentId} 
-            onBack={handleBackToPersonnel}
-          /> : <PersonnelDirectory onNavigateToStudent={handleNavigateToStudentProfile} />;
+            onBack={handleBackToDirectory}
+          /> : <StudentDirectory onNavigateToStudent={handleNavigateToStudentProfile} />;
       default:
         return <Dashboard />;
     }
