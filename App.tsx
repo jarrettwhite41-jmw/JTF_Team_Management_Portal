@@ -7,17 +7,29 @@ import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
 import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
+import { StudentProfile } from './pages/StudentProfile';
 import { PageType } from './types';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+
+  const handleNavigateToStudentProfile = (studentId: number) => {
+    setSelectedStudentId(studentId);
+    setCurrentPage('student-profile');
+  };
+
+  const handleBackToPersonnel = () => {
+    setSelectedStudentId(null);
+    setCurrentPage('personnel');
+  };
 
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard />;
       case 'personnel':
-        return <PersonnelDirectory />;
+        return <PersonnelDirectory onNavigateToStudent={handleNavigateToStudentProfile} />;
       case 'cast':
         return <CastDirectory />;
       case 'classes':
@@ -28,6 +40,12 @@ const App: React.FC = () => {
         return <InventoryPage />;
       case 'scheduling':
         return <Scheduling />;
+      case 'student-profile':
+        return selectedStudentId ? 
+          <StudentProfile 
+            studentId={selectedStudentId} 
+            onBack={handleBackToPersonnel}
+          /> : <PersonnelDirectory onNavigateToStudent={handleNavigateToStudentProfile} />;
       default:
         return <Dashboard />;
     }

@@ -131,6 +131,43 @@ export interface CalendarEvent {
   details: ShowWithDetails | ClassWithDetails;
 }
 
+// Student-Specific Types for Student Profile Module
+export interface StudentInfo {
+  StudentID: number;
+  PersonnelID: number;
+  EnrollmentDate: Date | string;
+  Status: 'Active' | 'Inactive' | 'Graduated';
+  EmergencyContactName?: string;
+  EmergencyContactPhone?: string;
+  Notes?: string;
+}
+
+export interface ClassLevelProgression {
+  ProgressionID: number;
+  StudentID: number;
+  ClassLevelID: number;
+  CompletionDate: Date | string;
+  Status: 'Completed' | 'In Progress' | 'Not Started';
+  Grade?: string;
+  Notes?: string;
+}
+
+export interface StudentProfile extends PersonnelWithDetails {
+  StudentInfo?: StudentInfo;
+  Enrollments: StudentEnrollments[];
+  ClassProgression: ClassLevelProgression[];
+  CompletedClasses: ClassWithDetails[];
+  CurrentClasses: ClassWithDetails[];
+}
+
+export interface EnrollmentWithDetails extends StudentEnrollments {
+  ClassName?: string;
+  TeacherName?: string;
+  LevelName?: string;
+  StartDate?: Date | string;
+  EndDate?: Date | string;
+}
+
 // Modal Types
 export type ModalMode = 'view' | 'edit' | 'create';
 
@@ -148,7 +185,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;

@@ -11,7 +11,8 @@ import {
   CrewDutyTypes,
   DashboardStats,
   ApiResponse,
-  CastMemberWithDetails
+  CastMemberWithDetails,
+  StudentProfile
 } from '../types';
 
 // Mock data for development
@@ -143,6 +144,51 @@ class GoogleAppsScriptService {
                 activeClasses: mockClasses.length
               };
               break;
+            case 'getStudentProfile':
+              const studentId = args[0];
+              const student = mockPersonnel.find(p => p.PersonnelID === studentId);
+              if (student) {
+                data = {
+                  ...student,
+                  isStudent: true,
+                  StudentInfo: {
+                    StudentID: studentId,
+                    PersonnelID: studentId,
+                    EnrollmentDate: "2024-01-15",
+                    Status: "Active"
+                  },
+                  Enrollments: [
+                    {
+                      EnrollmentID: 1,
+                      OfferingID: 1,
+                      StudentPersonnelID: studentId,
+                      EnrollmentDate: "2024-01-15",
+                      Status: "Active"
+                    }
+                  ],
+                  ClassProgression: [
+                    {
+                      ProgressionID: 1,
+                      StudentID: studentId,
+                      ClassLevelID: 1,
+                      CompletionDate: "2024-03-15",
+                      Status: "Completed"
+                    }
+                  ]
+                };
+              } else {
+                throw new Error('Student not found');
+              }
+              break;
+            case 'getAllStudents':
+              data = mockPersonnel.filter(p => p.PersonnelID <= 2); // Mock: first 2 are students
+              break;
+            case 'getActiveClassOfferings':
+              data = mockClasses;
+              break;
+            case 'enrollStudent':
+              data = { success: true, message: 'Student enrolled successfully' };
+              break;
             case 'createPersonnel':
             case 'updatePersonnel':
               data = args[0];
@@ -268,6 +314,23 @@ class GoogleAppsScriptService {
   // Dashboard methods
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     return this.callServerFunction<DashboardStats>('getDashboardStats');
+  }
+
+  // Student management methods
+  async getStudentProfile(personnelId: number): Promise<ApiResponse<StudentProfile>> {
+    return this.callServerFunction<StudentProfile>('getStudentProfile', personnelId);
+  }
+
+  async getAllStudents(): Promise<ApiResponse<Personnel[]>> {
+    return this.callServerFunction<Personnel[]>('getAllStudents');
+  }
+
+  async getActiveClassOfferings(): Promise<ApiResponse<ClassOfferings[]>> {
+    return this.callServerFunction<ClassOfferings[]>('getActiveClassOfferings');
+  }
+
+  async enrollStudent(studentId: number, offeringId: number): Promise<ApiResponse<boolean>> {
+    return this.callServerFunction<boolean>('enrollStudent', studentId, offeringId);
   }
 }
 

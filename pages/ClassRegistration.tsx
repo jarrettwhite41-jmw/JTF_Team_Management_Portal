@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { ClassCard } from '../components/classes/ClassCard';
 import { StudentCard } from '../components/classes/StudentCard';
+import { PersonnelModal } from '../components/personnel/PersonnelModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { ClassWithDetails, PersonnelWithDetails } from '../types';
+import { ClassWithDetails, PersonnelWithDetails, Personnel } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 export const ClassRegistration: React.FC = () => {
@@ -15,6 +16,7 @@ export const ClassRegistration: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isNewStudentModalOpen, setIsNewStudentModalOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -31,18 +33,21 @@ export const ClassRegistration: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [classesResponse, personnelResponse] = await Promise.all([
-        gasService.getAllClasses(),
-        gasService.getAllPersonnel()
+      const [classesResponse, studentsResponse] = await Promise.all([
+        gasService.getActiveClassOfferings(),
+        gasService.getAllStudents()
       ]);
 
       if (classesResponse.success && classesResponse.data) {
         setClasses(classesResponse.data);
       }
 
-      if (personnelResponse.success && personnelResponse.data) {
-        // Filter for students only
-        const studentData = personnelResponse.data.filter(person => person.isStudent);
+      if (studentsResponse.success && studentsResponse.data) {
+        // Mark all as students and add the isStudent flag
+        const studentData = studentsResponse.data.map(student => ({
+          ...student,
+          isStudent: true
+        }));
         setStudents(studentData);
       }
     } catch (error) {
@@ -88,6 +93,21 @@ export const ClassRegistration: React.FC = () => {
     }
   };
 
+  const handleCreateNewStudent = async (personData: Omit<Personnel, 'PersonnelID'>) => {
+    try {
+      const response = await gasService.createPersonnel(personData);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'New student created successfully' });
+        setIsNewStudentModalOpen(false);
+        loadData(); // Refresh the student list
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to create student' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Error creating student' });
+    }
+  };
+
   if (isLoading) {
     return <Loader text="Loading classes and students..." />;
   }
@@ -126,11 +146,19 @@ export const ClassRegistration: React.FC = () => {
         <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Select Students</h2>
-            {selectedClass && (
-              <span className="text-sm text-gray-600">
-                Class: {selectedClass.LevelName || `Level ${selectedClass.ClassLevelID}`}
-              </span>
-            )}
+            <div className="flex items-center space-x-3">
+              {selectedClass && (
+                <span className="text-sm text-gray-600">
+                  Class: {selectedClass.LevelName || `Level ${selectedClass.ClassLevelID}`}
+                </span>
+              )}
+              <button
+                onClick={() => setIsNewStudentModalOpen(true)}
+                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+              >
+                + Add New Student
+              </button>
+            </div>
           </div>
 
           {selectedClass ? (
@@ -171,6 +199,17 @@ export const ClassRegistration: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* New Student Modal */}
+      <PersonnelModal
+        isOpen={isNewStudentModalOpen}
+        mode="create"
+        person={undefined}
+        onClose={() => setIsNewStudentModalOpen(false)}
+        onSave={handleCreateNewStudent}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />
     </div>
   );
 };

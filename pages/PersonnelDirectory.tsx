@@ -7,7 +7,11 @@ import { Message } from '../components/common/Message';
 import { Personnel, PersonnelWithDetails, ModalMode } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
-export const PersonnelDirectory: React.FC = () => {
+interface PersonnelDirectoryProps {
+  onNavigateToStudent?: (studentId: number) => void;
+}
+
+export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNavigateToStudent }) => {
   const [personnel, setPersonnel] = useState<PersonnelWithDetails[]>([]);
   const [filteredPersonnel, setFilteredPersonnel] = useState<PersonnelWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,6 +186,7 @@ export const PersonnelDirectory: React.FC = () => {
               key={person.PersonnelID}
               person={person}
               onClick={() => handlePersonClick(person)}
+              onNavigateToStudent={onNavigateToStudent}
             />
           ))}
         </div>

@@ -4,9 +4,10 @@ import { PersonnelWithDetails } from '../../types';
 interface PersonCardProps {
   person: PersonnelWithDetails;
   onClick: () => void;
+  onNavigateToStudent?: (studentId: number) => void;
 }
 
-export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick }) => {
+export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick, onNavigateToStudent }) => {
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
@@ -39,7 +40,7 @@ export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick }) => {
         </div>
       </div>
       
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1 mb-3">
         {getRoleBadges().map((role, index) => (
           <span
             key={index}
@@ -49,6 +50,19 @@ export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick }) => {
           </span>
         ))}
       </div>
+
+      {/* Student Profile Button */}
+      {person.isStudent && onNavigateToStudent && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent triggering the main onClick
+            onNavigateToStudent(person.PersonnelID);
+          }}
+          className="w-full mt-2 px-3 py-1 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+        >
+          📊 View Student Profile
+        </button>
+      )}
     </div>
   );
 };
