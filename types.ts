@@ -87,6 +87,21 @@ export interface PersonnelWithDetails extends Personnel {
   isDirector?: boolean;
 }
 
+export interface CastMemberWithDetails extends ShowPerformances {
+  // Person details
+  FullName?: string;
+  FirstName: string;
+  LastName: string;
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  PersonnelID?: number;
+  // Show details
+  ShowDate: string;
+  ShowTime: string;
+  Venue: string;
+  Status: string;
+}
+
 export interface ShowWithDetails extends ShowInformation {
   DirectorName?: string;
   ShowTypeName?: string;
@@ -134,7 +149,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'classes' | 'shows' | 'inventory' | 'scheduling';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling';
 
 export interface NavigationItem {
   id: PageType;

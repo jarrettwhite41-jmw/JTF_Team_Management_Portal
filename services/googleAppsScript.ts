@@ -10,7 +10,8 @@ import {
   ClassLevels,
   CrewDutyTypes,
   DashboardStats,
-  ApiResponse 
+  ApiResponse,
+  CastMemberWithDetails
 } from '../types';
 
 // Mock data for development
@@ -224,6 +225,10 @@ class GoogleAppsScriptService {
   // Show casting methods
   async getShowPerformances(showId: number): Promise<ApiResponse<ShowPerformances[]>> {
     return this.callServerFunction<ShowPerformances[]>('getShowPerformances', showId);
+  }
+
+  async getAllCastMembers(): Promise<ApiResponse<CastMemberWithDetails[]>> {
+    return this.callServerFunction<CastMemberWithDetails[]>('getAllCastMembers');
   }
 
   async updateShowCast(showId: number, castMembers: ShowPerformances[]): Promise<ApiResponse<boolean>> {

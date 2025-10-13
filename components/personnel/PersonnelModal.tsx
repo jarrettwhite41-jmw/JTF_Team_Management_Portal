@@ -122,7 +122,7 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
                     required
                   />
                 ) : (
-                  <p className="py-2 text-gray-900">{formData.LastName}</p>
+                  <p className="py-2 text-gray-900">{formData.Lastname}</p>
                 )}
               </div>
 

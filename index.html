@@ -179,6 +179,16 @@
             }
 
             // ===================================================================
+            // CAST CRUD API METHODS  
+            // These methods interact with cast member data from ShowPerformances sheet
+            // ===================================================================
+            
+            // READ: Get all cast members with show details
+            async getAllCastMembers() {
+                return this.callServerFunction('getAllCastMembers');
+            }
+
+            // ===================================================================
             // SHOW CRUD API METHODS  
             // These methods interact with the ShowInformation sheet in Google Sheets
             // ===================================================================
@@ -330,6 +340,52 @@
                         e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.Lastname}`),
                         e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
                     )
+                )
+            );
+        }
+
+        // CastCard Component
+        function CastCard({ castMember, onClick }) {
+            const getInitials = (firstName, lastName) => {
+                const first = (firstName || '').trim();
+                const last = (lastName || '').trim();
+                const firstInitial = first.length > 0 ? first.charAt(0) : '';
+                const lastInitial = last.length > 0 ? last.charAt(0) : '';
+                return `${firstInitial}${lastInitial}`.toUpperCase() || '??';
+            };
+
+            const formatDate = (dateString) => {
+                if (!dateString) return 'TBD';
+                try {
+                    return new Date(dateString).toLocaleDateString();
+                } catch {
+                    return dateString;
+                }
+            };
+
+            return e('div', {
+                onClick: onClick,
+                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+            },
+                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                    e('div', { className: 'w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold' },
+                        getInitials(castMember.FirstName, castMember.LastName)
+                    ),
+                    e('div', { className: 'flex-1' },
+                        e('h3', { className: 'font-semibold text-gray-900' }, 
+                            castMember.FullName || `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
+                        ),
+                        e('p', { className: 'text-sm text-purple-600 font-medium' }, castMember.Role || 'No role assigned')
+                    )
+                ),
+                e('div', { className: 'space-y-1 text-sm text-gray-600' },
+                    e('p', null, `Show Date: ${formatDate(castMember.ShowDate)}`),
+                    e('p', null, `Venue: ${castMember.Venue || 'TBD'}`),
+                    castMember.Status && e('span', { 
+                        className: `inline-block px-2 py-1 text-xs rounded-full ${
+                            castMember.Status === 'Scheduled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`
+                    }, castMember.Status)
                 )
             );
         }
@@ -806,13 +862,187 @@
             );
         }
 
+        // Cast Directory Component
+        // READS FROM: ShowPerformances, Personnel, and ShowInformation sheets via getAllCastMembers()
+        function CastDirectory() {
+            const [castMembers, setCastMembers] = useState([]);
+            const [filteredCastMembers, setFilteredCastMembers] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCastMember, setSelectedCastMember] = useState(null);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadCastMembers();
+            }, []);
+
+            useEffect(() => {
+                const filtered = castMembers.filter(member =>
+                    `${member.FirstName} ${member.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    member.Role.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    member.Venue.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                setFilteredCastMembers(filtered);
+            }, [castMembers, searchTerm]);
+
+            const loadCastMembers = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllCastMembers();
+                    if (response.success && response.data && response.data.data) {
+                        setCastMembers(response.data.data);
+                        setMessage(null);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load cast members' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error loading cast member data' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleCastMemberClick = (castMember) => {
+                setSelectedCastMember(castMember);
+                setIsModalOpen(true);
+            };
+
+            const handleCloseModal = () => {
+                setIsModalOpen(false);
+                setSelectedCastMember(null);
+            };
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
+                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`)
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search by name, role, or venue...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading cast members...' }) :
+                message && message.type === 'error' ? (
+                    e('div', { className: 'mb-4' },
+                        e(Message, {
+                            type: 'error',
+                            message: message.text,
+                            onClose: () => setMessage(null)
+                        }),
+                        e('button', {
+                            onClick: loadCastMembers,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Retry')
+                    )
+                ) : filteredCastMembers.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8' },
+                        e('p', null, 'No cast members found.'),
+                        e('button', {
+                            onClick: loadCastMembers,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Reload')
+                    )
+                ) : (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filteredCastMembers.map((castMember) =>
+                            e(CastCard, {
+                                key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
+                                castMember: castMember,
+                                onClick: () => handleCastMemberClick(castMember)
+                            })
+                        )
+                    )
+                ),
+
+                // Simple cast member detail modal (view only for now)
+                selectedCastMember && e('div', { 
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: handleCloseModal
+                },
+                    e('div', { 
+                        className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto',
+                        onClick: (e) => e.stopPropagation()
+                    },
+                        e('div', { className: 'flex justify-between items-center mb-6' },
+                            e('h2', { className: 'text-xl font-semibold text-gray-900' }, 'Cast Member Details'),
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'text-gray-400 hover:text-gray-600 text-xl'
+                            }, '×')
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
+                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName} ${selectedCastMember.LastName}`)
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Role'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.Role)
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Date'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowDate ? new Date(selectedCastMember.ShowDate).toLocaleDateString() : 'TBD')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Time'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowTime || 'TBD')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Venue'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.Venue || 'TBD')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
+                                e('span', { 
+                                    className: `inline-block px-2 py-1 text-xs rounded-full ${
+                                        selectedCastMember.Status === 'Scheduled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`
+                                }, selectedCastMember.Status || 'Unknown')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryEmail || 'Not available')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Phone'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryPhone || 'Not available')
+                            )
+                        ),
+                        e('div', { className: 'flex justify-end' },
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, 'Close')
+                        )
+                    )
+                )
+            );
+        }
+
         // Sidebar Component
         function Sidebar({ currentPage, onNavigate }) {
             const navigationItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '📊' },
                 { id: 'personnel', label: 'Personnel', icon: '👥' },
-                { id: 'classes', label: 'Classes', icon: '🎭' },
-                { id: 'shows', label: 'Shows', icon: '🎪' },
+                { id: 'cast', label: 'Cast', icon: '🎭' },
+                { id: 'classes', label: 'Classes', icon: '🎓' },
+                { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
                 { id: 'scheduling', label: 'Schedule', icon: '📅' }
             ];
@@ -889,6 +1119,8 @@
                         return e(Dashboard);
                     case 'personnel':
                         return e(PersonnelDirectory);
+                    case 'cast':
+                        return e(CastDirectory);
                     case 'classes':
                         return e(ClassRegistration);
                     case 'shows':
