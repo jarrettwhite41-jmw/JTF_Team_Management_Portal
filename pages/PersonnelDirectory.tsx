@@ -151,6 +151,30 @@ export const PersonnelDirectory: React.FC = () => {
 
       {isLoading ? (
         <Loader text="Loading personnel..." />
+      ) : message && message.type === 'error' ? (
+        <div className="mb-4">
+          <Message
+            type="error"
+            message={message.text}
+            onClose={() => setMessage(null)}
+          />
+          <button
+            onClick={loadPersonnel}
+            className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : filteredPersonnel.length === 0 ? (
+        <div className="text-center text-gray-500 mt-8">
+          <p>No personnel records found.</p>
+          <button
+            onClick={loadPersonnel}
+            className="mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Reload
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredPersonnel.map((person) => (
@@ -169,6 +193,8 @@ export const PersonnelDirectory: React.FC = () => {
         person={selectedPerson || undefined}
         onClose={handleCloseModal}
         onSave={handleSavePerson}
+        onEdit={handleEditPerson}
+        onDelete={handleDeletePerson}
       />
 
       <ConfirmationModal

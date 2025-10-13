@@ -72,77 +72,63 @@
 
     <script type="text/babel">
         // Google Apps Script Service
-        const isDevelopment = typeof google === 'undefined' || !google.script;
+        // This service handles all CRUD operations between the frontend and Google Sheets database
+        
+        // Environment detection - check if we're in Google Apps Script environment
+        let isDevelopment = true; // Default to development mode
+        
+        try {
+            // Check if we're actually in a Google Apps Script environment
+            if (typeof google !== 'undefined' && 
+                google.script && 
+                typeof google.script.run !== 'undefined' &&
+                window.location.hostname.includes('script.google.com')) {
+                isDevelopment = false; // We're in a real Google Apps Script environment
+            }
+        } catch (e) {
+            // If any error occurs, stay in development mode
+            isDevelopment = true;
+        }
+
+        // DEBUG: Log the environment detection
+        console.log('=== ENVIRONMENT DETECTION ===');
+        console.log('typeof google:', typeof google);
+        console.log('google exists:', typeof google !== 'undefined');
+        console.log('google.script exists:', typeof google !== 'undefined' && !!google.script);
+        console.log('hostname:', window.location.hostname);
+        console.log('isDevelopment:', isDevelopment);
+        
+        // Force production mode to use Google Sheets data
+        isDevelopment = false;
+        
+        console.log('Final isDevelopment (forced to use real data):', isDevelopment);
+        console.log('================================');
 
         class GoogleAppsScriptService {
-            // Mock data for development
-            mockPersonnel = [
-                {
-                    PersonnelID: 1,
-                    FirstName: "John",
-                    LastName: "Doe",
-                    PrimaryEmail: "john.doe@email.com",
-                    PrimaryPhone: "555-0123",
-                    Instagram: "@johndoe",
-                    Birthday: "1990-01-15"
-                },
-                {
-                    PersonnelID: 2,
-                    FirstName: "Jane",
-                    LastName: "Smith",
-                    PrimaryEmail: "jane.smith@email.com",
-                    PrimaryPhone: "555-0124",
-                    Instagram: "@janesmith",
-                    Birthday: "1988-06-22"
-                }
-            ];
-
-            mockShows = [
-                {
-                    ShowID: 1,
-                    ShowDate: "2024-12-15",
-                    ShowTime: "19:30",
-                    ShowTypeID: 1,
-                    DirectorID: 1,
-                    Venue: "Main Theater",
-                    Status: "Scheduled"
-                }
-            ];
-
-            mockClasses = [
-                {
-                    OfferingID: 1,
-                    ClassLevelID: 1,
-                    StartDate: "2024-11-01",
-                    EndDate: "2024-12-20",
-                    TeacherPersonnelID: 2,
-                    VenueOrRoom: "Studio A",
-                    MaxStudents: 12,
-                    Status: "Open"
-                }
-            ];
-
-            mockInventory = [
-                {
-                    ItemID: 1,
-                    ItemName: "Microphone",
-                    Category: "Audio Equipment",
-                    Quantity: 5,
-                    Location: "Storage Room A",
-                    Notes: "Wireless mics for performances"
-                }
-            ];
-
+            // ===================================================================
+            // GOOGLE APPS SCRIPT COMMUNICATION METHOD
+            // This method routes all CRUD operations to Google Apps Script functions  
+            // Now connects directly to your Google Sheets database
+            // ===================================================================
             async callServerFunction(functionName, ...args) {
-                if (isDevelopment) {
-                    return this.getMockData(functionName, ...args);
-                }
-
+                console.log(`=== callServerFunction called ===`);
+                console.log(`Calling ${functionName} with args:`, args);
+                console.log('isDevelopment:', isDevelopment);
+                
+                // Force Google Apps Script usage - no more mock data
+                console.log('Making real Apps Script call to', functionName);
+                
                 try {
                     const result = await new Promise((resolve, reject) => {
                         google.script.run
-                            .withSuccessHandler(resolve)
-                            .withFailureHandler(reject)
+                            .withSuccessHandler((result) => {
+                                console.log(`${functionName} success:`, result);
+                                resolve(result);
+                            })
+                            .withFailureHandler((error) => {
+                                console.error(`${functionName} error:`, error);
+                                reject(error);
+                            })
                             [functionName](...args);
                     });
 
@@ -153,97 +139,123 @@
                 }
             }
 
-            getMockData(functionName, ...args) {
-                return new Promise(resolve => {
-                    setTimeout(() => {
-                        try {
-                            let data;
-                            
-                            switch (functionName) {
-                                case 'getAllPersonnel':
-                                    data = this.mockPersonnel;
-                                    break;
-                                case 'getAllShows':
-                                    data = this.mockShows;
-                                    break;
-                                case 'getAllClasses':
-                                    data = this.mockClasses;
-                                    break;
-                                case 'getAllInventory':
-                                    data = this.mockInventory;
-                                    break;
-                                case 'getDashboardStats':
-                                    data = {
-                                        totalPersonnel: this.mockPersonnel.length,
-                                        activeStudents: 25,
-                                        upcomingShows: this.mockShows.length,
-                                        activeClasses: this.mockClasses.length
-                                    };
-                                    break;
-                                case 'createPersonnel':
-                                case 'updatePersonnel':
-                                    data = args[0];
-                                    break;
-                                case 'deletePersonnel':
-                                    data = { deleted: true };
-                                    break;
-                                default:
-                                    data = [];
-                            }
-                            
-                            resolve({ success: true, data });
-                        } catch (error) {
-                            resolve({ success: false, error: error.toString() });
-                        }
-                    }, 500);
-                });
-            }
-
-            // API Methods
+            // ===================================================================
+            // PERSONNEL CRUD API METHODS
+            // These methods interact with the Personnel sheet in Google Sheets
+            // ===================================================================
+            
+            // READ: Get all personnel records from Personnel sheet
             async getAllPersonnel() {
                 return this.callServerFunction('getAllPersonnel');
             }
 
+            // CREATE: Add new person to Personnel sheet (PersonnelID auto-generated)
             async createPersonnel(personnel) {
                 return this.callServerFunction('createPersonnel', personnel);
             }
 
+            // UPDATE: Modify existing person in Personnel sheet by PersonnelID
             async updatePersonnel(personnel) {
                 return this.callServerFunction('updatePersonnel', personnel);
             }
 
+            // DELETE: Remove person from Personnel sheet by PersonnelID
             async deletePersonnel(personnelId) {
                 return this.callServerFunction('deletePersonnel', personnelId);
             }
 
+            // ===================================================================
+            // DEBUG METHOD - Test Google Sheets connection
+            // ===================================================================
+            
+            // DEBUG: Test the Personnel sheet connection and data
+            // Test basic connection
+            async testConnection() {
+                return this.callServerFunction('testConnection');
+            }
+
+            async debugPersonnelSheet() {
+                return this.callServerFunction('debugPersonnelSheet');
+            }
+
+            // ===================================================================
+            // CAST CRUD API METHODS  
+            // These methods interact with cast member data from ShowPerformances sheet
+            // ===================================================================
+            
+            // READ: Get all cast members with show details
+            async getAllCastMembers() {
+                return this.callServerFunction('getAllCastMembers');
+            }
+
+            // ===================================================================
+            // SHOW CRUD API METHODS  
+            // These methods interact with the ShowInformation sheet in Google Sheets
+            // ===================================================================
+            
+            // READ: Get all show records from ShowInformation sheet
             async getAllShows() {
                 return this.callServerFunction('getAllShows');
             }
 
+            // ===================================================================
+            // CLASS CRUD API METHODS
+            // These methods interact with the ClassOfferings sheet in Google Sheets
+            // ===================================================================
+            
+            // READ: Get all class offering records from ClassOfferings sheet
             async getAllClasses() {
                 return this.callServerFunction('getAllClasses');
             }
 
+            // ===================================================================
+            // INVENTORY CRUD API METHODS
+            // These methods interact with the Inventory sheet in Google Sheets
+            // ===================================================================
+            
+            // READ: Get all inventory items from Inventory sheet
             async getAllInventory() {
                 return this.callServerFunction('getAllInventory');
             }
 
+            // ===================================================================
+            // DASHBOARD STATISTICS API METHOD
+            // This method reads from multiple sheets to calculate dashboard stats
+            // READS FROM: Personnel, ShowInformation, ClassOfferings, StudentEnrollments sheets
+            // ===================================================================
+            
+            // READ: Calculate aggregated statistics from multiple sheets
             async getDashboardStats() {
                 return this.callServerFunction('getDashboardStats');
             }
 
+            // ===================================================================
+            // ENROLLMENT CRUD API METHODS
+            // These methods interact with the StudentEnrollments sheet in Google Sheets
+            // ===================================================================
+            
+            // CREATE: Add student enrollment records to StudentEnrollments sheet
+            // Links students (PersonnelID) to classes (OfferingID)
             async enrollStudents(offeringId, studentIds) {
                 return this.callServerFunction('enrollStudents', offeringId, studentIds);
             }
 
+            // ===================================================================
+            // INVENTORY ITEM CRUD API METHODS (FULL CRUD OPERATIONS)
+            // These methods provide complete Create, Read, Update, Delete for inventory
+            // ===================================================================
+            
+            // CREATE: Add new inventory item to Inventory sheet (ItemID auto-generated)
             async createInventoryItem(item) {
                 return this.callServerFunction('createInventoryItem', item);
             }
 
+            // UPDATE: Modify existing inventory item in Inventory sheet by ItemID
             async updateInventoryItem(item) {
                 return this.callServerFunction('updateInventoryItem', item);
             }
 
+            // DELETE: Remove inventory item from Inventory sheet by ItemID
             async deleteInventoryItem(itemId) {
                 return this.callServerFunction('deleteInventoryItem', itemId);
             }
@@ -322,27 +334,74 @@
             },
                 e('div', { className: 'flex items-center space-x-3 mb-3' },
                     e('div', { className: 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold' },
-                        getInitials(person.FirstName, person.LastName)
+                        getInitials(person.FirstName, person.Lastname)
                     ),
                     e('div', null,
-                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.Lastname}`),
                         e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
                     )
                 )
             );
         }
 
-        // PersonnelModal Component
-        function PersonnelModal({ isOpen, mode, person, onClose, onSave }) {
+        // CastCard Component
+        function CastCard({ castMember, onClick }) {
+            const getInitials = (firstName, lastName) => {
+                const first = (firstName || '').trim();
+                const last = (lastName || '').trim();
+                const firstInitial = first.length > 0 ? first.charAt(0) : '';
+                const lastInitial = last.length > 0 ? last.charAt(0) : '';
+                return `${firstInitial}${lastInitial}`.toUpperCase() || '??';
+            };
+
+            const formatDate = (dateString) => {
+                if (!dateString) return 'TBD';
+                try {
+                    return new Date(dateString).toLocaleDateString();
+                } catch {
+                    return dateString;
+                }
+            };
+
+            return e('div', {
+                onClick: onClick,
+                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+            },
+                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                    e('div', { className: 'w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold' },
+                        getInitials(castMember.FirstName, castMember.Lastname)
+                    ),
+                    e('div', { className: 'flex-1' },
+                        e('h3', { className: 'font-semibold text-gray-900' }, 
+                            `${castMember.FirstName || ''} ${castMember.Lastname || ''}`.trim() || 'Unknown Name'
+                        ),
+                        e('p', { className: 'text-sm text-gray-600' }, castMember.PrimaryEmail || 'No email')
+                    )
+                ),
+                e('div', { className: 'space-y-1 text-sm text-gray-600' },
+                    e('p', null, `Last Show: ${formatDate(castMember.LastShowDate)}`),
+                    e('p', null, `Phone: ${castMember.PrimaryPhone || 'No phone'}`),
+                    e('p', null, `Birthday: ${formatDate(castMember.Birthday)}`),
+                    castMember.Status && e('span', { 
+                        className: `inline-block px-2 py-1 text-xs rounded-full ${
+                            castMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`
+                    }, castMember.Status)
+                )
+            );
+        }
+
+        // PersonnelModal Component - FIXED VERSION
+        function PersonnelModal({ isOpen, mode, person, onClose, onSave, onEdit, onDelete }) {
             const [formData, setFormData] = useState({
                 FirstName: '',
-                LastName: '',
+                Lastname: '',
                 PrimaryEmail: '',
                 PrimaryPhone: '',
                 Instagram: '',
                 Birthday: ''
             });
-            const [isLoading, setIsLoading] = useState(false);
+            const [isLoading, setIsLoading] = useState(false); // FIXED: Added missing isLoading state
 
             useEffect(() => {
                 if (person) {
@@ -350,7 +409,7 @@
                 } else {
                     setFormData({
                         FirstName: '',
-                        LastName: '',
+                        Lastname: '',
                         PrimaryEmail: '',
                         PrimaryPhone: '',
                         Instagram: '',
@@ -416,12 +475,12 @@
                                 isEditable ? 
                                 e('input', {
                                     type: 'text',
-                                    value: formData.LastName || '',
-                                    onChange: (e) => handleInputChange('LastName', e.target.value),
+                                    value: formData.Lastname || '',
+                                    onChange: (e) => handleInputChange('Lastname', e.target.value),
                                     className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
                                     required: true
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.LastName)
+                                e('p', { className: 'py-2 text-gray-900' }, formData.Lastname)
                             ),
 
                             // Email
@@ -488,6 +547,22 @@
                                 className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
                             }, mode === 'view' ? 'Close' : 'Cancel'),
                             
+                            // Edit and Delete buttons for view mode
+                            mode === 'view' && person && [
+                                e('button', {
+                                    key: 'edit',
+                                    type: 'button',
+                                    onClick: onEdit,
+                                    className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+                                }, 'Edit'),
+                                e('button', {
+                                    key: 'delete',
+                                    type: 'button',
+                                    onClick: onDelete,
+                                    className: 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors'
+                                }, 'Delete')
+                            ],
+                            
                             isEditable && e('button', {
                                 type: 'submit',
                                 disabled: isLoading,
@@ -500,6 +575,8 @@
         }
 
         // Dashboard Component
+        // READS FROM: Multiple Google Sheets via getDashboardStats()
+        // DATA SOURCES: Personnel, ShowInformation, ClassOfferings, StudentEnrollments sheets
         function Dashboard() {
             const [stats, setStats] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
@@ -510,6 +587,8 @@
 
             const loadDashboardData = async () => {
                 try {
+                    // READ: Fetch aggregated statistics from multiple Google Sheets
+                    // Data comes from: Personnel, ShowInformation, ClassOfferings, StudentEnrollments
                     const response = await gasService.getDashboardStats();
                     if (response.success && response.data) {
                         setStats(response.data);
@@ -580,6 +659,8 @@
         }
 
         // PersonnelDirectory Component
+        // FULL CRUD OPERATIONS: Create, Read, Update, Delete personnel records
+        // DATA SOURCE: Personnel sheet (PersonnelID, FirstName, Lastname, PrimaryEmail, etc.)
         function PersonnelDirectory() {
             const [personnel, setPersonnel] = useState([]);
             const [filteredPersonnel, setFilteredPersonnel] = useState([]);
@@ -596,7 +677,7 @@
 
             useEffect(() => {
                 const filtered = personnel.filter(person =>
-                    `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    `${person.FirstName} ${person.Lastname}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
                 );
                 setFilteredPersonnel(filtered);
@@ -604,15 +685,59 @@
 
             const loadPersonnel = async () => {
                 setIsLoading(true);
+                console.log('Loading personnel...');
+                console.log('isDevelopment:', isDevelopment);
+                console.log('gasService:', gasService);
+                
                 try {
+                    // STEP 1: First run debug function to test connection
+                    console.log('=== RUNNING DEBUG TEST ===');
+                    const debugResponse = await gasService.debugPersonnelSheet();
+                    console.log('Debug response:', debugResponse);
+                    
+                    if (debugResponse && !debugResponse.success) {
+                        setMessage({ 
+                            type: 'error', 
+                            text: `Debug failed: ${debugResponse.error}. Available sheets: ${debugResponse.availableSheets?.join(', ') || 'unknown'}` 
+                        });
+                        return;
+                    }
+                    
+                    if (debugResponse && debugResponse.success) {
+                        console.log('✓ Debug test passed! Sheet details:', {
+                            dimensions: debugResponse.dimensions,
+                            headers: debugResponse.headers,
+                            sampleData: debugResponse.sampleData
+                        });
+                    }
+                    
+                    // STEP 2: Now try the regular getAllPersonnel function
+                    console.log('=== RUNNING REGULAR getAllPersonnel ===');
                     const response = await gasService.getAllPersonnel();
-                    if (response.success && response.data) {
+                    console.log('Personnel response:', response);
+                    console.log('Response type:', typeof response);
+                    console.log('Response.success:', response.success);
+                    console.log('Response.data:', response.data);
+                    
+                    if (response && response.success && response.data) {
                         setPersonnel(response.data);
+                        console.log('Personnel data loaded:', response.data.length, 'records');
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
+                        console.error('Personnel loading failed. Full response:', response);
+                        let errorMsg = 'Failed to load personnel from Google Sheets';
+                        
+                        if (response && response.success && response.data === null) {
+                            errorMsg = 'getAllPersonnel returned null. Check the getAllPersonnel function in Code.gs for errors.';
+                        } else if (response && !response.success) {
+                            errorMsg = `Google Apps Script error: ${response.error}`;
+                        }
+                        
+                        setMessage({ type: 'error', text: errorMsg });
                     }
                 } catch (error) {
-                    setMessage({ type: 'error', text: 'Error loading personnel data' });
+                    console.error('Personnel loading error:', error);
+                    console.error('Error stack:', error.stack);
+                    setMessage({ type: 'error', text: 'Error loading personnel data: ' + error.message });
                 } finally {
                     setIsLoading(false);
                 }
@@ -634,8 +759,10 @@
                 try {
                     let response;
                     if (modalMode === 'create') {
+                        // CREATE: Add new person to Personnel sheet with auto-generated PersonnelID
                         response = await gasService.createPersonnel(personData);
                     } else {
+                        // UPDATE: Modify existing person in Personnel sheet by PersonnelID
                         response = await gasService.updatePersonnel(personData);
                     }
 
@@ -644,6 +771,7 @@
                             type: 'success', 
                             text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
                         });
+                        // Reload personnel list to show changes
                         loadPersonnel();
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
@@ -656,6 +784,33 @@
             const handleCloseModal = () => {
                 setIsModalOpen(false);
                 setSelectedPerson(null);
+            };
+
+            const handleEditPerson = () => {
+                setModalMode('edit');
+            };
+
+            const handleDeletePerson = async () => {
+                if (selectedPerson) {
+                    const confirmDelete = confirm(`Are you sure you want to delete ${selectedPerson.FirstName} ${selectedPerson.Lastname}? This action cannot be undone.`);
+                    if (confirmDelete) {
+                        try {
+                            const response = await gasService.deletePersonnel(selectedPerson.PersonnelID);
+                            if (response.success) {
+                                setMessage({ type: 'success', text: 'Personnel deleted successfully' });
+                                // Reload personnel list to show changes
+                                loadPersonnel();
+                                // Close modal
+                                setIsModalOpen(false);
+                                setSelectedPerson(null);
+                            } else {
+                                setMessage({ type: 'error', text: response.error || 'Failed to delete personnel' });
+                            }
+                        } catch (error) {
+                            setMessage({ type: 'error', text: 'Error deleting personnel' });
+                        }
+                    }
+                }
             };
 
             return e('div', { className: 'p-6' },
@@ -701,8 +856,175 @@
                     mode: modalMode,
                     person: selectedPerson,
                     onClose: handleCloseModal,
-                    onSave: handleSavePerson
+                    onSave: handleSavePerson,
+                    onEdit: handleEditPerson,
+                    onDelete: handleDeletePerson
                 })
+            );
+        }
+
+        // Cast Directory Component
+        // READS FROM: ShowPerformances, Personnel, and ShowInformation sheets via getAllCastMembers()
+        function CastDirectory() {
+            const [castMembers, setCastMembers] = useState([]);
+            const [filteredCastMembers, setFilteredCastMembers] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCastMember, setSelectedCastMember] = useState(null);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [message, setMessage] = useState(null);
+
+            useEffect(() => {
+                loadCastMembers();
+            }, []);
+
+            useEffect(() => {
+                const filtered = castMembers.filter(member =>
+                    `${member.FirstName || ''} ${member.Lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                setFilteredCastMembers(filtered);
+            }, [castMembers, searchTerm]);
+
+            const loadCastMembers = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllCastMembers();
+                    if (response.success && response.data && response.data.data) {
+                        setCastMembers(response.data.data);
+                        setMessage(null);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load cast members' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error loading cast member data' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleCastMemberClick = (castMember) => {
+                setSelectedCastMember(castMember);
+                setIsModalOpen(true);
+            };
+
+            const handleCloseModal = () => {
+                setIsModalOpen(false);
+                setSelectedCastMember(null);
+            };
+
+            return e('div', { className: 'p-6' },
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
+                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`)
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search by name, email, or phone...',
+                        value: searchTerm,
+                        onChange: (e) => setSearchTerm(e.target.value),
+                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading cast members...' }) :
+                message && message.type === 'error' ? (
+                    e('div', { className: 'mb-4' },
+                        e(Message, {
+                            type: 'error',
+                            message: message.text,
+                            onClose: () => setMessage(null)
+                        }),
+                        e('button', {
+                            onClick: loadCastMembers,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Retry')
+                    )
+                ) : filteredCastMembers.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8' },
+                        e('p', null, 'No cast members found.'),
+                        e('button', {
+                            onClick: loadCastMembers,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Reload')
+                    )
+                ) : (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filteredCastMembers.map((castMember) =>
+                            e(CastCard, {
+                                key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
+                                castMember: castMember,
+                                onClick: () => handleCastMemberClick(castMember)
+                            })
+                        )
+                    )
+                ),
+
+                // Simple cast member detail modal (view only for now)
+                selectedCastMember && e('div', { 
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: handleCloseModal
+                },
+                    e('div', { 
+                        className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto',
+                        onClick: (e) => e.stopPropagation()
+                    },
+                        e('div', { className: 'flex justify-between items-center mb-6' },
+                            e('h2', { className: 'text-xl font-semibold text-gray-900' }, 'Cast Member Details'),
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'text-gray-400 hover:text-gray-600 text-xl'
+                            }, '×')
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
+                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.Lastname || ''}`.trim() || 'Unknown')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.LastShowDate && selectedCastMember.LastShowDate !== 'N/A' ? new Date(selectedCastMember.LastShowDate).toLocaleDateString() : 'N/A')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.Birthday ? new Date(selectedCastMember.Birthday).toLocaleDateString() : 'Not available')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
+                                e('span', { 
+                                    className: `inline-block px-2 py-1 text-xs rounded-full ${
+                                        selectedCastMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`
+                                }, selectedCastMember.Status || 'Unknown')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryEmail || 'Not available')
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Phone'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryPhone || 'Not available')
+                            )
+                        ),
+                        e('div', { className: 'flex justify-end' },
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, 'Close')
+                        )
+                    )
+                )
             );
         }
 
@@ -711,8 +1033,9 @@
             const navigationItems = [
                 { id: 'dashboard', label: 'Dashboard', icon: '📊' },
                 { id: 'personnel', label: 'Personnel', icon: '👥' },
-                { id: 'classes', label: 'Classes', icon: '🎭' },
-                { id: 'shows', label: 'Shows', icon: '🎪' },
+                { id: 'cast', label: 'Cast', icon: '🎭' },
+                { id: 'classes', label: 'Classes', icon: '🎓' },
+                { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
                 { id: 'scheduling', label: 'Schedule', icon: '📅' }
             ];
@@ -720,7 +1043,8 @@
             return e('div', { className: 'bg-white shadow-sm border-r h-full w-64 flex flex-col' },
                 e('div', { className: 'p-6 border-b' },
                     e('h1', { className: 'text-xl font-bold text-gray-900' }, 'JTF Portal'),
-                    e('p', { className: 'text-sm text-gray-600' }, 'Team Management')
+                    e('p', { className: 'text-sm text-gray-600' }, 'Team Management'),
+                    e('p', { className: 'text-xs text-gray-400 mt-1' }, 'v1.0.1 - Updated from VS Code')
                 ),
                 
                 e('nav', { className: 'flex-1 p-4' },
@@ -788,6 +1112,8 @@
                         return e(Dashboard);
                     case 'personnel':
                         return e(PersonnelDirectory);
+                    case 'cast':
+                        return e(CastDirectory);
                     case 'classes':
                         return e(ClassRegistration);
                     case 'shows':
@@ -806,6 +1132,36 @@
                 e('main', { className: 'flex-1 overflow-auto' }, renderPage())
             );
         }
+
+        // Expose debug functions globally for console testing
+        window.debugPersonnel = async () => {
+            console.log('=== Testing Personnel Debug Functions ===');
+            try {
+                // Test 1: Basic connection
+                console.log('1. Testing basic connection...');
+                const connectionTest = await gasService.testConnection();
+                console.log('Connection test result:', connectionTest);
+
+                // Test 2: Debug personnel sheet
+                console.log('2. Testing personnel sheet debug...');
+                const debugResult = await gasService.debugPersonnelSheet();
+                console.log('Debug personnel result:', debugResult);
+
+                // Test 3: Get all personnel 
+                console.log('3. Testing getAllPersonnel...');
+                const personnelResult = await gasService.getAllPersonnel();
+                console.log('Get all personnel result:', personnelResult);
+
+                return {
+                    connectionTest,
+                    debugResult,
+                    personnelResult
+                };
+            } catch (error) {
+                console.error('Error in debug functions:', error);
+                return { error: error.toString() };
+            }
+        };
 
         // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
