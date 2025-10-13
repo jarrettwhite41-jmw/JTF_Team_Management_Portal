@@ -373,7 +373,7 @@
                     ),
                     e('div', { className: 'flex-1' },
                         e('h3', { className: 'font-semibold text-gray-900' }, 
-                            `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
+                            castMember.FullName || 'Unknown Name'
                         ),
                         e('p', { className: 'text-sm text-gray-600' }, castMember.PrimaryEmail || 'No email')
                     )
@@ -880,7 +880,7 @@
 
             useEffect(() => {
                 const filtered = castMembers.filter(member =>
-                    `${member.FirstName} ${member.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (member.FullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
                 );
@@ -990,11 +990,7 @@
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
-                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Cast Member ID'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.CastMemberID || 'N/A')
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.FullName || 'Unknown')
                             ),
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),

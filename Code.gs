@@ -790,10 +790,10 @@ function getAllCastMembers() {
         }
       }
       
-      // Get proper first and last names
-      const fullName = castMemberView.FullName || castMemberView['Full Name'] || '';
-      const firstName = person ? person.FirstName : (fullName.split(' ')[0] || 'Unknown');
-      const lastName = person ? person.LastName : (fullName.split(' ').slice(1).join(' ') || 'Person');
+      // Get proper first and last names from Personnel table
+      const firstName = person ? person.FirstName : 'Unknown';
+      const lastName = person ? person.LastName : 'Person';
+      const fullName = person ? `${firstName} ${lastName}`.trim() : (castMemberView.FullName || castMemberView['Full Name'] || 'Unknown Person');
       
       return {
         CastMemberID: castMemberView.CastMemberID,

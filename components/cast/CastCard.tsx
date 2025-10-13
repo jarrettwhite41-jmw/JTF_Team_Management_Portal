@@ -35,7 +35,7 @@ export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">
-            {`${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'}
+            {(castMember as any).FullName || 'Unknown Name'}
           </h3>
           <p className="text-sm text-gray-600">{castMember.PrimaryEmail || 'No email'}</p>
         </div>
