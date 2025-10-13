@@ -23,6 +23,10 @@ const SHEET_CONFIG = {
   castMemberInfo: 'CastMemberInfo',          // Cast member details table
   showCastView: 'Show Cast View',            // Show cast assignments view
   
+  // Student tracking
+  studentInfo: 'StudentInfo',                // Student-specific data (extends Personnel)
+  enrollmentView: 'Enrollment View',         // Enrollment view with all details
+  
   // Relationship/Junction tables
   showPerformances: 'ShowPerformances',      // Cast assignments to shows
   studentEnrollments: 'StudentEnrollments',  // Student-to-class enrollments
@@ -1173,8 +1177,11 @@ function getSheetHeaders(sheetName) {
     [SHEET_CONFIG.showPerformances]: [
       'PerformanceID', 'ShowID', 'CastMemberID', 'Role'
     ],
+    [SHEET_CONFIG.studentInfo]: [
+      'StudentID', 'PersonnelID', 'EnrollmentDate', 'Status', 'CurrentLevel', 'Notes'
+    ],
     [SHEET_CONFIG.studentEnrollments]: [
-      'EnrollmentID', 'StudentID', 'OfferingID', 'Status'
+      'EnrollmentID', 'StudentID', 'OfferingID', 'EnrollmentDate', 'Status'
     ],
     [SHEET_CONFIG.crewDuties]: [
       'CrewDutyID', 'ShowID', 'PersonnelID', 'CrewDutyTypeID'
@@ -1704,6 +1711,78 @@ function enrollStudent(studentId, offeringId) {
   } catch (error) {
     Logger.log(`ERROR in enrollStudent(): ${error.toString()}`);
     return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * HELPER FUNCTION: Get enriched enrollment data (can use Enrollment View if available)
+ * DATA SOURCE: Enrollment View (preferred) or StudentEnrollments + ClassOfferings + ClassLevels
+ * RETURNS: Enrollment records with class details
+ * @param {number} studentId - Optional StudentID to filter by
+ */
+function getEnrollmentsWithDetails(studentId = null) {
+  try {
+    Logger.log(`=== getEnrollmentsWithDetails(${studentId || 'ALL'}) called ===`);
+    
+    // Try to use Enrollment View first (already has all joins done)
+    try {
+      const enrollmentViewSheet = getSheet(SHEET_CONFIG.enrollmentView);
+      let enrollments = sheetToObjects(enrollmentViewSheet);
+      
+      if (studentId) {
+        enrollments = enrollments.filter(e => e.StudentID == studentId);
+      }
+      
+      Logger.log(`Retrieved ${enrollments.length} enrollments from Enrollment View`);
+      return { success: true, data: enrollments };
+      
+    } catch (viewError) {
+      Logger.log('Enrollment View not available, building from base tables...');
+      
+      // Fallback: Build enrollment details from base tables
+      const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+      let enrollments = sheetToObjects(enrollmentsSheet);
+      
+      if (studentId) {
+        enrollments = enrollments.filter(e => e.StudentID == studentId);
+      }
+      
+      // Enrich with class details
+      const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+      const allClasses = sheetToObjects(classesSheet);
+      
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      const allLevels = sheetToObjects(levelsSheet);
+      
+      const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+      const allPersonnel = sheetToObjects(personnelSheet);
+      
+      const enrichedEnrollments = enrollments.map(enrollment => {
+        const classOffering = allClasses.find(c => c.OfferingID == enrollment.OfferingID);
+        
+        let enriched = { ...enrollment };
+        
+        if (classOffering) {
+          const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+          const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherPersonnelID);
+          
+          enriched.ClassLevelName = level ? level.LevelName : '';
+          enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+          enriched.StartDate = classOffering.StartDate;
+          enriched.EndDate = classOffering.EndDate;
+          enriched.VenueOrRoom = classOffering.VenueOrRoom;
+        }
+        
+        return enriched;
+      });
+      
+      Logger.log(`Built ${enrichedEnrollments.length} enriched enrollments from base tables`);
+      return { success: true, data: enrichedEnrollments };
+    }
+    
+  } catch (error) {
+    Logger.log(`ERROR in getEnrollmentsWithDetails(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
   }
 }
 
