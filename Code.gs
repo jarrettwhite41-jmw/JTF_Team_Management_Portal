@@ -1264,6 +1264,182 @@ function getAllGames() {
   }
 }
 
+// =============================================================================
+// STUDENT MANAGEMENT FUNCTIONS - For student profile and enrollment management
+// =============================================================================
+
+/**
+ * READ OPERATION: Gets comprehensive student profile data
+ * DATA SOURCE: Personnel, StudentInfo (if exists), StudentEnrollments, ClassLevelProgression sheets
+ * @param {number} personnelId - The PersonnelID of the student
+ * RETURNS: Complete student profile with enrollments and progression
+ */
+function getStudentProfile(personnelId) {
+  try {
+    Logger.log(`=== getStudentProfile(${personnelId}) called ===`);
+    
+    // Get basic personnel information
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    const student = allPersonnel.find(p => p.PersonnelID == personnelId);
+    
+    if (!student) {
+      Logger.log(`Student with PersonnelID ${personnelId} not found`);
+      return { success: false, error: 'Student not found' };
+    }
+
+    // Get student enrollments
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const studentEnrollments = allEnrollments.filter(e => e.StudentPersonnelID == personnelId);
+
+    // Try to get class level progression (may not exist in all implementations)
+    let classProgression = [];
+    try {
+      const progressionSheet = getSheet('ClassLevelProgression');
+      const allProgression = sheetToObjects(progressionSheet);
+      classProgression = allProgression.filter(p => p.StudentID == personnelId);
+    } catch (e) {
+      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
+    }
+
+    // Try to get additional student info (may not exist in all implementations)
+    let studentInfo = null;
+    try {
+      const studentInfoSheet = getSheet('StudentInfo');
+      const allStudentInfo = sheetToObjects(studentInfoSheet);
+      studentInfo = allStudentInfo.find(si => si.PersonnelID == personnelId);
+    } catch (e) {
+      Logger.log('StudentInfo sheet not found, using basic personnel data');
+    }
+
+    const profile = {
+      ...student,
+      isStudent: true,
+      StudentInfo: studentInfo,
+      Enrollments: studentEnrollments,
+      ClassProgression: classProgression
+    };
+
+    Logger.log(`Student profile loaded for ${student.FirstName} ${student.Lastname}`);
+    return { success: true, data: profile };
+
+  } catch (error) {
+    Logger.log(`ERROR in getStudentProfile(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all students for dropdown selection
+ * DATA SOURCE: Personnel sheet filtered by student role
+ */
+function getAllStudents() {
+  try {
+    Logger.log('=== getAllStudents() called ===');
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // For now, we'll assume students are identified by having enrollments
+    // This could be enhanced with a dedicated StudentInfo sheet or role field
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    const studentIds = new Set(allEnrollments.map(e => e.StudentPersonnelID || e.StudentID));
+    const students = allPersonnel.filter(p => studentIds.has(p.PersonnelID));
+    
+    Logger.log(`Found ${students.length} students`);
+    return { success: true, data: students };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllStudents(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets active class offerings for enrollment
+ * DATA SOURCE: ClassOfferings sheet filtered by status
+ */
+function getActiveClassOfferings() {
+  try {
+    Logger.log('=== getActiveClassOfferings() called ===');
+    
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+    
+    // Filter for active/upcoming classes
+    const activeClasses = allClasses.filter(c => 
+      c.Status === 'Open' || c.Status === 'Upcoming' || c.Status === 'In Progress'
+    );
+    
+    // Enhance with level names if available
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      const levels = sheetToObjects(levelsSheet);
+      
+      activeClasses.forEach(classOffering => {
+        const level = levels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+        if (level) {
+          classOffering.LevelName = level.LevelName;
+        }
+      });
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found, continuing without level names');
+    }
+    
+    Logger.log(`Found ${activeClasses.length} active class offerings`);
+    return { success: true, data: activeClasses };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getActiveClassOfferings(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * CREATE OPERATION: Enrolls a single student in a class
+ * DATA FLOW: Creates new row in StudentEnrollments sheet
+ * @param {number} studentId - PersonnelID of the student
+ * @param {number} offeringId - OfferingID of the class
+ */
+function enrollStudent(studentId, offeringId) {
+  try {
+    Logger.log(`=== enrollStudent(${studentId}, ${offeringId}) called ===`);
+    
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    
+    // Check if student is already enrolled
+    const existingEnrollments = sheetToObjects(enrollmentsSheet);
+    const existingEnrollment = existingEnrollments.find(e => 
+      (e.StudentPersonnelID == studentId || e.StudentID == studentId) && e.OfferingID == offeringId
+    );
+    
+    if (existingEnrollment) {
+      Logger.log(`Student ${studentId} is already enrolled in offering ${offeringId}`);
+      return { success: false, error: 'Student is already enrolled in this class' };
+    }
+    
+    const enrollmentData = {
+      OfferingID: offeringId,
+      StudentPersonnelID: studentId,
+      StudentID: studentId,
+      EnrollmentDate: new Date().toISOString().split('T')[0],
+      Status: 'Active'
+    };
+    
+    appendToSheet(enrollmentsSheet, enrollmentData);
+    
+    Logger.log(`Successfully enrolled student ${studentId} in offering ${offeringId}`);
+    return { success: true, data: 'Student enrolled successfully' };
+    
+  } catch (error) {
+    Logger.log(`ERROR in enrollStudent(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
 /**
  * Test function to verify all sheets and data connections
  * RUN THIS: To test that all your sheets are connected properly

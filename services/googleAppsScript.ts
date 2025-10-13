@@ -269,6 +269,23 @@ class GoogleAppsScriptService {
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     return this.callServerFunction<DashboardStats>('getDashboardStats');
   }
+
+  // Student methods
+  async getAllStudents(): Promise<ApiResponse<Personnel[]>> {
+    return this.callServerFunction<Personnel[]>('getAllStudents');
+  }
+
+  async getStudentProfile(studentId: number): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('getStudentProfile', studentId);
+  }
+
+  async getActiveClassOfferings(): Promise<ApiResponse<ClassOfferings[]>> {
+    return this.callServerFunction<ClassOfferings[]>('getActiveClassOfferings');
+  }
+
+  async enrollStudent(offeringId: number, studentId: number): Promise<ApiResponse<boolean>> {
+    return this.callServerFunction<boolean>('enrollStudent', offeringId, studentId);
+  }
 }
 
 export const gasService = new GoogleAppsScriptService();

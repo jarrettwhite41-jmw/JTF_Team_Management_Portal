@@ -7,10 +7,13 @@ import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
 import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
+import { StudentDirectory } from './pages/StudentDirectory';
+import { StudentProfile } from './pages/StudentProfile';
 import { PageType } from './types';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -28,6 +31,21 @@ const App: React.FC = () => {
         return <InventoryPage />;
       case 'scheduling':
         return <Scheduling />;
+      case 'student-directory':
+        return <StudentDirectory onNavigateToStudent={(id) => {
+          setSelectedStudentId(id);
+          setCurrentPage('student-profile');
+        }} />;
+      case 'student-profile':
+        return selectedStudentId ? (
+          <StudentProfile 
+            studentId={selectedStudentId} 
+            onBack={() => setCurrentPage('student-directory')} 
+          />
+        ) : <StudentDirectory onNavigateToStudent={(id) => {
+          setSelectedStudentId(id);
+          setCurrentPage('student-profile');
+        }} />;
       default:
         return <Dashboard />;
     }
