@@ -59,10 +59,11 @@ export const PersonnelDirectory: React.FC<PersonnelDirectoryProps> = ({ onNaviga
   const loadStudents = async () => {
     try {
       const response = await gasService.getAllStudents();
-      if (response.success && Array.isArray(response.data)) {
-        setStudents(response.data);
+      // The response from the server is nested, so we need to access response.data.data
+      if (response.success && response.data && Array.isArray(response.data.data)) {
+        setStudents(response.data.data);
       } else {
-        console.error('Failed to load students', response.error);
+        console.error('Failed to load students or data is not an array:', response);
         setStudents([]);
       }
     } catch (error) {
