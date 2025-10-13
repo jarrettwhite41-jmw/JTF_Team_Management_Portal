@@ -898,63 +898,25 @@
             const loadPersonnel = async () => {
                 setIsLoading(true);
                 console.log('=== PersonnelDirectory.loadPersonnel() START ===');
-                console.log('Loading personnel...');
-                console.log('isDevelopment:', isDevelopment);
-                console.log('gasService:', gasService);
-                
                 try {
-                    // STEP 1: First run debug function to test connection
-                    console.log('=== RUNNING DEBUG TEST ===');
-                    const debugResponse = await gasService.debugPersonnelSheet();
-                    console.log('Debug response:', debugResponse);
-                    
-                    if (debugResponse && !debugResponse.success) {
-                        setMessage({ 
-                            type: 'error', 
-                            text: `Debug failed: ${debugResponse.error}. Available sheets: ${debugResponse.availableSheets?.join(', ') || 'unknown'}` 
-                        });
-                        return;
-                    }
-                    
-                    if (debugResponse && debugResponse.success) {
-                        console.log('✓ Debug test passed! Sheet details:', {
-                            dimensions: debugResponse.dimensions,
-                            headers: debugResponse.headers,
-                            sampleData: debugResponse.sampleData
-                        });
-                    }
-                    
-                    // STEP 2: Now try the regular getAllPersonnel function
-                    console.log('=== RUNNING REGULAR getAllPersonnel ===');
                     const response = await gasService.getAllPersonnel();
-                    console.log('Personnel response:', response);
-                    console.log('Response type:', typeof response);
-                    console.log('Response.success:', response.success);
-                    console.log('Response.data:', response.data);
-                    
-                    if (response && response.success && response.data) {
+                    if (response.success && response.data) {
                         setPersonnel(response.data);
                         console.log('Personnel data loaded:', response.data.length, 'records');
                     } else {
                         console.error('Personnel loading failed. Full response:', response);
                         let errorMsg = 'Failed to load personnel from Google Sheets';
-                        
-                        if (response && response.success && response.data === null) {
-                            errorMsg = 'getAllPersonnel returned null. Check the getAllPersonnel function in Code.gs for errors.';
-                        } else if (response && !response.success) {
+                        if (response && !response.success) {
                             errorMsg = `Google Apps Script error: ${response.error}`;
                         }
-                        
                         setMessage({ type: 'error', text: errorMsg });
                     }
                 } catch (error) {
                     console.error('Personnel loading error:', error);
-                    console.error('Error stack:', error.stack);
                     setMessage({ type: 'error', text: 'Error loading personnel data: ' + error.message });
                 } finally {
                     setIsLoading(false);
                     console.log('=== PersonnelDirectory.loadPersonnel() END ===');
-                    console.log('Final personnel state:', personnel.length, 'records');
                 }
             };
 
