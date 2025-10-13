@@ -88,10 +88,10 @@ export interface PersonnelWithDetails extends Personnel {
 }
 
 export interface CastMemberWithDetails extends ShowPerformances {
-  // Person details
+  // Person details - matches Personnel sheet structure
   FullName?: string;
   FirstName: string;
-  LastName: string;
+  Lastname: string;  // Note: "Lastname" to match Personnel sheet column name
   PrimaryEmail: string;
   PrimaryPhone: string;
   PersonnelID?: number;

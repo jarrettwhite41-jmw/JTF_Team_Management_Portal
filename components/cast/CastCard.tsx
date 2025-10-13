@@ -7,9 +7,9 @@ interface CastCardProps {
 }
 
 export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
-  const getInitials = (firstName: string, lastName: string) => {
+  const getInitials = (firstName: string, lastname: string) => {
     const first = (firstName || '').trim();
-    const last = (lastName || '').trim();
+    const last = (lastname || '').trim();
     const firstInitial = first.length > 0 ? first.charAt(0) : '';
     const lastInitial = last.length > 0 ? last.charAt(0) : '';
     return `${firstInitial}${lastInitial}`.toUpperCase() || '??';
@@ -31,11 +31,11 @@ export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
     >
       <div className="flex items-center space-x-3 mb-3">
         <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold">
-          {getInitials(castMember.FirstName, castMember.LastName)}
+          {getInitials(castMember.FirstName, (castMember as any).Lastname)}
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">
-            {(castMember as any).FullName || 'Unknown Name'}
+            {`${castMember.FirstName || ''} ${(castMember as any).Lastname || ''}`.trim() || 'Unknown Name'}
           </h3>
           <p className="text-sm text-gray-600">{castMember.PrimaryEmail || 'No email'}</p>
         </div>

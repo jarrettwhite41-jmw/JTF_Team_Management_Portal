@@ -20,7 +20,7 @@ export const CastDirectory: React.FC = () => {
 
   useEffect(() => {
     const filtered = castMembers.filter(member =>
-      ((member as any).FullName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `${member.FirstName || ''} ${(member as any).Lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -152,7 +152,7 @@ export const CastDirectory: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <p className="text-gray-900">{(selectedCastMember as any).FullName || 'Unknown'}</p>
+                <p className="text-gray-900">{`${selectedCastMember.FirstName || ''} ${(selectedCastMember as any).Lastname || ''}`.trim() || 'Unknown'}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Last Show Date</label>

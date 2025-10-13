@@ -790,19 +790,19 @@ function getAllCastMembers() {
         }
       }
       
-      // Get proper first and last names from Personnel table
+      // Get proper first and last names from Personnel table (note: column is "Lastname" not "LastName")
       const firstName = person ? person.FirstName : 'Unknown';
-      const lastName = person ? person.LastName : 'Person';
+      const lastName = person ? person.Lastname : 'Person';
       const fullName = person ? `${firstName} ${lastName}`.trim() : (castMemberView.FullName || castMemberView['Full Name'] || 'Unknown Person');
       
       return {
         CastMemberID: castMemberView.CastMemberID,
         FullName: fullName,
         
-        // Personnel details (if linked)
+        // Personnel details (if linked) - using same field names as Personnel tab
         PersonnelID: castMemberInfo ? castMemberInfo.PersonnelID : null,
         FirstName: firstName,
-        LastName: lastName,
+        Lastname: lastName,  // Note: "Lastname" to match Personnel sheet column
         PrimaryEmail: person ? person.PrimaryEmail : '',
         PrimaryPhone: person ? person.PrimaryPhone : '',
         Birthday: person ? person.Birthday : '',
