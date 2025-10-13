@@ -1270,13 +1270,153 @@ function getAllGames() {
 
 /**
  * READ OPERATION: Gets comprehensive student profile data
- * DATA SOURCE: Personnel, StudentInfo (if exists), StudentEnrollments, ClassLevelProgression sheets
+ * DATA SOURCE: StudentInfo (primary), Personnel, StudentEnrollments, ClassLevelProgression sheets
+ * @param {number} studentId - The StudentID from StudentInfo table
+ * RETURNS: Complete student profile with enrollments and progression
+ */
+function getStudentProfileData(studentId) {
+  try {
+    Logger.log(`=== getStudentProfileData(${studentId}) called ===`);
+    
+    // Get StudentInfo record
+    const studentInfoSheet = getSheet('StudentInfo');
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    const studentInfo = allStudentInfo.find(si => si.StudentID == studentId);
+    
+    if (!studentInfo) {
+      Logger.log(`Student with StudentID ${studentId} not found in StudentInfo table`);
+      return { success: false, error: 'Student not found' };
+    }
+    
+    // Get Personnel record
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    const person = allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID);
+    
+    if (!person) {
+      Logger.log(`Personnel record not found for PersonnelID ${studentInfo.PersonnelID}`);
+      return { success: false, error: 'Personnel record not found' };
+    }
+    
+    // Get student enrollments with class details
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const studentEnrollments = allEnrollments.filter(e => e.StudentID == studentId);
+    
+    // Get class offerings to enrich enrollment data
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+    
+    // Get class levels for level names
+    let allLevels = [];
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found');
+    }
+    
+    // Get teachers for teacher names
+    const allTeachers = allPersonnel;  // Teachers are in Personnel table
+    
+    // Enrich enrollments with class details
+    const enrichedEnrollments = studentEnrollments.map(enrollment => {
+      const classOffering = allClasses.find(c => c.OfferingID == enrollment.OfferingID);
+      
+      let classLevelName = '';
+      let teacherName = '';
+      let startDate = '';
+      let endDate = '';
+      let venueOrRoom = '';
+      
+      if (classOffering) {
+        // Get level name
+        const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+        classLevelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+        
+        // Get teacher name
+        const teacher = allTeachers.find(t => t.PersonnelID == classOffering.TeacherPersonnelID);
+        teacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+        
+        startDate = classOffering.StartDate;
+        endDate = classOffering.EndDate;
+        venueOrRoom = classOffering.VenueOrRoom;
+      }
+      
+      return {
+        EnrollmentID: enrollment.EnrollmentID,
+        OfferingID: enrollment.OfferingID,
+        EnrollmentDate: enrollment.EnrollmentDate,
+        Status: enrollment.Status || 'Active',
+        ClassLevelName: classLevelName,
+        TeacherName: teacherName,
+        StartDate: startDate,
+        EndDate: endDate,
+        VenueOrRoom: venueOrRoom
+      };
+    });
+    
+    // Get class level progression
+    let classProgression = [];
+    try {
+      const progressionSheet = getSheet('ClassLevelProgression');
+      const allProgression = sheetToObjects(progressionSheet);
+      classProgression = allProgression.filter(p => p.StudentID == studentId);
+      
+      // Enrich progression with level names
+      classProgression = classProgression.map(prog => {
+        const level = allLevels.find(l => l.ClassLevelID == prog.ClassLevelID);
+        return {
+          ...prog,
+          LevelName: level ? level.LevelName : `Level ${prog.ClassLevelID}`
+        };
+      });
+    } catch (e) {
+      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
+    }
+    
+    // Build complete profile
+    const profile = {
+      // StudentInfo fields
+      StudentID: studentInfo.StudentID,
+      EnrollmentDate: studentInfo.EnrollmentDate,
+      StudentStatus: studentInfo.Status || 'Active',
+      CurrentLevel: studentInfo.CurrentLevel,
+      StudentNotes: studentInfo.Notes,
+      
+      // Personnel fields
+      PersonnelID: person.PersonnelID,
+      FirstName: person.FirstName,
+      Lastname: person.Lastname,
+      PrimaryEmail: person.PrimaryEmail,
+      PrimaryPhone: person.PrimaryPhone,
+      Instagram: person.Instagram,
+      Birthday: person.Birthday,
+      
+      // Enrollment and progression data
+      Enrollments: enrichedEnrollments,
+      Progression: classProgression
+    };
+    
+    Logger.log(`Student profile loaded for ${person.FirstName} ${person.Lastname} (StudentID: ${studentId})`);
+    return { success: true, data: profile };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getStudentProfileData(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets comprehensive student profile data (OLD VERSION - kept for compatibility)
+ * DATA SOURCE: Personnel sheet → enriched with StudentInfo if exists
  * @param {number} personnelId - The PersonnelID of the student
  * RETURNS: Complete student profile with enrollments and progression
  */
 function getStudentProfile(personnelId) {
   try {
     Logger.log(`=== getStudentProfile(${personnelId}) called ===`);
+    Logger.log(`NOTE: This function uses PersonnelID. Consider using getStudentProfileData() with StudentID instead.`);
     
     // Get basic personnel information
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
@@ -1331,30 +1471,157 @@ function getStudentProfile(personnelId) {
 }
 
 /**
- * READ OPERATION: Gets all students for dropdown selection
- * DATA SOURCE: Personnel sheet filtered by student role
+ * READ OPERATION: Gets all students with full details
+ * DATA SOURCE: StudentInfo table (primary) joined with Personnel table
+ * COLUMNS: StudentInfo - StudentID, PersonnelID, EnrollmentDate, Status, CurrentLevel, Notes
+ * RETURNS: Array of student objects with personnel details + student-specific fields
+ */
+function getAllStudentsWithDetails() {
+  try {
+    Logger.log('=== getAllStudentsWithDetails() called ===');
+    
+    // Get StudentInfo table - this is the source of truth for who is a student
+    const studentInfoSheet = getSheet('StudentInfo');
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    // Get Personnel table for contact/personal information
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Get StudentEnrollments to count active enrollments and classes completed
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    // Get ClassLevelProgression to get current level and completed classes
+    let allProgression = [];
+    try {
+      const progressionSheet = getSheet('ClassLevelProgression');
+      allProgression = sheetToObjects(progressionSheet);
+    } catch (e) {
+      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
+    }
+    
+    // Get ClassLevels for level names
+    let allLevels = [];
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found, continuing without level names');
+    }
+    
+    // Join StudentInfo with Personnel and enrich with enrollment/progression data
+    const studentsWithDetails = allStudentInfo.map(studentInfo => {
+      // Find the corresponding personnel record
+      const person = allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID);
+      
+      if (!person) {
+        Logger.log(`WARNING: StudentInfo record ${studentInfo.StudentID} has no matching Personnel record`);
+        return null;
+      }
+      
+      // Count active enrollments for this student
+      const studentEnrollments = allEnrollments.filter(e => 
+        e.StudentID == studentInfo.StudentID
+      );
+      const activeEnrollments = studentEnrollments.filter(e => 
+        e.Status === 'Active' || e.Status === 'Enrolled' || e.Status === 'In Progress'
+      ).length;
+      
+      // Count completed classes from progression
+      const studentProgression = allProgression.filter(p => 
+        p.StudentID == studentInfo.StudentID
+      );
+      const completedClasses = studentProgression.filter(p => 
+        p.Status === 'Completed'
+      ).length;
+      
+      // Get current level name
+      let currentLevelName = '';
+      if (studentInfo.CurrentLevel) {
+        const level = allLevels.find(l => l.ClassLevelID == studentInfo.CurrentLevel);
+        currentLevelName = level ? level.LevelName : `Level ${studentInfo.CurrentLevel}`;
+      }
+      
+      // Return combined student record with all details
+      return {
+        // StudentInfo fields
+        StudentID: studentInfo.StudentID,
+        EnrollmentDate: studentInfo.EnrollmentDate,
+        StudentStatus: studentInfo.Status || 'Active',
+        CurrentLevel: studentInfo.CurrentLevel,
+        CurrentLevelName: currentLevelName,
+        StudentNotes: studentInfo.Notes,
+        
+        // Personnel fields
+        PersonnelID: person.PersonnelID,
+        FirstName: person.FirstName,
+        Lastname: person.Lastname,  // Note: "Lastname" to match sheet column
+        PrimaryEmail: person.PrimaryEmail,
+        PrimaryPhone: person.PrimaryPhone,
+        Instagram: person.Instagram,
+        Birthday: person.Birthday,
+        
+        // Calculated fields
+        ActiveEnrollments: activeEnrollments,
+        ClassesCompleted: completedClasses
+      };
+    }).filter(student => student !== null);  // Remove any null entries from missing personnel
+    
+    Logger.log(`Found ${studentsWithDetails.length} students with full details`);
+    if (studentsWithDetails.length > 0) {
+      Logger.log(`Sample student: ${JSON.stringify(studentsWithDetails[0])}`);
+    }
+    
+    return { success: true, data: studentsWithDetails };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllStudentsWithDetails(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all students for dropdown selection (simple version)
+ * DATA SOURCE: StudentInfo table joined with Personnel
+ * RETURNS: Basic student list for dropdowns/selection
  */
 function getAllStudents() {
   try {
     Logger.log('=== getAllStudents() called ===');
     
+    // Get StudentInfo table - this identifies who is a student
+    const studentInfoSheet = getSheet('StudentInfo');
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    // Get Personnel table for names and contact info
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
     const allPersonnel = sheetToObjects(personnelSheet);
     
-    // For now, we'll assume students are identified by having enrollments
-    // This could be enhanced with a dedicated StudentInfo sheet or role field
-    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
-    const allEnrollments = sheetToObjects(enrollmentsSheet);
-    
-    const studentIds = new Set(allEnrollments.map(e => e.StudentPersonnelID || e.StudentID));
-    const students = allPersonnel.filter(p => studentIds.has(p.PersonnelID));
+    // Join StudentInfo with Personnel
+    const students = allStudentInfo.map(studentInfo => {
+      const person = allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID);
+      
+      if (!person) {
+        return null;
+      }
+      
+      return {
+        StudentID: studentInfo.StudentID,
+        PersonnelID: person.PersonnelID,
+        FirstName: person.FirstName,
+        Lastname: person.Lastname,
+        PrimaryEmail: person.PrimaryEmail,
+        Status: studentInfo.Status || 'Active'
+      };
+    }).filter(student => student !== null);
     
     Logger.log(`Found ${students.length} students`);
     return { success: true, data: students };
     
   } catch (error) {
     Logger.log(`ERROR in getAllStudents(): ${error.toString()}`);
-    return { success: false, error: error.toString() };
+    return { success: false, data: [], error: error.toString() };
   }
 }
 
