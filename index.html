@@ -69,7 +69,6 @@
             <p style="margin-top: 20px; color: #6b7280;">Loading JTF Portal...</p>
         </div>
     </div>
-
     <script type="text/babel">
         // Google Apps Script Service
         // This service handles all CRUD operations between the frontend and Google Sheets database
@@ -898,6 +897,7 @@
 
             const loadPersonnel = async () => {
                 setIsLoading(true);
+                console.log('=== PersonnelDirectory.loadPersonnel() START ===');
                 console.log('Loading personnel...');
                 console.log('isDevelopment:', isDevelopment);
                 console.log('gasService:', gasService);
@@ -953,6 +953,8 @@
                     setMessage({ type: 'error', text: 'Error loading personnel data: ' + error.message });
                 } finally {
                     setIsLoading(false);
+                    console.log('=== PersonnelDirectory.loadPersonnel() END ===');
+                    console.log('Final personnel state:', personnel.length, 'records');
                 }
             };
 
@@ -1054,6 +1056,12 @@
                     })
                 ),
 
+                e('div', { className: 'mb-4 p-3 bg-gray-50 rounded text-xs text-gray-600' },
+                    e('strong', null, 'Debug Info: '),
+                    `Personnel loaded: ${personnel.length}, Students loaded: ${students.length}, `,
+                    `Filtered personnel: ${filteredPersonnel.length}, Loading: ${isLoading}`
+                ),
+
                 e('div', { className: 'mb-6' },
                     e('input', {
                         type: 'text',
@@ -1065,17 +1073,35 @@
                 ),
 
                 isLoading ? e(Loader, { text: 'Loading personnel...' }) :
-                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                    filteredPersonnel.map((person) => {
-                        const isStudent = students.some(s => s.PersonnelID === person.PersonnelID);
-                        return e(PersonCard, {
-                            key: person.PersonnelID,
-                            person: person,
-                            onClick: () => handlePersonClick(person),
-                            isStudent: isStudent,
-                            onStudentProfileClick: onNavigateToStudentProfile
-                        });
-                    })
+                personnel.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8' },
+                        e('p', null, 'No personnel found. This might indicate an issue loading data from Google Sheets.'),
+                        e('button', {
+                            onClick: loadPersonnel,
+                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Retry Loading Personnel'),
+                        e('p', { className: 'text-xs text-gray-400 mt-2' }, 
+                            `Debug: Personnel array length: ${personnel.length}, Students array length: ${students.length}`
+                        )
+                    )
+                ) : (
+                    e('div', null,
+                        e('p', { className: 'text-sm text-gray-600 mb-4' }, 
+                            `Showing ${filteredPersonnel.length} of ${personnel.length} personnel (${students.length} students identified)`
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                            filteredPersonnel.map((person) => {
+                                const isStudent = students.some(s => s.PersonnelID === person.PersonnelID);
+                                return e(PersonCard, {
+                                    key: person.PersonnelID,
+                                    person: person,
+                                    onClick: () => handlePersonClick(person),
+                                    isStudent: isStudent,
+                                    onStudentProfileClick: onNavigateToStudentProfile
+                                });
+                            })
+                        )
+                    )
                 ),
 
                 e(PersonnelModal, {
