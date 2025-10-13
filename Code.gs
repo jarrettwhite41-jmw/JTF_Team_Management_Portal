@@ -18,6 +18,11 @@ const SHEET_CONFIG = {
   masterGameList: 'MasterGameList',          // Catalog of improv games
   inventory: 'Inventory',                    // Equipment and supplies
   
+  // Cast member tracking
+  castMemberView: 'Cast Member View',        // Cast member directory view
+  castMemberInfo: 'CastMemberInfo',          // Cast member details table
+  showCastView: 'Show Cast View',            // Show cast assignments view
+  
   // Relationship/Junction tables
   showPerformances: 'ShowPerformances',      // Cast assignments to shows
   studentEnrollments: 'StudentEnrollments',  // Student-to-class enrollments
@@ -712,6 +717,110 @@ function getShowPerformances(showId) {
   } catch (error) {
     Logger.log(`ERROR in getShowPerformances(): ${error.toString()}`);
     throw new Error('Failed to retrieve show performances');
+  }
+}
+
+/**
+ * READ OPERATION: Gets all cast members with their details
+ * DATA SOURCE: Cast Member View sheet joined with CastMemberInfo and Personnel
+ * DATA FLOW: Cast Member View → CastMemberInfo (via CastMemberID) → Personnel (via PersonnelID)
+ * RETURNS: Array of cast member objects with personal and show information
+ */
+function getAllCastMembers() {
+  try {
+    Logger.log('=== getAllCastMembers() called ===');
+    
+    // Get cast members from the Cast Member View sheet
+    // Column A: CastMemberID, Column B: Full Name
+    const castMemberViewSheet = getSheet(SHEET_CONFIG.castMemberView);
+    const castMemberViewData = sheetToObjects(castMemberViewSheet);
+    
+    // Get cast member info to link CastMemberID to PersonnelID
+    const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+    const castMemberInfoData = sheetToObjects(castMemberInfoSheet);
+    
+    // Get personnel data for additional details
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Get show performance data for role information
+    const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+    const allPerformances = sheetToObjects(performancesSheet);
+    
+    // Get show information for show details
+    const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+    const allShows = sheetToObjects(showsSheet);
+    
+    // Get Show Cast View data for last show dates
+    const showCastViewSheet = getSheet(SHEET_CONFIG.showCastView);
+    const showCastViewData = sheetToObjects(showCastViewSheet);
+    
+    // Create cast member records with enriched data
+    const castMembers = castMemberViewData.map(castMemberView => {
+      // Find the cast member info to get PersonnelID
+      const castMemberInfo = castMemberInfoData.find(info => 
+        info.CastMemberID == castMemberView.CastMemberID
+      );
+      
+      // Find the person details using PersonnelID
+      const person = castMemberInfo ? 
+        allPersonnel.find(p => p.PersonnelID == castMemberInfo.PersonnelID) : null;
+      
+      // Find last show date from Show Cast View or ShowPerformances
+      let lastShowDate = 'N/A';
+      
+      // First try Show Cast View
+      const showCastEntry = showCastViewData.find(entry => 
+        entry.CastMemberID == castMemberView.CastMemberID
+      );
+      
+      if (showCastEntry && showCastEntry.ShowDate) {
+        lastShowDate = showCastEntry.ShowDate;
+      } else {
+        // Fallback to ShowPerformances table
+        const performance = allPerformances.find(perf => 
+          perf.CastMemberID == castMemberView.CastMemberID
+        );
+        
+        if (performance) {
+          const show = allShows.find(s => s.ShowID == performance.ShowID);
+          if (show && show.ShowDate) {
+            lastShowDate = show.ShowDate;
+          }
+        }
+      }
+      
+      // Get proper first and last names from Personnel table (note: column is "Lastname" not "LastName")
+      const firstName = person ? person.FirstName : 'Unknown';
+      const lastName = person ? person.Lastname : 'Person';
+      const fullName = person ? `${firstName} ${lastName}`.trim() : (castMemberView.FullName || castMemberView['Full Name'] || 'Unknown Person');
+      
+      return {
+        CastMemberID: castMemberView.CastMemberID,
+        FullName: fullName,
+        
+        // Personnel details (if linked) - using same field names as Personnel tab
+        PersonnelID: castMemberInfo ? castMemberInfo.PersonnelID : null,
+        FirstName: firstName,
+        Lastname: lastName,  // Note: "Lastname" to match Personnel sheet column
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
+        
+        // Last show information
+        LastShowDate: lastShowDate,
+        Status: person ? (person.Status || 'Active') : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Found ${castMembers.length} cast members from Cast Member View`);
+    Logger.log(`Sample cast member: ${castMembers.length > 0 ? JSON.stringify(castMembers[0]) : 'No cast members found'}`);
+    
+    return { success: true, data: castMembers };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllCastMembers(): ${error.toString()}`);
+    return { success: false, data: null, error: error.toString() };
   }
 }
 
