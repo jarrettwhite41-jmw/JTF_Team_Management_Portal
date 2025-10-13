@@ -923,11 +923,26 @@
             const loadStudents = async () => {
                 try {
                     const response = await gasService.getAllStudents();
-                    if (response.success && response.data) {
-                        setStudents(response.data);
+                    console.log('getAllStudents response in PersonnelDirectory:', response);
+                    
+                    // Handle different response structures
+                    let studentData = [];
+                    
+                    if (response.success) {
+                        if (Array.isArray(response.data)) {
+                            // Direct array response
+                            studentData = response.data;
+                        } else if (response.data && Array.isArray(response.data.data)) {
+                            // Nested data structure
+                            studentData = response.data.data;
+                        }
                     }
+                    
+                    console.log('Setting students to:', studentData);
+                    setStudents(studentData);
                 } catch (error) {
                     console.error('Error loading students:', error);
+                    setStudents([]);
                 }
             };
 
@@ -1053,7 +1068,7 @@
                         ),
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
                             filteredPersonnel.map((person) => {
-                                const isStudent = students.some(s => s.PersonnelID === person.PersonnelID);
+                                const isStudent = Array.isArray(students) && students.some(s => s.PersonnelID === person.PersonnelID);
                                 return e(PersonCard, {
                                     key: person.PersonnelID,
                                     person: person,
