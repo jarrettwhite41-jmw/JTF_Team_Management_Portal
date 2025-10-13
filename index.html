@@ -394,13 +394,16 @@
                     console.log('getStudentProfile response:', response);
                     
                     if (response.success) {
-                        console.log('Student data received:', response.data);
-                        console.log('FirstName:', response.data?.FirstName);
-                        console.log('Lastname:', response.data?.Lastname);
-                        console.log('PrimaryEmail:', response.data?.PrimaryEmail);
-                        console.log('PrimaryPhone:', response.data?.PrimaryPhone);
-                        console.log('Birthday:', response.data?.Birthday);
-                        setStudent(response.data);
+                        // The response structure is: { success: true, data: { success: true, data: actualStudentData } }
+                        // We need to unwrap it properly
+                        const studentData = response.data?.data || response.data;
+                        console.log('Student data received (unwrapped):', studentData);
+                        console.log('FirstName:', studentData?.FirstName);
+                        console.log('Lastname:', studentData?.Lastname);
+                        console.log('PrimaryEmail:', studentData?.PrimaryEmail);
+                        console.log('PrimaryPhone:', studentData?.PrimaryPhone);
+                        console.log('Birthday:', studentData?.Birthday);
+                        setStudent(studentData);
                     } else {
                         console.error('Failed to load student:', response.error);
                         setMessage({ type: 'error', text: response.error || 'Failed to load student profile' });
