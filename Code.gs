@@ -1572,18 +1572,13 @@ function getAllStudentsWithDetails() {
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
     const allPersonnel = sheetToObjects(personnelSheet);
     
-    // Get StudentEnrollments to count active enrollments and classes completed
+    // Get StudentEnrollments to count active enrollments and find current enrollment
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
     const allEnrollments = sheetToObjects(enrollmentsSheet);
     
-    // Get ClassLevelProgression to get current level and completed classes
-    let allProgression = [];
-    try {
-      const progressionSheet = getSheet('ClassLevelProgression');
-      allProgression = sheetToObjects(progressionSheet);
-    } catch (e) {
-      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
-    }
+    // Get ClassOfferings for class details
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
     
     // Get ClassLevels for level names
     let allLevels = [];
@@ -1592,6 +1587,15 @@ function getAllStudentsWithDetails() {
       allLevels = sheetToObjects(levelsSheet);
     } catch (e) {
       Logger.log('ClassLevels sheet not found, continuing without level names');
+    }
+    
+    // Get ClassLevelProgression to count completed classes
+    let allProgression = [];
+    try {
+      const progressionSheet = getSheet('ClassLevelProgression');
+      allProgression = sheetToObjects(progressionSheet);
+    } catch (e) {
+      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
     }
     
     // Join StudentInfo with Personnel and enrich with enrollment/progression data
@@ -1604,13 +1608,40 @@ function getAllStudentsWithDetails() {
         return null;
       }
       
-      // Count active enrollments for this student
+      // Get enrollments for this student
       const studentEnrollments = allEnrollments.filter(e => 
         e.StudentID == studentInfo.StudentID
       );
-      const activeEnrollments = studentEnrollments.filter(e => 
-        e.Status === 'Active' || e.Status === 'Enrolled' || e.Status === 'In Progress'
-      ).length;
+      
+      // Find current (active/in progress) enrollments
+      const currentEnrollments = studentEnrollments.filter(e => 
+        e.CompletionStatus === 'In Progress' || 
+        e.CompletionStatus === 'Active' || 
+        e.CompletionStatus === 'Enrolled' ||
+        (!e.CompletionStatus && (e.Status === 'Active' || e.Status === 'In Progress' || e.Status === 'Enrolled'))
+      );
+      
+      // Get the most recent active enrollment
+      let currentEnrollmentName = null;
+      if (currentEnrollments.length > 0) {
+        // Sort by enrollment date descending
+        const sortedEnrollments = currentEnrollments.sort((a, b) => {
+          const dateA = a.EnrollmentDate ? new Date(a.EnrollmentDate) : new Date(0);
+          const dateB = b.EnrollmentDate ? new Date(b.EnrollmentDate) : new Date(0);
+          return dateB - dateA;
+        });
+        
+        const mostRecentEnrollment = sortedEnrollments[0];
+        const classOffering = allClasses.find(c => c.OfferingID == mostRecentEnrollment.OfferingID);
+        
+        if (classOffering) {
+          const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+          currentEnrollmentName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+        }
+      }
+      
+      // Count active enrollments
+      const activeEnrollments = currentEnrollments.length;
       
       // Count completed classes from progression
       const studentProgression = allProgression.filter(p => 
@@ -1646,7 +1677,9 @@ function getAllStudentsWithDetails() {
         Instagram: person.Instagram,
         Birthday: person.Birthday,
         
-        // Calculated fields
+        // Calculated fields for student cards
+        CurrentEnrollment: currentEnrollmentName,
+        HighestLevelCompleted: studentInfo.HighestLevelCompleted || null,
         ActiveEnrollments: activeEnrollments,
         ClassesCompleted: completedClasses
       };
@@ -1750,6 +1783,12 @@ function getAllStudents() {
     }).filter(student => student !== null);
     
     Logger.log(`Found ${students.length} students`);
+    
+    // Log sample data for first student
+    if (students.length > 0) {
+      Logger.log(`Sample student data: ${JSON.stringify(students[0])}`);
+    }
+    
     return { success: true, data: students };
     
   } catch (error) {

@@ -446,18 +446,6 @@
                     )
                 ),
 
-                // Debug info (remove after fixing)
-                e('div', { className: 'mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-xs' },
-                    e('p', { className: 'font-bold mb-2' }, 'DEBUG INFO (Remove after fixing):'),
-                    e('p', null, `FirstName: ${student.FirstName || 'MISSING'}`),
-                    e('p', null, `Lastname: ${student.Lastname || 'MISSING'}`),
-                    e('p', null, `PrimaryEmail: ${student.PrimaryEmail || 'MISSING'}`),
-                    e('p', null, `PrimaryPhone: ${student.PrimaryPhone || 'MISSING'}`),
-                    e('p', null, `Birthday: ${student.Birthday || 'MISSING'}`),
-                    e('p', null, `Has Enrollments: ${student.Enrollments ? student.Enrollments.length : 'NO'}`),
-                    e('p', null, `Has Progression: ${student.Progression ? student.Progression.length : 'NO'}`)
-                ),
-
                 message && e('div', { className: 'mb-4' },
                     e(Message, {
                         type: message.type,
@@ -467,38 +455,133 @@
                 ),
 
                 // Student Information Panel
-                e('div', { className: 'grid grid-cols-1 lg:grid-cols-3 gap-6' },
+                e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-6' },
                     // Basic Information
                     e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
-                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Basic Information'),
-                        e('div', { className: 'space-y-3' },
-                            e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Email'),
-                                e('p', { className: 'text-gray-900' }, student.PrimaryEmail || 'Not provided')
+                        e('div', { className: 'flex items-center mb-6' },
+                            e('div', { className: 'w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl mr-4' },
+                                `${(student.FirstName || '').charAt(0)}${(student.Lastname || '').charAt(0)}`.toUpperCase()
                             ),
                             e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Phone'),
-                                e('p', { className: 'text-gray-900' }, student.PrimaryPhone || 'Not provided')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Birthday'),
-                                e('p', { className: 'text-gray-900' }, 
-                                    student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'Not provided'
+                                e('h2', { className: 'text-xl font-bold text-gray-900' }, 
+                                    `${student.FirstName || 'Unknown'} ${student.Lastname || 'Student'}`
+                                ),
+                                student.StudentStatus && e('span', { 
+                                    className: `inline-block px-2 py-1 text-xs rounded-full mt-1 ${
+                                        student.StudentStatus === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                    }`
+                                }, student.StudentStatus)
+                            )
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                            e('div', { className: 'space-y-4' },
+                                e('div', null,
+                                    e('div', { className: 'flex items-center mb-1' },
+                                        e('svg', { className: 'w-4 h-4 text-gray-500 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { d: 'M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z' }),
+                                            e('path', { d: 'M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z' })
+                                        ),
+                                        e('label', { className: 'text-xs font-semibold text-gray-600 uppercase tracking-wide' }, 'Email')
+                                    ),
+                                    e('p', { className: 'text-sm text-gray-900 pl-6' }, student.PrimaryEmail || 'Not provided')
+                                ),
+                                e('div', null,
+                                    e('div', { className: 'flex items-center mb-1' },
+                                        e('svg', { className: 'w-4 h-4 text-gray-500 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { d: 'M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z' })
+                                        ),
+                                        e('label', { className: 'text-xs font-semibold text-gray-600 uppercase tracking-wide' }, 'Phone')
+                                    ),
+                                    e('p', { className: 'text-sm text-gray-900 pl-6' }, student.PrimaryPhone || 'Not provided')
                                 )
                             ),
-                            student.EnrollmentDate && e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Student Since'),
-                                e('p', { className: 'text-gray-900' }, 
-                                    new Date(student.EnrollmentDate).toLocaleDateString()
+                            e('div', { className: 'space-y-4' },
+                                e('div', null,
+                                    e('div', { className: 'flex items-center mb-1' },
+                                        e('svg', { className: 'w-4 h-4 text-gray-500 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { fillRule: 'evenodd', d: 'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z', clipRule: 'evenodd' })
+                                        ),
+                                        e('label', { className: 'text-xs font-semibold text-gray-600 uppercase tracking-wide' }, 'Birthday')
+                                    ),
+                                    e('p', { className: 'text-sm text-gray-900 pl-6' }, 
+                                        student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'Not provided'
+                                    )
+                                ),
+                                student.EnrollmentDate && e('div', null,
+                                    e('div', { className: 'flex items-center mb-1' },
+                                        e('svg', { className: 'w-4 h-4 text-gray-500 mr-2', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { fillRule: 'evenodd', d: 'M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z', clipRule: 'evenodd' })
+                                        ),
+                                        e('label', { className: 'text-xs font-semibold text-gray-600 uppercase tracking-wide' }, 'Student Since')
+                                    ),
+                                    e('p', { className: 'text-sm text-gray-900 pl-6' }, 
+                                        new Date(student.EnrollmentDate).toLocaleDateString()
+                                    )
+                                )
+                            )
+                        ),
+                        student.CurrentLevel && e('div', { className: 'mt-6 pt-4 border-t border-gray-200' },
+                            e('div', { className: 'flex items-center justify-between' },
+                                e('span', { className: 'text-sm font-semibold text-gray-600' }, 'Current Level'),
+                                e('span', { className: 'px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium' }, 
+                                    `Level ${student.CurrentLevel}`
+                                )
+                            )
+                        )
+                    ),
+                    
+                    // Quick Stats Card
+                    e('div', { className: 'bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-100 p-6' },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Student Stats'),
+                        e('div', { className: 'space-y-4' },
+                            e('div', { className: 'bg-white rounded-lg p-4 shadow-sm' },
+                                e('div', { className: 'flex items-center justify-between' },
+                                    e('div', null,
+                                        e('p', { className: 'text-xs font-medium text-gray-600 uppercase tracking-wide' }, 'Total Enrollments'),
+                                        e('p', { className: 'text-2xl font-bold text-gray-900 mt-1' }, 
+                                            student.Enrollments ? student.Enrollments.length : 0
+                                        )
+                                    ),
+                                    e('div', { className: 'w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center' },
+                                        e('svg', { className: 'w-6 h-6 text-blue-600', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { d: 'M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z' })
+                                        )
+                                    )
                                 )
                             ),
-                            student.StudentStatus && e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Status'),
-                                e('p', { className: 'text-gray-900' }, student.StudentStatus)
+                            student.Enrollments && e('div', { className: 'bg-white rounded-lg p-4 shadow-sm' },
+                                e('div', { className: 'flex items-center justify-between' },
+                                    e('div', null,
+                                        e('p', { className: 'text-xs font-medium text-gray-600 uppercase tracking-wide' }, 'Completed Classes'),
+                                        e('p', { className: 'text-2xl font-bold text-green-600 mt-1' }, 
+                                            student.Enrollments.filter(e => e.CompletionStatus === 'Completed').length
+                                        )
+                                    ),
+                                    e('div', { className: 'w-12 h-12 bg-green-100 rounded-full flex items-center justify-center' },
+                                        e('svg', { className: 'w-6 h-6 text-green-600', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { fillRule: 'evenodd', d: 'M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z', clipRule: 'evenodd' })
+                                        )
+                                    )
+                                )
                             ),
-                            student.CurrentLevel && e('div', null,
-                                e('label', { className: 'text-sm font-medium text-gray-600' }, 'Current Level'),
-                                e('p', { className: 'text-gray-900' }, `Level ${student.CurrentLevel}`)
+                            student.Enrollments && e('div', { className: 'bg-white rounded-lg p-4 shadow-sm' },
+                                e('div', { className: 'flex items-center justify-between' },
+                                    e('div', null,
+                                        e('p', { className: 'text-xs font-medium text-gray-600 uppercase tracking-wide' }, 'Active Classes'),
+                                        e('p', { className: 'text-2xl font-bold text-blue-600 mt-1' }, 
+                                            student.Enrollments.filter(e => 
+                                                e.CompletionStatus === 'Active' || 
+                                                e.CompletionStatus === 'In Progress' || 
+                                                e.CompletionStatus === 'Enrolled'
+                                            ).length
+                                        )
+                                    ),
+                                    e('div', { className: 'w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center' },
+                                        e('svg', { className: 'w-6 h-6 text-blue-600', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                            e('path', { fillRule: 'evenodd', d: 'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z', clipRule: 'evenodd' })
+                                        )
+                                    )
+                                )
                             )
                         )
                     )
@@ -506,19 +589,24 @@
 
                 // Enrollment History
                 student.Enrollments && student.Enrollments.length > 0 && e('div', { className: 'mt-6 bg-white rounded-lg shadow-sm border p-6' },
-                    e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Enrollment History'),
+                    e('div', { className: 'flex items-center justify-between mb-6' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Enrollment History'),
+                        e('span', { className: 'text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full' }, 
+                            `${student.Enrollments.length} total enrollment${student.Enrollments.length !== 1 ? 's' : ''}`
+                        )
+                    ),
                     e('div', { className: 'overflow-x-auto' },
-                        e('table', { className: 'min-w-full divide-y divide-gray-200' },
-                            e('thead', { className: 'bg-gray-50' },
-                                e('tr', null,
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Class'),
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Teacher'),
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Enrollment Date'),
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Completion Date'),
-                                    e('th', { className: 'px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status')
+                        e('table', { className: 'min-w-full' },
+                            e('thead', null,
+                                e('tr', { className: 'border-b-2 border-gray-200' },
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider' }, 'Class Level'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider' }, 'Instructor'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider' }, 'Enrolled'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider' }, 'Completed'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider' }, 'Status')
                                 )
                             ),
-                            e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                            e('tbody', { className: 'divide-y divide-gray-200' },
                                 student.Enrollments
                                     .sort((a, b) => {
                                         // Sort by enrollment date descending (newest first)
@@ -527,22 +615,45 @@
                                         return dateB - dateA;
                                     })
                                     .map((enrollment, index) =>
-                                    e('tr', { key: index },
-                                        e('td', { className: 'px-4 py-2 text-sm text-gray-900' }, 
-                                            enrollment.ClassLevelName || `Offering ${enrollment.OfferingID}`
+                                    e('tr', { 
+                                        key: index,
+                                        className: 'hover:bg-gray-50 transition-colors'
+                                    },
+                                        e('td', { className: 'px-6 py-4' }, 
+                                            e('div', { className: 'flex items-center' },
+                                                e('div', { 
+                                                    className: `w-2 h-2 rounded-full mr-3 ${
+                                                        enrollment.CompletionStatus === 'Completed' ? 'bg-blue-500' :
+                                                        enrollment.CompletionStatus === 'In Progress' || enrollment.CompletionStatus === 'Active' ? 'bg-green-500' :
+                                                        enrollment.CompletionStatus === 'Dropped' || enrollment.CompletionStatus === 'Withdrawn' ? 'bg-red-500' :
+                                                        'bg-gray-400'
+                                                    }`
+                                                }),
+                                                e('span', { className: 'text-sm font-medium text-gray-900' }, 
+                                                    enrollment.ClassLevelName || `Offering ${enrollment.OfferingID}`
+                                                )
+                                            )
                                         ),
-                                        e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
-                                            enrollment.TeacherName || 'N/A'
+                                        e('td', { className: 'px-6 py-4 text-sm text-gray-600' }, 
+                                            enrollment.TeacherName || e('span', { className: 'italic text-gray-400' }, 'N/A')
                                         ),
-                                        e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
-                                            enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString() : 'Unknown'
+                                        e('td', { className: 'px-6 py-4 text-sm text-gray-600' }, 
+                                            enrollment.EnrollmentDate ? new Date(enrollment.EnrollmentDate).toLocaleDateString('en-US', { 
+                                                month: 'short', 
+                                                day: 'numeric', 
+                                                year: 'numeric' 
+                                            }) : e('span', { className: 'italic text-gray-400' }, 'Unknown')
                                         ),
-                                        e('td', { className: 'px-4 py-2 text-sm text-gray-600' }, 
-                                            enrollment.CompletionDate ? new Date(enrollment.CompletionDate).toLocaleDateString() : '-'
+                                        e('td', { className: 'px-6 py-4 text-sm text-gray-600' }, 
+                                            enrollment.CompletionDate ? new Date(enrollment.CompletionDate).toLocaleDateString('en-US', { 
+                                                month: 'short', 
+                                                day: 'numeric', 
+                                                year: 'numeric' 
+                                            }) : e('span', { className: 'text-gray-400' }, '—')
                                         ),
-                                        e('td', { className: 'px-4 py-2' },
+                                        e('td', { className: 'px-6 py-4' },
                                             e('span', { 
-                                                className: `inline-block px-2 py-1 text-xs rounded-full ${
+                                                className: `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                                     enrollment.CompletionStatus === 'Completed' ? 'bg-blue-100 text-blue-800' :
                                                     enrollment.CompletionStatus === 'In Progress' || enrollment.CompletionStatus === 'Active' ? 'bg-green-100 text-green-800' :
                                                     enrollment.CompletionStatus === 'Dropped' || enrollment.CompletionStatus === 'Withdrawn' ? 'bg-red-100 text-red-800' :
@@ -1336,8 +1447,10 @@
                     console.log('getAllStudents response in StudentDirectory:', response);
                     
                     if (response.success && Array.isArray(response.data)) {
+                        console.log('Sample student data:', response.data[0]);
                         setStudents(response.data);
                     } else if (response.success && response.data && Array.isArray(response.data.data)) {
+                        console.log('Sample student data (nested):', response.data.data[0]);
                         setStudents(response.data.data);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to load students.' });
@@ -1392,15 +1505,60 @@
                     )
                 ) : (
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                        filteredStudents.map(student =>
-                            e('div', {
+                        filteredStudents.map(student => {
+                            // Determine what to show in the circle
+                            const getCurrentOrRecentLevel = () => {
+                                // Debug log for first student
+                                if (student.StudentID === filteredStudents[0].StudentID) {
+                                    console.log('Student debug:', {
+                                        name: `${student.FirstName} ${student.Lastname}`,
+                                        CurrentEnrollment: student.CurrentEnrollment,
+                                        HighestLevelCompleted: student.HighestLevelCompleted
+                                    });
+                                }
+                                
+                                if (student.CurrentEnrollment) {
+                                    // Extract level number/name from current enrollment
+                                    // Examples: "Level 101" -> "101", "Advanced Improv" -> "ADV"
+                                    const match = student.CurrentEnrollment.match(/\d+/);
+                                    if (match) {
+                                        return match[0];
+                                    }
+                                    // If no number, use first 3 letters
+                                    return student.CurrentEnrollment.substring(0, 3).toUpperCase();
+                                }
+                                // Fallback to highest level completed or initials
+                                if (student.HighestLevelCompleted) {
+                                    const match = student.HighestLevelCompleted.match(/\d+/);
+                                    if (match) {
+                                        return match[0];
+                                    }
+                                    return student.HighestLevelCompleted.substring(0, 3).toUpperCase();
+                                }
+                                return `${(student.FirstName || '').charAt(0)}${(student.Lastname || student.LastName || '').charAt(0)}`.toUpperCase();
+                            };
+                            
+                            const levelDisplay = getCurrentOrRecentLevel();
+                            const isNumericLevel = /^\d+$/.test(levelDisplay);
+                            
+                            return e('div', {
                                 key: student.StudentID || student.PersonnelID,
                                 className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
                                 onClick: () => onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID)
                             },
                                 e('div', { className: 'flex items-center space-x-3 mb-3' },
-                                    e('div', { className: 'w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold' },
-                                        `${(student.FirstName || '').charAt(0)}${(student.Lastname || student.LastName || '').charAt(0)}`.toUpperCase()
+                                    e('div', { 
+                                        className: `w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${
+                                            student.CurrentEnrollment 
+                                                ? 'bg-gradient-to-br from-green-500 to-green-600' 
+                                                : student.HighestLevelCompleted
+                                                ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                                                : 'bg-gradient-to-br from-gray-400 to-gray-500'
+                                        }`
+                                    },
+                                        isNumericLevel 
+                                            ? e('span', { className: 'text-sm' }, levelDisplay)
+                                            : e('span', { className: 'text-xs' }, levelDisplay)
                                     ),
                                     e('div', { className: 'flex-1' },
                                         e('h3', { className: 'font-semibold text-gray-900' }, 
@@ -1424,8 +1582,8 @@
                                         onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID); 
                                     }
                                 }, 'View Profile')
-                            )
-                        )
+                            );
+                        })
                     )
                 )
             );
