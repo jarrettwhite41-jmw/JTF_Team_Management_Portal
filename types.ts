@@ -45,6 +45,25 @@ export interface StudentEnrollments {
   Status: 'Active' | 'Dropped' | 'Completed';
 }
 
+// StudentInfo table - links Personnel to Student status
+export interface StudentInfo {
+  StudentID: number;
+  PersonnelID: number;
+  EnrollmentDate: Date | string;
+  Status: 'Active' | 'Inactive' | 'Graduated';
+  CurrentLevel?: number;
+  Notes?: string;
+}
+
+// ClassLevelProgression table - tracks student progress through levels
+export interface ClassLevelProgression {
+  ProgressionID: number;
+  StudentID: number;
+  ClassLevelID: number;
+  CompletionDate: Date | string;
+  Status: 'In Progress' | 'Completed';
+}
+
 export interface CrewDuties {
   DutyID: number;
   ShowID: number;
@@ -115,31 +134,50 @@ export interface ClassWithDetails extends ClassOfferings {
   CurrentEnrollment?: number;
 }
 
-// Student Types
-export interface StudentInfo extends Personnel {
-  currentLevel?: string;
-  classesCompleted?: number;
-  activeEnrollments?: number;
+// Student Types - Extended views for UI
+export interface StudentWithDetails extends Personnel {
+  StudentID?: number;
+  EnrollmentDate?: Date | string;
+  StudentStatus?: 'Active' | 'Inactive' | 'Graduated';
+  CurrentLevel?: number;
+  CurrentLevelName?: string;
+  ClassesCompleted?: number;
+  ActiveEnrollments?: number;
 }
 
 export interface EnrollmentWithDetails extends StudentEnrollments {
-  className?: string;
-  classLevel?: string;
-  teacher?: string;
-  startDate?: Date | string;
-  endDate?: Date | string;
+  ClassName?: string;
+  ClassLevel?: string;
+  ClassLevelName?: string;
+  Teacher?: string;
+  TeacherName?: string;
+  StartDate?: Date | string;
+  EndDate?: Date | string;
+  VenueOrRoom?: string;
 }
 
-export interface ClassLevelProgression {
-  level: string;
-  completed: boolean;
-  completionDate?: Date | string;
+export interface ProgressionWithDetails extends ClassLevelProgression {
+  LevelName?: string;
+  Description?: string;
 }
 
-export interface StudentProfile {
-  student: StudentInfo;
-  enrollments: EnrollmentWithDetails[];
-  progression: ClassLevelProgression[];
+export interface StudentProfileData {
+  // Basic info from Personnel table
+  PersonnelID: number;
+  FirstName: string;
+  LastName: string;
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  Instagram: string;
+  Birthday: Date | string;
+  // Student-specific info from StudentInfo table
+  StudentID: number;
+  EnrollmentDate: Date | string;
+  StudentStatus: 'Active' | 'Inactive' | 'Graduated';
+  CurrentLevel?: number;
+  // Aggregated data
+  Enrollments: EnrollmentWithDetails[];
+  Progression: ProgressionWithDetails[];
 }
 
 // UI State Types
