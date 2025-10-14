@@ -7,6 +7,20 @@
  */
 
 // =============================================================================
+// GOOGLE SHEETS MENU - Custom menu for admin tools
+// =============================================================================
+
+/**
+ * Creates custom menu when spreadsheet opens
+ */
+function onOpen() {
+  SpreadsheetApp.getUi()
+      .createMenu('Admin Tools')
+      .addItem('Update All Student Levels', 'updateHighestCompletedLevels')
+      .addToUi();
+}
+
+// =============================================================================
 // SHEET CONFIGURATION - Maps to actual Google Sheets tabs
 // =============================================================================
 
@@ -1354,6 +1368,8 @@ function getStudentProfileData(studentId) {
         EnrollmentID: enrollment.EnrollmentID,
         OfferingID: enrollment.OfferingID,
         EnrollmentDate: enrollment.EnrollmentDate,
+        CompletionDate: enrollment.CompletionDate || null,
+        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
         Status: enrollment.Status || 'Active',
         ClassLevelName: classLevelName,
         TeacherName: teacherName,
@@ -1666,12 +1682,57 @@ function getAllStudents() {
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
     const allPersonnel = sheetToObjects(personnelSheet);
     
-    // Join StudentInfo with Personnel
+    // Get StudentEnrollments to find current enrollments
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    // Get ClassOfferings for class details
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+    
+    // Get ClassLevels for level names
+    let allLevels = [];
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found');
+    }
+    
+    // Join StudentInfo with Personnel and find current enrollment
     const students = allStudentInfo.map(studentInfo => {
       const person = allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID);
       
       if (!person) {
         return null;
+      }
+      
+      // Find current (active/in progress) enrollments for this student
+      const currentEnrollments = allEnrollments.filter(e => 
+        e.StudentID == studentInfo.StudentID && 
+        (e.CompletionStatus === 'In Progress' || 
+         e.CompletionStatus === 'Active' || 
+         e.CompletionStatus === 'Enrolled' ||
+         (!e.CompletionStatus && (e.Status === 'Active' || e.Status === 'In Progress' || e.Status === 'Enrolled')))
+      );
+      
+      // Get the most recent active enrollment
+      let currentEnrollmentName = null;
+      if (currentEnrollments.length > 0) {
+        // Sort by enrollment date descending
+        const sortedEnrollments = currentEnrollments.sort((a, b) => {
+          const dateA = a.EnrollmentDate ? new Date(a.EnrollmentDate) : new Date(0);
+          const dateB = b.EnrollmentDate ? new Date(b.EnrollmentDate) : new Date(0);
+          return dateB - dateA;
+        });
+        
+        const mostRecentEnrollment = sortedEnrollments[0];
+        const classOffering = allClasses.find(c => c.OfferingID == mostRecentEnrollment.OfferingID);
+        
+        if (classOffering) {
+          const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+          currentEnrollmentName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+        }
       }
       
       return {
@@ -1680,7 +1741,11 @@ function getAllStudents() {
         FirstName: person.FirstName,
         Lastname: person.Lastname,
         PrimaryEmail: person.PrimaryEmail,
-        Status: studentInfo.Status || 'Active'
+        PrimaryPhone: person.PrimaryPhone,
+        Birthday: person.Birthday,
+        Status: studentInfo.Status || 'Active',
+        CurrentEnrollment: currentEnrollmentName,
+        HighestLevelCompleted: studentInfo.HighestLevelCompleted || null
       };
     }).filter(student => student !== null);
     
@@ -1884,5 +1949,180 @@ function testAllDataConnections() {
   } catch (error) {
     Logger.log(`=== CONNECTION TEST FAILED: ${error.toString()} ===`);
     return false;
+  }
+}
+
+// =============================================================================
+// ADMIN TOOLS - Automated student level calculation
+// =============================================================================
+
+/**
+ * ADMIN OPERATION: Updates HighestLevelCompleted for all students
+ * This function calculates the highest completed class level for each student
+ * based on their enrollment history with CompletionStatus = "Completed"
+ * 
+ * Algorithm:
+ * 1. Load all data from StudentInfo, StudentEnrollments, ClassOfferings, and ClassLevels
+ * 2. Create lookup maps for fast access to ClassOfferings and ClassLevels
+ * 3. For each student, find all completed enrollments
+ * 4. Determine the most recently completed enrollment
+ * 5. Update StudentInfo.HighestLevelCompleted only if value changed (performance optimization)
+ * 
+ * This function is triggered from Admin Tools menu in Google Sheets UI
+ */
+function updateHighestCompletedLevels() {
+  try {
+    Logger.log('=== updateHighestCompletedLevels() started ===');
+    const startTime = new Date();
+    
+    // Get all required sheets
+    const studentInfoSheet = getSheet('StudentInfo');
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const classOfferingsSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const classLevelsSheet = getSheet(SHEET_CONFIG.classLevels);
+    
+    // Convert sheets to objects
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const allClassOfferings = sheetToObjects(classOfferingsSheet);
+    const allClassLevels = sheetToObjects(classLevelsSheet);
+    
+    Logger.log(`Loaded ${allStudentInfo.length} students, ${allEnrollments.length} enrollments, ${allClassOfferings.length} offerings, ${allClassLevels.length} levels`);
+    
+    // Create lookup maps for fast access
+    // Map: OfferingID -> ClassLevelID
+    const offeringToLevelMap = new Map();
+    allClassOfferings.forEach(offering => {
+      offeringToLevelMap.set(offering.OfferingID, offering.ClassLevelID);
+    });
+    
+    // Map: ClassLevelID -> LevelName
+    const levelIdToNameMap = new Map();
+    allClassLevels.forEach(level => {
+      levelIdToNameMap.set(level.ClassLevelID, level.LevelName);
+    });
+    
+    Logger.log('Created lookup maps for offerings and levels');
+    
+    // Track updates for each student
+    const updates = new Map(); // StudentID -> { rowIndex, newHighestLevel }
+    
+    // Process each student
+    allStudentInfo.forEach((studentInfo, index) => {
+      const studentId = studentInfo.StudentID;
+      
+      // Find all completed enrollments for this student
+      const completedEnrollments = allEnrollments.filter(enrollment => 
+        enrollment.StudentID == studentId && 
+        enrollment.CompletionStatus === 'Completed' &&
+        enrollment.CompletionDate
+      );
+      
+      if (completedEnrollments.length === 0) {
+        // No completed enrollments, skip this student
+        return;
+      }
+      
+      // Sort by CompletionDate descending to find most recent
+      completedEnrollments.sort((a, b) => {
+        const dateA = new Date(a.CompletionDate);
+        const dateB = new Date(b.CompletionDate);
+        return dateB - dateA; // Most recent first
+      });
+      
+      // Get the most recently completed enrollment
+      const mostRecentCompleted = completedEnrollments[0];
+      const offeringId = mostRecentCompleted.OfferingID;
+      
+      // Look up the ClassLevelID from the offering
+      const classLevelId = offeringToLevelMap.get(offeringId);
+      
+      if (!classLevelId) {
+        Logger.log(`Warning: No ClassLevelID found for OfferingID ${offeringId} (Student ${studentId})`);
+        return;
+      }
+      
+      // Look up the LevelName
+      const levelName = levelIdToNameMap.get(classLevelId);
+      
+      if (!levelName) {
+        Logger.log(`Warning: No LevelName found for ClassLevelID ${classLevelId} (Student ${studentId})`);
+        return;
+      }
+      
+      // Check if the value needs to be updated
+      const currentHighestLevel = studentInfo.HighestLevelCompleted;
+      
+      if (currentHighestLevel !== levelName) {
+        // Value changed, queue this update
+        updates.set(studentId, {
+          rowIndex: index + 2, // +2 because: +1 for 1-indexed, +1 for header row
+          newHighestLevel: levelName,
+          oldValue: currentHighestLevel || '(empty)'
+        });
+      }
+    });
+    
+    Logger.log(`Found ${updates.size} students that need HighestLevelCompleted updated`);
+    
+    // Apply the updates to the sheet
+    if (updates.size > 0) {
+      const headers = studentInfoSheet.getRange(1, 1, 1, studentInfoSheet.getLastColumn()).getValues()[0];
+      const highestLevelColIndex = headers.indexOf('HighestLevelCompleted');
+      
+      if (highestLevelColIndex === -1) {
+        throw new Error('HighestLevelCompleted column not found in StudentInfo sheet');
+      }
+      
+      let updateCount = 0;
+      updates.forEach((updateInfo, studentId) => {
+        const cell = studentInfoSheet.getRange(updateInfo.rowIndex, highestLevelColIndex + 1);
+        cell.setValue(updateInfo.newHighestLevel);
+        updateCount++;
+        
+        if (updateCount <= 10) {
+          // Log first 10 updates for verification
+          Logger.log(`Updated StudentID ${studentId}: "${updateInfo.oldValue}" -> "${updateInfo.newHighestLevel}"`);
+        }
+      });
+      
+      Logger.log(`Successfully updated ${updateCount} student records`);
+    } else {
+      Logger.log('No updates needed - all student levels are current');
+    }
+    
+    const endTime = new Date();
+    const duration = (endTime - startTime) / 1000;
+    Logger.log(`=== updateHighestCompletedLevels() completed in ${duration} seconds ===`);
+    
+    // Show success message to user
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      `Updated ${updates.size} student${updates.size === 1 ? '' : 's'} in ${duration.toFixed(1)} seconds`,
+      'Student Levels Updated',
+      5
+    );
+    
+    return {
+      success: true,
+      studentsProcessed: allStudentInfo.length,
+      studentsUpdated: updates.size,
+      duration: duration
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in updateHighestCompletedLevels(): ${error.toString()}`);
+    Logger.log(`Stack trace: ${error.stack}`);
+    
+    // Show error message to user
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      `Error: ${error.toString()}`,
+      'Update Failed',
+      10
+    );
+    
+    return {
+      success: false,
+      error: error.toString()
+    };
   }
 }
