@@ -536,34 +536,63 @@
                             e('p', { className: 'text-gray-600 italic' }, 'No current enrollments')
                     ),
 
-                    // Class Progression
+                    // Class Progression - shows unique levels student has taken
                     e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
-                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Class Progression'),
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 
+                            'Class Level Progression',
+                            student.Progression && student.Progression.length > 0 && 
+                                e('span', { className: 'ml-2 text-sm font-normal text-gray-600' }, 
+                                    `(${student.Progression.length} unique levels)`
+                                )
+                        ),
                         student.Progression && student.Progression.length > 0 ?
                             e('div', { className: 'space-y-2' },
                                 student.Progression.map((progression, index) =>
                                     e('div', { 
                                         key: index,
-                                        className: `p-2 rounded border ${
+                                        className: `p-3 rounded-lg border ${
                                             progression.Status === 'Completed' 
                                                 ? 'bg-blue-50 border-blue-200' 
+                                                : progression.Status === 'Active' || progression.Status === 'Enrolled' || progression.Status === 'In Progress'
+                                                ? 'bg-green-50 border-green-200'
                                                 : 'bg-yellow-50 border-yellow-200'
                                         }`
                                     },
-                                        e('p', { className: `text-sm font-medium ${
-                                            progression.Status === 'Completed' ? 'text-blue-800' : 'text-yellow-800'
-                                        }` }, 
-                                            progression.LevelName || `Level ${progression.ClassLevelID}`
-                                        ),
-                                        progression.CompletionDate && e('p', { className: `text-xs ${
-                                            progression.Status === 'Completed' ? 'text-blue-600' : 'text-yellow-600'
-                                        }` }, 
-                                            `${progression.Status === 'Completed' ? 'Completed' : 'Started'}: ${new Date(progression.CompletionDate).toLocaleDateString()}`
+                                        e('div', { className: 'flex items-center justify-between' },
+                                            e('div', null,
+                                                e('p', { className: `text-sm font-semibold ${
+                                                    progression.Status === 'Completed' 
+                                                        ? 'text-blue-900' 
+                                                        : progression.Status === 'Active' || progression.Status === 'Enrolled' || progression.Status === 'In Progress'
+                                                        ? 'text-green-900'
+                                                        : 'text-yellow-900'
+                                                }` }, 
+                                                    progression.LevelName || `Level ${progression.ClassLevelID}`
+                                                ),
+                                                progression.EnrollmentDate && e('p', { className: `text-xs mt-1 ${
+                                                    progression.Status === 'Completed' 
+                                                        ? 'text-blue-600' 
+                                                        : progression.Status === 'Active' || progression.Status === 'Enrolled' || progression.Status === 'In Progress'
+                                                        ? 'text-green-600'
+                                                        : 'text-yellow-600'
+                                                }` }, 
+                                                    `${progression.Status === 'Completed' ? 'Completed' : 'Enrolled'}: ${new Date(progression.EnrollmentDate).toLocaleDateString()}`
+                                                )
+                                            ),
+                                            e('span', { 
+                                                className: `px-2 py-1 text-xs font-medium rounded-full ${
+                                                    progression.Status === 'Completed' 
+                                                        ? 'bg-blue-100 text-blue-800' 
+                                                        : progression.Status === 'Active' || progression.Status === 'Enrolled' || progression.Status === 'In Progress'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : 'bg-gray-100 text-gray-800'
+                                                }`
+                                            }, progression.Status)
                                         )
                                     )
                                 )
                             ) :
-                            e('p', { className: 'text-gray-600 italic' }, 'No progression data available')
+                            e('p', { className: 'text-gray-600 italic' }, 'No class progression data available')
                     )
                 ),
 

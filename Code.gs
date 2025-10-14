@@ -1363,23 +1363,80 @@ function getStudentProfileData(studentId) {
       };
     });
     
-    // Get class level progression
+    // Get class level progression from StudentEnrollments
+    // This shows which class levels the student has taken/is taking
     let classProgression = [];
+    try {
+      // Try to use Enrollment View first (has all the joins already)
+      let enrollmentData = [];
+      try {
+        const enrollmentViewSheet = getSheet(SHEET_CONFIG.enrollmentView);
+        enrollmentData = sheetToObjects(enrollmentViewSheet).filter(e => e.StudentID == studentId);
+        Logger.log(`Using Enrollment View for progression - found ${enrollmentData.length} records`);
+      } catch (viewError) {
+        Logger.log('Enrollment View not available, building from StudentEnrollments');
+        // Fallback: use the enriched enrollments we already built
+        enrollmentData = enrichedEnrollments;
+      }
+      
+      // Group by ClassLevelID to avoid duplicates (student may take same level multiple times)
+      const levelMap = new Map();
+      
+      enrichedEnrollments.forEach(enrollment => {
+        // Extract ClassLevelID from the class offering
+        const classOffering = allClasses.find(c => c.OfferingID == enrollment.OfferingID);
+        if (classOffering && classOffering.ClassLevelID) {
+          const levelId = classOffering.ClassLevelID;
+          
+          // Only add if we haven't seen this level, or if this one is more recent/completed
+          if (!levelMap.has(levelId)) {
+            const level = allLevels.find(l => l.ClassLevelID == levelId);
+            levelMap.set(levelId, {
+              ClassLevelID: levelId,
+              LevelName: level ? level.LevelName : `Level ${levelId}`,
+              Status: enrollment.Status,
+              EnrollmentDate: enrollment.EnrollmentDate,
+              OfferingID: enrollment.OfferingID
+            });
+          } else {
+            // Update if this enrollment is completed and the existing one isn't
+            const existing = levelMap.get(levelId);
+            if (enrollment.Status === 'Completed' && existing.Status !== 'Completed') {
+              existing.Status = enrollment.Status;
+              existing.EnrollmentDate = enrollment.EnrollmentDate;
+            }
+          }
+        }
+      });
+      
+      // Convert map to array and sort by level ID
+      classProgression = Array.from(levelMap.values()).sort((a, b) => a.ClassLevelID - b.ClassLevelID);
+      
+      Logger.log(`Built class progression: ${classProgression.length} unique levels`);
+      
+    } catch (e) {
+      Logger.log(`Error building class progression: ${e.toString()}`);
+    }
+    
+    // Also get ClassLevelProgression table if it exists (for historical tracking)
+    let historicalProgression = [];
     try {
       const progressionSheet = getSheet('ClassLevelProgression');
       const allProgression = sheetToObjects(progressionSheet);
-      classProgression = allProgression.filter(p => p.StudentID == studentId);
+      historicalProgression = allProgression.filter(p => p.StudentID == studentId);
       
-      // Enrich progression with level names
-      classProgression = classProgression.map(prog => {
+      // Enrich with level names
+      historicalProgression = historicalProgression.map(prog => {
         const level = allLevels.find(l => l.ClassLevelID == prog.ClassLevelID);
         return {
           ...prog,
           LevelName: level ? level.LevelName : `Level ${prog.ClassLevelID}`
         };
       });
+      
+      Logger.log(`Found ${historicalProgression.length} historical progression records`);
     } catch (e) {
-      Logger.log('ClassLevelProgression sheet not found, continuing without progression data');
+      Logger.log('ClassLevelProgression table not found or error: ' + e.toString());
     }
     
     // Build complete profile
@@ -1402,10 +1459,14 @@ function getStudentProfileData(studentId) {
       
       // Enrollment and progression data
       Enrollments: enrichedEnrollments,
-      Progression: classProgression
+      Progression: classProgression,  // Built from StudentEnrollments (unique levels)
+      HistoricalProgression: historicalProgression  // From ClassLevelProgression table if exists
     };
     
     Logger.log(`Student profile loaded for ${person.FirstName} ${person.Lastname} (StudentID: ${studentId})`);
+    Logger.log(`  - ${enrichedEnrollments.length} enrollments`);
+    Logger.log(`  - ${classProgression.length} unique class levels taken`);
+    Logger.log(`  - ${historicalProgression.length} historical progression records`);
     return { success: true, data: profile };
     
   } catch (error) {
