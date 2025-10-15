@@ -233,6 +233,16 @@
                 return this.callServerFunction('updateEnrollmentStatus', enrollmentId, status);
             }
 
+            // READ: Get all active teachers with their names
+            async getActiveTeachers() {
+                return this.callServerFunction('getActiveTeachers');
+            }
+
+            // READ: Get all class levels
+            async getAllClassLevels() {
+                return this.callServerFunction('getAllClassLevels');
+            }
+
             // ===================================================================
             // INVENTORY CRUD API METHODS
             // These methods interact with the Inventory sheet in Google Sheets
@@ -1434,6 +1444,20 @@
             const [isLoading, setIsLoading] = useState(true);
             const [message, setMessage] = useState(null);
             const [showNewClassModal, setShowNewClassModal] = useState(false);
+            
+            // For New Class Modal
+            const [teachers, setTeachers] = useState([]);
+            const [classLevels, setClassLevels] = useState([]);
+            const [newClassData, setNewClassData] = useState({
+                ClassLevelID: '',
+                TeacherID: '',
+                StartDate: '',
+                EndDate: '',
+                MaxStudents: '12',
+                VenueOrRoom: '',
+                Status: 'Upcoming'
+            });
+            const [isSaving, setIsSaving] = useState(false);
 
             useEffect(() => {
                 loadClasses();
@@ -1517,6 +1541,88 @@
                 setMessage({ type: 'success', text: 'Class management page coming soon!' });
             };
 
+            const loadModalData = async () => {
+                try {
+                    const [teachersResp, levelsResp] = await Promise.all([
+                        gasService.getActiveTeachers(),
+                        gasService.getAllClassLevels()
+                    ]);
+
+                    console.log('Teachers response:', teachersResp);
+                    console.log('Levels response:', levelsResp);
+
+                    if (teachersResp.success && teachersResp.data) {
+                        // Handle nested data format
+                        const teacherData = Array.isArray(teachersResp.data) 
+                            ? teachersResp.data 
+                            : (teachersResp.data.data || []);
+                        console.log('Processed teacher data:', teacherData);
+                        setTeachers(teacherData);
+                    }
+                    if (levelsResp.success && levelsResp.data) {
+                        // Handle nested data format
+                        const levelData = Array.isArray(levelsResp.data) 
+                            ? levelsResp.data 
+                            : (levelsResp.data.data || []);
+                        console.log('Processed level data:', levelData);
+                        setClassLevels(levelData);
+                    }
+                } catch (error) {
+                    console.error('Error loading modal data:', error);
+                }
+            };
+
+            const handleOpenModal = () => {
+                setShowNewClassModal(true);
+                loadModalData();
+            };
+
+            const handleCloseModal = () => {
+                setShowNewClassModal(false);
+                setNewClassData({
+                    ClassLevelID: '',
+                    TeacherID: '',
+                    StartDate: '',
+                    EndDate: '',
+                    MaxStudents: '12',
+                    VenueOrRoom: '',
+                    Status: 'Upcoming'
+                });
+            };
+
+            const handleInputChange = (field, value) => {
+                setNewClassData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+            };
+
+            const handleCreateClass = async () => {
+                // Validation
+                if (!newClassData.ClassLevelID || !newClassData.TeacherID || !newClassData.StartDate || !newClassData.EndDate) {
+                    setMessage({ type: 'error', text: 'Please fill in all required fields' });
+                    return;
+                }
+
+                setIsSaving(true);
+                try {
+                    const response = await gasService.createClassOffering(newClassData);
+
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Class created successfully!' });
+                        handleCloseModal();
+                        loadClasses(); // Refresh the class list
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to create class' });
+                    }
+                } catch (error) {
+                    console.error('Error creating class:', error);
+                    setMessage({ type: 'error', text: 'Error creating class' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
             if (isLoading) {
                 return e(Loader, { text: 'Loading classes...' });
             }
@@ -1530,7 +1636,7 @@
                             e('p', { className: 'text-gray-600 mt-1' }, 'Manage class offerings, rosters, and attendance')
                         ),
                         e('button', {
-                            onClick: () => setShowNewClassModal(true),
+                            onClick: handleOpenModal,
                             className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
                         },
                             e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1629,7 +1735,7 @@
                         ),
                         !searchTerm && e('div', { className: 'mt-6' },
                             e('button', {
-                                onClick: () => setShowNewClassModal(true),
+                                onClick: handleOpenModal,
                                 className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
                             },
                                 e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
@@ -1641,15 +1747,145 @@
                     )
                 ),
 
-                // New Class Modal - Placeholder
-                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-                    e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4' },
-                        e('h3', { className: 'text-xl font-bold text-gray-900 mb-4' }, 'Create New Class'),
-                        e('p', { className: 'text-gray-600 mb-4' }, 'New class creation form coming soon!'),
-                        e('button', {
-                            onClick: () => setShowNewClassModal(false),
-                            className: 'w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
-                        }, 'Close')
+                // New Class Modal
+                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4', onClick: handleCloseModal },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
+                        // Header
+                        e('div', { className: 'flex justify-between items-center mb-6' },
+                            e('h3', { className: 'text-2xl font-bold text-gray-900' }, 'Create New Class'),
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'text-gray-400 hover:text-gray-600'
+                            },
+                                e('svg', { className: 'w-6 h-6', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                                )
+                            )
+                        ),
+
+                        // Form
+                        e('div', { className: 'space-y-4' },
+                            // Class Level
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                    'Class Level ',
+                                    e('span', { className: 'text-red-500' }, '*')
+                                ),
+                                e('select', {
+                                    value: newClassData.ClassLevelID,
+                                    onChange: (ev) => handleInputChange('ClassLevelID', ev.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: '' }, 'Select a class level...'),
+                                    classLevels.map(level =>
+                                        e('option', { key: level.ClassLevelID, value: level.ClassLevelID },
+                                            level.LevelName
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // Teacher
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                    'Teacher ',
+                                    e('span', { className: 'text-red-500' }, '*')
+                                ),
+                                e('select', {
+                                    value: newClassData.TeacherID,
+                                    onChange: (ev) => handleInputChange('TeacherID', ev.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: '' }, 'Select a teacher...'),
+                                    teachers.map(teacher =>
+                                        e('option', { key: teacher.TeacherID, value: teacher.TeacherID },
+                                            teacher.FullName
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // Date Range
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                // Start Date
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Start Date ',
+                                        e('span', { className: 'text-red-500' }, '*')
+                                    ),
+                                    e('input', {
+                                        type: 'date',
+                                        value: newClassData.StartDate,
+                                        onChange: (ev) => handleInputChange('StartDate', ev.target.value),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                ),
+                                // End Date
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'End Date ',
+                                        e('span', { className: 'text-red-500' }, '*')
+                                    ),
+                                    e('input', {
+                                        type: 'date',
+                                        value: newClassData.EndDate,
+                                        onChange: (ev) => handleInputChange('EndDate', ev.target.value),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            ),
+
+                            // Max Students and Location
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                // Max Students
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Max Students'
+                                    ),
+                                    e('input', {
+                                        type: 'number',
+                                        value: newClassData.MaxStudents,
+                                        onChange: (ev) => handleInputChange('MaxStudents', ev.target.value),
+                                        min: '1',
+                                        max: '50',
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                ),
+                                // Location
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Location'
+                                    ),
+                                    e('input', {
+                                        type: 'text',
+                                        value: newClassData.VenueOrRoom,
+                                        onChange: (ev) => handleInputChange('VenueOrRoom', ev.target.value),
+                                        placeholder: 'e.g., Studio A',
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            )
+                        ),
+
+                        // Actions
+                        e('div', { className: 'flex gap-3 mt-6 pt-6 border-t' },
+                            e('button', {
+                                onClick: handleCloseModal,
+                                disabled: isSaving,
+                                className: 'flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50'
+                            }, 'Cancel'),
+                            e('button', {
+                                onClick: handleCreateClass,
+                                disabled: isSaving,
+                                className: 'flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2'
+                            },
+                                isSaving && e('svg', { className: 'animate-spin h-5 w-5', fill: 'none', viewBox: '0 0 24 24' },
+                                    e('circle', { className: 'opacity-25', cx: 12, cy: 12, r: 10, stroke: 'currentColor', strokeWidth: 4 }),
+                                    e('path', { className: 'opacity-75', fill: 'currentColor', d: 'M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' })
+                                ),
+                                isSaving ? 'Creating...' : 'Create Class'
+                            )
+                        )
                     )
                 )
             );

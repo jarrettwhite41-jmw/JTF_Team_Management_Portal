@@ -2606,3 +2606,49 @@ function updateEnrollmentStatus(enrollmentId, status) {
     };
   }
 }
+
+/**
+ * READ OPERATION: Gets all active teachers with their personnel information
+ * DATA SOURCE: Teachers, Personnel sheets
+ * @returns {Object} Success status and array of active teachers
+ */
+function getActiveTeachers() {
+  try {
+    Logger.log('=== getActiveTeachers() called ===');
+    
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(teachersSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Filter for active teachers and enrich with personnel info
+    const activeTeachers = allTeachers
+      .filter(t => t.Active == 1 || t.Active === true)
+      .map(teacher => {
+        const personnel = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+        return {
+          TeacherID: teacher.TeacherID,
+          PersonnelID: teacher.PersonnelID,
+          FirstName: personnel ? personnel.FirstName : '',
+          Lastname: personnel ? personnel.Lastname : '',
+          FullName: personnel ? `${personnel.FirstName} ${personnel.Lastname}` : 'Unknown',
+          Active: teacher.Active
+        };
+      });
+    
+    Logger.log(`Found ${activeTeachers.length} active teachers`);
+    
+    return {
+      success: true,
+      data: activeTeachers
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getActiveTeachers(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
