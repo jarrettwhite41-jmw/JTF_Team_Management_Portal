@@ -2,10 +2,10 @@ import React from 'react';
 
 interface ClassCardProps {
   classOffering: any;
-  onClick: () => void;
+  onManage: () => void;
 }
 
-export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onClick }) => {
+export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage }) => {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'upcoming':
@@ -41,7 +41,7 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onClick }) 
 
   return (
     <div
-      onClick={onClick}
+      onClick={onManage}
       className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer group"
     >
       {/* Header */}

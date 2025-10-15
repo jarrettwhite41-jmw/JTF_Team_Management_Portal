@@ -1400,13 +1400,334 @@
             );
         }
 
-        // Placeholder Components for other pages
+        // Class Registration / Management Component
         function ClassRegistration() {
-            return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Class Registration'),
-                e('p', { className: 'text-gray-600' }, 'Class registration functionality coming soon...')
+            const [classes, setClasses] = useState([]);
+            const [filteredClasses, setFilteredClasses] = useState([]);
+            const [filter, setFilter] = useState('all');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [showNewClassModal, setShowNewClassModal] = useState(false);
+
+            useEffect(() => {
+                loadClasses();
+            }, []);
+
+            useEffect(() => {
+                applyFilters();
+            }, [classes, filter, searchTerm]);
+
+            const loadClasses = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllClassOfferings();
+                    console.log('getAllClassOfferings response:', response);
+
+                    if (response.success && response.data) {
+                        setClasses(response.data);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load classes' });
+                    }
+                } catch (error) {
+                    console.error('Error loading classes:', error);
+                    setMessage({ type: 'error', text: 'Error loading classes' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const applyFilters = () => {
+                let filtered = [...classes];
+
+                // Apply status filter
+                if (filter !== 'all') {
+                    const statusMap = {
+                        'all': '',
+                        'upcoming': 'Upcoming',
+                        'in-progress': 'In Progress',
+                        'completed': 'Completed'
+                    };
+                    filtered = filtered.filter(c => c.Status === statusMap[filter]);
+                }
+
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(c =>
+                        (c.LevelName && c.LevelName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (c.TeacherName && c.TeacherName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (c.Location && c.Location.toLowerCase().includes(searchTerm.toLowerCase()))
+                    );
+                }
+
+                setFilteredClasses(filtered);
+            };
+
+            const getFilterCount = (filterType) => {
+                if (filterType === 'all') return classes.length;
+                const statusMap = {
+                    'upcoming': 'Upcoming',
+                    'in-progress': 'In Progress',
+                    'completed': 'Completed'
+                };
+                return classes.filter(c => c.Status === statusMap[filterType]).length;
+            };
+
+            const handleManageClass = (offeringId) => {
+                console.log('Navigate to class management:', offeringId);
+                setMessage({ type: 'success', text: 'Class management page coming soon!' });
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading classes...' });
+            }
+
+            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+                // Header
+                e('div', { className: 'mb-6' },
+                    e('div', { className: 'flex justify-between items-center mb-4' },
+                        e('div', null,
+                            e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Class Management'),
+                            e('p', { className: 'text-gray-600 mt-1' }, 'Manage class offerings, rosters, and attendance')
+                        ),
+                        e('button', {
+                            onClick: () => setShowNewClassModal(true),
+                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                        },
+                            e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                            ),
+                            'New Class'
+                        )
+                    ),
+                    message && e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                // Filters
+                e('div', { className: 'mb-6 space-y-4' },
+                    e('div', { className: 'flex gap-2' },
+                        e('button', {
+                            onClick: () => setFilter('all'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'all'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `All Classes (${getFilterCount('all')})`),
+                        e('button', {
+                            onClick: () => setFilter('upcoming'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'upcoming'
+                                    ? 'bg-yellow-500 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `Upcoming (${getFilterCount('upcoming')})`),
+                        e('button', {
+                            onClick: () => setFilter('in-progress'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'in-progress'
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `In Progress (${getFilterCount('in-progress')})`),
+                        e('button', {
+                            onClick: () => setFilter('completed'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'completed'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `Completed (${getFilterCount('completed')})`)
+                    ),
+                    // Search
+                    e('div', { className: 'relative' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search classes by name, teacher, or location...',
+                            value: searchTerm,
+                            onChange: (ev) => setSearchTerm(ev.target.value),
+                            className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                        }),
+                        e('svg', {
+                            className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400',
+                            fill: 'none',
+                            stroke: 'currentColor',
+                            viewBox: '0 0 24 24'
+                        },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                        )
+                    )
+                ),
+
+                // Classes Grid
+                filteredClasses.length > 0 ? (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' },
+                        filteredClasses.map(classOffering =>
+                            e(ClassCard, {
+                                key: classOffering.OfferingID,
+                                classOffering: classOffering,
+                                onManage: () => handleManageClass(classOffering.OfferingID)
+                            })
+                        )
+                    )
+                ) : (
+                    e('div', { className: 'text-center py-12 bg-white rounded-lg border border-gray-200' },
+                        e('svg', {
+                            className: 'mx-auto h-12 w-12 text-gray-400',
+                            fill: 'none',
+                            stroke: 'currentColor',
+                            viewBox: '0 0 24 24'
+                        },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                        ),
+                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No classes found'),
+                        e('p', { className: 'mt-1 text-sm text-gray-500' },
+                            searchTerm ? 'Try adjusting your search' : 'Get started by creating a new class'
+                        ),
+                        !searchTerm && e('div', { className: 'mt-6' },
+                            e('button', {
+                                onClick: () => setShowNewClassModal(true),
+                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                            },
+                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                ),
+                                'New Class'
+                            )
+                        )
+                    )
+                ),
+
+                // New Class Modal - Placeholder
+                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4' },
+                        e('h3', { className: 'text-xl font-bold text-gray-900 mb-4' }, 'Create New Class'),
+                        e('p', { className: 'text-gray-600 mb-4' }, 'New class creation form coming soon!'),
+                        e('button', {
+                            onClick: () => setShowNewClassModal(false),
+                            className: 'w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+                        }, 'Close')
+                    )
+                )
             );
         }
+
+        // ClassCard Component
+        function ClassCard({ classOffering, onManage }) {
+            const getStatusColor = (status) => {
+                switch (status?.toLowerCase()) {
+                    case 'upcoming':
+                        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                    case 'in progress':
+                    case 'open':
+                        return 'bg-green-100 text-green-800 border-green-200';
+                    case 'completed':
+                        return 'bg-blue-100 text-blue-800 border-blue-200';
+                    case 'cancelled':
+                        return 'bg-red-100 text-red-800 border-red-200';
+                    default:
+                        return 'bg-gray-100 text-gray-800 border-gray-200';
+                }
+            };
+
+            const formatDate = (dateString) => {
+                if (!dateString) return 'TBD';
+                try {
+                    return new Date(dateString).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                } catch {
+                    return dateString;
+                }
+            };
+
+            const enrollmentPercentage = classOffering.MaxStudents 
+                ? (classOffering.EnrolledCount / classOffering.MaxStudents) * 100 
+                : 0;
+
+            return e('div', {
+                onClick: onManage,
+                className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer group'
+            },
+                // Header
+                e('div', { className: 'flex items-start justify-between mb-3' },
+                    e('div', { className: 'flex-1' },
+                        e('h3', { className: 'text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors' },
+                            classOffering.LevelName || `Level ${classOffering.ClassLevelID}`
+                        ),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' },
+                            e('span', { className: 'inline-flex items-center' },
+                                e('svg', { className: 'w-4 h-4 mr-1', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                    e('path', { d: 'M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z' })
+                                ),
+                                classOffering.TeacherName || 'TBA'
+                            )
+                        )
+                    ),
+                    e('span', { className: `px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(classOffering.Status)}` },
+                        classOffering.Status
+                    )
+                ),
+
+                // Schedule
+                e('div', { className: 'space-y-2 mb-4' },
+                    e('div', { className: 'flex items-center text-sm text-gray-600' },
+                        e('svg', { className: 'w-4 h-4 mr-2 text-gray-400', fill: 'currentColor', viewBox: '0 0 20 20' },
+                            e('path', { fillRule: 'evenodd', d: 'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z', clipRule: 'evenodd' })
+                        ),
+                        e('span', null,
+                            `${formatDate(classOffering.StartDate)} - ${formatDate(classOffering.EndDate)}`
+                        )
+                    ),
+                    classOffering.VenueOrRoom && e('div', { className: 'flex items-center text-sm text-gray-600' },
+                        e('svg', { className: 'w-4 h-4 mr-2 text-gray-400', fill: 'currentColor', viewBox: '0 0 20 20' },
+                            e('path', { fillRule: 'evenodd', d: 'M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z', clipRule: 'evenodd' })
+                        ),
+                        e('span', null, classOffering.VenueOrRoom)
+                    )
+                ),
+
+                // Enrollment Progress
+                e('div', { className: 'space-y-2' },
+                    e('div', { className: 'flex items-center justify-between text-sm' },
+                        e('span', { className: 'text-gray-600' }, 'Enrollment'),
+                        e('span', { className: 'font-semibold text-gray-900' },
+                            `${classOffering.EnrolledCount || 0} / ${classOffering.MaxStudents || 12} students`
+                        )
+                    ),
+                    e('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                        e('div', {
+                            className: `h-2 rounded-full transition-all ${
+                                enrollmentPercentage >= 100
+                                    ? 'bg-red-500'
+                                    : enrollmentPercentage >= 75
+                                    ? 'bg-yellow-500'
+                                    : 'bg-green-500'
+                            }`,
+                            style: { width: `${Math.min(enrollmentPercentage, 100)}%` }
+                        })
+                    )
+                ),
+
+                // View Details Link
+                e('div', { className: 'mt-4 pt-4 border-t border-gray-100' },
+                    e('button', { className: 'text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center group-hover:translate-x-1 transition-transform' },
+                        'Manage Class',
+                        e('svg', { className: 'w-4 h-4 ml-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
+                        )
+                    )
+                )
+            );
+        }
+
+        // Placeholder Components for other pages
 
         function Shows() {
             return e('div', { className: 'p-6' },
