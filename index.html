@@ -208,6 +208,31 @@
                 return this.callServerFunction('getAllClasses');
             }
 
+            // READ: Get all class offerings with teacher names and enrollment counts
+            async getAllClassOfferings() {
+                return this.callServerFunction('getAllClassOfferings');
+            }
+
+            // READ: Get detailed information for a specific class offering
+            async getClassOfferingDetails(offeringId) {
+                return this.callServerFunction('getClassOfferingDetails', offeringId);
+            }
+
+            // CREATE: Create a new class offering
+            async createClassOffering(classData) {
+                return this.callServerFunction('createClassOffering', classData);
+            }
+
+            // UPDATE: Update class attendance record
+            async updateClassAttendance(attendanceData) {
+                return this.callServerFunction('updateClassAttendance', attendanceData);
+            }
+
+            // UPDATE: Update student enrollment status
+            async updateEnrollmentStatus(enrollmentId, status) {
+                return this.callServerFunction('updateEnrollmentStatus', enrollmentId, status);
+            }
+
             // ===================================================================
             // INVENTORY CRUD API METHODS
             // These methods interact with the Inventory sheet in Google Sheets
