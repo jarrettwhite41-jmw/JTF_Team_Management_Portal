@@ -1,5 +1,5 @@
 /**
- * 6JTF Team Management Portal - Google Apps Script Backend
+ * 5JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -2505,16 +2505,17 @@ function updateClassAttendance(attendanceData) {
     const sheet = getSheet(SHEET_CONFIG.classAttendance);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
     const allData = sheetToObjects(sheet);
-    
-    // Find existing attendance record
-    const dateToFind = new Date(attendanceData.classDate);
-    const dateToFindStr = Utilities.formatDate(dateToFind, Session.getScriptTimeZone(), "yyyy-MM-dd");
+    const timezone = Session.getScriptTimeZone();
 
+    // Standardize date for comparison
+    const dateToFind = new Date(attendanceData.classDate);
+    const dateToFindStr = Utilities.formatDate(dateToFind, timezone, "yyyy-MM-dd");
+
+    // Find existing attendance record
     const existingIndex = allData.findIndex(a => {
       if (!a.ClassDate) return false;
       const recordDate = new Date(a.ClassDate);
-      const recordDateStr = Utilities.formatDate(recordDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
-      
+      const recordDateStr = Utilities.formatDate(recordDate, timezone, "yyyy-MM-dd");
       return a.EnrollmentID == attendanceData.enrollmentId && recordDateStr === dateToFindStr;
     });
     
@@ -2523,15 +2524,14 @@ function updateClassAttendance(attendanceData) {
       const rowIndex = existingIndex + 2; // +2 for 1-indexed and header row
       
       const statusColIndex = headers.indexOf('AttendanceStatus');
-      const notesColIndex = headers.indexOf('Notes');
-      const updatedColIndex = headers.indexOf('LastUpdated');
-      
       if (statusColIndex >= 0) {
         sheet.getRange(rowIndex, statusColIndex + 1).setValue(attendanceData.status);
       }
+      const notesColIndex = headers.indexOf('Notes');
       if (notesColIndex >= 0 && attendanceData.notes) {
         sheet.getRange(rowIndex, notesColIndex + 1).setValue(attendanceData.notes);
       }
+      const updatedColIndex = headers.indexOf('LastUpdated');
       if (updatedColIndex >= 0) {
         sheet.getRange(rowIndex, updatedColIndex + 1).setValue(new Date());
       }
@@ -2543,18 +2543,16 @@ function updateClassAttendance(attendanceData) {
       const newAttendanceId = maxId + 1;
       
       const rowData = headers.map(header => {
-        if (header === 'AttendanceID') return newAttendanceId;
-        if (header === 'EnrollmentID') return attendanceData.enrollmentId;
-        if (header === 'OfferingID') return attendanceData.offeringId;
-        if (header === 'ClassDate') {
-          // Force date into yyyy-MM-dd format in the script's timezone to avoid ambiguity
-          const date = new Date(attendanceData.classDate);
-          return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        switch(header) {
+          case 'AttendanceID': return newAttendanceId;
+          case 'EnrollmentID': return attendanceData.enrollmentId;
+          case 'OfferingID': return attendanceData.offeringId;
+          case 'ClassDate': return dateToFindStr; // Use standardized date string
+          case 'AttendanceStatus': return attendanceData.status;
+          case 'Notes': return attendanceData.notes || '';
+          case 'LastUpdated': return new Date();
+          default: return '';
         }
-        if (header === 'AttendanceStatus') return attendanceData.status;
-        if (header === 'Notes') return attendanceData.notes || '';
-        if (header === 'LastUpdated') return new Date();
-        return '';
       });
       
       sheet.appendRow(rowData);
