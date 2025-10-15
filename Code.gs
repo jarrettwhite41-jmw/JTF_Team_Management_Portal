@@ -53,6 +53,7 @@ const SHEET_CONFIG = {
   // Lookup/Reference tables
   showTypes: 'ShowTypes',                   // Types of shows (Mainstage, Harold, etc.)
   classLevels: 'ClassLevels',               // Class levels (101, 201, Advanced, etc.)
+  teachers: 'Teachers',                     // Teachers table (TeacherID, PersonnelID, Active)
   crewDutyTypes: 'CrewDutyTypes'            // Types of crew positions
 };
 
@@ -2239,6 +2240,19 @@ function getAllClassOfferings() {
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
     const allEnrollments = sheetToObjects(enrollmentsSheet);
     
+    // Get Teachers table to map TeacherID to PersonnelID
+    let allTeachers = [];
+    try {
+      const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      allTeachers = sheetToObjects(teachersSheet);
+      Logger.log(`Found ${allTeachers.length} teachers in Teachers table`);
+      if (allTeachers.length > 0) {
+        Logger.log(`Sample teacher record: ${JSON.stringify(allTeachers[0])}`);
+      }
+    } catch (e) {
+      Logger.log('Teachers sheet not found, will try direct Personnel lookup');
+    }
+    
     // Get ClassLevels for level names
     let allLevels = [];
     try {
@@ -2248,11 +2262,51 @@ function getAllClassOfferings() {
       Logger.log('ClassLevels sheet not found');
     }
     
+    Logger.log(`Processing ${allClasses.length} class offerings`);
+    if (allClasses.length > 0) {
+      Logger.log(`Sample class offering: ${JSON.stringify(allClasses[0])}`);
+    }
+    
     // Enrich each class with teacher name and enrollment count
     const enrichedClasses = allClasses.map(classOffering => {
-      // Get teacher name
-      const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherPersonnelID);
-      const teacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : 'TBA';
+      // Get teacher name through Teachers table
+      // ClassOfferings.TeacherID → Teachers.TeacherID → Teachers.PersonnelID → Personnel.PersonnelID
+      let teacherName = 'TBA';
+      let debugInfo = {
+        offeringId: classOffering.OfferingID,
+        teacherId: classOffering.TeacherID,
+        teacherRecord: null,
+        personnelId: null,
+        personnelRecord: null
+      };
+      
+      if (allTeachers.length > 0) {
+        // Look up teacher by TeacherID
+        const teacher = allTeachers.find(t => t.TeacherID == classOffering.TeacherID);
+        debugInfo.teacherRecord = teacher;
+        
+        if (teacher) {
+          debugInfo.personnelId = teacher.PersonnelID;
+          const personnel = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+          debugInfo.personnelRecord = personnel;
+          
+          if (personnel) {
+            teacherName = `${personnel.FirstName} ${personnel.Lastname}`;
+            Logger.log(`✓ OfferingID ${classOffering.OfferingID}: TeacherID ${classOffering.TeacherID} → PersonnelID ${teacher.PersonnelID} → ${teacherName}`);
+          } else {
+            Logger.log(`✗ OfferingID ${classOffering.OfferingID}: PersonnelID ${teacher.PersonnelID} not found in Personnel table`);
+          }
+        } else {
+          Logger.log(`✗ OfferingID ${classOffering.OfferingID}: TeacherID ${classOffering.TeacherID} not found in Teachers table`);
+        }
+      } else {
+        Logger.log(`! No Teachers table found, using fallback`);
+        // Fallback: try direct lookup in case Teachers table not available
+        const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherID);
+        if (teacher) {
+          teacherName = `${teacher.FirstName} ${teacher.Lastname}`;
+        }
+      }
       
       // Count enrolled students (active enrollments only)
       const enrollments = allEnrollments.filter(e => 
@@ -2332,10 +2386,23 @@ function getClassOfferingDetails(offeringId) {
       };
     }
     
-    // Get teacher info
+    // Get teacher info through Teachers table
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
     const allPersonnel = sheetToObjects(personnelSheet);
-    const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherPersonnelID);
+    
+    let teacherInfo = null;
+    let teachersSheet = null;
+    try {
+      teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      const allTeachers = sheetToObjects(teachersSheet);
+      const teacher = allTeachers.find(t => t.TeacherID == classOffering.TeacherID);
+      if (teacher) {
+        teacherInfo = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+      }
+    } catch (e) {
+      Logger.log('Teachers sheet not found, trying direct lookup');
+      teacherInfo = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherID);
+    }
     
     // Get level name
     let levelName = '';
@@ -2392,7 +2459,7 @@ function getClassOfferingDetails(offeringId) {
       data: {
         classOffering: {
           ...classOffering,
-          TeacherName: teacher ? `${teacher.FirstName} ${teacher.Lastname}` : 'TBA',
+          TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.Lastname}` : 'TBA',
           LevelName: levelName
         },
         enrolledStudents: enrolledStudents,

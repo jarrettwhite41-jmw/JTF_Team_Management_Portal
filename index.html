@@ -1455,6 +1455,15 @@
                             ? response.data 
                             : (response.data.data || []);
                         console.log('Processed class data:', classData);
+                        
+                        // Debug: Log first 3 classes with teacher names
+                        if (classData.length > 0) {
+                            console.log('=== TEACHER NAME DEBUG ===');
+                            classData.slice(0, 3).forEach(c => {
+                                console.log(`OfferingID ${c.OfferingID}: TeacherID ${c.TeacherID} → TeacherName: "${c.TeacherName}"`);
+                            });
+                        }
+                        
                         setClasses(classData);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to load classes' });
