@@ -1450,7 +1450,12 @@
                     console.log('getAllClassOfferings response:', response);
 
                     if (response.success && response.data) {
-                        setClasses(response.data);
+                        // Handle both array and nested data object formats
+                        const classData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                        console.log('Processed class data:', classData);
+                        setClasses(classData);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to load classes' });
                     }
