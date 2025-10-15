@@ -2268,12 +2268,29 @@ function getAllClassOfferings() {
       const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
       const levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
       
+      // Calculate status based on dates if not explicitly set
+      let status = classOffering.Status || 'Upcoming';
+      if (!classOffering.Status) {
+        const today = new Date();
+        const startDate = new Date(classOffering.StartDate);
+        const endDate = new Date(classOffering.EndDate);
+        
+        if (today > endDate) {
+          status = 'Completed';
+        } else if (today >= startDate && today <= endDate) {
+          status = 'In Progress';
+        } else {
+          status = 'Upcoming';
+        }
+      }
+      
       return {
         ...classOffering,
         TeacherName: teacherName,
         LevelName: levelName,
         EnrolledCount: enrolledCount,
-        MaxStudents: classOffering.MaxStudents || 12
+        MaxStudents: classOffering.MaxStudents || 12,
+        Status: status
       };
     });
     
