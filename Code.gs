@@ -1,5 +1,5 @@
 /**
- * JTF Team Management Portal - Google Apps Script Backend
+ * 6JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -2308,15 +2308,17 @@ function getAllClassOfferings() {
         }
       }
       
-      // Count enrolled students (active enrollments only)
-      const enrollments = allEnrollments.filter(e => 
-        e.OfferingID == classOffering.OfferingID &&
-        (e.CompletionStatus === 'Active' || 
-         e.CompletionStatus === 'In Progress' || 
-         e.CompletionStatus === 'Enrolled' ||
-         (!e.CompletionStatus && (e.Status === 'Active' || e.Status === 'In Progress' || e.Status === 'Enrolled')))
-      );
+      // Count enrolled students (excluding only Dropped/Withdrawn)
+      const enrollments = allEnrollments.filter(e => {
+        if (e.OfferingID != classOffering.OfferingID) return false;
+        
+        // Exclude only Dropped and Withdrawn students
+        const status = e.CompletionStatus || e.Status || 'Active';
+        return status !== 'Dropped' && status !== 'Withdrawn';
+      });
       const enrolledCount = enrollments.length;
+      
+      Logger.log(`OfferingID ${classOffering.OfferingID}: Found ${enrolledCount} enrolled students`);
       
       // Get level name
       const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
@@ -2447,9 +2449,22 @@ function getClassOfferingDetails(offeringId) {
     try {
       const attendanceSheet = getSheet(SHEET_CONFIG.classAttendance);
       const allAttendance = sheetToObjects(attendanceSheet);
-      attendanceRecords = allAttendance.filter(a => a.OfferingID == offeringId);
+      
+      // Filter by OfferingID and normalize dates
+      attendanceRecords = allAttendance
+        .filter(a => a.OfferingID == offeringId)
+        .map(record => {
+          if (record.ClassDate) {
+            const date = new Date(record.ClassDate);
+            const formattedDate = Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+            return { ...record, ClassDate: formattedDate };
+          }
+          return record;
+        });
+      
+      Logger.log(`Found ${attendanceRecords.length} attendance records for OfferingID ${offeringId}`);
     } catch (e) {
-      Logger.log('ClassAttendance sheet not found, will create attendance records on demand');
+      Logger.log(`ClassAttendance sheet error: ${e.toString()}`);
     }
     
     Logger.log(`Found ${enrolledStudents.length} enrolled students and ${attendanceRecords.length} attendance records`);
@@ -2492,10 +2507,16 @@ function updateClassAttendance(attendanceData) {
     const allData = sheetToObjects(sheet);
     
     // Find existing attendance record
-    const existingIndex = allData.findIndex(a => 
-      a.EnrollmentID == attendanceData.enrollmentId && 
-      a.ClassDate == attendanceData.classDate
-    );
+    const dateToFind = new Date(attendanceData.classDate);
+    const dateToFindStr = Utilities.formatDate(dateToFind, Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+    const existingIndex = allData.findIndex(a => {
+      if (!a.ClassDate) return false;
+      const recordDate = new Date(a.ClassDate);
+      const recordDateStr = Utilities.formatDate(recordDate, Session.getScriptTimeZone(), "yyyy-MM-dd");
+      
+      return a.EnrollmentID == attendanceData.enrollmentId && recordDateStr === dateToFindStr;
+    });
     
     if (existingIndex >= 0) {
       // Update existing record
@@ -2525,7 +2546,11 @@ function updateClassAttendance(attendanceData) {
         if (header === 'AttendanceID') return newAttendanceId;
         if (header === 'EnrollmentID') return attendanceData.enrollmentId;
         if (header === 'OfferingID') return attendanceData.offeringId;
-        if (header === 'ClassDate') return attendanceData.classDate;
+        if (header === 'ClassDate') {
+          // Force date into yyyy-MM-dd format in the script's timezone to avoid ambiguity
+          const date = new Date(attendanceData.classDate);
+          return Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        }
         if (header === 'AttendanceStatus') return attendanceData.status;
         if (header === 'Notes') return attendanceData.notes || '';
         if (header === 'LastUpdated') return new Date();
