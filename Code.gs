@@ -1,5 +1,5 @@
 /**
- * 5JTF Team Management Portal - Google Apps Script Backend
+ * 3JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -353,7 +353,7 @@ function getNextId(sheet, idColumn = 0) {
 // =============================================================================
 // PERSONNEL FUNCTIONS - FULL CRUD OPERATIONS
 // DATA SOURCE: 'Personnel' sheet
-// COLUMNS: PersonnelID | FirstName | Lastname | PrimaryEmail | PrimaryPhone | Instagram | Birthday
+// COLUMNS: PersonnelID | FirstName | LastName | PrimaryEmail | PrimaryPhone | Instagram | Birthday
 // =============================================================================
 
 /**
@@ -462,7 +462,7 @@ function debugPersonnelSheet() {
 /**
  * READ OPERATION: Gets all people from the Personnel sheet
  * DATA SOURCE: Personnel sheet → all rows converted to objects
- * RETURNS: Array of person objects with PersonnelID, FirstName, Lastname, etc.
+ * RETURNS: Array of person objects with PersonnelID, FirstName, LastName, etc.
  */
 function getAllPersonnel() {
   try {
@@ -509,7 +509,7 @@ function getAllPersonnel() {
 /**
  * CREATE OPERATION: Creates a new person in the Personnel sheet
  * DATA FLOW: Input object → new row appended to Personnel sheet
- * @param {Object} personnelData - Person data (FirstName, Lastname, etc.)
+ * @param {Object} personnelData - Person data (FirstName, LastName, etc.)
  * AUTO-GENERATES: PersonnelID (next available ID)
  */
 function createPersonnel(personnelData) {
@@ -810,9 +810,9 @@ function getAllCastMembers() {
         }
       }
       
-      // Get proper first and last names from Personnel table (note: column is "Lastname" not "LastName")
+      // Get proper first and last names from Personnel table (note: column is "LastName")
       const firstName = person ? person.FirstName : 'Unknown';
-      const lastName = person ? person.Lastname : 'Person';
+      const lastName = person ? person.LastName : 'Person';
       const fullName = person ? `${firstName} ${lastName}`.trim() : (castMemberView.FullName || castMemberView['Full Name'] || 'Unknown Person');
       
       return {
