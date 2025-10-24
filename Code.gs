@@ -1,5 +1,5 @@
 /**
- * 1JTF Team Management Portal - Google Apps Script Backend
+ * 2JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -822,7 +822,7 @@ function getAllCastMembers() {
         // Personnel details (if linked) - using same field names as Personnel tab
         PersonnelID: castMemberInfo ? castMemberInfo.PersonnelID : null,
         FirstName: firstName,
-        Lastname: lastName,  // Note: "Lastname" to match Personnel sheet column
+        LastName: lastName,
         PrimaryEmail: person ? person.PrimaryEmail : '',
         PrimaryPhone: person ? person.PrimaryPhone : '',
         Birthday: person ? person.Birthday : '',
@@ -1469,7 +1469,7 @@ function getStudentProfileData(studentId) {
       // Personnel fields
       PersonnelID: person.PersonnelID,
       FirstName: person.FirstName,
-      Lastname: person.Lastname,
+      LastName: person.LastName,
       PrimaryEmail: person.PrimaryEmail,
       PrimaryPhone: person.PrimaryPhone,
       Instagram: person.Instagram,
@@ -1673,7 +1673,7 @@ function getAllStudentsWithDetails() {
         // Personnel fields
         PersonnelID: person.PersonnelID,
         FirstName: person.FirstName,
-        Lastname: person.Lastname,  // Note: "Lastname" to match sheet column
+        LastName: person.LastName,
         PrimaryEmail: person.PrimaryEmail,
         PrimaryPhone: person.PrimaryPhone,
         Instagram: person.Instagram,
@@ -1774,7 +1774,7 @@ function getAllStudents() {
         StudentID: studentInfo.StudentID,
         PersonnelID: person.PersonnelID,
         FirstName: person.FirstName,
-        Lastname: person.Lastname,
+        LastName: person.LastName,
         PrimaryEmail: person.PrimaryEmail,
         PrimaryPhone: person.PrimaryPhone,
         Birthday: person.Birthday,
@@ -2534,7 +2534,7 @@ function getClassOfferingDetails(offeringId) {
         EnrollmentID: enrollment.EnrollmentID,
         StudentID: enrollment.StudentID,
         FirstName: person ? person.FirstName : 'Unknown',
-        Lastname: person ? person.Lastname : 'Student',
+        LastName: person ? person.LastName : 'Student',
         PrimaryEmail: person ? person.PrimaryEmail : '',
         EnrollmentDate: enrollment.EnrollmentDate,
         CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',

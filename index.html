@@ -1611,9 +1611,12 @@
                 try {
                     const response = await gasService.getAllStudentsWithDetails();
                     if (response.success) {
+                        // Backend returns { success: true, data: [...] }, which gets wrapped by callServerFunction
+                        // So we need to access response.data.data if it exists, otherwise response.data
+                        const students = response.data?.data || response.data || [];
                         // Filter out already enrolled students
                         const enrolledIds = enrolledStudents.map(s => s.StudentID);
-                        const available = (response.data || []).filter(s => !enrolledIds.includes(s.StudentID));
+                        const available = students.filter(s => !enrolledIds.includes(s.StudentID));
                         setAvailableStudents(available);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to load students' });
