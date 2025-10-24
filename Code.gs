@@ -1882,6 +1882,104 @@ function enrollStudent(studentId, offeringId) {
 }
 
 /**
+ * READ OPERATION: Gets all students enrolled in a specific class offering
+ * DATA SOURCE: StudentEnrollments, StudentInformation, Personnel sheets
+ * @param {number} offeringId - The class offering ID
+ * @returns {Object} Success status and array of enrolled students with details
+ */
+function getEnrolledStudents(offeringId) {
+  try {
+    Logger.log(`=== getEnrolledStudents(${offeringId}) called ===`);
+    
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInformation);
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Filter enrollments for this offering
+    const classEnrollments = allEnrollments.filter(e => e.OfferingID == offeringId);
+    
+    // Enrich with student details
+    const enrolledStudents = classEnrollments.map(enrollment => {
+      const studentInfo = allStudentInfo.find(si => si.StudentID == enrollment.StudentID);
+      const person = studentInfo ? allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID) : null;
+      
+      return {
+        EnrollmentID: enrollment.EnrollmentID,
+        StudentID: enrollment.StudentID,
+        PersonnelID: studentInfo ? studentInfo.PersonnelID : null,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? person.LastName : 'Student',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        EnrollmentDate: enrollment.EnrollmentDate,
+        CompletionStatus: enrollment.Status || 'Active',
+        CompletionDate: enrollment.CompletionDate || null
+      };
+    });
+    
+    Logger.log(`Found ${enrolledStudents.length} enrolled students for offering ${offeringId}`);
+    
+    return {
+      success: true,
+      data: enrolledStudents
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getEnrolledStudents(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a student from a class (deletes enrollment record)
+ * DATA SOURCE: StudentEnrollments sheet
+ * @param {number} enrollmentId - The enrollment ID to delete
+ * @returns {Object} Success status
+ */
+function removeStudentFromClass(enrollmentId) {
+  try {
+    Logger.log(`=== removeStudentFromClass(${enrollmentId}) called ===`);
+    
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const enrollments = sheetToObjects(enrollmentsSheet);
+    
+    // Find the enrollment
+    const enrollmentIndex = enrollments.findIndex(e => e.EnrollmentID == enrollmentId);
+    
+    if (enrollmentIndex === -1) {
+      Logger.log(`Enrollment ${enrollmentId} not found`);
+      return { success: false, error: 'Enrollment not found' };
+    }
+    
+    // Delete the row (add 2: 1 for 1-indexed, 1 for header row)
+    const rowToDelete = enrollmentIndex + 2;
+    enrollmentsSheet.deleteRow(rowToDelete);
+    
+    Logger.log(`Successfully removed enrollment ${enrollmentId}`);
+    
+    return {
+      success: true,
+      message: 'Student removed from class successfully'
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in removeStudentFromClass(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
  * HELPER FUNCTION: Get enriched enrollment data (can use Enrollment View if available)
  * DATA SOURCE: Enrollment View (preferred) or StudentEnrollments + ClassOfferings + ClassLevels
  * RETURNS: Enrollment records with class details
