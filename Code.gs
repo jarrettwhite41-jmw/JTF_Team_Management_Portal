@@ -1,5 +1,5 @@
 /**
- * 3JTF Team Management Portal - Google Apps Script Backend
+ * 1JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1359,7 +1359,7 @@ function getStudentProfileData(studentId) {
         
         // Get teacher name
         const teacher = allTeachers.find(t => t.PersonnelID == classOffering.TeacherPersonnelID);
-        teacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+        teacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
         
         startDate = classOffering.StartDate;
         endDate = classOffering.EndDate;
@@ -2032,7 +2032,7 @@ function getEnrollmentsWithDetails(studentId = null) {
           const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherPersonnelID);
           
           enriched.ClassLevelName = level ? level.LevelName : '';
-          enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+          enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
           enriched.StartDate = classOffering.StartDate;
           enriched.EndDate = classOffering.EndDate;
           enriched.VenueOrRoom = classOffering.VenueOrRoom;
@@ -2389,7 +2389,7 @@ function getAllClassOfferings() {
           debugInfo.personnelRecord = personnel;
           
           if (personnel) {
-            teacherName = `${personnel.FirstName} ${personnel.Lastname}`;
+            teacherName = `${personnel.FirstName} ${personnel.LastName}`;
             Logger.log(`✓ OfferingID ${classOffering.OfferingID}: TeacherID ${classOffering.TeacherID} → PersonnelID ${teacher.PersonnelID} → ${teacherName}`);
           } else {
             Logger.log(`✗ OfferingID ${classOffering.OfferingID}: PersonnelID ${teacher.PersonnelID} not found in Personnel table`);
@@ -2402,7 +2402,7 @@ function getAllClassOfferings() {
         // Fallback: try direct lookup in case Teachers table not available
         const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherID);
         if (teacher) {
-          teacherName = `${teacher.FirstName} ${teacher.Lastname}`;
+          teacherName = `${teacher.FirstName} ${teacher.LastName}`;
         }
       }
       
@@ -2572,7 +2572,7 @@ function getClassOfferingDetails(offeringId) {
       data: {
         classOffering: {
           ...classOffering,
-          TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.Lastname}` : 'TBA',
+          TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.LastName}` : 'TBA',
           LevelName: levelName
         },
         enrolledStudents: enrolledStudents,
@@ -2752,8 +2752,8 @@ function getActiveTeachers() {
           TeacherID: teacher.TeacherID,
           PersonnelID: teacher.PersonnelID,
           FirstName: personnel ? personnel.FirstName : '',
-          Lastname: personnel ? personnel.Lastname : '',
-          FullName: personnel ? `${personnel.FirstName} ${personnel.Lastname}` : 'Unknown',
+          LastName: personnel ? personnel.LastName : '',
+          FullName: personnel ? `${personnel.FirstName} ${personnel.LastName}` : 'Unknown',
           Active: teacher.Active
         };
       });

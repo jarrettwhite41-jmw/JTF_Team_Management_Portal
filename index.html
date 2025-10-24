@@ -325,6 +325,21 @@
             async enrollStudent(studentId, offeringId) {
                 return this.callServerFunction('enrollStudent', studentId, offeringId);
             }
+
+            // READ: Get all students enrolled in a specific class offering
+            async getEnrolledStudents(offeringId) {
+                return this.callServerFunction('getEnrolledStudents', offeringId);
+            }
+
+            // READ: Get all students with full details (joins StudentInfo + Personnel)
+            async getAllStudentsWithDetails() {
+                return this.callServerFunction('getAllStudentsWithDetails');
+            }
+
+            // DELETE: Remove a student from a class (delete enrollment record)
+            async removeStudentFromClass(enrollmentId) {
+                return this.callServerFunction('removeStudentFromClass', enrollmentId);
+            }
         }
 
         const gasService = new GoogleAppsScriptService();
@@ -1444,6 +1459,10 @@
             const [isLoading, setIsLoading] = useState(true);
             const [message, setMessage] = useState(null);
             const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+            const [availableStudents, setAvailableStudents] = useState([]);
+            const [modalTab, setModalTab] = useState('enrolled'); // 'enrolled' or 'add'
+            const [modalSearchTerm, setModalSearchTerm] = useState('');
+            const [modalLoading, setModalLoading] = useState(false);
 
             // Generate array of class dates based on start and end dates
             const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
@@ -1585,6 +1604,78 @@
                     setMessage({ type: 'error', text: 'Error saving attendance' });
                 }
             };
+
+            // Load available students when modal is opened
+            const loadAvailableStudents = async () => {
+                setModalLoading(true);
+                try {
+                    const response = await gasService.getAllStudentsWithDetails();
+                    if (response.success) {
+                        // Filter out already enrolled students
+                        const enrolledIds = enrolledStudents.map(s => s.StudentID);
+                        const available = (response.data || []).filter(s => !enrolledIds.includes(s.StudentID));
+                        setAvailableStudents(available);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load students' });
+                    }
+                } catch (error) {
+                    console.error('Error loading available students:', error);
+                    setMessage({ type: 'error', text: 'Error loading students' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Add student to class
+            const handleAddStudent = async (studentId) => {
+                setModalLoading(true);
+                try {
+                    const response = await gasService.enrollStudent(studentId, offeringId);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Student added successfully' });
+                        await loadClassDetails(); // Refresh enrolled students
+                        await loadAvailableStudents(); // Refresh available students
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to add student' });
+                    }
+                } catch (error) {
+                    console.error('Error adding student:', error);
+                    setMessage({ type: 'error', text: 'Error adding student' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Remove student from class
+            const handleRemoveStudent = async (enrollmentId) => {
+                if (!confirm('Are you sure you want to remove this student from the class?')) {
+                    return;
+                }
+                
+                setModalLoading(true);
+                try {
+                    const response = await gasService.removeStudentFromClass(enrollmentId);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Student removed successfully' });
+                        await loadClassDetails(); // Refresh enrolled students
+                        await loadAvailableStudents(); // Refresh available students
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to remove student' });
+                    }
+                } catch (error) {
+                    console.error('Error removing student:', error);
+                    setMessage({ type: 'error', text: 'Error removing student' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Open modal and load available students if switching to "add" tab
+            useEffect(() => {
+                if (showAddStudentModal && modalTab === 'add' && availableStudents.length === 0) {
+                    loadAvailableStudents();
+                }
+            }, [showAddStudentModal, modalTab]);
 
             if (isLoading) {
                 return e(Loader, { text: 'Loading class details...' });
@@ -1816,15 +1907,144 @@
                     )
                 ),
 
-                // Add Student Modal Placeholder
-                showAddStudentModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setShowAddStudentModal(false) },
-                    e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4', onClick: (ev) => ev.stopPropagation() },
-                        e('h3', { className: 'text-xl font-bold text-gray-900 mb-4' }, 'Add Student to Class'),
-                        e('p', { className: 'text-gray-600 mb-4' }, 'Student enrollment form coming soon!'),
-                        e('button', {
-                            onClick: () => setShowAddStudentModal(false),
-                            className: 'w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
-                        }, 'Close')
+                // Student Enrollment Management Modal
+                showAddStudentModal && e('div', { 
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    onClick: () => {
+                        setShowAddStudentModal(false);
+                        setModalTab('enrolled');
+                        setModalSearchTerm('');
+                    }
+                },
+                    e('div', { 
+                        className: 'bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        // Header
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200 flex items-center justify-between' },
+                            e('div', null,
+                                e('h2', { className: 'text-2xl font-bold text-gray-900' }, classData.LevelName || `Level ${classData.ClassLevelID}`),
+                                e('p', { className: 'text-sm text-gray-600 mt-1' }, `${classData.TeacherName} • ${classData.Status}`)
+                            ),
+                            e('button', {
+                                onClick: () => {
+                                    setShowAddStudentModal(false);
+                                    setModalTab('enrolled');
+                                    setModalSearchTerm('');
+                                },
+                                className: 'text-gray-400 hover:text-gray-600 text-2xl font-bold'
+                            }, '×')
+                        ),
+
+                        // Message
+                        message && e('div', { className: 'px-6 pt-4' },
+                            e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                        ),
+
+                        // Tabs
+                        e('div', { className: 'px-6 pt-4 border-b border-gray-200' },
+                            e('div', { className: 'flex space-x-4' },
+                                e('button', {
+                                    onClick: () => setModalTab('enrolled'),
+                                    className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                        modalTab === 'enrolled'
+                                            ? 'border-blue-600 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`
+                                }, `Enrolled Students (${enrolledStudents.length}/${classData.MaxStudents})`),
+                                e('button', {
+                                    onClick: () => setModalTab('add'),
+                                    className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                        modalTab === 'add'
+                                            ? 'border-blue-600 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                                    }`
+                                }, 'Add Students')
+                            )
+                        ),
+
+                        // Search
+                        e('div', { className: 'px-6 py-4' },
+                            e('div', { className: 'relative' },
+                                e('input', {
+                                    type: 'text',
+                                    placeholder: 'Search students...',
+                                    value: modalSearchTerm,
+                                    onChange: (ev) => setModalSearchTerm(ev.target.value),
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                }),
+                                e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                                )
+                            )
+                        ),
+
+                        // Student List
+                        e('div', { className: 'flex-1 overflow-y-auto px-6 pb-6' },
+                            modalLoading ? e(Loader, { text: 'Loading students...' }) : 
+                            (() => {
+                                const students = modalTab === 'enrolled' ? enrolledStudents : availableStudents;
+                                const filtered = students.filter(s => 
+                                    `${s.FirstName} ${s.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                    s.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase())
+                                );
+
+                                return filtered.length > 0 ? 
+                                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                                        ...filtered.map(student =>
+                                            e('div', { key: student.StudentID, className: 'relative border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow' },
+                                                // Student info
+                                                e('div', { className: 'pr-8' },
+                                                    e('h4', { className: 'font-semibold text-gray-900' }, `${student.FirstName} ${student.LastName}`),
+                                                    e('p', { className: 'text-sm text-gray-600 mt-1' }, student.PrimaryEmail),
+                                                    student.EnrollmentDate && e('p', { className: 'text-xs text-gray-500 mt-1' }, 
+                                                        `Enrolled: ${new Date(student.EnrollmentDate).toLocaleDateString()}`
+                                                    )
+                                                ),
+                                                // Add/Remove button
+                                                modalTab === 'enrolled' ?
+                                                    e('button', {
+                                                        onClick: () => student.EnrollmentID && handleRemoveStudent(student.EnrollmentID),
+                                                        className: 'absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors',
+                                                        title: 'Remove from class'
+                                                    },
+                                                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                                                        )
+                                                    ) :
+                                                    e('button', {
+                                                        onClick: () => handleAddStudent(student.StudentID),
+                                                        className: 'absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors',
+                                                        title: 'Add to class'
+                                                    },
+                                                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                                        )
+                                                    )
+                                            )
+                                        )
+                                    ) :
+                                    e('div', { className: 'text-center py-12' },
+                                        e('p', { className: 'text-gray-500' },
+                                            modalSearchTerm ? 'No students found matching your search' :
+                                            modalTab === 'enrolled' ? 'No students enrolled yet' :
+                                            'No available students to add'
+                                        )
+                                    );
+                            })()
+                        ),
+
+                        // Footer
+                        e('div', { className: 'px-6 py-4 border-t border-gray-200 flex justify-end' },
+                            e('button', {
+                                onClick: () => {
+                                    setShowAddStudentModal(false);
+                                    setModalTab('enrolled');
+                                    setModalSearchTerm('');
+                                },
+                                className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors'
+                            }, 'Close')
+                        )
                     )
                 )
             );
