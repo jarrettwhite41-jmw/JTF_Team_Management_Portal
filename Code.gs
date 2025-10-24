@@ -1,5 +1,5 @@
 /**
- * 2JTF Team Management Portal - Google Apps Script Backend
+ * 0JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1845,35 +1845,69 @@ function getActiveClassOfferings() {
  * @param {number} studentId - PersonnelID of the student
  * @param {number} offeringId - OfferingID of the class
  */
-function enrollStudent(studentId, offeringId) {
+function enrollStudent(personnelId, offeringId) {
   try {
-    Logger.log(`=== enrollStudent(${studentId}, ${offeringId}) called ===`);
+    Logger.log(`=== enrollStudent(personnelId: ${personnelId}, offeringId: ${offeringId}) called ===`);
     
+    // Get or create StudentInfo record for this person
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInformation);
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    let studentInfo = allStudentInfo.find(si => si.PersonnelID == personnelId);
+    let studentId;
+    
+    if (!studentInfo) {
+      // Person is not in StudentInformation table yet - create a record
+      Logger.log(`PersonnelID ${personnelId} not found in StudentInformation - creating new student record`);
+      
+      const newStudentData = {
+        PersonnelID: personnelId,
+        EnrollmentDate: new Date().toISOString().split('T')[0],
+        Status: 'Active',
+        CurrentLevel: null,
+        HighestLevelCompleted: null,
+        Notes: 'Auto-created during class enrollment'
+      };
+      
+      appendToSheet(studentInfoSheet, newStudentData);
+      
+      // Re-fetch to get the auto-generated StudentID
+      const updatedStudentInfo = sheetToObjects(studentInfoSheet);
+      studentInfo = updatedStudentInfo.find(si => si.PersonnelID == personnelId);
+      studentId = studentInfo.StudentID;
+      
+      Logger.log(`Created new student record with StudentID: ${studentId}`);
+    } else {
+      studentId = studentInfo.StudentID;
+      Logger.log(`Found existing StudentID: ${studentId} for PersonnelID: ${personnelId}`);
+    }
+    
+    // Check if student is already enrolled in this class
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
-    
-    // Check if student is already enrolled
     const existingEnrollments = sheetToObjects(enrollmentsSheet);
     const existingEnrollment = existingEnrollments.find(e => 
-      (e.StudentPersonnelID == studentId || e.StudentID == studentId) && e.OfferingID == offeringId
+      e.StudentID == studentId && e.OfferingID == offeringId
     );
     
     if (existingEnrollment) {
       Logger.log(`Student ${studentId} is already enrolled in offering ${offeringId}`);
-      return { success: false, error: 'Student is already enrolled in this class' };
+      return { success: false, error: 'This person is already enrolled in this class' };
     }
     
+    // Create enrollment record
     const enrollmentData = {
       OfferingID: offeringId,
-      StudentPersonnelID: studentId,
       StudentID: studentId,
       EnrollmentDate: new Date().toISOString().split('T')[0],
-      Status: 'Active'
+      Status: 'Active',
+      CompletionStatus: 'Enrolled',
+      CompletionDate: null
     };
     
     appendToSheet(enrollmentsSheet, enrollmentData);
     
-    Logger.log(`Successfully enrolled student ${studentId} in offering ${offeringId}`);
-    return { success: true, data: 'Student enrolled successfully' };
+    Logger.log(`Successfully enrolled StudentID ${studentId} (PersonnelID ${personnelId}) in offering ${offeringId}`);
+    return { success: true, data: { message: 'Student enrolled successfully', studentId: studentId } };
     
   } catch (error) {
     Logger.log(`ERROR in enrollStudent(): ${error.toString()}`);
@@ -1972,6 +2006,73 @@ function removeStudentFromClass(enrollmentId) {
     
   } catch (error) {
     Logger.log(`ERROR in removeStudentFromClass(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * CREATE OPERATION: Enroll multiple personnel in a class at once (bulk enrollment)
+ * DATA SOURCE: StudentInformation and StudentEnrollments sheets
+ * @param {Array} personnelIds - Array of PersonnelID values to enroll
+ * @param {number} offeringId - The class offering ID
+ * @returns {Object} Success status with details of successful/failed enrollments
+ */
+function bulkEnrollStudents(personnelIds, offeringId) {
+  try {
+    Logger.log(`=== bulkEnrollStudents called ===`);
+    Logger.log(`Enrolling ${personnelIds.length} personnel in offering ${offeringId}`);
+    
+    const results = {
+      successful: [],
+      failed: [],
+      alreadyEnrolled: []
+    };
+    
+    // Process each personnel ID
+    for (let i = 0; i < personnelIds.length; i++) {
+      const personnelId = personnelIds[i];
+      
+      try {
+        const result = enrollStudent(personnelId, offeringId);
+        
+        if (result.success) {
+          results.successful.push({
+            personnelId: personnelId,
+            studentId: result.data.studentId
+          });
+        } else if (result.error && result.error.includes('already enrolled')) {
+          results.alreadyEnrolled.push(personnelId);
+        } else {
+          results.failed.push({
+            personnelId: personnelId,
+            error: result.error
+          });
+        }
+      } catch (error) {
+        results.failed.push({
+          personnelId: personnelId,
+          error: error.toString()
+        });
+      }
+    }
+    
+    Logger.log(`Bulk enrollment complete: ${results.successful.length} successful, ${results.alreadyEnrolled.length} already enrolled, ${results.failed.length} failed`);
+    
+    return {
+      success: true,
+      data: {
+        enrolled: results.successful.length,
+        alreadyEnrolled: results.alreadyEnrolled.length,
+        failed: results.failed.length,
+        details: results
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in bulkEnrollStudents(): ${error.toString()}`);
     return {
       success: false,
       error: error.toString()

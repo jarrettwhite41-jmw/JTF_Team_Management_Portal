@@ -322,8 +322,13 @@
             }
 
             // CREATE: Enroll a single student in a class
-            async enrollStudent(studentId, offeringId) {
-                return this.callServerFunction('enrollStudent', studentId, offeringId);
+            async enrollStudent(personnelId, offeringId) {
+                return this.callServerFunction('enrollStudent', personnelId, offeringId);
+            }
+
+            // CREATE: Enroll multiple personnel in a class at once (bulk enrollment)
+            async bulkEnrollStudents(personnelIds, offeringId) {
+                return this.callServerFunction('bulkEnrollStudents', personnelIds, offeringId);
             }
 
             // READ: Get all students enrolled in a specific class offering
@@ -1463,6 +1468,7 @@
             const [modalTab, setModalTab] = useState('enrolled'); // 'enrolled' or 'add'
             const [modalSearchTerm, setModalSearchTerm] = useState('');
             const [modalLoading, setModalLoading] = useState(false);
+            const [selectedPersonnel, setSelectedPersonnel] = useState([]); // Array of PersonnelIDs for multi-select
 
             // Generate array of class dates based on start and end dates
             const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
@@ -1605,47 +1611,90 @@
                 }
             };
 
-            // Load available students when modal is opened
+            // Load available personnel (anyone can take a class) when modal is opened
             const loadAvailableStudents = async () => {
                 setModalLoading(true);
                 try {
-                    const response = await gasService.getAllStudentsWithDetails();
+                    // Get all personnel records instead of just students
+                    const response = await gasService.getAllPersonnel();
                     if (response.success) {
-                        // Backend returns { success: true, data: [...] }, which gets wrapped by callServerFunction
-                        // So we need to access response.data.data if it exists, otherwise response.data
-                        const students = response.data?.data || response.data || [];
-                        // Filter out already enrolled students
-                        const enrolledIds = enrolledStudents.map(s => s.StudentID);
-                        const available = students.filter(s => !enrolledIds.includes(s.StudentID));
+                        // Get data - handle both wrapped and unwrapped responses
+                        const personnel = response.data?.data || response.data || [];
+                        
+                        // Filter out already enrolled students by PersonnelID
+                        const enrolledPersonnelIds = enrolledStudents.map(s => s.PersonnelID).filter(id => id != null);
+                        const available = personnel.filter(p => !enrolledPersonnelIds.includes(p.PersonnelID));
+                        
                         setAvailableStudents(available);
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load students' });
+                        setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
                     }
                 } catch (error) {
-                    console.error('Error loading available students:', error);
-                    setMessage({ type: 'error', text: 'Error loading students' });
+                    console.error('Error loading available personnel:', error);
+                    setMessage({ type: 'error', text: 'Error loading personnel' });
                 } finally {
                     setModalLoading(false);
                 }
             };
 
-            // Add student to class
-            const handleAddStudent = async (studentId) => {
+            // Add selected personnel to class (bulk operation)
+            const handleAddSelectedPersonnel = async () => {
+                if (selectedPersonnel.length === 0) {
+                    setMessage({ type: 'error', text: 'Please select at least one person to add' });
+                    return;
+                }
+                
                 setModalLoading(true);
                 try {
-                    const response = await gasService.enrollStudent(studentId, offeringId);
+                    const response = await gasService.bulkEnrollStudents(selectedPersonnel, offeringId);
+                    
                     if (response.success) {
-                        setMessage({ type: 'success', text: 'Student added successfully' });
+                        const result = response.data?.data || response.data;
+                        
+                        let successMsg = `Successfully enrolled ${result.enrolled} ${result.enrolled === 1 ? 'person' : 'people'}`;
+                        if (result.alreadyEnrolled > 0) {
+                            successMsg += `, ${result.alreadyEnrolled} already enrolled`;
+                        }
+                        if (result.failed > 0) {
+                            successMsg += `, ${result.failed} failed`;
+                        }
+                        
+                        setMessage({ type: result.failed > 0 ? 'warning' : 'success', text: successMsg });
+                        setSelectedPersonnel([]); // Clear selection
                         await loadClassDetails(); // Refresh enrolled students
-                        await loadAvailableStudents(); // Refresh available students
+                        await loadAvailableStudents(); // Refresh available personnel
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to add student' });
+                        setMessage({ type: 'error', text: response.error || 'Failed to enroll personnel' });
                     }
                 } catch (error) {
-                    console.error('Error adding student:', error);
-                    setMessage({ type: 'error', text: 'Error adding student' });
+                    console.error('Error enrolling personnel:', error);
+                    setMessage({ type: 'error', text: 'Error enrolling personnel' });
                 } finally {
                     setModalLoading(false);
+                }
+            };
+
+            // Toggle personnel selection
+            const togglePersonnelSelection = (personnelId) => {
+                setSelectedPersonnel(prev => {
+                    if (prev.includes(personnelId)) {
+                        return prev.filter(id => id !== personnelId);
+                    } else {
+                        return [...prev, personnelId];
+                    }
+                });
+            };
+
+            // Select/Deselect all filtered personnel
+            const handleSelectAll = (selectAll) => {
+                if (selectAll) {
+                    const filtered = availableStudents.filter(p => 
+                        `${p.FirstName} ${p.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                        p.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase())
+                    );
+                    setSelectedPersonnel(filtered.map(p => p.PersonnelID));
+                } else {
+                    setSelectedPersonnel([]);
                 }
             };
 
@@ -1673,7 +1722,7 @@
                 }
             };
 
-            // Open modal and load available students if switching to "add" tab
+            // Open modal and load available personnel if switching to "add" tab
             useEffect(() => {
                 if (showAddStudentModal && modalTab === 'add' && availableStudents.length === 0) {
                     loadAvailableStudents();
@@ -1917,6 +1966,7 @@
                         setShowAddStudentModal(false);
                         setModalTab('enrolled');
                         setModalSearchTerm('');
+                        setSelectedPersonnel([]);
                     }
                 },
                     e('div', { 
@@ -1934,6 +1984,7 @@
                                     setShowAddStudentModal(false);
                                     setModalTab('enrolled');
                                     setModalSearchTerm('');
+                                    setSelectedPersonnel([]);
                                 },
                                 className: 'text-gray-400 hover:text-gray-600 text-2xl font-bold'
                             }, '×')
@@ -1946,23 +1997,47 @@
 
                         // Tabs
                         e('div', { className: 'px-6 pt-4 border-b border-gray-200' },
-                            e('div', { className: 'flex space-x-4' },
-                                e('button', {
-                                    onClick: () => setModalTab('enrolled'),
-                                    className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
-                                        modalTab === 'enrolled'
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                                    }`
-                                }, `Enrolled Students (${enrolledStudents.length}/${classData.MaxStudents})`),
-                                e('button', {
-                                    onClick: () => setModalTab('add'),
-                                    className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
-                                        modalTab === 'add'
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                                    }`
-                                }, 'Add Students')
+                            e('div', { className: 'flex justify-between items-center' },
+                                // Tab buttons
+                                e('div', { className: 'flex space-x-4' },
+                                    e('button', {
+                                        onClick: () => {
+                                            setModalTab('enrolled');
+                                            setSelectedPersonnel([]);
+                                        },
+                                        className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                            modalTab === 'enrolled'
+                                                ? 'border-blue-600 text-blue-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`
+                                    }, `Enrolled Students (${enrolledStudents.length}/${classData.MaxStudents})`),
+                                    e('button', {
+                                        onClick: () => setModalTab('add'),
+                                        className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                            modalTab === 'add'
+                                                ? 'border-blue-600 text-blue-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`
+                                    }, 'Add Personnel')
+                                ),
+                                // Bulk actions (only show on Add tab)
+                                modalTab === 'add' && e('div', { className: 'flex items-center gap-2' },
+                                    selectedPersonnel.length > 0 && e('span', { className: 'text-sm text-gray-600' }, 
+                                        `${selectedPersonnel.length} selected`
+                                    ),
+                                    e('button', {
+                                        onClick: () => handleSelectAll(true),
+                                        className: 'text-sm text-blue-600 hover:text-blue-700 px-2 py-1'
+                                    }, 'Select All'),
+                                    e('button', {
+                                        onClick: () => handleSelectAll(false),
+                                        className: 'text-sm text-gray-600 hover:text-gray-700 px-2 py-1'
+                                    }, 'Clear'),
+                                    selectedPersonnel.length > 0 && e('button', {
+                                        onClick: handleAddSelectedPersonnel,
+                                        className: 'px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium'
+                                    }, `Add ${selectedPersonnel.length}`)
+                                )
                             )
                         ),
 
@@ -1994,34 +2069,48 @@
 
                                 return filtered.length > 0 ? 
                                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
-                                        ...filtered.map(student =>
-                                            e('div', { key: student.StudentID, className: 'relative border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow' },
-                                                // Student info
-                                                e('div', { className: 'pr-8' },
-                                                    e('h4', { className: 'font-semibold text-gray-900' }, `${student.FirstName} ${student.LastName}`),
-                                                    e('p', { className: 'text-sm text-gray-600 mt-1' }, student.PrimaryEmail),
-                                                    student.EnrollmentDate && e('p', { className: 'text-xs text-gray-500 mt-1' }, 
-                                                        `Enrolled: ${new Date(student.EnrollmentDate).toLocaleDateString()}`
+                                        ...filtered.map(person =>
+                                            e('div', { 
+                                                key: modalTab === 'enrolled' ? person.StudentID : person.PersonnelID, 
+                                                className: `relative border rounded-lg p-4 transition-all ${
+                                                    modalTab === 'add' && selectedPersonnel.includes(person.PersonnelID)
+                                                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                        : 'border-gray-200 hover:shadow-md'
+                                                }`,
+                                                onClick: modalTab === 'add' ? () => togglePersonnelSelection(person.PersonnelID) : null,
+                                                style: { cursor: modalTab === 'add' ? 'pointer' : 'default' }
+                                            },
+                                                // Checkbox (Add tab only)
+                                                modalTab === 'add' && e('div', { className: 'absolute top-2 left-2' },
+                                                    e('input', {
+                                                        type: 'checkbox',
+                                                        checked: selectedPersonnel.includes(person.PersonnelID),
+                                                        onChange: (ev) => {
+                                                            ev.stopPropagation();
+                                                            togglePersonnelSelection(person.PersonnelID);
+                                                        },
+                                                        className: 'w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500'
+                                                    })
+                                                ),
+                                                
+                                                // Person info
+                                                e('div', { className: modalTab === 'add' ? 'pl-8 pr-2' : 'pr-8' },
+                                                    e('h4', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                                                    e('p', { className: 'text-sm text-gray-600 mt-1' }, person.PrimaryEmail || 'No email'),
+                                                    person.EnrollmentDate && e('p', { className: 'text-xs text-gray-500 mt-1' }, 
+                                                        `Enrolled: ${new Date(person.EnrollmentDate).toLocaleDateString()}`
                                                     )
                                                 ),
-                                                // Add/Remove button
-                                                modalTab === 'enrolled' ?
+                                                
+                                                // Remove button (Enrolled tab only)
+                                                modalTab === 'enrolled' &&
                                                     e('button', {
-                                                        onClick: () => student.EnrollmentID && handleRemoveStudent(student.EnrollmentID),
+                                                        onClick: () => person.EnrollmentID && handleRemoveStudent(person.EnrollmentID),
                                                         className: 'absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors',
                                                         title: 'Remove from class'
                                                     },
                                                         e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                                             e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
-                                                        )
-                                                    ) :
-                                                    e('button', {
-                                                        onClick: () => handleAddStudent(student.StudentID),
-                                                        className: 'absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors',
-                                                        title: 'Add to class'
-                                                    },
-                                                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
                                                         )
                                                     )
                                             )
@@ -2029,9 +2118,9 @@
                                     ) :
                                     e('div', { className: 'text-center py-12' },
                                         e('p', { className: 'text-gray-500' },
-                                            modalSearchTerm ? 'No students found matching your search' :
+                                            modalSearchTerm ? 'No people found matching your search' :
                                             modalTab === 'enrolled' ? 'No students enrolled yet' :
-                                            'No available students to add'
+                                            'No personnel available to add'
                                         )
                                     );
                             })()
@@ -2044,6 +2133,7 @@
                                     setShowAddStudentModal(false);
                                     setModalTab('enrolled');
                                     setModalSearchTerm('');
+                                    setSelectedPersonnel([]);
                                 },
                                 className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors'
                             }, 'Close')
