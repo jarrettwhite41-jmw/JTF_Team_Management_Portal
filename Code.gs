@@ -1,5 +1,5 @@
 /**
- * 0JTF Team Management Portal - Google Apps Script Backend
+ * 3JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1848,34 +1848,31 @@ function getActiveClassOfferings() {
 function enrollStudent(personnelId, offeringId) {
   try {
     Logger.log(`=== enrollStudent(personnelId: ${personnelId}, offeringId: ${offeringId}) called ===`);
+    Logger.log(`PersonnelID type: ${typeof personnelId}, OfferingID type: ${typeof offeringId}`);
     
     // Get or create StudentInfo record for this person
-    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInformation);
-    const allStudentInfo = sheetToObjects(studentInfoSheet);
+  const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+  Logger.log(`Got StudentInfo sheet: ${studentInfoSheet.getName()}`);
+    
+  const allStudentInfo = sheetToObjects(studentInfoSheet);
+  Logger.log(`Found ${allStudentInfo.length} total student info records`);
     
     let studentInfo = allStudentInfo.find(si => si.PersonnelID == personnelId);
     let studentId;
     
     if (!studentInfo) {
-      // Person is not in StudentInformation table yet - create a record
-      Logger.log(`PersonnelID ${personnelId} not found in StudentInformation - creating new student record`);
+      // Person is not in StudentInfo table yet - create a record
+      Logger.log(`PersonnelID ${personnelId} not found in StudentInfo - creating new student record`);
       
       const newStudentData = {
         PersonnelID: personnelId,
-        EnrollmentDate: new Date().toISOString().split('T')[0],
-        Status: 'Active',
-        CurrentLevel: null,
-        HighestLevelCompleted: null,
-        Notes: 'Auto-created during class enrollment'
+        HighestLevelCompleted: null
       };
-      
-      appendToSheet(studentInfoSheet, newStudentData);
-      
+      addOrUpdateRow(studentInfoSheet, newStudentData, 0); // 0 = StudentID column
       // Re-fetch to get the auto-generated StudentID
       const updatedStudentInfo = sheetToObjects(studentInfoSheet);
       studentInfo = updatedStudentInfo.find(si => si.PersonnelID == personnelId);
       studentId = studentInfo.StudentID;
-      
       Logger.log(`Created new student record with StudentID: ${studentId}`);
     } else {
       studentId = studentInfo.StudentID;
@@ -1896,16 +1893,14 @@ function enrollStudent(personnelId, offeringId) {
     
     // Create enrollment record
     const enrollmentData = {
-      OfferingID: offeringId,
       StudentID: studentId,
+      OfferingID: offeringId,
       EnrollmentDate: new Date().toISOString().split('T')[0],
-      Status: 'Active',
       CompletionStatus: 'Enrolled',
-      CompletionDate: null
+      CompletionDate: null,
+      Notes: 'Auto-enrolled from portal'
     };
-    
-    appendToSheet(enrollmentsSheet, enrollmentData);
-    
+    addOrUpdateRow(enrollmentsSheet, enrollmentData, 0); // 0 = EnrollmentID column
     Logger.log(`Successfully enrolled StudentID ${studentId} (PersonnelID ${personnelId}) in offering ${offeringId}`);
     return { success: true, data: { message: 'Student enrolled successfully', studentId: studentId } };
     
@@ -1973,8 +1968,8 @@ function getEnrolledStudents(offeringId) {
 }
 
 /**
- * DELETE OPERATION: Removes a student from a class (deletes enrollment record)
- * DATA SOURCE: StudentEnrollments sheet
+ * DELETE OPERATION: Removes a student from a class (deletes enrollment record and related attendance)
+ * DATA SOURCE: StudentEnrollments and ClassAttendance sheets
  * @param {number} enrollmentId - The enrollment ID to delete
  * @returns {Object} Success status
  */
@@ -1993,11 +1988,29 @@ function removeStudentFromClass(enrollmentId) {
       return { success: false, error: 'Enrollment not found' };
     }
     
-    // Delete the row (add 2: 1 for 1-indexed, 1 for header row)
+    // CASCADE DELETE: Remove related attendance records first
+    const attendanceSheet = getSheet(SHEET_CONFIG.classAttendance);
+    const attendanceRecords = sheetToObjects(attendanceSheet);
+    
+    // Find all attendance records for this enrollment
+    const attendanceToDelete = attendanceRecords
+      .map((record, index) => ({ record, rowNum: index + 2 })) // +2 for header and 1-indexed
+      .filter(item => item.record.EnrollmentID == enrollmentId)
+      .reverse(); // Delete from bottom to top to avoid row shifting issues
+    
+    if (attendanceToDelete.length > 0) {
+      Logger.log(`Found ${attendanceToDelete.length} attendance records to delete`);
+      attendanceToDelete.forEach(item => {
+        attendanceSheet.deleteRow(item.rowNum);
+      });
+      Logger.log(`Deleted ${attendanceToDelete.length} attendance records`);
+    }
+    
+    // Delete the enrollment row (add 2: 1 for 1-indexed, 1 for header row)
     const rowToDelete = enrollmentIndex + 2;
     enrollmentsSheet.deleteRow(rowToDelete);
     
-    Logger.log(`Successfully removed enrollment ${enrollmentId}`);
+    Logger.log(`Successfully removed enrollment ${enrollmentId} and ${attendanceToDelete.length} related attendance records`);
     
     return {
       success: true,

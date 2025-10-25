@@ -1469,6 +1469,11 @@
             const [modalSearchTerm, setModalSearchTerm] = useState('');
             const [modalLoading, setModalLoading] = useState(false);
             const [selectedPersonnel, setSelectedPersonnel] = useState([]); // Array of PersonnelIDs for multi-select
+            const [roleFilter, setRoleFilter] = useState('all'); // 'all', 'cast', 'student', 'teacher', 'other'
+            const [levelFilter, setLevelFilter] = useState('all'); // 'all', 'IA1', 'IA2', 'IA3', etc.
+            const [castMembers, setCastMembers] = useState([]); // List of PersonnelIDs who are cast members
+            const [teachers, setTeachers] = useState([]); // List of PersonnelIDs who are teachers
+            const [studentLevels, setStudentLevels] = useState({}); // Map of PersonnelID -> highest level
 
             // Generate array of class dates based on start and end dates
             const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
@@ -1615,11 +1620,43 @@
             const loadAvailableStudents = async () => {
                 setModalLoading(true);
                 try {
-                    // Get all personnel records instead of just students
-                    const response = await gasService.getAllPersonnel();
-                    if (response.success) {
+                    // Load all personnel
+                    const personnelResponse = await gasService.getAllPersonnel();
+                    
+                    // Load cast members to identify who's in cast
+                    const castResponse = await gasService.getAllCastMembers();
+                    
+                    // Load students to get their levels
+                    const studentsResponse = await gasService.getAllStudentsWithDetails();
+                    
+                    // Load teachers
+                    const teachersResponse = await gasService.getActiveTeachers();
+                    
+                    if (personnelResponse.success) {
                         // Get data - handle both wrapped and unwrapped responses
-                        const personnel = response.data?.data || response.data || [];
+                        const personnel = personnelResponse.data?.data || personnelResponse.data || [];
+                        
+                        // Get cast member PersonnelIDs
+                        const castData = castResponse.success ? (castResponse.data?.data || castResponse.data || []) : [];
+                        const castPersonnelIds = castData.map(c => c.PersonnelID).filter(id => id != null);
+                        setCastMembers(castPersonnelIds);
+                        
+                        // Get teacher PersonnelIDs
+                        const teacherData = teachersResponse.success ? (teachersResponse.data?.data || teachersResponse.data || []) : [];
+                        const teacherPersonnelIds = teacherData.map(t => t.PersonnelID).filter(id => id != null);
+                        setTeachers(teacherPersonnelIds);
+                        
+                        // Build map of PersonnelID -> highest level completed
+                        const studentsData = studentsResponse.success ? (studentsResponse.data?.data || studentsResponse.data || []) : [];
+                        const levelMap = {};
+                        studentsData.forEach(student => {
+                            if (student.PersonnelID && student.HighestLevelCompleted) {
+                                // Store raw value from database (e.g., "IA1", "IA2", "No Levels Completed")
+                                levelMap[student.PersonnelID] = student.HighestLevelCompleted;
+                            }
+                        });
+                        console.log('Student levels loaded:', levelMap);
+                        setStudentLevels(levelMap);
                         
                         // Filter out already enrolled students by PersonnelID
                         const enrolledPersonnelIds = enrolledStudents.map(s => s.PersonnelID).filter(id => id != null);
@@ -1627,7 +1664,7 @@
                         
                         setAvailableStudents(available);
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
+                        setMessage({ type: 'error', text: personnelResponse.error || 'Failed to load personnel' });
                     }
                 } catch (error) {
                     console.error('Error loading available personnel:', error);
@@ -1647,9 +1684,12 @@
                 setModalLoading(true);
                 try {
                     const response = await gasService.bulkEnrollStudents(selectedPersonnel, offeringId);
+                    console.log('Bulk enrollment response:', response);
                     
                     if (response.success) {
                         const result = response.data?.data || response.data;
+                        console.log('Enrollment result:', result);
+                        console.log('Details:', result.details);
                         
                         let successMsg = `Successfully enrolled ${result.enrolled} ${result.enrolled === 1 ? 'person' : 'people'}`;
                         if (result.alreadyEnrolled > 0) {
@@ -1657,6 +1697,10 @@
                         }
                         if (result.failed > 0) {
                             successMsg += `, ${result.failed} failed`;
+                            // Log failed details
+                            if (result.details && result.details.failed) {
+                                console.log('Failed enrollments:', result.details.failed);
+                            }
                         }
                         
                         setMessage({ type: result.failed > 0 ? 'warning' : 'success', text: successMsg });
@@ -1688,10 +1732,36 @@
             // Select/Deselect all filtered personnel
             const handleSelectAll = (selectAll) => {
                 if (selectAll) {
-                    const filtered = availableStudents.filter(p => 
-                        `${p.FirstName} ${p.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
-                        p.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase())
-                    );
+                    // Apply the same filters as the display list
+                    const filtered = availableStudents.filter(person => {
+                        // Text search filter
+                        const searchMatch = `${person.FirstName} ${person.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                            person.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase());
+                        
+                        if (!searchMatch) return false;
+                        
+                        // Role filter
+                        if (roleFilter !== 'all') {
+                            const isCast = castMembers.includes(person.PersonnelID);
+                            const isTeacher = teachers.includes(person.PersonnelID);
+                            const isStudent = studentLevels.hasOwnProperty(person.PersonnelID);
+                            
+                            if (roleFilter === 'cast' && !isCast) return false;
+                            if (roleFilter === 'teacher' && !isTeacher) return false;
+                            if (roleFilter === 'student' && !isStudent) return false;
+                            if (roleFilter === 'other' && (isCast || isTeacher || isStudent)) return false;
+                        }
+                        
+                        // Level filter
+                        if (levelFilter !== 'all' && roleFilter !== 'cast' && roleFilter !== 'teacher') {
+                            const personLevel = studentLevels[person.PersonnelID];
+                            
+                            // Direct string comparison (database has "IA1", "IA2", "No Levels Completed", etc.)
+                            if (personLevel !== levelFilter) return false;
+                        }
+                        
+                        return true;
+                    });
                     setSelectedPersonnel(filtered.map(p => p.PersonnelID));
                 } else {
                     setSelectedPersonnel([]);
@@ -2041,8 +2111,66 @@
                             )
                         ),
 
-                        // Search
-                        e('div', { className: 'px-6 py-4' },
+                        // Search and Filters (only on Add Personnel tab)
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200' },
+                            // Search bar
+                            e('div', { className: 'relative mb-3' },
+                                e('input', {
+                                    type: 'text',
+                                    placeholder: 'Search by name or email...',
+                                    value: modalSearchTerm,
+                                    onChange: (ev) => setModalSearchTerm(ev.target.value),
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                }),
+                                e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                                )
+                            ),
+                            
+                            // Filters (only show on Add Personnel tab)
+                            modalTab === 'add' && e('div', { className: 'flex gap-3' },
+                                // Role filter
+                                e('select', {
+                                    value: roleFilter,
+                                    onChange: (ev) => setRoleFilter(ev.target.value),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: 'all' }, 'All Roles'),
+                                    e('option', { value: 'cast' }, '🎭 Cast Members'),
+                                    e('option', { value: 'student' }, '🎓 Students'),
+                                    e('option', { value: 'teacher' }, '👨‍🏫 Teachers'),
+                                    e('option', { value: 'other' }, '👤 Other Personnel')
+                                ),
+                                
+                                // Level filter (only show for non-cast)
+                                roleFilter !== 'cast' && roleFilter !== 'teacher' && e('select', {
+                                    value: levelFilter,
+                                    onChange: (ev) => setLevelFilter(ev.target.value),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: 'all' }, 'All Levels'),
+                                    e('option', { value: 'No Levels Completed' }, 'No Level (New Students)'),
+                                    e('option', { value: 'IA1' }, 'IA1'),
+                                    e('option', { value: 'IA2' }, 'IA2'),
+                                    e('option', { value: 'IA3' }, 'IA3'),
+                                    e('option', { value: 'IA4' }, 'IA4'),
+                                    e('option', { value: 'IA5' }, 'IA5'),
+                                    e('option', { value: 'IA6' }, 'IA6 (Performance)')
+                                ),
+                                
+                                // Clear filters button
+                                (roleFilter !== 'all' || levelFilter !== 'all') && e('button', {
+                                    onClick: () => {
+                                        setRoleFilter('all');
+                                        setLevelFilter('all');
+                                    },
+                                    className: 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors'
+                                }, '✕ Clear Filters')
+                            )
+                        ),
+
+                        // Student List
+                        modalTab === 'enrolled' && e('div', { className: 'px-6 py-4' },
                             e('div', { className: 'relative' },
                                 e('input', {
                                     type: 'text',
@@ -2059,13 +2187,44 @@
 
                         // Student List
                         e('div', { className: 'flex-1 overflow-y-auto px-6 pb-6' },
-                            modalLoading ? e(Loader, { text: 'Loading students...' }) : 
+                            modalLoading ? e(Loader, { text: 'Loading people...' }) : 
                             (() => {
-                                const students = modalTab === 'enrolled' ? enrolledStudents : availableStudents;
-                                const filtered = students.filter(s => 
-                                    `${s.FirstName} ${s.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
-                                    s.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase())
-                                );
+                                const people = modalTab === 'enrolled' ? enrolledStudents : availableStudents;
+                                
+                                // Apply filters
+                                let filtered = people.filter(person => {
+                                    // Text search filter
+                                    const searchMatch = `${person.FirstName} ${person.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                        person.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase());
+                                    
+                                    if (!searchMatch) return false;
+                                    
+                                    // Only apply role and level filters on Add Personnel tab
+                                    if (modalTab === 'add') {
+                                        // Role filter
+                                        if (roleFilter !== 'all') {
+                                            const isCast = castMembers.includes(person.PersonnelID);
+                                            const isTeacher = teachers.includes(person.PersonnelID);
+                                            const isStudent = studentLevels.hasOwnProperty(person.PersonnelID);
+                                            
+                                            if (roleFilter === 'cast' && !isCast) return false;
+                                            if (roleFilter === 'teacher' && !isTeacher) return false;
+                                            if (roleFilter === 'student' && !isStudent) return false;
+                                            if (roleFilter === 'other' && (isCast || isTeacher || isStudent)) return false;
+                                        }
+                                        
+                                        // Level filter (only for non-cast, non-teacher)
+                                        if (levelFilter !== 'all' && roleFilter !== 'cast' && roleFilter !== 'teacher') {
+                                            const personLevel = studentLevels[person.PersonnelID];
+                                            console.log(`Checking PersonnelID ${person.PersonnelID} (${person.FirstName} ${person.LastName}): level=${personLevel}, filterValue=${levelFilter}, match=${personLevel === levelFilter}`);
+                                            
+                                            // Direct string comparison (database has "IA1", "IA2", "No Levels Completed", etc.)
+                                            if (personLevel !== levelFilter) return false;
+                                        }
+                                    }
+                                    
+                                    return true;
+                                });
 
                                 return filtered.length > 0 ? 
                                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
@@ -2095,7 +2254,24 @@
                                                 
                                                 // Person info
                                                 e('div', { className: modalTab === 'add' ? 'pl-8 pr-2' : 'pr-8' },
-                                                    e('h4', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                                                    e('div', { className: 'flex items-start justify-between' },
+                                                        e('h4', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                                                        // Role badges (Add tab only)
+                                                        modalTab === 'add' && e('div', { className: 'flex gap-1 ml-2' },
+                                                            castMembers.includes(person.PersonnelID) && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full',
+                                                                title: 'Cast Member'
+                                                            }, '🎭'),
+                                                            teachers.includes(person.PersonnelID) && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full',
+                                                                title: 'Teacher'
+                                                            }, '👨‍🏫'),
+                                                            studentLevels[person.PersonnelID] && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full',
+                                                                title: `Level: ${studentLevels[person.PersonnelID]}`
+                                                            }, studentLevels[person.PersonnelID])
+                                                        )
+                                                    ),
                                                     e('p', { className: 'text-sm text-gray-600 mt-1' }, person.PrimaryEmail || 'No email'),
                                                     person.EnrollmentDate && e('p', { className: 'text-xs text-gray-500 mt-1' }, 
                                                         `Enrolled: ${new Date(person.EnrollmentDate).toLocaleDateString()}`
