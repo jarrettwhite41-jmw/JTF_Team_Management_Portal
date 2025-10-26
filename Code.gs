@@ -715,8 +715,28 @@ function getShowsWithDetails() {
         } : null;
       }).filter(member => member !== null);
       
+      // Format show time properly
+      let formattedShowTime = show.ShowTime;
+      if (show.ShowTime) {
+        try {
+          // Convert the time to a proper format
+          const timeDate = new Date(show.ShowTime);
+          if (!isNaN(timeDate.getTime())) {
+            // Format as time only (e.g., "9:15 PM")
+            formattedShowTime = timeDate.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+        } catch (e) {
+          Logger.log(`Warning: Could not format show time for show ${show.ShowID}: ${e.toString()}`);
+        }
+      }
+      
       return {
         ...show,
+        ShowTime: formattedShowTime,
         ShowTypeName: showTypeName,
         DirectorName: directorName,
         Venue: venue,
