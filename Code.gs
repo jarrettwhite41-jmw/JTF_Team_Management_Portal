@@ -1888,18 +1888,56 @@ function enrollStudent(personnelId, offeringId) {
     );
     
     if (existingEnrollment) {
-      Logger.log(`Student ${studentId} is already enrolled in offering ${offeringId}`);
-      return { success: false, error: 'This person is already enrolled in this class' };
+      // Check if this is an ADMIN-removed enrollment that we can reactivate
+      if (existingEnrollment.CompletionStatus === 'ADMIN') {
+        Logger.log(`Found ADMIN-removed enrollment ${existingEnrollment.EnrollmentID} - reactivating`);
+        
+        // Reactivate the enrollment by updating status and clearing notes
+        const headers = enrollmentsSheet.getRange(1, 1, 1, enrollmentsSheet.getLastColumn()).getValues()[0];
+        const enrollmentIndex = existingEnrollments.findIndex(e => e.EnrollmentID == existingEnrollment.EnrollmentID);
+        const rowIndex = enrollmentIndex + 2; // +2 for 1-indexed and header row
+        
+        // Update CompletionStatus to 'Enrolled'
+        const statusColIndex = headers.indexOf('CompletionStatus');
+        if (statusColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, statusColIndex + 1).setValue('Enrolled');
+        }
+        
+        // Clear Notes
+        const notesColIndex = headers.indexOf('Notes');
+        if (notesColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, notesColIndex + 1).setValue('');
+        }
+        
+        // Update EnrollmentDate to today
+        const enrollDateColIndex = headers.indexOf('EnrollmentDate');
+        if (enrollDateColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, enrollDateColIndex + 1).setValue(new Date().toISOString().split('T')[0]);
+        }
+        
+        // Clear CompletionDate
+        const completionDateColIndex = headers.indexOf('CompletionDate');
+        if (completionDateColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, completionDateColIndex + 1).setValue('');
+        }
+        
+        Logger.log(`Successfully reactivated enrollment ${existingEnrollment.EnrollmentID}`);
+        return { success: true, data: { message: 'Student re-enrolled successfully', studentId: studentId, reactivated: true } };
+      } else {
+        // Student is actively enrolled (not ADMIN)
+        Logger.log(`Student ${studentId} is already actively enrolled in offering ${offeringId} with status: ${existingEnrollment.CompletionStatus}`);
+        return { success: false, error: 'This person is already enrolled in this class' };
+      }
     }
     
-    // Create enrollment record
+    // Create new enrollment record
     const enrollmentData = {
       StudentID: studentId,
       OfferingID: offeringId,
       EnrollmentDate: new Date().toISOString().split('T')[0],
       CompletionStatus: 'Enrolled',
       CompletionDate: null,
-      Notes: 'Auto-enrolled from portal'
+      Notes: ''
     };
     addOrUpdateRow(enrollmentsSheet, enrollmentData, 0); // 0 = EnrollmentID column
     Logger.log(`Successfully enrolled StudentID ${studentId} (PersonnelID ${personnelId}) in offering ${offeringId}`);
