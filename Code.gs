@@ -1,5 +1,5 @@
 /**
- * 4JTF Team Management Portal - Google Apps Script Backend
+ * 1JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -583,7 +583,21 @@ function deletePersonnel(personnelId) {
  */
 function getAllShows() {
   try {
-    Logger.log('getAllShows() called - fetching from ShowInformation sheet');
+    Logger.log('getAllShows() called - trying enhanced version first');
+    
+    // Try to call the enhanced version first
+    try {
+      const enhancedResult = getShowsWithDetails();
+      if (enhancedResult && enhancedResult.success) {
+        Logger.log('Using enhanced show data from getShowsWithDetails');
+        return enhancedResult.data;
+      }
+    } catch (enhancedError) {
+      Logger.log(`Enhanced version failed, falling back to basic: ${enhancedError.toString()}`);
+    }
+    
+    // Fallback to basic version
+    Logger.log('Using basic show data from ShowInformation sheet');
     const sheet = getSheet(SHEET_CONFIG.showInformation);
     const shows = sheetToObjects(sheet);
     
@@ -594,6 +608,123 @@ function getAllShows() {
   } catch (error) {
     Logger.log(`ERROR in getAllShows(): ${error.toString()}`);
     throw new Error('Failed to retrieve shows data');
+  }
+}
+
+/**
+ * READ OPERATION: Gets all shows with enhanced details
+ * DATA SOURCES: ShowInformation + ShowTypes + Directors + Personnel + Cast
+ * JOINS: ShowInformation → ShowTypes (ShowTypeID), Directors → Personnel (PersonnelID), ShowPerformances → Personnel (CastMemberID)
+ * RETURNS: Array of ShowWithDetails objects including ShowTypeName, DirectorName, and CastMembers
+ */
+function getShowsWithDetails() {
+  try {
+    Logger.log('getShowsWithDetails() called - fetching enhanced show data');
+    
+    // Get base show data
+    const showSheet = getSheet(SHEET_CONFIG.showInformation);
+    const shows = sheetToObjects(showSheet);
+    Logger.log(`Retrieved ${shows.length} shows`);
+    
+    // Get lookup data with error handling
+    let showTypes = [];
+    try {
+      const showTypesSheet = getSheet(SHEET_CONFIG.showTypes);
+      showTypes = sheetToObjects(showTypesSheet);
+      Logger.log(`Retrieved ${showTypes.length} show types`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load show types: ${e.toString()}`);
+    }
+    
+    let directors = [];
+    try {
+      const directorsSheet = getSheet('Directors');
+      directors = sheetToObjects(directorsSheet);
+      Logger.log(`Retrieved ${directors.length} directors`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load directors: ${e.toString()}`);
+    }
+    
+    let personnel = [];
+    try {
+      const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+      personnel = sheetToObjects(personnelSheet);
+      Logger.log(`Retrieved ${personnel.length} personnel`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load personnel: ${e.toString()}`);
+    }
+    
+    let performances = [];
+    try {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      performances = sheetToObjects(performancesSheet);
+      Logger.log(`Retrieved ${performances.length} performances`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load performances: ${e.toString()}`);
+    }
+    
+    // Get rooms data if it exists
+    let rooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      rooms = sheetToObjects(roomsSheet);
+      Logger.log(`Retrieved ${rooms.length} rooms`);
+    } catch (e) {
+      Logger.log(`Info: Rooms sheet not found, using Venue field instead: ${e.toString()}`);
+    }
+    
+    // Enhance each show with details
+    const enhancedShows = shows.map(show => {
+      // Get show type name
+      const showType = showTypes.find(st => st.ShowTypeID == show.ShowTypeID);
+      const showTypeName = showType ? showType.ShowTypeName : `Type ${show.ShowTypeID || 'Unknown'}`;
+      
+      // Get director information
+      const director = directors.find(d => d.DirectorID == show.DirectorID);
+      let directorName = 'TBD';
+      if (director) {
+        const directorPerson = personnel.find(p => p.PersonnelID == director.PersonnelID);
+        if (directorPerson) {
+          directorName = `${directorPerson.FirstName} ${directorPerson.LastName}`;
+        }
+      }
+      
+      // Get room information if RoomID exists, otherwise use Venue
+      let venue = show.Venue || '';
+      if (show.RoomID && rooms.length > 0) {
+        const room = rooms.find(r => r.RoomID == show.RoomID);
+        if (room) {
+          venue = room.RoomName || room.Name || venue;
+        }
+      }
+      
+      // Get cast members for this show
+      const showPerformances = performances.filter(p => p.ShowID == show.ShowID);
+      const castMembers = showPerformances.map(performance => {
+        const castPerson = personnel.find(p => p.PersonnelID == performance.CastMemberID);
+        return castPerson ? {
+          ...castPerson,
+          Role: performance.Role
+        } : null;
+      }).filter(member => member !== null);
+      
+      return {
+        ...show,
+        ShowTypeName: showTypeName,
+        DirectorName: directorName,
+        Venue: venue,
+        CastMembers: castMembers
+      };
+    });
+    
+    Logger.log(`Enhanced ${enhancedShows.length} shows with details`);
+    Logger.log(`Sample enhanced show: ${enhancedShows.length > 0 ? JSON.stringify(enhancedShows[0]) : 'No shows found'}`);
+    
+    return { success: true, data: enhancedShows };
+  } catch (error) {
+    Logger.log(`ERROR in getShowsWithDetails(): ${error.toString()}`);
+    Logger.log(`Error stack: ${error.stack}`);
+    return { success: false, data: [], error: error.toString() };
   }
 }
 

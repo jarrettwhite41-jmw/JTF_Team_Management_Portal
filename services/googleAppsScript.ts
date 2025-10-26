@@ -11,7 +11,8 @@ import {
   CrewDutyTypes,
   DashboardStats,
   ApiResponse,
-  CastMemberWithDetails
+  CastMemberWithDetails,
+  ShowWithDetails
 } from '../types';
 
 // Mock data for development
@@ -123,6 +124,14 @@ class GoogleAppsScriptService {
             case 'getAllShows':
               data = mockShows;
               break;
+            case 'getShowsWithDetails':
+              data = mockShows.map(show => ({
+                ...show,
+                ShowTypeName: 'Mainstage Cast',
+                DirectorName: 'John Doe',
+                CastMembers: mockPersonnel.slice(0, 3)
+              }));
+              break;
             case 'getAllClasses':
               data = mockClasses;
               break;
@@ -182,6 +191,18 @@ class GoogleAppsScriptService {
   // Show methods
   async getAllShows(): Promise<ApiResponse<ShowInformation[]>> {
     return this.callServerFunction<ShowInformation[]>('getAllShows');
+  }
+
+  async getShowsWithDetails(): Promise<ApiResponse<ShowWithDetails[]>> {
+    console.log('=== getShowsWithDetails called in service ===');
+    try {
+      const result = await this.callServerFunction<ShowWithDetails[]>('getShowsWithDetails');
+      console.log('getShowsWithDetails result:', result);
+      return result;
+    } catch (error) {
+      console.error('getShowsWithDetails error:', error);
+      throw error;
+    }
   }
 
   async createShow(show: Omit<ShowInformation, 'ShowID'>): Promise<ApiResponse<ShowInformation>> {
