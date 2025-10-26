@@ -156,8 +156,9 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
   const filteredStudents = (activeTab === 'enrolled' ? enrolledStudents : availableStudents)
     .filter(student =>
-      `${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.PrimaryEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+      (student.CompletionStatus !== 'ADMIN') && // Exclude ADMIN removals from roster
+      (`${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.PrimaryEmail?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
   if (!isOpen) return null;

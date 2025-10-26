@@ -454,7 +454,7 @@ function debugPersonnelSheet() {
     return { 
       success: false, 
       data: null,
-      error: error.toString()
+      error: error.toString() 
     };
   }
 }
@@ -1976,47 +1976,45 @@ function getEnrolledStudents(offeringId) {
 function removeStudentFromClass(enrollmentId) {
   try {
     Logger.log(`=== removeStudentFromClass(${enrollmentId}) called ===`);
-    
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
     const enrollments = sheetToObjects(enrollmentsSheet);
-    
     // Find the enrollment
     const enrollmentIndex = enrollments.findIndex(e => e.EnrollmentID == enrollmentId);
-    
     if (enrollmentIndex === -1) {
       Logger.log(`Enrollment ${enrollmentId} not found`);
       return { success: false, error: 'Enrollment not found' };
     }
-    
-    // CASCADE DELETE: Remove related attendance records first
+    // UPDATE: Mark enrollment as ADMIN and update attendance records
     const attendanceSheet = getSheet(SHEET_CONFIG.classAttendance);
     const attendanceRecords = sheetToObjects(attendanceSheet);
-    
-    // Find all attendance records for this enrollment
-    const attendanceToDelete = attendanceRecords
-      .map((record, index) => ({ record, rowNum: index + 2 })) // +2 for header and 1-indexed
-      .filter(item => item.record.EnrollmentID == enrollmentId)
-      .reverse(); // Delete from bottom to top to avoid row shifting issues
-    
-    if (attendanceToDelete.length > 0) {
-      Logger.log(`Found ${attendanceToDelete.length} attendance records to delete`);
-      attendanceToDelete.forEach(item => {
-        attendanceSheet.deleteRow(item.rowNum);
-      });
-      Logger.log(`Deleted ${attendanceToDelete.length} attendance records`);
-    }
-    
-    // Delete the enrollment row (add 2: 1 for 1-indexed, 1 for header row)
-    const rowToDelete = enrollmentIndex + 2;
-    enrollmentsSheet.deleteRow(rowToDelete);
-    
-    Logger.log(`Successfully removed enrollment ${enrollmentId} and ${attendanceToDelete.length} related attendance records`);
-    
+    const attendanceHeaders = attendanceSheet.getRange(1, 1, 1, attendanceSheet.getLastColumn()).getValues()[0];
+    const notesColIndex = attendanceHeaders.indexOf('Notes');
+    const statusColIndex = attendanceHeaders.indexOf('AttendanceStatus');
+    const updatedColIndex = attendanceHeaders.indexOf('LastUpdated');
+    const todayStr = new Date().toISOString().split('T')[0];
+    // Find all attendance records for this enrollment and update them
+    attendanceRecords.forEach((record, idx) => {
+      if (record.EnrollmentID == enrollmentId) {
+        const rowNum = idx + 2; // +2 for header and 1-indexed
+        if (statusColIndex >= 0) attendanceSheet.getRange(rowNum, statusColIndex + 1).setValue('Removed');
+        if (notesColIndex >= 0) attendanceSheet.getRange(rowNum, notesColIndex + 1).setValue(`Removed by admin on ${todayStr}`);
+        if (updatedColIndex >= 0) attendanceSheet.getRange(rowNum, updatedColIndex + 1).setValue(new Date());
+      }
+    });
+    // Update enrollment row: set CompletionStatus to 'ADMIN', add note, set CompletionDate
+    const enrollmentHeaders = enrollmentsSheet.getRange(1, 1, 1, enrollmentsSheet.getLastColumn()).getValues()[0];
+    const statusCol = enrollmentHeaders.indexOf('CompletionStatus');
+    const notesCol = enrollmentHeaders.indexOf('Notes');
+    const dateCol = enrollmentHeaders.indexOf('CompletionDate');
+    const enrollmentRowNum = enrollmentIndex + 2;
+    if (statusCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, statusCol + 1).setValue('ADMIN');
+    if (notesCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, notesCol + 1).setValue(`Removed by admin on ${todayStr}`);
+    if (dateCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, dateCol + 1).setValue(new Date());
+    Logger.log(`Successfully marked enrollment ${enrollmentId} as ADMIN and updated related attendance records`);
     return {
       success: true,
-      message: 'Student removed from class successfully'
+      message: 'Student removed from class by admin (marked as ADMIN, attendance updated)'
     };
-    
   } catch (error) {
     Logger.log(`ERROR in removeStudentFromClass(): ${error.toString()}`);
     return {
@@ -2651,7 +2649,7 @@ function getClassOfferingDetails(offeringId) {
         LastName: person ? person.LastName : 'Student',
         PrimaryEmail: person ? person.PrimaryEmail : '',
         EnrollmentDate: enrollment.EnrollmentDate,
-        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
+        CompletionStatus: enrollment.Status || 'Active',
         CompletionDate: enrollment.CompletionDate || null
       };
     });
