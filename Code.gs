@@ -2638,22 +2638,24 @@ function getClassOfferingDetails(offeringId) {
     const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
     const allStudentInfo = sheetToObjects(studentInfoSheet);
     
-    // Enrich enrollments with student details
-    const enrolledStudents = classEnrollments.map(enrollment => {
-      const studentInfo = allStudentInfo.find(si => si.StudentID == enrollment.StudentID);
-      const person = studentInfo ? allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID) : null;
-      
-      return {
-        EnrollmentID: enrollment.EnrollmentID,
-        StudentID: enrollment.StudentID,
-        FirstName: person ? person.FirstName : 'Unknown',
-        LastName: person ? person.LastName : 'Student',
-        PrimaryEmail: person ? person.PrimaryEmail : '',
-        EnrollmentDate: enrollment.EnrollmentDate,
-        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
-        CompletionDate: enrollment.CompletionDate || null
-      };
-    });
+    // Enrich enrollments with student details and filter out ADMIN removals
+    const enrolledStudents = classEnrollments
+      .map(enrollment => {
+        const studentInfo = allStudentInfo.find(si => si.StudentID == enrollment.StudentID);
+        const person = studentInfo ? allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID) : null;
+        
+        return {
+          EnrollmentID: enrollment.EnrollmentID,
+          StudentID: enrollment.StudentID,
+          FirstName: person ? person.FirstName : 'Unknown',
+          LastName: person ? person.LastName : 'Student',
+          PrimaryEmail: person ? person.PrimaryEmail : '',
+          EnrollmentDate: enrollment.EnrollmentDate,
+          CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
+          CompletionDate: enrollment.CompletionDate || null
+        };
+      })
+      .filter(student => student.CompletionStatus !== 'ADMIN'); // Exclude ADMIN removals
     
     // Get attendance records
     let attendanceRecords = [];

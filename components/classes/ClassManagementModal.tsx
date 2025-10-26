@@ -179,12 +179,25 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     }
   };
 
-  const filteredStudents = (activeTab === 'enrolled' ? enrolledStudents : availableStudents)
-    .filter(student =>
-      (student.CompletionStatus !== 'ADMIN') && // Exclude ADMIN removals from roster
-      (`${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.PrimaryEmail?.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+  // Filter students based on active tab and search term
+  const filteredStudents = (() => {
+    let students = activeTab === 'add' ? availableStudents : enrolledStudents;
+    
+    // For roster and enrolled tabs, exclude ADMIN removals
+    if (activeTab === 'roster' || activeTab === 'enrolled') {
+      students = students.filter((student: Student) => student.CompletionStatus !== 'ADMIN');
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      students = students.filter((student: Student) =>
+        `${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.PrimaryEmail?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return students;
+  })();
 
   if (!isOpen) return null;
 
