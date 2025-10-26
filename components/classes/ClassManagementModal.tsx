@@ -32,7 +32,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'enrolled' | 'add'>('enrolled');
+  const [activeTab, setActiveTab] = useState<'roster' | 'enrolled' | 'add'>('roster');
 
   useEffect(() => {
     if (isOpen && classOffering) {
@@ -154,6 +154,31 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     }
   };
 
+  const handleStatusChange = async (enrollmentId: number, newStatus: string) => {
+    setIsLoading(true);
+    try {
+      const response = await (window as any).google.script.run
+        .withSuccessHandler((data: any) => {
+          if (data.success) {
+            setMessage({ type: 'success', text: 'Status updated successfully' });
+            loadEnrolledStudents();
+            onRefresh();
+          } else {
+            setMessage({ type: 'error', text: data.error || 'Failed to update status' });
+          }
+          setIsLoading(false);
+        })
+        .withFailureHandler((error: any) => {
+          setMessage({ type: 'error', text: 'Error updating status' });
+          setIsLoading(false);
+        })
+        .updateEnrollmentStatus(enrollmentId, newStatus);
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Error updating status' });
+      setIsLoading(false);
+    }
+  };
+
   const filteredStudents = (activeTab === 'enrolled' ? enrolledStudents : availableStudents)
     .filter(student =>
       (student.CompletionStatus !== 'ADMIN') && // Exclude ADMIN removals from roster
@@ -198,6 +223,16 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         {/* Tabs */}
         <div className="px-6 pt-4 border-b border-gray-200">
           <div className="flex space-x-4">
+            <button
+              onClick={() => setActiveTab('roster')}
+              className={`pb-3 px-2 font-medium border-b-2 transition-colors ${
+                activeTab === 'roster'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Class Roster ({enrolledStudents.filter(s => s.CompletionStatus !== 'ADMIN').length}/{classOffering.MaxStudents})
+            </button>
             <button
               onClick={() => setActiveTab('enrolled')}
               className={`pb-3 px-2 font-medium border-b-2 transition-colors ${
@@ -246,22 +281,73 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         <div className="flex-1 overflow-y-auto px-6 pb-6">
           {isLoading ? (
             <Loader text="Loading students..." />
+          ) : activeTab === 'roster' ? (
+            /* Class Roster Table View */
+            filteredStudents.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Student Name
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Email
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Enrolled Date
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredStudents.map((student: Student) => (
+                      <tr key={student.StudentID} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {student.FirstName} {student.LastName}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600">{student.PrimaryEmail}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600">
+                            {student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <select
+                            value={student.CompletionStatus || 'Active'}
+                            onChange={(e) => handleStatusChange(student.EnrollmentID!, e.target.value)}
+                            className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Dropped">Dropped</option>
+                            <option value="Withdrawn">Withdrawn</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500">No students enrolled yet</p>
+              </div>
+            )
           ) : filteredStudents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredStudents.map((student) => (
                 <div key={student.StudentID} className="relative">
                   <StudentCard student={student} onClick={() => {}} />
-                  {activeTab === 'enrolled' ? (
-                    <button
-                      onClick={() => student.EnrollmentID && handleRemoveStudent(student.EnrollmentID)}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      title="Remove from class"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  ) : (
+                  {/* Remove Actions column for roster view */}
+                  {/* Only show remove/add button if activeTab is 'add' */}
+                  {activeTab === 'add' && (
                     <button
                       onClick={() => handleAddStudent(student.StudentID)}
                       className="absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"

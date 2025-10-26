@@ -1412,15 +1412,16 @@ function getStudentProfileData(studentId) {
             levelMap.set(levelId, {
               ClassLevelID: levelId,
               LevelName: level ? level.LevelName : `Level ${levelId}`,
-              Status: enrollment.Status,
+              Status: enrollment.CompletionStatus || enrollment.Status || 'Active',
               EnrollmentDate: enrollment.EnrollmentDate,
               OfferingID: enrollment.OfferingID
             });
           } else {
             // Update if this enrollment is completed and the existing one isn't
             const existing = levelMap.get(levelId);
-            if (enrollment.Status === 'Completed' && existing.Status !== 'Completed') {
-              existing.Status = enrollment.Status;
+            const enrollmentStatus = enrollment.CompletionStatus || enrollment.Status || 'Active';
+            if (enrollmentStatus === 'Completed' && existing.Status !== 'Completed') {
+              existing.Status = enrollmentStatus;
               existing.EnrollmentDate = enrollment.EnrollmentDate;
             }
           }
@@ -1946,7 +1947,7 @@ function getEnrolledStudents(offeringId) {
         PrimaryEmail: person ? person.PrimaryEmail : '',
         PrimaryPhone: person ? person.PrimaryPhone : '',
         EnrollmentDate: enrollment.EnrollmentDate,
-        CompletionStatus: enrollment.Status || 'Active',
+        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
         CompletionDate: enrollment.CompletionDate || null
       };
     });
@@ -2649,7 +2650,7 @@ function getClassOfferingDetails(offeringId) {
         LastName: person ? person.LastName : 'Student',
         PrimaryEmail: person ? person.PrimaryEmail : '',
         EnrollmentDate: enrollment.EnrollmentDate,
-        CompletionStatus: enrollment.Status || 'Active',
+        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
         CompletionDate: enrollment.CompletionDate || null
       };
     });
