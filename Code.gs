@@ -2720,15 +2720,18 @@ function updateClassAttendance(attendanceData) {
     const allData = sheetToObjects(sheet);
     const timezone = Session.getScriptTimeZone();
 
-    // Standardize date for comparison
-    const dateToFind = new Date(attendanceData.classDate);
-    const dateToFindStr = Utilities.formatDate(dateToFind, timezone, "yyyy-MM-dd");
+    // Use the date string directly without timezone conversion
+    // Frontend sends "YYYY-MM-DD" format already
+    const dateToFindStr = attendanceData.classDate;
+    Logger.log(`Looking for attendance on date: ${dateToFindStr}`);
 
     // Find existing attendance record
     const existingIndex = allData.findIndex(a => {
       if (!a.ClassDate) return false;
-      const recordDate = new Date(a.ClassDate);
-      const recordDateStr = Utilities.formatDate(recordDate, timezone, "yyyy-MM-dd");
+      // Extract just the date part from stored records
+      const recordDateStr = typeof a.ClassDate === 'string' 
+        ? a.ClassDate.split('T')[0]
+        : Utilities.formatDate(new Date(a.ClassDate), timezone, "yyyy-MM-dd");
       return a.EnrollmentID == attendanceData.enrollmentId && recordDateStr === dateToFindStr;
     });
     

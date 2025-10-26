@@ -1554,13 +1554,17 @@
 
             // Get attendance status for a specific student on a specific date
             const getAttendanceStatus = (enrollmentId, classDate) => {
-                const dateStr = classDate.toISOString().split('T')[0];
+                // Convert to local date string (YYYY-MM-DD) without timezone conversion
+                const year = classDate.getFullYear();
+                const month = String(classDate.getMonth() + 1).padStart(2, '0');
+                const day = String(classDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 
                 // Get from saved records
                 const record = attendanceRecords.find(r => {
                     if (!r.ClassDate) return false;
                     
-                    // Normalize both dates for comparison
+                    // Normalize record date for comparison
                     const recordDateStr = typeof r.ClassDate === 'string' 
                         ? r.ClassDate.split('T')[0] 
                         : new Date(r.ClassDate).toISOString().split('T')[0];
@@ -1573,7 +1577,11 @@
 
             // Save attendance immediately when changed
             const handleAttendanceChange = async (enrollmentId, classDate, newStatus) => {
-                const dateStr = classDate.toISOString().split('T')[0];
+                // Convert to local date string (YYYY-MM-DD) without timezone conversion
+                const year = classDate.getFullYear();
+                const month = String(classDate.getMonth() + 1).padStart(2, '0');
+                const day = String(classDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
                 
                 try {
                     const response = await gasService.updateClassAttendance({
