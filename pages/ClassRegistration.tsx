@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { ClassCard } from '../components/classes/ClassCard';
-import { ClassManagementModal } from '../components/classes/ClassManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { gasService } from '../services/googleAppsScript';
@@ -31,8 +30,6 @@ export const ClassRegistration: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewClassModal, setShowNewClassModal] = useState(false);
-  const [selectedClass, setSelectedClass] = useState<ClassOffering | null>(null);
-  const [showManagementModal, setShowManagementModal] = useState(false);
 
   useEffect(() => {
     loadClasses();
@@ -96,14 +93,10 @@ export const ClassRegistration: React.FC = () => {
     return classes.filter(c => c.Status === statusMap[filterType]).length;
   };
 
-  const handleManageClass = (classOffering: ClassOffering) => {
-    setSelectedClass(classOffering);
-    setShowManagementModal(true);
-  };
-
-  const handleCloseManagementModal = () => {
-    setShowManagementModal(false);
-    setSelectedClass(null);
+  const handleManageClass = (offeringId: number) => {
+    // This will be implemented when we add routing
+    console.log('Navigate to class management:', offeringId);
+    setMessage({ type: 'success', text: 'Class management page coming soon!' });
   };
 
   if (isLoading) {
@@ -211,7 +204,7 @@ export const ClassRegistration: React.FC = () => {
             <ClassCard
               key={classOffering.OfferingID}
               classOffering={classOffering}
-              onManage={() => handleManageClass(classOffering)}
+              onManage={() => handleManageClass(classOffering.OfferingID)}
             />
           ))}
         </div>
@@ -259,16 +252,6 @@ export const ClassRegistration: React.FC = () => {
             </button>
           </div>
         </div>
-      )}
-
-      {/* Class Management Modal */}
-      {selectedClass && (
-        <ClassManagementModal
-          isOpen={showManagementModal}
-          classOffering={selectedClass}
-          onClose={handleCloseManagementModal}
-          onRefresh={loadClasses}
-        />
       )}
     </div>
   );

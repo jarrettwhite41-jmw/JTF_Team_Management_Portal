@@ -8,9 +8,7 @@ interface PersonCardProps {
 
 export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick }) => {
   const getInitials = (firstName: string, lastName: string) => {
-    const first = firstName && firstName.length > 0 ? firstName.charAt(0) : '?';
-    const last = lastName && lastName.length > 0 ? lastName.charAt(0) : '?';
-    return `${first}${last}`.toUpperCase();
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
   const getRoleBadges = () => {
