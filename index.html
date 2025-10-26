@@ -3064,11 +3064,73 @@
                 setSelectedShow(show);
                 
                 if (mode === 'edit' && show) {
+                    // Convert ShowTime to proper time format for HTML time input
+                    let timeValue = '';
+                    if (show.ShowTime) {
+                        console.log('Original ShowTime value:', show.ShowTime);
+                        console.log('ShowTime type:', typeof show.ShowTime);
+                        
+                        try {
+                            // Try parsing as formatted time first (e.g., "9:15 PM")
+                            if (show.ShowTime.includes('PM') || show.ShowTime.includes('AM')) {
+                                // Parse 12-hour format time like "9:15 PM"
+                                const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
+                                const match = show.ShowTime.match(timeRegex);
+                                
+                                if (match) {
+                                    let hours = parseInt(match[1]);
+                                    const minutes = match[2];
+                                    const period = match[3].toUpperCase();
+                                    
+                                    // Convert to 24-hour format
+                                    if (period === 'PM' && hours !== 12) {
+                                        hours += 12;
+                                    } else if (period === 'AM' && hours === 12) {
+                                        hours = 0;
+                                    }
+                                    
+                                    timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                                    console.log('Converted 12-hour to 24-hour:', timeValue);
+                                } else {
+                                    console.log('12-hour format regex did not match');
+                                    timeValue = show.ShowTime;
+                                }
+                            } else {
+                                // Try parsing as timestamp or other format
+                                const timeDate = new Date(show.ShowTime);
+                                console.log('Parsed Date object:', timeDate);
+                                console.log('Is valid date:', !isNaN(timeDate.getTime()));
+                                
+                                if (!isNaN(timeDate.getTime())) {
+                                    // Format as HH:MM for HTML time input
+                                    timeValue = timeDate.toLocaleTimeString('en-GB', { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit',
+                                        hour12: false 
+                                    });
+                                    console.log('Formatted time value:', timeValue);
+                                } else {
+                                    // If it's already in HH:MM format, use as is
+                                    timeValue = show.ShowTime;
+                                    console.log('Using original value (not a valid date):', timeValue);
+                                }
+                            }
+                        } catch (e) {
+                            // Fallback to original value
+                            console.log('Error parsing time:', e);
+                            timeValue = show.ShowTime;
+                        }
+                    } else {
+                        console.log('No ShowTime provided');
+                    }
+                    
+                    console.log('Final timeValue for form:', timeValue);
+                    
                     setFormData({
                         ShowID: show.ShowID,
                         ShowTypeID: show.ShowTypeID || '',
                         ShowDate: show.ShowDate ? show.ShowDate.split('T')[0] : '',
-                        ShowTime: show.ShowTime || '',
+                        ShowTime: timeValue,
                         RoomID: show.RoomID || '',
                         DirectorID: show.DirectorID || '',
                         ShowNotes: show.ShowNotes || '',
@@ -3381,7 +3443,10 @@
                                         },
                                             e('option', { value: '' }, '-- Select Director --'),
                                             directors.map(director =>
-                                                e('option', { key: director.DirectorID, value: director.DirectorID }, director.DirectorName || `${director.FirstName} ${director.LastName}`)
+                                                e('option', { 
+                                                    key: director.PersonnelID, 
+                                                    value: director.PersonnelID 
+                                                }, director.DirectorName || `${director.FirstName} ${director.LastName}`)
                                             )
                                         )
                                     )
