@@ -625,6 +625,8 @@ function getShowsWithDetails() {
     const showSheet = getSheet(SHEET_CONFIG.showInformation);
     const shows = sheetToObjects(showSheet);
     Logger.log(`Retrieved ${shows.length} shows`);
+    Logger.log(`Sample show data:`, shows.length > 0 ? JSON.stringify(shows[0]) : 'No shows found');
+    Logger.log(`Show DirectorIDs:`, shows.map(s => `Show ${s.ShowID}: DirectorID=${s.DirectorID}`));
     
     // Get lookup data with error handling
     let showTypes = [];
@@ -686,15 +688,30 @@ function getShowsWithDetails() {
       }
       Logger.log(`Show ${show.ShowID}: ShowTypeID=${show.ShowTypeID}, found showType:`, showType, `final name: ${showTypeName}`);
       
-      // Get director information
+      // Get director information - try two approaches
       const director = directors.find(d => d.DirectorID == show.DirectorID);
       let directorName = 'TBD';
+      
       if (director) {
+        // Standard approach: DirectorID → Directors → Personnel
         const directorPerson = personnel.find(p => p.PersonnelID == director.PersonnelID);
         if (directorPerson) {
           directorName = `${directorPerson.FirstName} ${directorPerson.LastName}`;
+        } else {
+          Logger.log(`Show ${show.ShowID}: Found director ${director.DirectorID} but no personnel with ID ${director.PersonnelID}`);
+        }
+      } else {
+        // Fallback approach: DirectorID might be PersonnelID directly
+        Logger.log(`Show ${show.ShowID}: No director found for DirectorID ${show.DirectorID}, trying as PersonnelID directly`);
+        const directPersonnel = personnel.find(p => p.PersonnelID == show.DirectorID);
+        if (directPersonnel) {
+          directorName = `${directPersonnel.FirstName} ${directPersonnel.LastName}`;
+          Logger.log(`Show ${show.ShowID}: Found director via direct PersonnelID lookup: ${directorName}`);
+        } else {
+          Logger.log(`Show ${show.ShowID}: No personnel found with ID ${show.DirectorID}. Available directors:`, directors.map(d => d.DirectorID));
         }
       }
+      Logger.log(`Show ${show.ShowID}: DirectorID=${show.DirectorID}, final name: ${directorName}`);
       
       // Get room information if RoomID exists, otherwise use Venue
       let venue = show.Venue || '';
