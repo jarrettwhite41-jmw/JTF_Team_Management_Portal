@@ -632,6 +632,8 @@ function getShowsWithDetails() {
       const showTypesSheet = getSheet(SHEET_CONFIG.showTypes);
       showTypes = sheetToObjects(showTypesSheet);
       Logger.log(`Retrieved ${showTypes.length} show types`);
+      Logger.log(`Sample show type:`, showTypes.length > 0 ? JSON.stringify(showTypes[0]) : 'No show types found');
+      Logger.log(`All show types:`, JSON.stringify(showTypes));
     } catch (e) {
       Logger.log(`Warning: Could not load show types: ${e.toString()}`);
     }
@@ -675,9 +677,14 @@ function getShowsWithDetails() {
     
     // Enhance each show with details
     const enhancedShows = shows.map(show => {
-      // Get show type name
+      // Get show type name - handle both 'ShowTypeName' and 'Name' column names
       const showType = showTypes.find(st => st.ShowTypeID == show.ShowTypeID);
-      const showTypeName = showType ? showType.ShowTypeName : `Type ${show.ShowTypeID || 'Unknown'}`;
+      let showTypeName = `Type ${show.ShowTypeID || 'Unknown'}`;
+      if (showType) {
+        // Try different possible column names for show type name
+        showTypeName = showType.Name || showType.ShowTypeName || showType.TypeName || showTypeName;
+      }
+      Logger.log(`Show ${show.ShowID}: ShowTypeID=${show.ShowTypeID}, found showType:`, showType, `final name: ${showTypeName}`);
       
       // Get director information
       const director = directors.find(d => d.DirectorID == show.DirectorID);
@@ -1663,7 +1670,7 @@ function getSheetHeaders(sheetName) {
       'AttendanceID', 'RehearsalID', 'PersonnelID', 'AttendanceStatus'
     ],
     [SHEET_CONFIG.showTypes]: [
-      'ShowTypeID', 'ShowTypeName', 'Description'
+      'ShowTypeID', 'Name', 'ShowDescription'
     ],
     [SHEET_CONFIG.classLevels]: [
       'ClassLevelID', 'LevelName', 'Description'
