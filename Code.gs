@@ -1,5 +1,5 @@
 /**
- * 3JTF Team Management Portal - Google Apps Script Backend
+ * 4JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -618,6 +618,326 @@ function createShow(showData) {
     Logger.log(`ERROR in createShow(): ${error.toString()}`);
     throw new Error('Failed to create show');
   }
+}
+
+/**
+ * CREATE/UPDATE OPERATION: Creates or updates a show with cast and crew assignments
+ * DATA FLOW: Complete show data → ShowInformation + ShowPerformances + CrewDuties + BartenderShifts sheets
+ * @param {Object} showData - Complete show data including cast/crew assignments
+ * RETURNS: Success status and show ID
+ */
+function createOrUpdateShow(showData) {
+  try {
+    Logger.log(`=== createOrUpdateShow() called ===`);
+    Logger.log(`Show data: ${JSON.stringify(showData)}`);
+    
+    const showInfoSheet = getSheet(SHEET_CONFIG.showInformation);
+    
+    // Prepare core show data (without cast/crew arrays)
+    const coreShowData = {
+      ShowTypeID: showData.ShowTypeID,
+      ShowDate: showData.ShowDate,
+      ShowTime: showData.ShowTime,
+      RoomID: showData.RoomID,
+      DirectorID: showData.DirectorID,
+      ShowNotes: showData.ShowNotes || ''
+    };
+    
+    let showId;
+    
+    // Create or update the show record
+    if (showData.ShowID) {
+      // UPDATE existing show
+      coreShowData.ShowID = showData.ShowID;
+      showId = showData.ShowID;
+      Logger.log(`Updating existing show ${showId}`);
+    } else {
+      // CREATE new show
+      showId = getNextId(showInfoSheet, 0);
+      coreShowData.ShowID = showId;
+      Logger.log(`Creating new show with ID ${showId}`);
+    }
+    
+    // Save core show data
+    addOrUpdateRow(showInfoSheet, coreShowData, 0);
+    Logger.log(`Show ${showId} saved to ShowInformation`);
+    
+    // Handle cast assignments (ShowPerformances table)
+    if (showData.castAssignments && showData.castAssignments.length > 0) {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      
+      // If updating, remove old cast assignments for this show
+      if (showData.ShowID) {
+        deleteRowsByCondition(performancesSheet, 'ShowID', showId);
+      }
+      
+      // Add new cast assignments
+      showData.castAssignments.forEach(castMemberId => {
+        const performanceData = {
+          ShowID: showId,
+          CastMemberID: castMemberId,
+          Role: 'Performer'
+        };
+        addOrUpdateRow(performancesSheet, performanceData, 0);
+        Logger.log(`Added cast member ${castMemberId} to show ${showId}`);
+      });
+    }
+    
+    // Handle crew duty assignments (CrewDuties table)
+    const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+    
+    // Get CrewDutyType IDs
+    const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+    const allCrewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+    
+    const techDutyType = allCrewDutyTypes.find(t => t.DutyName === 'Tech');
+    const boxDutyType = allCrewDutyTypes.find(t => t.DutyName === 'Box' || t.DutyName === 'Box Office');
+    const houseDutyType = allCrewDutyTypes.find(t => t.DutyName === 'House' || t.DutyName === 'House Manager');
+    
+    // If updating, remove old crew assignments for this show
+    if (showData.ShowID) {
+      deleteRowsByCondition(crewDutiesSheet, 'ShowID', showId);
+    }
+    
+    // Add Tech crew
+    if (showData.techCrew && techDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.techCrew,
+        CrewDutyTypeID: techDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added Tech crew member ${showData.techCrew}`);
+    }
+    
+    // Add Box Office crew
+    if (showData.boxOfficeCrew && boxDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.boxOfficeCrew,
+        CrewDutyTypeID: boxDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added Box Office crew member ${showData.boxOfficeCrew}`);
+    }
+    
+    // Add House Manager crew
+    if (showData.houseManagerCrew && houseDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.houseManagerCrew,
+        CrewDutyTypeID: houseDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added House Manager crew member ${showData.houseManagerCrew}`);
+    }
+    
+    // Handle bartender assignment (BartenderShifts table)
+    if (showData.bartenderAssignment) {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      
+      // If updating, remove old bartender for this show
+      if (showData.ShowID) {
+        deleteRowsByCondition(bartenderShiftsSheet, 'ShowID', showId);
+      }
+      
+      // Add new bartender
+      addOrUpdateRow(bartenderShiftsSheet, {
+        ShowID: showId,
+        PersonnelID: showData.bartenderAssignment
+      }, 0);
+      Logger.log(`Added bartender ${showData.bartenderAssignment}`);
+    }
+    
+    Logger.log(`=== Show ${showId} fully saved with all assignments ===`);
+    
+    return {
+      success: true,
+      data: {
+        ShowID: showId,
+        message: showData.ShowID ? 'Show updated successfully' : 'Show created successfully'
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in createOrUpdateShow(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * DELETE OPERATION: Deletes a show and all related records
+ * DATA FLOW: Deletes from ShowInformation, ShowPerformances, CrewDuties, BartenderShifts
+ * @param {number} showId - The ShowID to delete
+ */
+function deleteShow(showId) {
+  try {
+    Logger.log(`=== deleteShow(${showId}) called ===`);
+    
+    // Delete from ShowInformation
+    const showInfoSheet = getSheet(SHEET_CONFIG.showInformation);
+    const showDeleted = deleteRow(showInfoSheet, showId, 0);
+    
+    if (!showDeleted) {
+      Logger.log(`Show ${showId} not found in ShowInformation`);
+      return { success: false, error: 'Show not found' };
+    }
+    
+    // Delete related records from ShowPerformances
+    try {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      deleteRowsByCondition(performancesSheet, 'ShowID', showId);
+      Logger.log(`Deleted cast assignments for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No cast assignments to delete: ${e.toString()}`);
+    }
+    
+    // Delete related records from CrewDuties
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      deleteRowsByCondition(crewDutiesSheet, 'ShowID', showId);
+      Logger.log(`Deleted crew assignments for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No crew assignments to delete: ${e.toString()}`);
+    }
+    
+    // Delete related records from BartenderShifts
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      deleteRowsByCondition(bartenderShiftsSheet, 'ShowID', showId);
+      Logger.log(`Deleted bartender assignment for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No bartender assignment to delete: ${e.toString()}`);
+    }
+    
+    Logger.log(`=== Show ${showId} and all related records deleted ===`);
+    
+    return {
+      success: true,
+      data: { message: 'Show deleted successfully' }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in deleteShow(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all rooms for dropdown selection
+ * DATA SOURCE: Rooms sheet
+ * RETURNS: Array of room objects
+ */
+function getAllRooms() {
+  try {
+    Logger.log('getAllRooms() called');
+    const sheet = getSheet('Rooms');
+    const rooms = sheetToObjects(sheet);
+    Logger.log(`Retrieved ${rooms.length} rooms`);
+    return { success: true, data: rooms };
+  } catch (error) {
+    Logger.log(`ERROR in getAllRooms(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all directors for dropdown selection
+ * DATA SOURCE: Directors table joined with Personnel
+ * RETURNS: Array of director objects with names
+ */
+function getAllDirectors() {
+  try {
+    Logger.log('getAllDirectors() called');
+    const directorsSheet = getSheet('Directors');
+    const allDirectors = sheetToObjects(directorsSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const directorsWithNames = allDirectors.map(director => {
+      const person = allPersonnel.find(p => p.PersonnelID == director.PersonnelID);
+      return {
+        DirectorID: director.DirectorID,
+        PersonnelID: director.PersonnelID,
+        FirstName: person ? person.FirstName : '',
+        LastName: person ? person.LastName : '',
+        DirectorName: person ? `${person.FirstName} ${person.LastName}` : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Retrieved ${directorsWithNames.length} directors`);
+    return { success: true, data: directorsWithNames };
+  } catch (error) {
+    Logger.log(`ERROR in getAllDirectors(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all bartenders for dropdown selection
+ * DATA SOURCE: Bartenders table joined with Personnel
+ * RETURNS: Array of bartender objects with names
+ */
+function getAllBartenders() {
+  try {
+    Logger.log('getAllBartenders() called');
+    const bartendersSheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(bartendersSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const bartendersWithNames = allBartenders.map(bartender => {
+      const person = allPersonnel.find(p => p.PersonnelID == bartender.PersonnelID);
+      return {
+        BartenderID: bartender.BartenderID,
+        PersonnelID: bartender.PersonnelID,
+        FirstName: person ? person.FirstName : '',
+        LastName: person ? person.LastName : '',
+        FullName: person ? `${person.FirstName} ${person.LastName}` : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Retrieved ${bartendersWithNames.length} bartenders`);
+    return { success: true, data: bartendersWithNames };
+  } catch (error) {
+    Logger.log(`ERROR in getAllBartenders(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * HELPER FUNCTION: Deletes rows that match a condition
+ * @param {Sheet} sheet - The sheet to delete from
+ * @param {string} columnName - The column to check
+ * @param {*} value - The value to match
+ */
+function deleteRowsByCondition(sheet, columnName, value) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const columnIndex = headers.indexOf(columnName);
+  
+  if (columnIndex === -1) {
+    Logger.log(`Column ${columnName} not found in sheet ${sheet.getName()}`);
+    return 0;
+  }
+  
+  let deletedCount = 0;
+  
+  // Start from bottom to avoid index shifting issues
+  for (let i = data.length - 1; i > 0; i--) {
+    if (data[i][columnIndex] == value) {
+      sheet.deleteRow(i + 1);
+      deletedCount++;
+    }
+  }
+  
+  Logger.log(`Deleted ${deletedCount} rows from ${sheet.getName()} where ${columnName} = ${value}`);
+  return deletedCount;
 }
 
 // =============================================================================
