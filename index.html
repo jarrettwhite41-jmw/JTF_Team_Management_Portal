@@ -208,6 +208,41 @@
                 return this.callServerFunction('getAllClasses');
             }
 
+            // READ: Get all class offerings with teacher names and enrollment counts
+            async getAllClassOfferings() {
+                return this.callServerFunction('getAllClassOfferings');
+            }
+
+            // READ: Get detailed information for a specific class offering
+            async getClassOfferingDetails(offeringId) {
+                return this.callServerFunction('getClassOfferingDetails', offeringId);
+            }
+
+            // CREATE: Create a new class offering
+            async createClassOffering(classData) {
+                return this.callServerFunction('createClassOffering', classData);
+            }
+
+            // UPDATE: Update class attendance record
+            async updateClassAttendance(attendanceData) {
+                return this.callServerFunction('updateClassAttendance', attendanceData);
+            }
+
+            // UPDATE: Update student enrollment status
+            async updateEnrollmentStatus(enrollmentId, status) {
+                return this.callServerFunction('updateEnrollmentStatus', enrollmentId, status);
+            }
+
+            // READ: Get all active teachers with their names
+            async getActiveTeachers() {
+                return this.callServerFunction('getActiveTeachers');
+            }
+
+            // READ: Get all class levels
+            async getAllClassLevels() {
+                return this.callServerFunction('getAllClassLevels');
+            }
+
             // ===================================================================
             // INVENTORY CRUD API METHODS
             // These methods interact with the Inventory sheet in Google Sheets
@@ -287,8 +322,28 @@
             }
 
             // CREATE: Enroll a single student in a class
-            async enrollStudent(studentId, offeringId) {
-                return this.callServerFunction('enrollStudent', studentId, offeringId);
+            async enrollStudent(personnelId, offeringId) {
+                return this.callServerFunction('enrollStudent', personnelId, offeringId);
+            }
+
+            // CREATE: Enroll multiple personnel in a class at once (bulk enrollment)
+            async bulkEnrollStudents(personnelIds, offeringId) {
+                return this.callServerFunction('bulkEnrollStudents', personnelIds, offeringId);
+            }
+
+            // READ: Get all students enrolled in a specific class offering
+            async getEnrolledStudents(offeringId) {
+                return this.callServerFunction('getEnrolledStudents', offeringId);
+            }
+
+            // READ: Get all students with full details (joins StudentInfo + Personnel)
+            async getAllStudentsWithDetails() {
+                return this.callServerFunction('getAllStudentsWithDetails');
+            }
+
+            // DELETE: Remove a student from a class (delete enrollment record)
+            async removeStudentFromClass(enrollmentId) {
+                return this.callServerFunction('removeStudentFromClass', enrollmentId);
             }
         }
 
@@ -365,10 +420,10 @@
             },
                 e('div', { className: 'flex items-center space-x-3 mb-3' },
                     e('div', { className: 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold' },
-                        getInitials(person.FirstName, person.Lastname)
+                        getInitials(person.FirstName, person.LastName)
                     ),
                     e('div', null,
-                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.Lastname}`),
+                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
                         e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
                     )
                 )
@@ -399,7 +454,7 @@
                         const studentData = response.data?.data || response.data;
                         console.log('Student data received (unwrapped):', studentData);
                         console.log('FirstName:', studentData?.FirstName);
-                        console.log('Lastname:', studentData?.Lastname);
+                        console.log('Lastname:', studentData?.LastName);
                         console.log('PrimaryEmail:', studentData?.PrimaryEmail);
                         console.log('PrimaryPhone:', studentData?.PrimaryPhone);
                         console.log('Birthday:', studentData?.Birthday);
@@ -441,7 +496,7 @@
                             className: 'mr-4 px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors'
                         }, '← Back'),
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 
-                            `${student.FirstName || 'Unknown'} ${student.Lastname || 'Student'} - Student Profile`
+                            `${student.FirstName || 'Unknown'} ${student.LastName || 'Student'} - Student Profile`
                         )
                     )
                 ),
@@ -460,11 +515,11 @@
                     e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
                         e('div', { className: 'flex items-center mb-6' },
                             e('div', { className: 'w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl mr-4' },
-                                `${(student.FirstName || '').charAt(0)}${(student.Lastname || '').charAt(0)}`.toUpperCase()
+                                `${(student.FirstName || '').charAt(0)}${(student.LastName || '').charAt(0)}`.toUpperCase()
                             ),
                             e('div', null,
                                 e('h2', { className: 'text-xl font-bold text-gray-900' }, 
-                                    `${student.FirstName || 'Unknown'} ${student.Lastname || 'Student'}`
+                                    `${student.FirstName || 'Unknown'} ${student.LastName || 'Student'}`
                                 ),
                                 student.StudentStatus && e('span', { 
                                     className: `inline-block px-2 py-1 text-xs rounded-full mt-1 ${
@@ -695,11 +750,11 @@
             },
                 e('div', { className: 'flex items-center space-x-3 mb-3' },
                     e('div', { className: 'w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold' },
-                        getInitials(castMember.FirstName, castMember.Lastname)
+                        getInitials(castMember.FirstName, castMember.LastName)
                     ),
                     e('div', { className: 'flex-1' },
                         e('h3', { className: 'font-semibold text-gray-900' }, 
-                            `${castMember.FirstName || ''} ${castMember.Lastname || ''}`.trim() || 'Unknown Name'
+                            `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
                         ),
                         e('p', { className: 'text-sm text-gray-600' }, castMember.PrimaryEmail || 'No email')
                     )
@@ -801,12 +856,12 @@
                                 isEditable ? 
                                 e('input', {
                                     type: 'text',
-                                    value: formData.Lastname || '',
+                                    value: formData.LastName || '',
                                     onChange: (e) => handleInputChange('Lastname', e.target.value),
                                     className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
                                     required: true
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.Lastname)
+                                e('p', { className: 'py-2 text-gray-900' }, formData.LastName)
                             ),
 
                             // Email
@@ -1003,7 +1058,7 @@
 
             useEffect(() => {
                 const filtered = personnel.filter(person =>
-                    `${person.FirstName} ${person.Lastname}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
                 );
                 setFilteredPersonnel(filtered);
@@ -1118,7 +1173,7 @@
 
             const handleDeletePerson = async () => {
                 if (selectedPerson) {
-                    const confirmDelete = confirm(`Are you sure you want to delete ${selectedPerson.FirstName} ${selectedPerson.Lastname}? This action cannot be undone.`);
+                    const confirmDelete = confirm(`Are you sure you want to delete ${selectedPerson.FirstName} ${selectedPerson.LastName}? This action cannot be undone.`);
                     if (confirmDelete) {
                         try {
                             const response = await gasService.deletePersonnel(selectedPerson.PersonnelID);
@@ -1206,7 +1261,7 @@
 
             useEffect(() => {
                 const filtered = castMembers.filter(member =>
-                    `${member.FirstName || ''} ${member.Lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    `${member.FirstName || ''} ${member.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
                 );
@@ -1316,7 +1371,7 @@
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
-                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.Lastname || ''}`.trim() || 'Unknown')
+                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown')
                             ),
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),
@@ -1400,13 +1455,1457 @@
             );
         }
 
-        // Placeholder Components for other pages
-        function ClassRegistration() {
-            return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Class Registration'),
-                e('p', { className: 'text-gray-600' }, 'Class registration functionality coming soon...')
+        // Class Management View Component
+        function ClassManagementView({ offeringId, onBack }) {
+            const [classData, setClassData] = useState(null);
+            const [enrolledStudents, setEnrolledStudents] = useState([]);
+            const [attendanceRecords, setAttendanceRecords] = useState([]);
+            const [classDates, setClassDates] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+            const [availableStudents, setAvailableStudents] = useState([]);
+            const [modalTab, setModalTab] = useState('enrolled'); // 'enrolled' or 'add'
+            const [modalSearchTerm, setModalSearchTerm] = useState('');
+            const [modalLoading, setModalLoading] = useState(false);
+            const [selectedPersonnel, setSelectedPersonnel] = useState([]); // Array of PersonnelIDs for multi-select
+            const [roleFilter, setRoleFilter] = useState('all'); // 'all', 'cast', 'student', 'teacher', 'other'
+            const [levelFilter, setLevelFilter] = useState('all'); // 'all', 'IA1', 'IA2', 'IA3', etc.
+            const [castMembers, setCastMembers] = useState([]); // List of PersonnelIDs who are cast members
+            const [teachers, setTeachers] = useState([]); // List of PersonnelIDs who are teachers
+            const [studentLevels, setStudentLevels] = useState({}); // Map of PersonnelID -> highest level
+
+            // Generate array of class dates based on start and end dates
+            const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
+                const dates = [];
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                
+                // For now, generate weekly dates (every Monday and Wednesday)
+                // You can customize this based on actual meeting days
+                const current = new Date(start);
+                
+                while (current <= end) {
+                    // Add Mondays (1) and Wednesdays (3)
+                    if (current.getDay() === 1 || current.getDay() === 3) {
+                        dates.push(new Date(current));
+                    }
+                    current.setDate(current.getDate() + 1);
+                }
+                
+                return dates;
+            };
+
+            useEffect(() => {
+                loadClassDetails();
+            }, [offeringId]);
+
+            const loadClassDetails = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getClassOfferingDetails(offeringId);
+                    console.log('Class details response:', response);
+
+                    if (response.success && response.data) {
+                        const data = response.data.data || response.data;
+                        console.log('Processed class details:', data);
+                        
+                        const offering = data.classOffering || {};
+                        setClassData(offering);
+                        setEnrolledStudents(data.enrolledStudents || []);
+                        
+                        // Log attendance records for debugging
+                        const attendance = data.attendanceRecords || [];
+                        console.log(`Loaded ${attendance.length} attendance records:`, attendance);
+                        setAttendanceRecords(attendance);
+                        
+                        // Generate class dates
+                        if (offering.StartDate && offering.EndDate) {
+                            const dates = generateClassDates(offering.StartDate, offering.EndDate);
+                            setClassDates(dates);
+                            console.log('Generated class dates:', dates);
+                        }
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load class details' });
+                    }
+                } catch (error) {
+                    console.error('Error loading class details:', error);
+                    setMessage({ type: 'error', text: 'Error loading class details' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleUpdateEnrollmentStatus = async (enrollmentId, newStatus) => {
+                try {
+                    const response = await gasService.updateEnrollmentStatus(enrollmentId, newStatus);
+                    
+                    if (response.success) {
+                        setMessage({ type: 'success', text: `Enrollment status updated to ${newStatus}` });
+                        loadClassDetails(); // Refresh data
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to update status' });
+                    }
+                } catch (error) {
+                    console.error('Error updating enrollment status:', error);
+                    setMessage({ type: 'error', text: 'Error updating enrollment status' });
+                }
+            };
+
+            // Get attendance status for a specific student on a specific date
+            const getAttendanceStatus = (enrollmentId, classDate) => {
+                // Convert to local date string (YYYY-MM-DD) without timezone conversion
+                const year = classDate.getFullYear();
+                const month = String(classDate.getMonth() + 1).padStart(2, '0');
+                const day = String(classDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                // Get from saved records
+                const record = attendanceRecords.find(r => {
+                    if (!r.ClassDate) return false;
+                    
+                    // Normalize record date for comparison
+                    const recordDateStr = typeof r.ClassDate === 'string' 
+                        ? r.ClassDate.split('T')[0] 
+                        : new Date(r.ClassDate).toISOString().split('T')[0];
+                    
+                    return r.EnrollmentID == enrollmentId && recordDateStr === dateStr;
+                });
+                
+                return record ? record.AttendanceStatus : null;
+            };
+
+            // Save attendance immediately when changed
+            const handleAttendanceChange = async (enrollmentId, classDate, newStatus) => {
+                // Convert to local date string (YYYY-MM-DD) without timezone conversion
+                const year = classDate.getFullYear();
+                const month = String(classDate.getMonth() + 1).padStart(2, '0');
+                const day = String(classDate.getDate()).padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+                
+                try {
+                    const response = await gasService.updateClassAttendance({
+                        enrollmentId: enrollmentId,
+                        offeringId: offeringId,
+                        classDate: dateStr,
+                        status: newStatus || '',
+                        notes: ''
+                    });
+
+                    if (response.success) {
+                        // Update local state immediately
+                        const updatedRecords = [...attendanceRecords];
+                        const existingIndex = updatedRecords.findIndex(r => {
+                            if (!r.ClassDate) return false;
+                            const recordDateStr = typeof r.ClassDate === 'string' 
+                                ? r.ClassDate.split('T')[0] 
+                                : new Date(r.ClassDate).toISOString().split('T')[0];
+                            return r.EnrollmentID == enrollmentId && recordDateStr === dateStr;
+                        });
+
+                        if (existingIndex >= 0) {
+                            updatedRecords[existingIndex].AttendanceStatus = newStatus;
+                        } else {
+                            updatedRecords.push({
+                                EnrollmentID: enrollmentId,
+                                ClassDate: dateStr,
+                                AttendanceStatus: newStatus
+                            });
+                        }
+                        
+                        setAttendanceRecords(updatedRecords);
+                        setMessage({ type: 'success', text: 'Attendance saved' });
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to save attendance' });
+                    }
+                } catch (error) {
+                    console.error('Error saving attendance:', error);
+                    setMessage({ type: 'error', text: 'Error saving attendance' });
+                }
+            };
+
+            // Load available personnel (anyone can take a class) when modal is opened
+            const loadAvailableStudents = async () => {
+                setModalLoading(true);
+                try {
+                    // Load all personnel
+                    const personnelResponse = await gasService.getAllPersonnel();
+                    
+                    // Load cast members to identify who's in cast
+                    const castResponse = await gasService.getAllCastMembers();
+                    
+                    // Load students to get their levels
+                    const studentsResponse = await gasService.getAllStudentsWithDetails();
+                    
+                    // Load teachers
+                    const teachersResponse = await gasService.getActiveTeachers();
+                    
+                    if (personnelResponse.success) {
+                        // Get data - handle both wrapped and unwrapped responses
+                        const personnel = personnelResponse.data?.data || personnelResponse.data || [];
+                        
+                        // Get cast member PersonnelIDs
+                        const castData = castResponse.success ? (castResponse.data?.data || castResponse.data || []) : [];
+                        const castPersonnelIds = castData.map(c => c.PersonnelID).filter(id => id != null);
+                        setCastMembers(castPersonnelIds);
+                        
+                        // Get teacher PersonnelIDs
+                        const teacherData = teachersResponse.success ? (teachersResponse.data?.data || teachersResponse.data || []) : [];
+                        const teacherPersonnelIds = teacherData.map(t => t.PersonnelID).filter(id => id != null);
+                        setTeachers(teacherPersonnelIds);
+                        
+                        // Build map of PersonnelID -> highest level completed
+                        const studentsData = studentsResponse.success ? (studentsResponse.data?.data || studentsResponse.data || []) : [];
+                        const levelMap = {};
+                        studentsData.forEach(student => {
+                            if (student.PersonnelID && student.HighestLevelCompleted) {
+                                // Store raw value from database (e.g., "IA1", "IA2", "No Levels Completed")
+                                levelMap[student.PersonnelID] = student.HighestLevelCompleted;
+                            }
+                        });
+                        console.log('Student levels loaded:', levelMap);
+                        setStudentLevels(levelMap);
+                        
+                        // Filter out already enrolled students by PersonnelID
+                        const enrolledPersonnelIds = enrolledStudents.map(s => s.PersonnelID).filter(id => id != null);
+                        const available = personnel.filter(p => !enrolledPersonnelIds.includes(p.PersonnelID));
+                        
+                        setAvailableStudents(available);
+                    } else {
+                        setMessage({ type: 'error', text: personnelResponse.error || 'Failed to load personnel' });
+                    }
+                } catch (error) {
+                    console.error('Error loading available personnel:', error);
+                    setMessage({ type: 'error', text: 'Error loading personnel' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Add selected personnel to class (bulk operation)
+            const handleAddSelectedPersonnel = async () => {
+                if (selectedPersonnel.length === 0) {
+                    setMessage({ type: 'error', text: 'Please select at least one person to add' });
+                    return;
+                }
+                
+                setModalLoading(true);
+                try {
+                    const response = await gasService.bulkEnrollStudents(selectedPersonnel, offeringId);
+                    console.log('Bulk enrollment response:', response);
+                    
+                    if (response.success) {
+                        const result = response.data?.data || response.data;
+                        console.log('Enrollment result:', result);
+                        console.log('Details:', result.details);
+                        
+                        let successMsg = `Successfully enrolled ${result.enrolled} ${result.enrolled === 1 ? 'person' : 'people'}`;
+                        if (result.alreadyEnrolled > 0) {
+                            successMsg += `, ${result.alreadyEnrolled} already enrolled`;
+                        }
+                        if (result.failed > 0) {
+                            successMsg += `, ${result.failed} failed`;
+                            // Log failed details
+                            if (result.details && result.details.failed) {
+                                console.log('Failed enrollments:', result.details.failed);
+                            }
+                        }
+                        
+                        setMessage({ type: result.failed > 0 ? 'warning' : 'success', text: successMsg });
+                        setSelectedPersonnel([]); // Clear selection
+                        await loadClassDetails(); // Refresh enrolled students
+                        await loadAvailableStudents(); // Refresh available personnel
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to enroll personnel' });
+                    }
+                } catch (error) {
+                    console.error('Error enrolling personnel:', error);
+                    setMessage({ type: 'error', text: 'Error enrolling personnel' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Toggle personnel selection
+            const togglePersonnelSelection = (personnelId) => {
+                setSelectedPersonnel(prev => {
+                    if (prev.includes(personnelId)) {
+                        return prev.filter(id => id !== personnelId);
+                    } else {
+                        return [...prev, personnelId];
+                    }
+                });
+            };
+
+            // Select/Deselect all filtered personnel
+            const handleSelectAll = (selectAll) => {
+                if (selectAll) {
+                    // Apply the same filters as the display list
+                    const filtered = availableStudents.filter(person => {
+                        // Text search filter
+                        const searchMatch = `${person.FirstName} ${person.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                            person.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase());
+                        
+                        if (!searchMatch) return false;
+                        
+                        // Role filter
+                        if (roleFilter !== 'all') {
+                            const isCast = castMembers.includes(person.PersonnelID);
+                            const isTeacher = teachers.includes(person.PersonnelID);
+                            const isStudent = studentLevels.hasOwnProperty(person.PersonnelID);
+                            
+                            if (roleFilter === 'cast' && !isCast) return false;
+                            if (roleFilter === 'teacher' && !isTeacher) return false;
+                            if (roleFilter === 'student' && !isStudent) return false;
+                            if (roleFilter === 'other' && (isCast || isTeacher || isStudent)) return false;
+                        }
+                        
+                        // Level filter
+                        if (levelFilter !== 'all' && roleFilter !== 'cast' && roleFilter !== 'teacher') {
+                            const personLevel = studentLevels[person.PersonnelID];
+                            
+                            // Direct string comparison (database has "IA1", "IA2", "No Levels Completed", etc.)
+                            if (personLevel !== levelFilter) return false;
+                        }
+                        
+                        return true;
+                    });
+                    setSelectedPersonnel(filtered.map(p => p.PersonnelID));
+                } else {
+                    setSelectedPersonnel([]);
+                }
+            };
+
+            // Remove student from class
+            const handleRemoveStudent = async (enrollmentId) => {
+                if (!confirm('Are you sure you want to remove this student from the class?')) {
+                    return;
+                }
+                
+                setModalLoading(true);
+                try {
+                    const response = await gasService.removeStudentFromClass(enrollmentId);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Student removed successfully' });
+                        await loadClassDetails(); // Refresh enrolled students
+                        await loadAvailableStudents(); // Refresh available students
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to remove student' });
+                    }
+                } catch (error) {
+                    console.error('Error removing student:', error);
+                    setMessage({ type: 'error', text: 'Error removing student' });
+                } finally {
+                    setModalLoading(false);
+                }
+            };
+
+            // Open modal and load available personnel if switching to "add" tab
+            useEffect(() => {
+                if (showAddStudentModal && modalTab === 'add' && availableStudents.length === 0) {
+                    loadAvailableStudents();
+                }
+            }, [showAddStudentModal, modalTab]);
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading class details...' });
+            }
+
+            if (!classData) {
+                return e('div', { className: 'p-6' },
+                    e('p', null, 'Class not found')
+                );
+            }
+
+            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+                // Back Button and Header
+                e('div', { className: 'mb-6' },
+                    e('button', {
+                        onClick: onBack,
+                        className: 'flex items-center text-blue-600 hover:text-blue-700 mb-4'
+                    },
+                        e('svg', { className: 'w-5 h-5 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 19l-7-7 7-7' })
+                        ),
+                        'Back to Classes'
+                    ),
+                    
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6' },
+                        e('div', { className: 'flex justify-between items-start' },
+                            e('div', null,
+                                e('h1', { className: 'text-3xl font-bold text-gray-900' }, classData.LevelName || 'Class'),
+                                e('p', { className: 'text-gray-600 mt-1' }, `Taught by ${classData.TeacherName || 'TBA'}`)
+                            ),
+                            e('span', {
+                                className: `px-3 py-1 rounded-full text-sm font-medium ${
+                                    classData.Status === 'Upcoming' ? 'bg-yellow-100 text-yellow-800' :
+                                    classData.Status === 'In Progress' ? 'bg-green-100 text-green-800' :
+                                    'bg-blue-100 text-blue-800'
+                                }`
+                            }, classData.Status)
+                        ),
+                        e('div', { className: 'grid grid-cols-3 gap-4 mt-4' },
+                            e('div', null,
+                                e('p', { className: 'text-sm text-gray-600' }, 'Start Date'),
+                                e('p', { className: 'font-semibold' }, new Date(classData.StartDate).toLocaleDateString())
+                            ),
+                            e('div', null,
+                                e('p', { className: 'text-sm text-gray-600' }, 'End Date'),
+                                e('p', { className: 'font-semibold' }, new Date(classData.EndDate).toLocaleDateString())
+                            ),
+                            e('div', null,
+                                e('p', { className: 'text-sm text-gray-600' }, 'Enrollment'),
+                                e('p', { className: 'font-semibold' }, `${enrolledStudents.length} / ${classData.MaxStudents || 12} students`)
+                            )
+                        )
+                    )
+                ),
+
+                message && e(Message, {
+                    type: message.type,
+                    message: message.text,
+                    onClose: () => setMessage(null)
+                }),
+
+                // Roster Management Section
+                e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6' },
+                    e('div', { className: 'flex justify-between items-center mb-4' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Class Roster'),
+                        e('button', {
+                            onClick: () => setShowAddStudentModal(true),
+                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                        },
+                            e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                            ),
+                            'Update Roster'
+                        )
+                    ),
+
+                    enrolledStudents.length > 0 ? (
+                        e('div', { className: 'overflow-x-auto' },
+                            e('table', { className: 'min-w-full divide-y divide-gray-200' },
+                                e('thead', { className: 'bg-gray-50' },
+                                    e('tr', null,
+                                        e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Student Name'),
+                                        e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Email'),
+                                        e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Enrolled Date'),
+                                        e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status')
+                                    )
+                                ),
+                                e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                                    enrolledStudents.map(student =>
+                                        e('tr', { key: student.EnrollmentID },
+                                            e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                                e('div', { className: 'text-sm font-medium text-gray-900' },
+                                                    `${student.FirstName} ${student.LastName}`
+                                                )
+                                            ),
+                                            e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                                e('div', { className: 'text-sm text-gray-500' }, student.PrimaryEmail || '-')
+                                            ),
+                                            e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                                e('div', { className: 'text-sm text-gray-500' },
+                                                    student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : '-'
+                                                )
+                                            ),
+                                            e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                                e('select', {
+                                                    value: student.CompletionStatus || 'Active',
+                                                    onChange: (ev) => handleUpdateEnrollmentStatus(student.EnrollmentID, ev.target.value),
+                                                    className: `text-sm px-2 py-1 rounded ${
+                                                        student.CompletionStatus === 'Completed' ? 'bg-green-100 text-green-800' :
+                                                        student.CompletionStatus === 'Dropped' ? 'bg-red-100 text-red-800' :
+                                                        'bg-blue-100 text-blue-800'
+                                                    }`
+                                                },
+                                                    e('option', { value: 'Active' }, 'Active'),
+                                                    e('option', { value: 'Completed' }, 'Completed'),
+                                                    e('option', { value: 'Dropped' }, 'Dropped'),
+                                                    e('option', { value: 'Withdrawn' }, 'Withdrawn')
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    ) : (
+                        e('div', { className: 'text-center py-12 text-gray-500' },
+                            e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' })
+                            ),
+                            e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No students enrolled'),
+                            e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Get started by adding students to this class'),
+                            e('div', { className: 'mt-6' },
+                                e('button', {
+                                    onClick: () => setShowAddStudentModal(true),
+                                    className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                                },
+                                    e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                        e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                    ),
+                                    'Update Roster'
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                // Attendance Tracking Grid
+                e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6' },
+                    e('div', { className: 'flex justify-between items-center mb-4' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Attendance Tracking'),
+                        
+                    ),
+                    
+                    enrolledStudents.length > 0 && classDates.length > 0 ? (
+                        e('div', { className: 'overflow-x-auto' },
+                            e('table', { className: 'min-w-full divide-y divide-gray-200' },
+                                // Header Row
+                                e('thead', { className: 'bg-gray-50' },
+                                    e('tr', null,
+                                        e('th', { className: 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10' }, 
+                                            'Student Name'
+                                        ),
+                                        classDates.map((date, idx) =>
+                                            e('th', { 
+                                                key: idx,
+                                                className: 'px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[80px]'
+                                            },
+                                                e('div', null, date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))
+                                            )
+                                        )
+                                    )
+                                ),
+                                // Student Rows
+                                e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                                    enrolledStudents.map(student =>
+                                        e('tr', { key: student.EnrollmentID },
+                                            e('td', { className: 'px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 bg-white z-10' },
+                                                `${student.FirstName} ${student.LastName}`
+                                            ),
+                                            classDates.map((date, dateIdx) => {
+                                                const status = getAttendanceStatus(student.EnrollmentID, date);
+                                                
+                                                return e('td', { 
+                                                    key: dateIdx,
+                                                    className: 'px-2 py-3 text-center'
+                                                },
+                                                    e('select', {
+                                                        value: status || '',
+                                                        onChange: (ev) => handleAttendanceChange(student.EnrollmentID, date, ev.target.value),
+                                                        className: `text-xs px-2 py-1 rounded border-0 cursor-pointer ${
+                                                            status === 'Present' ? 'bg-green-100 text-green-800' :
+                                                            status === 'Absent' ? 'bg-red-100 text-red-800' :
+                                                            status === 'Excused' ? 'bg-yellow-100 text-yellow-800' :
+                                                            status === 'Tardy' ? 'bg-orange-100 text-orange-800' :
+                                                            'bg-gray-100 text-gray-600'
+                                                        }`
+                                                    },
+                                                        e('option', { value: '' }, '-'),
+                                                        e('option', { value: 'Present' }, 'P'),
+                                                        e('option', { value: 'Absent' }, 'A'),
+                                                        e('option', { value: 'Excused' }, 'E'),
+                                                        e('option', { value: 'Tardy' }, 'T')
+                                                    )
+                                                );
+                                            })
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    ) : (
+                        e('div', { className: 'text-center py-12 text-gray-500' },
+                            e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' })
+                            ),
+                            e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No attendance data yet'),
+                            e('p', { className: 'mt-1 text-sm text-gray-500' }, 
+                                enrolledStudents.length === 0 
+                                    ? 'Add students to the class to start tracking attendance'
+                                    : 'Class dates will be generated based on the class schedule'
+                            )
+                        )
+                    )
+                ),
+
+                // Student Enrollment Management Modal
+                showAddStudentModal && e('div', { 
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    onClick: () => {
+                        setShowAddStudentModal(false);
+                        setModalTab('enrolled');
+                        setModalSearchTerm('');
+                        setSelectedPersonnel([]);
+                    }
+                },
+                    e('div', { 
+                        className: 'bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        // Header
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200 flex items-center justify-between' },
+                            e('div', null,
+                                e('h2', { className: 'text-2xl font-bold text-gray-900' }, classData.LevelName || `Level ${classData.ClassLevelID}`),
+                                e('p', { className: 'text-sm text-gray-600 mt-1' }, `${classData.TeacherName} • ${classData.Status}`)
+                            ),
+                            e('button', {
+                                onClick: () => {
+                                    setShowAddStudentModal(false);
+                                    setModalTab('enrolled');
+                                    setModalSearchTerm('');
+                                    setSelectedPersonnel([]);
+                                },
+                                className: 'text-gray-400 hover:text-gray-600 text-2xl font-bold'
+                            }, '×')
+                        ),
+
+                        // Message
+                        message && e('div', { className: 'px-6 pt-4' },
+                            e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                        ),
+
+                        // Tabs
+                        e('div', { className: 'px-6 pt-4 border-b border-gray-200' },
+                            e('div', { className: 'flex justify-between items-center' },
+                                // Tab buttons
+                                e('div', { className: 'flex space-x-4' },
+                                    e('button', {
+                                        onClick: () => {
+                                            setModalTab('enrolled');
+                                            setSelectedPersonnel([]);
+                                        },
+                                        className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                            modalTab === 'enrolled'
+                                                ? 'border-blue-600 text-blue-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`
+                                    }, `Enrolled Students (${enrolledStudents.length}/${classData.MaxStudents})`),
+                                    e('button', {
+                                        onClick: () => setModalTab('add'),
+                                        className: `pb-3 px-2 font-medium border-b-2 transition-colors ${
+                                            modalTab === 'add'
+                                                ? 'border-blue-600 text-blue-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                                        }`
+                                    }, 'Add Personnel')
+                                ),
+                                // Bulk actions (only show on Add tab)
+                                modalTab === 'add' && e('div', { className: 'flex items-center gap-2' },
+                                    selectedPersonnel.length > 0 && e('span', { className: 'text-sm text-gray-600' }, 
+                                        `${selectedPersonnel.length} selected`
+                                    ),
+                                    e('button', {
+                                        onClick: () => handleSelectAll(true),
+                                        className: 'text-sm text-blue-600 hover:text-blue-700 px-2 py-1'
+                                    }, 'Select All'),
+                                    e('button', {
+                                        onClick: () => handleSelectAll(false),
+                                        className: 'text-sm text-gray-600 hover:text-gray-700 px-2 py-1'
+                                    }, 'Clear'),
+                                    selectedPersonnel.length > 0 && e('button', {
+                                        onClick: handleAddSelectedPersonnel,
+                                        className: 'px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium'
+                                    }, `Add ${selectedPersonnel.length}`)
+                                )
+                            )
+                        ),
+
+                        // Search and Filters (only on Add Personnel tab)
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200' },
+                            // Search bar
+                            e('div', { className: 'relative mb-3' },
+                                e('input', {
+                                    type: 'text',
+                                    placeholder: 'Search by name or email...',
+                                    value: modalSearchTerm,
+                                    onChange: (ev) => setModalSearchTerm(ev.target.value),
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                }),
+                                e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                                )
+                            ),
+                            
+                            // Filters (only show on Add Personnel tab)
+                            modalTab === 'add' && e('div', { className: 'flex gap-3' },
+                                // Role filter
+                                e('select', {
+                                    value: roleFilter,
+                                    onChange: (ev) => setRoleFilter(ev.target.value),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: 'all' }, 'All Roles'),
+                                    e('option', { value: 'cast' }, '🎭 Cast Members'),
+                                    e('option', { value: 'student' }, '🎓 Students'),
+                                    e('option', { value: 'teacher' }, '👨‍🏫 Teachers'),
+                                    e('option', { value: 'other' }, '👤 Other Personnel')
+                                ),
+                                
+                                // Level filter (only show for non-cast)
+                                roleFilter !== 'cast' && roleFilter !== 'teacher' && e('select', {
+                                    value: levelFilter,
+                                    onChange: (ev) => setLevelFilter(ev.target.value),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: 'all' }, 'All Levels'),
+                                    e('option', { value: 'No Levels Completed' }, 'No Level (New Students)'),
+                                    e('option', { value: 'IA1' }, 'IA1'),
+                                    e('option', { value: 'IA2' }, 'IA2'),
+                                    e('option', { value: 'IA3' }, 'IA3'),
+                                    e('option', { value: 'IA4' }, 'IA4'),
+                                    e('option', { value: 'IA5' }, 'IA5'),
+                                    e('option', { value: 'IA6' }, 'IA6 (Performance)')
+                                ),
+                                
+                                // Clear filters button
+                                (roleFilter !== 'all' || levelFilter !== 'all') && e('button', {
+                                    onClick: () => {
+                                        setRoleFilter('all');
+                                        setLevelFilter('all');
+                                    },
+                                    className: 'px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors'
+                                }, '✕ Clear Filters')
+                            )
+                        ),
+
+                        // Student List
+                        modalTab === 'enrolled' && e('div', { className: 'px-6 py-4' },
+                            e('div', { className: 'relative' },
+                                e('input', {
+                                    type: 'text',
+                                    placeholder: 'Search students...',
+                                    value: modalSearchTerm,
+                                    onChange: (ev) => setModalSearchTerm(ev.target.value),
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                }),
+                                e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                                )
+                            )
+                        ),
+
+                        // Student List
+                        e('div', { className: 'flex-1 overflow-y-auto px-6 pb-6' },
+                            modalLoading ? e(Loader, { text: 'Loading people...' }) : 
+                            (() => {
+                                const people = modalTab === 'enrolled' ? enrolledStudents : availableStudents;
+                                
+                                // Apply filters
+                                let filtered = people.filter(person => {
+                                    // Text search filter
+                                    const searchMatch = `${person.FirstName} ${person.LastName}`.toLowerCase().includes(modalSearchTerm.toLowerCase()) ||
+                                        person.PrimaryEmail?.toLowerCase().includes(modalSearchTerm.toLowerCase());
+                                    
+                                    if (!searchMatch) return false;
+                                    
+                                    // Only apply role and level filters on Add Personnel tab
+                                    if (modalTab === 'add') {
+                                        // Role filter
+                                        if (roleFilter !== 'all') {
+                                            const isCast = castMembers.includes(person.PersonnelID);
+                                            const isTeacher = teachers.includes(person.PersonnelID);
+                                            const isStudent = studentLevels.hasOwnProperty(person.PersonnelID);
+                                            
+                                            if (roleFilter === 'cast' && !isCast) return false;
+                                            if (roleFilter === 'teacher' && !isTeacher) return false;
+                                            if (roleFilter === 'student' && !isStudent) return false;
+                                            if (roleFilter === 'other' && (isCast || isTeacher || isStudent)) return false;
+                                        }
+                                        
+                                        // Level filter (only for non-cast, non-teacher)
+                                        if (levelFilter !== 'all' && roleFilter !== 'cast' && roleFilter !== 'teacher') {
+                                            const personLevel = studentLevels[person.PersonnelID];
+                                            console.log(`Checking PersonnelID ${person.PersonnelID} (${person.FirstName} ${person.LastName}): level=${personLevel}, filterValue=${levelFilter}, match=${personLevel === levelFilter}`);
+                                            
+                                            // Direct string comparison (database has "IA1", "IA2", "No Levels Completed", etc.)
+                                            if (personLevel !== levelFilter) return false;
+                                        }
+                                    }
+                                    
+                                    return true;
+                                });
+
+                                return filtered.length > 0 ? 
+                                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                                        ...filtered.map(person =>
+                                            e('div', { 
+                                                key: modalTab === 'enrolled' ? person.StudentID : person.PersonnelID, 
+                                                className: `relative border rounded-lg p-4 transition-all ${
+                                                    modalTab === 'add' && selectedPersonnel.includes(person.PersonnelID)
+                                                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                                                        : 'border-gray-200 hover:shadow-md'
+                                                }`,
+                                                onClick: modalTab === 'add' ? () => togglePersonnelSelection(person.PersonnelID) : null,
+                                                style: { cursor: modalTab === 'add' ? 'pointer' : 'default' }
+                                            },
+                                                // Checkbox (Add tab only)
+                                                modalTab === 'add' && e('div', { className: 'absolute top-2 left-2' },
+                                                    e('input', {
+                                                        type: 'checkbox',
+                                                        checked: selectedPersonnel.includes(person.PersonnelID),
+                                                        onChange: (ev) => {
+                                                            ev.stopPropagation();
+                                                            togglePersonnelSelection(person.PersonnelID);
+                                                        },
+                                                        className: 'w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500'
+                                                    })
+                                                ),
+                                                
+                                                // Person info
+                                                e('div', { className: modalTab === 'add' ? 'pl-8 pr-2' : 'pr-8' },
+                                                    e('div', { className: 'flex items-start justify-between' },
+                                                        e('h4', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
+                                                        // Role badges (Add tab only)
+                                                        modalTab === 'add' && e('div', { className: 'flex gap-1 ml-2' },
+                                                            castMembers.includes(person.PersonnelID) && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full',
+                                                                title: 'Cast Member'
+                                                            }, '🎭'),
+                                                            teachers.includes(person.PersonnelID) && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full',
+                                                                title: 'Teacher'
+                                                            }, '👨‍🏫'),
+                                                            studentLevels[person.PersonnelID] && e('span', { 
+                                                                className: 'px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full',
+                                                                title: `Level: ${studentLevels[person.PersonnelID]}`
+                                                            }, studentLevels[person.PersonnelID])
+                                                        )
+                                                    ),
+                                                    e('p', { className: 'text-sm text-gray-600 mt-1' }, person.PrimaryEmail || 'No email'),
+                                                    person.EnrollmentDate && e('p', { className: 'text-xs text-gray-500 mt-1' }, 
+                                                        `Enrolled: ${new Date(person.EnrollmentDate).toLocaleDateString()}`
+                                                    )
+                                                ),
+                                                
+                                                // Remove button (Enrolled tab only)
+                                                modalTab === 'enrolled' &&
+                                                    e('button', {
+                                                        onClick: () => person.EnrollmentID && handleRemoveStudent(person.EnrollmentID),
+                                                        className: 'absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors',
+                                                        title: 'Remove from class'
+                                                    },
+                                                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                                                        )
+                                                    )
+                                            )
+                                        )
+                                    ) :
+                                    e('div', { className: 'text-center py-12' },
+                                        e('p', { className: 'text-gray-500' },
+                                            modalSearchTerm ? 'No people found matching your search' :
+                                            modalTab === 'enrolled' ? 'No students enrolled yet' :
+                                            'No personnel available to add'
+                                        )
+                                    );
+                            })()
+                        ),
+
+                        // Footer
+                        e('div', { className: 'px-6 py-4 border-t border-gray-200 flex justify-end' },
+                            e('button', {
+                                onClick: () => {
+                                    setShowAddStudentModal(false);
+                                    setModalTab('enrolled');
+                                    setModalSearchTerm('');
+                                    setSelectedPersonnel([]);
+                                },
+                                className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors'
+                            }, 'Close')
+                        )
+                    )
+                )
             );
         }
+
+        // Class Registration / Management Component
+        function ClassRegistration() {
+            const [classes, setClasses] = useState([]);
+            const [filteredClasses, setFilteredClasses] = useState([]);
+            const [filter, setFilter] = useState('all');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [showNewClassModal, setShowNewClassModal] = useState(false);
+            
+            // For Class Management View
+            const [selectedOfferingId, setSelectedOfferingId] = useState(null);
+            const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'management'
+            
+            // For New Class Modal
+            const [teachers, setTeachers] = useState([]);
+            const [classLevels, setClassLevels] = useState([]);
+            const [newClassData, setNewClassData] = useState({
+                ClassLevelID: '',
+                TeacherID: '',
+                StartDate: '',
+                EndDate: '',
+                MaxStudents: '12',
+                VenueOrRoom: '',
+                Status: 'Upcoming'
+            });
+            const [isSaving, setIsSaving] = useState(false);
+
+            useEffect(() => {
+                loadClasses();
+            }, []);
+
+            useEffect(() => {
+                applyFilters();
+            }, [classes, filter, searchTerm]);
+
+            const loadClasses = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllClassOfferings();
+                    console.log('getAllClassOfferings response:', response);
+
+                    if (response.success && response.data) {
+                        // Handle both array and nested data object formats
+                        const classData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                        console.log('Processed class data:', classData);
+                        
+                        // Debug: Log first 3 classes with teacher names
+                        if (classData.length > 0) {
+                            console.log('=== TEACHER NAME DEBUG ===');
+                            classData.slice(0, 3).forEach(c => {
+                                console.log(`OfferingID ${c.OfferingID}: TeacherID ${c.TeacherID} → TeacherName: "${c.TeacherName}"`);
+                            });
+                        }
+                        
+                        setClasses(classData);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load classes' });
+                    }
+                } catch (error) {
+                    console.error('Error loading classes:', error);
+                    setMessage({ type: 'error', text: 'Error loading classes' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const applyFilters = () => {
+                let filtered = [...classes];
+
+                // Apply status filter
+                if (filter !== 'all') {
+                    const statusMap = {
+                        'all': '',
+                        'upcoming': 'Upcoming',
+                        'in-progress': 'In Progress',
+                        'completed': 'Completed'
+                    };
+                    filtered = filtered.filter(c => c.Status === statusMap[filter]);
+                }
+
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(c =>
+                        (c.LevelName && c.LevelName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (c.TeacherName && c.TeacherName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (c.Location && c.Location.toLowerCase().includes(searchTerm.toLowerCase()))
+                    );
+                }
+
+                setFilteredClasses(filtered);
+            };
+
+            const getFilterCount = (filterType) => {
+                if (filterType === 'all') return classes.length;
+                const statusMap = {
+                    'upcoming': 'Upcoming',
+                    'in-progress': 'In Progress',
+                    'completed': 'Completed'
+                };
+                return classes.filter(c => c.Status === statusMap[filterType]).length;
+            };
+
+            const handleManageClass = (offeringId) => {
+                console.log('Navigate to class management:', offeringId);
+                setSelectedOfferingId(offeringId);
+                setViewMode('management');
+            };
+
+            const loadModalData = async () => {
+                try {
+                    const [teachersResp, levelsResp] = await Promise.all([
+                        gasService.getActiveTeachers(),
+                        gasService.getAllClassLevels()
+                    ]);
+
+                    console.log('Teachers response:', teachersResp);
+                    console.log('Levels response:', levelsResp);
+
+                    if (teachersResp.success && teachersResp.data) {
+                        // Handle nested data format
+                        const teacherData = Array.isArray(teachersResp.data) 
+                            ? teachersResp.data 
+                            : (teachersResp.data.data || []);
+                        console.log('Processed teacher data:', teacherData);
+                        setTeachers(teacherData);
+                    }
+                    if (levelsResp.success && levelsResp.data) {
+                        // Handle nested data format
+                        const levelData = Array.isArray(levelsResp.data) 
+                            ? levelsResp.data 
+                            : (levelsResp.data.data || []);
+                        console.log('Processed level data:', levelData);
+                        setClassLevels(levelData);
+                    }
+                } catch (error) {
+                    console.error('Error loading modal data:', error);
+                }
+            };
+
+            const handleOpenModal = () => {
+                setShowNewClassModal(true);
+                loadModalData();
+            };
+
+            const handleCloseModal = () => {
+                setShowNewClassModal(false);
+                setNewClassData({
+                    ClassLevelID: '',
+                    TeacherID: '',
+                    StartDate: '',
+                    EndDate: '',
+                    MaxStudents: '12',
+                    VenueOrRoom: '',
+                    Status: 'Upcoming'
+                });
+            };
+
+            const handleInputChange = (field, value) => {
+                setNewClassData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+            };
+
+            const handleCreateClass = async () => {
+                // Validation
+                if (!newClassData.ClassLevelID || !newClassData.TeacherID || !newClassData.StartDate || !newClassData.EndDate) {
+                    setMessage({ type: 'error', text: 'Please fill in all required fields' });
+                    return;
+                }
+
+                setIsSaving(true);
+                try {
+                    const response = await gasService.createClassOffering(newClassData);
+
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Class created successfully!' });
+                        handleCloseModal();
+                        loadClasses(); // Refresh the class list
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to create class' });
+                    }
+                } catch (error) {
+                    console.error('Error creating class:', error);
+                    setMessage({ type: 'error', text: 'Error creating class' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading classes...' });
+            }
+
+            // Show Class Management view if a class is selected
+            if (viewMode === 'management' && selectedOfferingId) {
+                return e(ClassManagementView, {
+                    offeringId: selectedOfferingId,
+                    onBack: () => {
+                        setViewMode('dashboard');
+                        setSelectedOfferingId(null);
+                    }
+                });
+            }
+
+            // Show Dashboard view
+            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+                // Header
+                e('div', { className: 'mb-6' },
+                    e('div', { className: 'flex justify-between items-center mb-4' },
+                        e('div', null,
+                            e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Class Management'),
+                            e('p', { className: 'text-gray-600 mt-1' }, 'Manage class offerings, rosters, and attendance')
+                        ),
+                        e('button', {
+                            onClick: handleOpenModal,
+                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                        },
+                            e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                            ),
+                            'New Class'
+                        )
+                    ),
+                    message && e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                // Filters
+                e('div', { className: 'mb-6 space-y-4' },
+                    e('div', { className: 'flex gap-2' },
+                        e('button', {
+                            onClick: () => setFilter('all'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'all'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `All Classes (${getFilterCount('all')})`),
+                        e('button', {
+                            onClick: () => setFilter('upcoming'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'upcoming'
+                                    ? 'bg-yellow-500 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `Upcoming (${getFilterCount('upcoming')})`),
+                        e('button', {
+                            onClick: () => setFilter('in-progress'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'in-progress'
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `In Progress (${getFilterCount('in-progress')})`),
+                        e('button', {
+                            onClick: () => setFilter('completed'),
+                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
+                                filter === 'completed'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                            }`
+                        }, `Completed (${getFilterCount('completed')})`)
+                    ),
+                    // Search
+                    e('div', { className: 'relative' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search classes by name, teacher, or location...',
+                            value: searchTerm,
+                            onChange: (ev) => setSearchTerm(ev.target.value),
+                            className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                        }),
+                        e('svg', {
+                            className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400',
+                            fill: 'none',
+                            stroke: 'currentColor',
+                            viewBox: '0 0 24 24'
+                        },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                        )
+                    )
+                ),
+
+                // Classes Grid
+                filteredClasses.length > 0 ? (
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' },
+                        filteredClasses.map(classOffering =>
+                            e(ClassCard, {
+                                key: classOffering.OfferingID,
+                                classOffering: classOffering,
+                                onManage: () => handleManageClass(classOffering.OfferingID)
+                            })
+                        )
+                    )
+                ) : (
+                    e('div', { className: 'text-center py-12 bg-white rounded-lg border border-gray-200' },
+                        e('svg', {
+                            className: 'mx-auto h-12 w-12 text-gray-400',
+                            fill: 'none',
+                            stroke: 'currentColor',
+                            viewBox: '0 0 24 24'
+                        },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
+                        ),
+                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No classes found'),
+                        e('p', { className: 'mt-1 text-sm text-gray-500' },
+                            searchTerm ? 'Try adjusting your search' : 'Get started by creating a new class'
+                        ),
+                        !searchTerm && e('div', { className: 'mt-6' },
+                            e('button', {
+                                onClick: handleOpenModal,
+                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                            },
+                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                ),
+                                'New Class'
+                            )
+                        )
+                    )
+                ),
+
+                // New Class Modal
+                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4', onClick: handleCloseModal },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
+                        // Header
+                        e('div', { className: 'flex justify-between items-center mb-6' },
+                            e('h3', { className: 'text-2xl font-bold text-gray-900' }, 'Create New Class'),
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'text-gray-400 hover:text-gray-600'
+                            },
+                                e('svg', { className: 'w-6 h-6', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M6 18L18 6M6 6l12 12' })
+                                )
+                            )
+                        ),
+
+                        // Form
+                        e('div', { className: 'space-y-4' },
+                            // Class Level
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                    'Class Level ',
+                                    e('span', { className: 'text-red-500' }, '*')
+                                ),
+                                e('select', {
+                                    value: newClassData.ClassLevelID,
+                                    onChange: (ev) => handleInputChange('ClassLevelID', ev.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: '' }, 'Select a class level...'),
+                                    classLevels.map(level =>
+                                        e('option', { key: level.ClassLevelID, value: level.ClassLevelID },
+                                            level.LevelName
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // Teacher
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                    'Teacher ',
+                                    e('span', { className: 'text-red-500' }, '*')
+                                ),
+                                e('select', {
+                                    value: newClassData.TeacherID,
+                                    onChange: (ev) => handleInputChange('TeacherID', ev.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                },
+                                    e('option', { value: '' }, 'Select a teacher...'),
+                                    teachers.map(teacher =>
+                                        e('option', { key: teacher.TeacherID, value: teacher.TeacherID },
+                                            teacher.FullName
+                                        )
+                                    )
+                                )
+                            ),
+
+                            // Date Range
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                // Start Date
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Start Date ',
+                                        e('span', { className: 'text-red-500' }, '*')
+                                    ),
+                                    e('input', {
+                                        type: 'date',
+                                        value: newClassData.StartDate,
+                                        onChange: (ev) => handleInputChange('StartDate', ev.target.value),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                ),
+                                // End Date
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'End Date ',
+                                        e('span', { className: 'text-red-500' }, '*')
+                                    ),
+                                    e('input', {
+                                        type: 'date',
+                                        value: newClassData.EndDate,
+                                        onChange: (ev) => handleInputChange('EndDate', ev.target.value),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            ),
+
+                            // Max Students and Location
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                // Max Students
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Max Students'
+                                    ),
+                                    e('input', {
+                                        type: 'number',
+                                        value: newClassData.MaxStudents,
+                                        onChange: (ev) => handleInputChange('MaxStudents', ev.target.value),
+                                        min: '1',
+                                        max: '50',
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                ),
+                                // Location
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' },
+                                        'Location'
+                                    ),
+                                    e('input', {
+                                        type: 'text',
+                                        value: newClassData.VenueOrRoom,
+                                        onChange: (ev) => handleInputChange('VenueOrRoom', ev.target.value),
+                                        placeholder: 'e.g., Studio A',
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            )
+                        ),
+
+                        // Actions
+                        e('div', { className: 'flex gap-3 mt-6 pt-6 border-t' },
+                            e('button', {
+                                onClick: handleCloseModal,
+                                disabled: isSaving,
+                                className: 'flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50'
+                            }, 'Cancel'),
+                            e('button', {
+                                onClick: handleCreateClass,
+                                disabled: isSaving,
+                                className: 'flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2'
+                            },
+                                isSaving && e('svg', { className: 'animate-spin h-5 w-5', fill: 'none', viewBox: '0 0 24 24' },
+                                    e('circle', { className: 'opacity-25', cx: 12, cy: 12, r: 10, stroke: 'currentColor', strokeWidth: 4 }),
+                                    e('path', { className: 'opacity-75', fill: 'currentColor', d: 'M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' })
+                                ),
+                                isSaving ? 'Creating...' : 'Create Class'
+                            )
+                        )
+                    )
+                )
+            );
+        }
+
+        // ClassCard Component
+        function ClassCard({ classOffering, onManage }) {
+            const getStatusColor = (status) => {
+                switch (status?.toLowerCase()) {
+                    case 'upcoming':
+                        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                    case 'in progress':
+                    case 'open':
+                        return 'bg-green-100 text-green-800 border-green-200';
+                    case 'completed':
+                        return 'bg-blue-100 text-blue-800 border-blue-200';
+                    case 'cancelled':
+                        return 'bg-red-100 text-red-800 border-red-200';
+                    default:
+                        return 'bg-gray-100 text-gray-800 border-gray-200';
+                }
+            };
+
+            const formatDate = (dateString) => {
+                if (!dateString) return 'TBD';
+                try {
+                    return new Date(dateString).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric'
+                    });
+                } catch {
+                    return dateString;
+                }
+            };
+
+            const enrollmentPercentage = classOffering.MaxStudents 
+                ? (classOffering.EnrolledCount / classOffering.MaxStudents) * 100 
+                : 0;
+
+            return e('div', {
+                onClick: onManage,
+                className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer group'
+            },
+                // Header
+                e('div', { className: 'flex items-start justify-between mb-3' },
+                    e('div', { className: 'flex-1' },
+                        e('h3', { className: 'text-lg font-bold text-gray-900 group-hover:text-primary-600 transition-colors' },
+                            classOffering.LevelName || `Level ${classOffering.ClassLevelID}`
+                        ),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' },
+                            e('span', { className: 'inline-flex items-center' },
+                                e('svg', { className: 'w-4 h-4 mr-1', fill: 'currentColor', viewBox: '0 0 20 20' },
+                                    e('path', { d: 'M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z' })
+                                ),
+                                classOffering.TeacherName || 'TBA'
+                            )
+                        )
+                    ),
+                    e('span', { className: `px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(classOffering.Status)}` },
+                        classOffering.Status
+                    )
+                ),
+
+                // Schedule
+                e('div', { className: 'space-y-2 mb-4' },
+                    e('div', { className: 'flex items-center text-sm text-gray-600' },
+                        e('svg', { className: 'w-4 h-4 mr-2 text-gray-400', fill: 'currentColor', viewBox: '0 0 20 20' },
+                            e('path', { fillRule: 'evenodd', d: 'M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z', clipRule: 'evenodd' })
+                        ),
+                        e('span', null,
+                            `${formatDate(classOffering.StartDate)} - ${formatDate(classOffering.EndDate)}`
+                        )
+                    ),
+                    classOffering.VenueOrRoom && e('div', { className: 'flex items-center text-sm text-gray-600' },
+                        e('svg', { className: 'w-4 h-4 mr-2 text-gray-400', fill: 'currentColor', viewBox: '0 0 20 20' },
+                            e('path', { fillRule: 'evenodd', d: 'M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z', clipRule: 'evenodd' })
+                        ),
+                        e('span', null, classOffering.VenueOrRoom)
+                    )
+                ),
+
+                // Enrollment Progress
+                e('div', { className: 'space-y-2' },
+                    e('div', { className: 'flex items-center justify-between text-sm' },
+                        e('span', { className: 'text-gray-600' }, 'Enrollment'),
+                        e('span', { className: 'font-semibold text-gray-900' },
+                            `${classOffering.EnrolledCount || 0} / ${classOffering.MaxStudents || 12} students`
+                        )
+                    ),
+                    e('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                        e('div', {
+                            className: `h-2 rounded-full transition-all ${
+                                enrollmentPercentage >= 100
+                                    ? 'bg-red-500'
+                                    : enrollmentPercentage >= 75
+                                    ? 'bg-yellow-500'
+                                    : 'bg-green-500'
+                            }`,
+                            style: { width: `${Math.min(enrollmentPercentage, 100)}%` }
+                        })
+                    )
+                ),
+
+                // View Details Link
+                e('div', { className: 'mt-4 pt-4 border-t border-gray-100' },
+                    e('button', { className: 'text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center group-hover:translate-x-1 transition-transform' },
+                        'Manage Class',
+                        e('svg', { className: 'w-4 h-4 ml-1', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9 5l7 7-7 7' })
+                        )
+                    )
+                )
+            );
+        }
+
+        // Placeholder Components for other pages
 
         function Shows() {
             return e('div', { className: 'p-6' },
@@ -1466,7 +2965,7 @@
             };
 
             const filteredStudents = students.filter(student =>
-                `${student.FirstName} ${student.Lastname || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                `${student.FirstName} ${student.LastName || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
             );
 
@@ -1511,7 +3010,7 @@
                                 // Debug log for first student
                                 if (student.StudentID === filteredStudents[0].StudentID) {
                                     console.log('Student debug:', {
-                                        name: `${student.FirstName} ${student.Lastname}`,
+                                        name: `${student.FirstName} ${student.LastName}`,
                                         CurrentEnrollment: student.CurrentEnrollment,
                                         HighestLevelCompleted: student.HighestLevelCompleted
                                     });
@@ -1535,7 +3034,7 @@
                                     }
                                     return student.HighestLevelCompleted.substring(0, 3).toUpperCase();
                                 }
-                                return `${(student.FirstName || '').charAt(0)}${(student.Lastname || student.LastName || '').charAt(0)}`.toUpperCase();
+                                return `${(student.FirstName || '').charAt(0)}${(student.LastName || student.LastName || '').charAt(0)}`.toUpperCase();
                             };
                             
                             const levelDisplay = getCurrentOrRecentLevel();
@@ -1562,7 +3061,7 @@
                                     ),
                                     e('div', { className: 'flex-1' },
                                         e('h3', { className: 'font-semibold text-gray-900' }, 
-                                            `${student.FirstName} ${student.Lastname || student.LastName || ''}`
+                                            `${student.FirstName} ${student.LastName || student.LastName || ''}`
                                         ),
                                         e('p', { className: 'text-sm text-gray-600' }, student.PrimaryEmail)
                                     )

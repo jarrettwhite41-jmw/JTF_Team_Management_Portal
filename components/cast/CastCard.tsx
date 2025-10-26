@@ -31,11 +31,11 @@ export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
     >
       <div className="flex items-center space-x-3 mb-3">
         <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold">
-          {getInitials(castMember.FirstName, (castMember as any).Lastname)}
+          {getInitials(castMember.FirstName, castMember.LastName)}
         </div>
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">
-            {`${castMember.FirstName || ''} ${(castMember as any).Lastname || ''}`.trim() || 'Unknown Name'}
+            {`${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'}
           </h3>
           <p className="text-sm text-gray-600">{castMember.PrimaryEmail || 'No email'}</p>
         </div>

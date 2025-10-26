@@ -303,6 +303,33 @@ class GoogleAppsScriptService {
   async getUpcomingClasses(): Promise<ApiResponse<ClassOfferings[]>> {
     return this.callServerFunction<ClassOfferings[]>('getUpcomingClasses');
   }
+
+  // Class Management Methods
+  async createClassOffering(classData: any): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('createClassOffering', classData);
+  }
+
+  async getAllClassOfferings(): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getAllClassOfferings');
+  }
+
+  async getClassOfferingDetails(offeringId: number): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('getClassOfferingDetails', offeringId);
+  }
+
+  async updateClassAttendance(attendanceData: {
+    enrollmentId: number;
+    offeringId: number;
+    classDate: string;
+    status: string;
+    notes?: string;
+  }): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateClassAttendance', attendanceData);
+  }
+
+  async updateEnrollmentStatus(enrollmentId: number, status: string): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateEnrollmentStatus', enrollmentId, status);
+  }
 }
 
 export const gasService = new GoogleAppsScriptService();

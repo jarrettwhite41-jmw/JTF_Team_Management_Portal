@@ -1,5 +1,5 @@
 /**
- * JTF Team Management Portal - Google Apps Script Backend
+ * 3JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -44,6 +44,7 @@ const SHEET_CONFIG = {
   // Relationship/Junction tables
   showPerformances: 'ShowPerformances',      // Cast assignments to shows
   studentEnrollments: 'StudentEnrollments',  // Student-to-class enrollments
+  classAttendance: 'ClassAttendance',        // Class attendance tracking
   crewDuties: 'CrewDuties',                 // Crew assignments to shows
   gamesPlayed: 'GamesPlayed',               // Games played in specific shows
   rehearsals: 'Rehearsals',                 // Rehearsal schedules
@@ -52,6 +53,7 @@ const SHEET_CONFIG = {
   // Lookup/Reference tables
   showTypes: 'ShowTypes',                   // Types of shows (Mainstage, Harold, etc.)
   classLevels: 'ClassLevels',               // Class levels (101, 201, Advanced, etc.)
+  teachers: 'Teachers',                     // Teachers table (TeacherID, PersonnelID, Active)
   crewDutyTypes: 'CrewDutyTypes'            // Types of crew positions
 };
 
@@ -351,7 +353,7 @@ function getNextId(sheet, idColumn = 0) {
 // =============================================================================
 // PERSONNEL FUNCTIONS - FULL CRUD OPERATIONS
 // DATA SOURCE: 'Personnel' sheet
-// COLUMNS: PersonnelID | FirstName | Lastname | PrimaryEmail | PrimaryPhone | Instagram | Birthday
+// COLUMNS: PersonnelID | FirstName | LastName | PrimaryEmail | PrimaryPhone | Instagram | Birthday
 // =============================================================================
 
 /**
@@ -452,7 +454,7 @@ function debugPersonnelSheet() {
     return { 
       success: false, 
       data: null,
-      error: error.toString()
+      error: error.toString() 
     };
   }
 }
@@ -460,7 +462,7 @@ function debugPersonnelSheet() {
 /**
  * READ OPERATION: Gets all people from the Personnel sheet
  * DATA SOURCE: Personnel sheet → all rows converted to objects
- * RETURNS: Array of person objects with PersonnelID, FirstName, Lastname, etc.
+ * RETURNS: Array of person objects with PersonnelID, FirstName, LastName, etc.
  */
 function getAllPersonnel() {
   try {
@@ -507,7 +509,7 @@ function getAllPersonnel() {
 /**
  * CREATE OPERATION: Creates a new person in the Personnel sheet
  * DATA FLOW: Input object → new row appended to Personnel sheet
- * @param {Object} personnelData - Person data (FirstName, Lastname, etc.)
+ * @param {Object} personnelData - Person data (FirstName, LastName, etc.)
  * AUTO-GENERATES: PersonnelID (next available ID)
  */
 function createPersonnel(personnelData) {
@@ -808,9 +810,9 @@ function getAllCastMembers() {
         }
       }
       
-      // Get proper first and last names from Personnel table (note: column is "Lastname" not "LastName")
+      // Get proper first and last names from Personnel table (note: column is "LastName")
       const firstName = person ? person.FirstName : 'Unknown';
-      const lastName = person ? person.Lastname : 'Person';
+      const lastName = person ? person.LastName : 'Person';
       const fullName = person ? `${firstName} ${lastName}`.trim() : (castMemberView.FullName || castMemberView['Full Name'] || 'Unknown Person');
       
       return {
@@ -820,7 +822,7 @@ function getAllCastMembers() {
         // Personnel details (if linked) - using same field names as Personnel tab
         PersonnelID: castMemberInfo ? castMemberInfo.PersonnelID : null,
         FirstName: firstName,
-        Lastname: lastName,  // Note: "Lastname" to match Personnel sheet column
+        LastName: lastName,
         PrimaryEmail: person ? person.PrimaryEmail : '',
         PrimaryPhone: person ? person.PrimaryPhone : '',
         Birthday: person ? person.Birthday : '',
@@ -1357,7 +1359,7 @@ function getStudentProfileData(studentId) {
         
         // Get teacher name
         const teacher = allTeachers.find(t => t.PersonnelID == classOffering.TeacherPersonnelID);
-        teacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+        teacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
         
         startDate = classOffering.StartDate;
         endDate = classOffering.EndDate;
@@ -1410,15 +1412,16 @@ function getStudentProfileData(studentId) {
             levelMap.set(levelId, {
               ClassLevelID: levelId,
               LevelName: level ? level.LevelName : `Level ${levelId}`,
-              Status: enrollment.Status,
+              Status: enrollment.CompletionStatus || enrollment.Status || 'Active',
               EnrollmentDate: enrollment.EnrollmentDate,
               OfferingID: enrollment.OfferingID
             });
           } else {
             // Update if this enrollment is completed and the existing one isn't
             const existing = levelMap.get(levelId);
-            if (enrollment.Status === 'Completed' && existing.Status !== 'Completed') {
-              existing.Status = enrollment.Status;
+            const enrollmentStatus = enrollment.CompletionStatus || enrollment.Status || 'Active';
+            if (enrollmentStatus === 'Completed' && existing.Status !== 'Completed') {
+              existing.Status = enrollmentStatus;
               existing.EnrollmentDate = enrollment.EnrollmentDate;
             }
           }
@@ -1467,7 +1470,7 @@ function getStudentProfileData(studentId) {
       // Personnel fields
       PersonnelID: person.PersonnelID,
       FirstName: person.FirstName,
-      Lastname: person.Lastname,
+      LastName: person.LastName,
       PrimaryEmail: person.PrimaryEmail,
       PrimaryPhone: person.PrimaryPhone,
       Instagram: person.Instagram,
@@ -1671,7 +1674,7 @@ function getAllStudentsWithDetails() {
         // Personnel fields
         PersonnelID: person.PersonnelID,
         FirstName: person.FirstName,
-        Lastname: person.Lastname,  // Note: "Lastname" to match sheet column
+        LastName: person.LastName,
         PrimaryEmail: person.PrimaryEmail,
         PrimaryPhone: person.PrimaryPhone,
         Instagram: person.Instagram,
@@ -1772,7 +1775,7 @@ function getAllStudents() {
         StudentID: studentInfo.StudentID,
         PersonnelID: person.PersonnelID,
         FirstName: person.FirstName,
-        Lastname: person.Lastname,
+        LastName: person.LastName,
         PrimaryEmail: person.PrimaryEmail,
         PrimaryPhone: person.PrimaryPhone,
         Birthday: person.Birthday,
@@ -1843,39 +1846,287 @@ function getActiveClassOfferings() {
  * @param {number} studentId - PersonnelID of the student
  * @param {number} offeringId - OfferingID of the class
  */
-function enrollStudent(studentId, offeringId) {
+function enrollStudent(personnelId, offeringId) {
   try {
-    Logger.log(`=== enrollStudent(${studentId}, ${offeringId}) called ===`);
+    Logger.log(`=== enrollStudent(personnelId: ${personnelId}, offeringId: ${offeringId}) called ===`);
+    Logger.log(`PersonnelID type: ${typeof personnelId}, OfferingID type: ${typeof offeringId}`);
     
+    // Get or create StudentInfo record for this person
+  const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+  Logger.log(`Got StudentInfo sheet: ${studentInfoSheet.getName()}`);
+    
+  const allStudentInfo = sheetToObjects(studentInfoSheet);
+  Logger.log(`Found ${allStudentInfo.length} total student info records`);
+    
+    let studentInfo = allStudentInfo.find(si => si.PersonnelID == personnelId);
+    let studentId;
+    
+    if (!studentInfo) {
+      // Person is not in StudentInfo table yet - create a record
+      Logger.log(`PersonnelID ${personnelId} not found in StudentInfo - creating new student record`);
+      
+      const newStudentData = {
+        PersonnelID: personnelId,
+        HighestLevelCompleted: null
+      };
+      addOrUpdateRow(studentInfoSheet, newStudentData, 0); // 0 = StudentID column
+      // Re-fetch to get the auto-generated StudentID
+      const updatedStudentInfo = sheetToObjects(studentInfoSheet);
+      studentInfo = updatedStudentInfo.find(si => si.PersonnelID == personnelId);
+      studentId = studentInfo.StudentID;
+      Logger.log(`Created new student record with StudentID: ${studentId}`);
+    } else {
+      studentId = studentInfo.StudentID;
+      Logger.log(`Found existing StudentID: ${studentId} for PersonnelID: ${personnelId}`);
+    }
+    
+    // Check if student is already enrolled in this class
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
-    
-    // Check if student is already enrolled
     const existingEnrollments = sheetToObjects(enrollmentsSheet);
     const existingEnrollment = existingEnrollments.find(e => 
-      (e.StudentPersonnelID == studentId || e.StudentID == studentId) && e.OfferingID == offeringId
+      e.StudentID == studentId && e.OfferingID == offeringId
     );
     
     if (existingEnrollment) {
-      Logger.log(`Student ${studentId} is already enrolled in offering ${offeringId}`);
-      return { success: false, error: 'Student is already enrolled in this class' };
+      // Check if this is an ADMIN-removed enrollment that we can reactivate
+      if (existingEnrollment.CompletionStatus === 'ADMIN') {
+        Logger.log(`Found ADMIN-removed enrollment ${existingEnrollment.EnrollmentID} - reactivating`);
+        
+        // Reactivate the enrollment by updating status and clearing notes
+        const headers = enrollmentsSheet.getRange(1, 1, 1, enrollmentsSheet.getLastColumn()).getValues()[0];
+        const enrollmentIndex = existingEnrollments.findIndex(e => e.EnrollmentID == existingEnrollment.EnrollmentID);
+        const rowIndex = enrollmentIndex + 2; // +2 for 1-indexed and header row
+        
+        // Update CompletionStatus to 'Enrolled'
+        const statusColIndex = headers.indexOf('CompletionStatus');
+        if (statusColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, statusColIndex + 1).setValue('Enrolled');
+        }
+        
+        // Clear Notes
+        const notesColIndex = headers.indexOf('Notes');
+        if (notesColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, notesColIndex + 1).setValue('');
+        }
+        
+        // Update EnrollmentDate to today
+        const enrollDateColIndex = headers.indexOf('EnrollmentDate');
+        if (enrollDateColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, enrollDateColIndex + 1).setValue(new Date().toISOString().split('T')[0]);
+        }
+        
+        // Clear CompletionDate
+        const completionDateColIndex = headers.indexOf('CompletionDate');
+        if (completionDateColIndex >= 0) {
+          enrollmentsSheet.getRange(rowIndex, completionDateColIndex + 1).setValue('');
+        }
+        
+        Logger.log(`Successfully reactivated enrollment ${existingEnrollment.EnrollmentID}`);
+        return { success: true, data: { message: 'Student re-enrolled successfully', studentId: studentId, reactivated: true } };
+      } else {
+        // Student is actively enrolled (not ADMIN)
+        Logger.log(`Student ${studentId} is already actively enrolled in offering ${offeringId} with status: ${existingEnrollment.CompletionStatus}`);
+        return { success: false, error: 'This person is already enrolled in this class' };
+      }
     }
     
+    // Create new enrollment record
     const enrollmentData = {
-      OfferingID: offeringId,
-      StudentPersonnelID: studentId,
       StudentID: studentId,
+      OfferingID: offeringId,
       EnrollmentDate: new Date().toISOString().split('T')[0],
-      Status: 'Active'
+      CompletionStatus: 'Enrolled',
+      CompletionDate: null,
+      Notes: ''
     };
-    
-    appendToSheet(enrollmentsSheet, enrollmentData);
-    
-    Logger.log(`Successfully enrolled student ${studentId} in offering ${offeringId}`);
-    return { success: true, data: 'Student enrolled successfully' };
+    addOrUpdateRow(enrollmentsSheet, enrollmentData, 0); // 0 = EnrollmentID column
+    Logger.log(`Successfully enrolled StudentID ${studentId} (PersonnelID ${personnelId}) in offering ${offeringId}`);
+    return { success: true, data: { message: 'Student enrolled successfully', studentId: studentId } };
     
   } catch (error) {
     Logger.log(`ERROR in enrollStudent(): ${error.toString()}`);
     return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all students enrolled in a specific class offering
+ * DATA SOURCE: StudentEnrollments, StudentInformation, Personnel sheets
+ * @param {number} offeringId - The class offering ID
+ * @returns {Object} Success status and array of enrolled students with details
+ */
+function getEnrolledStudents(offeringId) {
+  try {
+    Logger.log(`=== getEnrolledStudents(${offeringId}) called ===`);
+    
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInformation);
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Filter enrollments for this offering
+    const classEnrollments = allEnrollments.filter(e => e.OfferingID == offeringId);
+    
+    // Enrich with student details
+    const enrolledStudents = classEnrollments.map(enrollment => {
+      const studentInfo = allStudentInfo.find(si => si.StudentID == enrollment.StudentID);
+      const person = studentInfo ? allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID) : null;
+      
+      return {
+        EnrollmentID: enrollment.EnrollmentID,
+        StudentID: enrollment.StudentID,
+        PersonnelID: studentInfo ? studentInfo.PersonnelID : null,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? person.LastName : 'Student',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        EnrollmentDate: enrollment.EnrollmentDate,
+        CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
+        CompletionDate: enrollment.CompletionDate || null
+      };
+    });
+    
+    Logger.log(`Found ${enrolledStudents.length} enrolled students for offering ${offeringId}`);
+    
+    return {
+      success: true,
+      data: enrolledStudents
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getEnrolledStudents(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a student from a class (deletes enrollment record and related attendance)
+ * DATA SOURCE: StudentEnrollments and ClassAttendance sheets
+ * @param {number} enrollmentId - The enrollment ID to delete
+ * @returns {Object} Success status
+ */
+function removeStudentFromClass(enrollmentId) {
+  try {
+    Logger.log(`=== removeStudentFromClass(${enrollmentId}) called ===`);
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const enrollments = sheetToObjects(enrollmentsSheet);
+    // Find the enrollment
+    const enrollmentIndex = enrollments.findIndex(e => e.EnrollmentID == enrollmentId);
+    if (enrollmentIndex === -1) {
+      Logger.log(`Enrollment ${enrollmentId} not found`);
+      return { success: false, error: 'Enrollment not found' };
+    }
+    // UPDATE: Mark enrollment as ADMIN and update attendance records
+    const attendanceSheet = getSheet(SHEET_CONFIG.classAttendance);
+    const attendanceRecords = sheetToObjects(attendanceSheet);
+    const attendanceHeaders = attendanceSheet.getRange(1, 1, 1, attendanceSheet.getLastColumn()).getValues()[0];
+    const notesColIndex = attendanceHeaders.indexOf('Notes');
+    const statusColIndex = attendanceHeaders.indexOf('AttendanceStatus');
+    const updatedColIndex = attendanceHeaders.indexOf('LastUpdated');
+    const todayStr = new Date().toISOString().split('T')[0];
+    // Find all attendance records for this enrollment and update them
+    attendanceRecords.forEach((record, idx) => {
+      if (record.EnrollmentID == enrollmentId) {
+        const rowNum = idx + 2; // +2 for header and 1-indexed
+        if (statusColIndex >= 0) attendanceSheet.getRange(rowNum, statusColIndex + 1).setValue('Removed');
+        if (notesColIndex >= 0) attendanceSheet.getRange(rowNum, notesColIndex + 1).setValue(`Removed by admin on ${todayStr}`);
+        if (updatedColIndex >= 0) attendanceSheet.getRange(rowNum, updatedColIndex + 1).setValue(new Date());
+      }
+    });
+    // Update enrollment row: set CompletionStatus to 'ADMIN', add note, set CompletionDate
+    const enrollmentHeaders = enrollmentsSheet.getRange(1, 1, 1, enrollmentsSheet.getLastColumn()).getValues()[0];
+    const statusCol = enrollmentHeaders.indexOf('CompletionStatus');
+    const notesCol = enrollmentHeaders.indexOf('Notes');
+    const dateCol = enrollmentHeaders.indexOf('CompletionDate');
+    const enrollmentRowNum = enrollmentIndex + 2;
+    if (statusCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, statusCol + 1).setValue('ADMIN');
+    if (notesCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, notesCol + 1).setValue(`Removed by admin on ${todayStr}`);
+    if (dateCol >= 0) enrollmentsSheet.getRange(enrollmentRowNum, dateCol + 1).setValue(new Date());
+    Logger.log(`Successfully marked enrollment ${enrollmentId} as ADMIN and updated related attendance records`);
+    return {
+      success: true,
+      message: 'Student removed from class by admin (marked as ADMIN, attendance updated)'
+    };
+  } catch (error) {
+    Logger.log(`ERROR in removeStudentFromClass(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * CREATE OPERATION: Enroll multiple personnel in a class at once (bulk enrollment)
+ * DATA SOURCE: StudentInformation and StudentEnrollments sheets
+ * @param {Array} personnelIds - Array of PersonnelID values to enroll
+ * @param {number} offeringId - The class offering ID
+ * @returns {Object} Success status with details of successful/failed enrollments
+ */
+function bulkEnrollStudents(personnelIds, offeringId) {
+  try {
+    Logger.log(`=== bulkEnrollStudents called ===`);
+    Logger.log(`Enrolling ${personnelIds.length} personnel in offering ${offeringId}`);
+    
+    const results = {
+      successful: [],
+      failed: [],
+      alreadyEnrolled: []
+    };
+    
+    // Process each personnel ID
+    for (let i = 0; i < personnelIds.length; i++) {
+      const personnelId = personnelIds[i];
+      
+      try {
+        const result = enrollStudent(personnelId, offeringId);
+        
+        if (result.success) {
+          results.successful.push({
+            personnelId: personnelId,
+            studentId: result.data.studentId
+          });
+        } else if (result.error && result.error.includes('already enrolled')) {
+          results.alreadyEnrolled.push(personnelId);
+        } else {
+          results.failed.push({
+            personnelId: personnelId,
+            error: result.error
+          });
+        }
+      } catch (error) {
+        results.failed.push({
+          personnelId: personnelId,
+          error: error.toString()
+        });
+      }
+    }
+    
+    Logger.log(`Bulk enrollment complete: ${results.successful.length} successful, ${results.alreadyEnrolled.length} already enrolled, ${results.failed.length} failed`);
+    
+    return {
+      success: true,
+      data: {
+        enrolled: results.successful.length,
+        alreadyEnrolled: results.alreadyEnrolled.length,
+        failed: results.failed.length,
+        details: results
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in bulkEnrollStudents(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
   }
 }
 
@@ -1932,7 +2183,7 @@ function getEnrollmentsWithDetails(studentId = null) {
           const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherPersonnelID);
           
           enriched.ClassLevelName = level ? level.LevelName : '';
-          enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.Lastname}` : '';
+          enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
           enriched.StartDate = classOffering.StartDate;
           enriched.EndDate = classOffering.EndDate;
           enriched.VenueOrRoom = classOffering.VenueOrRoom;
@@ -2159,6 +2410,519 @@ function updateHighestCompletedLevels() {
       10
     );
     
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+// =============================================================================
+// CLASS MANAGEMENT FUNCTIONS - For class offerings, roster, and attendance
+// =============================================================================
+
+/**
+ * CREATE OPERATION: Creates a new class offering
+ * DATA SOURCE: ClassOfferings sheet
+ * @param {Object} classData - Object containing class details
+ * @returns {Object} Success status and new offering data
+ */
+function createClassOffering(classData) {
+  try {
+    Logger.log('=== createClassOffering() called ===');
+    Logger.log(`Class data: ${JSON.stringify(classData)}`);
+    
+    const sheet = getSheet(SHEET_CONFIG.classOfferings);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    
+    // Generate new OfferingID
+    const allData = sheetToObjects(sheet);
+    const maxId = allData.reduce((max, row) => Math.max(max, row.OfferingID || 0), 0);
+    const newOfferingId = maxId + 1;
+    
+    // Prepare row data
+    const rowData = headers.map(header => {
+      if (header === 'OfferingID') return newOfferingId;
+      if (header === 'Status') return classData.Status || 'Upcoming';
+      if (header === 'CreatedDate') return new Date();
+      return classData[header] || '';
+    });
+    
+    // Add new row
+    sheet.appendRow(rowData);
+    
+    Logger.log(`Created new class offering with ID: ${newOfferingId}`);
+    
+    return {
+      success: true,
+      data: {
+        OfferingID: newOfferingId,
+        ...classData
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in createClassOffering(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all class offerings with teacher names and enrollment counts
+ * DATA SOURCE: ClassOfferings, Personnel, StudentEnrollments, ClassLevels sheets
+ * @returns {Object} Success status and array of class offerings
+ */
+function getAllClassOfferings() {
+  try {
+    Logger.log('=== getAllClassOfferings() called ===');
+    
+    // Get all necessary data
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    
+    // Get Teachers table to map TeacherID to PersonnelID
+    let allTeachers = [];
+    try {
+      const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      allTeachers = sheetToObjects(teachersSheet);
+      Logger.log(`Found ${allTeachers.length} teachers in Teachers table`);
+      if (allTeachers.length > 0) {
+        Logger.log(`Sample teacher record: ${JSON.stringify(allTeachers[0])}`);
+      }
+    } catch (e) {
+      Logger.log('Teachers sheet not found, will try direct Personnel lookup');
+    }
+    
+    // Get ClassLevels for level names
+    let allLevels = [];
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found');
+    }
+    
+    Logger.log(`Processing ${allClasses.length} class offerings`);
+    if (allClasses.length > 0) {
+      Logger.log(`Sample class offering: ${JSON.stringify(allClasses[0])}`);
+    }
+    
+    // Enrich each class with teacher name and enrollment count
+    const enrichedClasses = allClasses.map(classOffering => {
+      // Get teacher name through Teachers table
+      // ClassOfferings.TeacherID → Teachers.TeacherID → Teachers.PersonnelID → Personnel.PersonnelID
+      let teacherName = 'TBA';
+      let debugInfo = {
+        offeringId: classOffering.OfferingID,
+        teacherId: classOffering.TeacherID,
+        teacherRecord: null,
+        personnelId: null,
+        personnelRecord: null
+      };
+      
+      if (allTeachers.length > 0) {
+        // Look up teacher by TeacherID
+        const teacher = allTeachers.find(t => t.TeacherID == classOffering.TeacherID);
+        debugInfo.teacherRecord = teacher;
+        
+        if (teacher) {
+          debugInfo.personnelId = teacher.PersonnelID;
+          const personnel = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+          debugInfo.personnelRecord = personnel;
+          
+          if (personnel) {
+            teacherName = `${personnel.FirstName} ${personnel.LastName}`;
+            Logger.log(`✓ OfferingID ${classOffering.OfferingID}: TeacherID ${classOffering.TeacherID} → PersonnelID ${teacher.PersonnelID} → ${teacherName}`);
+          } else {
+            Logger.log(`✗ OfferingID ${classOffering.OfferingID}: PersonnelID ${teacher.PersonnelID} not found in Personnel table`);
+          }
+        } else {
+          Logger.log(`✗ OfferingID ${classOffering.OfferingID}: TeacherID ${classOffering.TeacherID} not found in Teachers table`);
+        }
+      } else {
+        Logger.log(`! No Teachers table found, using fallback`);
+        // Fallback: try direct lookup in case Teachers table not available
+        const teacher = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherID);
+        if (teacher) {
+          teacherName = `${teacher.FirstName} ${teacher.LastName}`;
+        }
+      }
+      
+      // Count enrolled students (excluding only Dropped/Withdrawn)
+      const enrollments = allEnrollments.filter(e => {
+        if (e.OfferingID != classOffering.OfferingID) return false;
+        
+        // Exclude only Dropped and Withdrawn students
+        const status = e.CompletionStatus || e.Status || 'Active';
+        return status !== 'Dropped' && status !== 'Withdrawn';
+      });
+      const enrolledCount = enrollments.length;
+      
+      Logger.log(`OfferingID ${classOffering.OfferingID}: Found ${enrolledCount} enrolled students`);
+      
+      // Get level name
+      const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+      const levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+      
+      // Calculate status based on dates if not explicitly set
+      let status = classOffering.Status || 'Upcoming';
+      if (!classOffering.Status) {
+        const today = new Date();
+        const startDate = new Date(classOffering.StartDate);
+        const endDate = new Date(classOffering.EndDate);
+        
+        if (today > endDate) {
+          status = 'Completed';
+        } else if (today >= startDate && today <= endDate) {
+          status = 'In Progress';
+        } else {
+          status = 'Upcoming';
+        }
+      }
+      
+      return {
+        ...classOffering,
+        TeacherName: teacherName,
+        LevelName: levelName,
+        EnrolledCount: enrolledCount,
+        MaxStudents: classOffering.MaxStudents || 12,
+        Status: status
+      };
+    });
+    
+    Logger.log(`Found ${enrichedClasses.length} class offerings`);
+    
+    return {
+      success: true,
+      data: enrichedClasses
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllClassOfferings(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * READ OPERATION: Gets complete details for a specific class offering
+ * DATA SOURCE: ClassOfferings, StudentEnrollments, ClassAttendance, Personnel sheets
+ * @param {number} offeringId - The OfferingID to fetch details for
+ * @returns {Object} Success status and complete class data
+ */
+function getClassOfferingDetails(offeringId) {
+  try {
+    Logger.log(`=== getClassOfferingDetails(${offeringId}) called ===`);
+    
+    // Get class offering
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+    const classOffering = allClasses.find(c => c.OfferingID == offeringId);
+    
+    if (!classOffering) {
+      return {
+        success: false,
+        error: 'Class offering not found'
+      };
+    }
+    
+    // Get teacher info through Teachers table
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    let teacherInfo = null;
+    let teachersSheet = null;
+    try {
+      teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      const allTeachers = sheetToObjects(teachersSheet);
+      const teacher = allTeachers.find(t => t.TeacherID == classOffering.TeacherID);
+      if (teacher) {
+        teacherInfo = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+      }
+    } catch (e) {
+      Logger.log('Teachers sheet not found, trying direct lookup');
+      teacherInfo = allPersonnel.find(p => p.PersonnelID == classOffering.TeacherID);
+    }
+    
+    // Get level name
+    let levelName = '';
+    try {
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      const allLevels = sheetToObjects(levelsSheet);
+      const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
+      levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+    } catch (e) {
+      Logger.log('ClassLevels sheet not found');
+      levelName = `Level ${classOffering.ClassLevelID}`;
+    }
+    
+    // Get enrolled students
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const classEnrollments = allEnrollments.filter(e => e.OfferingID == offeringId);
+    
+    // Get StudentInfo for student data
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    
+    // Enrich enrollments with student details and filter out ADMIN removals
+    const enrolledStudents = classEnrollments
+      .map(enrollment => {
+        const studentInfo = allStudentInfo.find(si => si.StudentID == enrollment.StudentID);
+        const person = studentInfo ? allPersonnel.find(p => p.PersonnelID == studentInfo.PersonnelID) : null;
+        
+        return {
+          EnrollmentID: enrollment.EnrollmentID,
+          StudentID: enrollment.StudentID,
+          FirstName: person ? person.FirstName : 'Unknown',
+          LastName: person ? person.LastName : 'Student',
+          PrimaryEmail: person ? person.PrimaryEmail : '',
+          EnrollmentDate: enrollment.EnrollmentDate,
+          CompletionStatus: enrollment.CompletionStatus || enrollment.Status || 'Active',
+          CompletionDate: enrollment.CompletionDate || null
+        };
+      })
+      .filter(student => student.CompletionStatus !== 'ADMIN'); // Exclude ADMIN removals
+    
+    // Get attendance records
+    let attendanceRecords = [];
+    try {
+      const attendanceSheet = getSheet(SHEET_CONFIG.classAttendance);
+      const allAttendance = sheetToObjects(attendanceSheet);
+      
+      // Filter by OfferingID and normalize dates
+      attendanceRecords = allAttendance
+        .filter(a => a.OfferingID == offeringId)
+        .map(record => {
+          if (record.ClassDate) {
+            const date = new Date(record.ClassDate);
+            const formattedDate = Utilities.formatDate(date, Session.getScriptTimeZone(), "yyyy-MM-dd");
+            return { ...record, ClassDate: formattedDate };
+          }
+          return record;
+        });
+      
+      Logger.log(`Found ${attendanceRecords.length} attendance records for OfferingID ${offeringId}`);
+    } catch (e) {
+      Logger.log(`ClassAttendance sheet error: ${e.toString()}`);
+    }
+    
+    Logger.log(`Found ${enrolledStudents.length} enrolled students and ${attendanceRecords.length} attendance records`);
+    
+    return {
+      success: true,
+      data: {
+        classOffering: {
+          ...classOffering,
+          TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.LastName}` : 'TBA',
+          LevelName: levelName
+        },
+        enrolledStudents: enrolledStudents,
+        attendanceRecords: attendanceRecords
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getClassOfferingDetails(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * UPDATE/CREATE OPERATION: Updates or creates attendance record
+ * DATA SOURCE: ClassAttendance sheet
+ * @param {Object} attendanceData - Object with enrollmentId, offeringId, classDate, status, notes
+ * @returns {Object} Success status
+ */
+function updateClassAttendance(attendanceData) {
+  try {
+    Logger.log('=== updateClassAttendance() called ===');
+    Logger.log(`Attendance data: ${JSON.stringify(attendanceData)}`);
+    
+    const sheet = getSheet(SHEET_CONFIG.classAttendance);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const allData = sheetToObjects(sheet);
+    const timezone = Session.getScriptTimeZone();
+
+    // Use the date string directly without timezone conversion
+    // Frontend sends "YYYY-MM-DD" format already
+    const dateToFindStr = attendanceData.classDate;
+    Logger.log(`Looking for attendance on date: ${dateToFindStr}`);
+
+    // Find existing attendance record
+    const existingIndex = allData.findIndex(a => {
+      if (!a.ClassDate) return false;
+      // Extract just the date part from stored records
+      const recordDateStr = typeof a.ClassDate === 'string' 
+        ? a.ClassDate.split('T')[0]
+        : Utilities.formatDate(new Date(a.ClassDate), timezone, "yyyy-MM-dd");
+      return a.EnrollmentID == attendanceData.enrollmentId && recordDateStr === dateToFindStr;
+    });
+    
+    if (existingIndex >= 0) {
+      // Update existing record
+      const rowIndex = existingIndex + 2; // +2 for 1-indexed and header row
+      
+      const statusColIndex = headers.indexOf('AttendanceStatus');
+      if (statusColIndex >= 0) {
+        sheet.getRange(rowIndex, statusColIndex + 1).setValue(attendanceData.status);
+      }
+      const notesColIndex = headers.indexOf('Notes');
+      if (notesColIndex >= 0 && attendanceData.notes) {
+        sheet.getRange(rowIndex, notesColIndex + 1).setValue(attendanceData.notes);
+      }
+      const updatedColIndex = headers.indexOf('LastUpdated');
+      if (updatedColIndex >= 0) {
+        sheet.getRange(rowIndex, updatedColIndex + 1).setValue(new Date());
+      }
+      
+      Logger.log(`Updated attendance record at row ${rowIndex}`);
+    } else {
+      // Create new record
+      const maxId = allData.reduce((max, row) => Math.max(max, row.AttendanceID || 0), 0);
+      const newAttendanceId = maxId + 1;
+      
+      const rowData = headers.map(header => {
+        switch(header) {
+          case 'AttendanceID': return newAttendanceId;
+          case 'EnrollmentID': return attendanceData.enrollmentId;
+          case 'OfferingID': return attendanceData.offeringId;
+          case 'ClassDate': return dateToFindStr; // Use standardized date string
+          case 'AttendanceStatus': return attendanceData.status;
+          case 'Notes': return attendanceData.notes || '';
+          case 'LastUpdated': return new Date();
+          default: return '';
+        }
+      });
+      
+      sheet.appendRow(rowData);
+      Logger.log(`Created new attendance record with ID: ${newAttendanceId}`);
+    }
+    
+    return {
+      success: true,
+      message: 'Attendance updated successfully'
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in updateClassAttendance(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * UPDATE OPERATION: Updates enrollment status (Drop/Complete)
+ * DATA SOURCE: StudentEnrollments sheet
+ * @param {number} enrollmentId - The EnrollmentID to update
+ * @param {string} status - New status (e.g., "Dropped", "Completed")
+ * @returns {Object} Success status
+ */
+function updateEnrollmentStatus(enrollmentId, status) {
+  try {
+    Logger.log(`=== updateEnrollmentStatus(${enrollmentId}, ${status}) called ===`);
+    
+    const sheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const allData = sheetToObjects(sheet);
+    
+    // Find enrollment record
+    const enrollmentIndex = allData.findIndex(e => e.EnrollmentID == enrollmentId);
+    
+    if (enrollmentIndex < 0) {
+      return {
+        success: false,
+        error: 'Enrollment not found'
+      };
+    }
+    
+    const rowIndex = enrollmentIndex + 2; // +2 for 1-indexed and header row
+    
+    // Update status
+    const statusColIndex = headers.indexOf('CompletionStatus');
+    if (statusColIndex >= 0) {
+      sheet.getRange(rowIndex, statusColIndex + 1).setValue(status);
+    }
+    
+    // Set completion date if status is Completed or Dropped
+    if (status === 'Completed' || status === 'Dropped' || status === 'Withdrawn') {
+      const dateColIndex = headers.indexOf('CompletionDate');
+      if (dateColIndex >= 0) {
+        sheet.getRange(rowIndex, dateColIndex + 1).setValue(new Date());
+      }
+    }
+    
+    Logger.log(`Updated enrollment ${enrollmentId} to status: ${status}`);
+    
+    return {
+      success: true,
+      message: `Enrollment status updated to ${status}`
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in updateEnrollmentStatus(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all active teachers with their personnel information
+ * DATA SOURCE: Teachers, Personnel sheets
+ * @returns {Object} Success status and array of active teachers
+ */
+function getActiveTeachers() {
+  try {
+    Logger.log('=== getActiveTeachers() called ===');
+    
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(teachersSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    // Filter for active teachers and enrich with personnel info
+    const activeTeachers = allTeachers
+      .filter(t => t.Active == 1 || t.Active === true)
+      .map(teacher => {
+        const personnel = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+        return {
+          TeacherID: teacher.TeacherID,
+          PersonnelID: teacher.PersonnelID,
+          FirstName: personnel ? personnel.FirstName : '',
+          LastName: personnel ? personnel.LastName : '',
+          FullName: personnel ? `${personnel.FirstName} ${personnel.LastName}` : 'Unknown',
+          Active: teacher.Active
+        };
+      });
+    
+    Logger.log(`Found ${activeTeachers.length} active teachers`);
+    
+    return {
+      success: true,
+      data: activeTeachers
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getActiveTeachers(): ${error.toString()}`);
     return {
       success: false,
       error: error.toString()
