@@ -1812,7 +1812,7 @@ function testPersonnelConnection() {
 /**
  * READ OPERATION: Gets all games from MasterGameList sheet
  * DATA SOURCE: MasterGameList sheet → all rows converted to objects
- * COLUMNS: GameID | GameName | GameDescription | PlayerCountMin | PlayerCountMax
+ * COLUMNS: GameID | Name | GameType | PlayerCount | SHORT DESCRIPTION | SETUP / EDITS / STAGE DIRECTION | Short/Long Form
  */
 function getAllGames() {
   try {
@@ -1825,6 +1825,97 @@ function getAllGames() {
   } catch (error) {
     Logger.log(`ERROR in getAllGames(): ${error.toString()}`);
     throw new Error('Failed to retrieve games data');
+  }
+}
+
+/**
+ * READ OPERATION: Gets all games played for a specific show
+ * DATA SOURCE: GamesPlayed sheet with JOIN to MasterGameList for game names
+ * RETURNS: Array of game objects with all details
+ */
+function getShowGames(showId) {
+  try {
+    Logger.log(`getShowGames() called for ShowID: ${showId}`);
+    
+    if (!showId) {
+      Logger.log('No ShowID provided to getShowGames');
+      return { success: true, data: [] };
+    }
+    
+    // Get games played for this show
+    const gamesPlayedSheet = getSheet(SHEET_CONFIG.gamesPlayed);
+    const allGamesPlayed = sheetToObjects(gamesPlayedSheet);
+    const showGamesPlayed = allGamesPlayed.filter(gp => gp.ShowID == showId);
+    
+    // Get master game list for name lookup
+    const masterGamesSheet = getSheet(SHEET_CONFIG.masterGameList);
+    const masterGames = sheetToObjects(masterGamesSheet);
+    
+    // Enhance each game played record with game name
+    const enhancedGames = showGamesPlayed.map(gamePlayedRecord => {
+      let gameName = null;
+      
+      // If it's a standard game (has GameID), look up the name
+      if (gamePlayedRecord.GameID) {
+        const masterGame = masterGames.find(mg => mg.GameID == gamePlayedRecord.GameID);
+        gameName = masterGame ? masterGame.Name : `Unknown Game (ID: ${gamePlayedRecord.GameID})`;
+      }
+      
+      return {
+        ...gamePlayedRecord,
+        GameName: gameName // Add the looked-up name
+      };
+    });
+    
+    Logger.log(`Retrieved ${enhancedGames.length} games for show ${showId}`);
+    return { success: true, data: enhancedGames };
+  } catch (error) {
+    Logger.log(`ERROR in getShowGames(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * WRITE OPERATION: Updates all games played for a specific show
+ * DATA TARGET: GamesPlayed sheet
+ * LOGIC: Deletes existing records for show, then inserts new ones
+ */
+function updateShowGames(showId, gamesArray) {
+  try {
+    Logger.log(`updateShowGames() called for ShowID: ${showId}`);
+    Logger.log(`Games to save: ${JSON.stringify(gamesArray)}`);
+    
+    if (!showId) {
+      throw new Error('ShowID is required');
+    }
+    
+    const gamesPlayedSheet = getSheet(SHEET_CONFIG.gamesPlayed);
+    
+    // Delete existing games for this show
+    deleteRowsByCondition(gamesPlayedSheet, 'ShowID', showId);
+    Logger.log(`Deleted existing games for ShowID: ${showId}`);
+    
+    // Insert new games
+    if (gamesArray && gamesArray.length > 0) {
+      gamesArray.forEach((gameObj, index) => {
+        const gameRecord = {
+          ShowID: showId,
+          GameID: gameObj.gameId || null,
+          CustomGameName: gameObj.customName || null,
+          GameVariationNotes: gameObj.variation || null,
+          FlagForMasterList: gameObj.flag || false
+        };
+        
+        addOrUpdateRow(gamesPlayedSheet, gameRecord, 0);
+        Logger.log(`Added game ${index + 1}: ${JSON.stringify(gameRecord)}`);
+      });
+    }
+    
+    Logger.log(`Successfully updated games for show ${showId}`);
+    return { success: true, message: 'Games updated successfully' };
+  } catch (error) {
+    Logger.log(`ERROR in updateShowGames(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
   }
 }
 
