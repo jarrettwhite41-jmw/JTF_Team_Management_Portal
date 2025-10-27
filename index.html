@@ -3028,16 +3028,34 @@
                 try {
                     const response = await gasService.getAllShows();
                     console.log('getAllShows response:', response);
+                    console.log('Response type:', typeof response);
+                    console.log('Is array:', Array.isArray(response));
 
-                    if (response.success && response.data) {
-                        const showData = Array.isArray(response.data) 
+                    let showData = [];
+                    
+                    // Handle different response formats from Google Apps Script
+                    if (Array.isArray(response)) {
+                        // Direct array response (most common)
+                        showData = response;
+                        console.log('Using direct array response');
+                    } else if (response && response.success && response.data) {
+                        // Wrapped success response
+                        showData = Array.isArray(response.data) 
                             ? response.data 
                             : (response.data.data || []);
+                        console.log('Using wrapped success response');
+                    }
+                    
+                    console.log('Final showData:', showData);
+                    console.log('showData length:', showData.length);
+                    
+                    if (showData.length > 0) {
+                        console.log('Sample show data:', showData[0]);
                         setShows(showData);
-                    } else if (Array.isArray(response)) {
-                        setShows(response);
+                        setMessage({ type: 'success', text: `Loaded ${showData.length} shows successfully` });
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load shows' });
+                        setShows([]);
+                        setMessage({ type: 'info', text: 'No shows found' });
                     }
                 } catch (error) {
                     console.error('Error loading shows:', error);
