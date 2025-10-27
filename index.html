@@ -234,6 +234,26 @@
             }
 
             // ===================================================================
+            // GAMES API METHODS
+            // These methods interact with MasterGameList and GamesPlayed sheets
+            // ===================================================================
+            
+            // READ: Get all games from MasterGameList
+            async getAllGames() {
+                return this.callServerFunction('getAllGames');
+            }
+
+            // READ: Get games played for a specific show
+            async getShowGames(showId) {
+                return this.callServerFunction('getShowGames', showId);
+            }
+
+            // UPDATE: Update games played for a specific show
+            async updateShowGames(showId, gamesArray) {
+                return this.callServerFunction('updateShowGames', showId, gamesArray);
+            }
+
+            // ===================================================================
             // CLASS CRUD API METHODS
             // These methods interact with the ClassOfferings sheet in Google Sheets
             // ===================================================================
@@ -2961,6 +2981,22 @@
             const [castMembers, setCastMembers] = useState([]);
             const [bartenders, setBartenders] = useState([]);
             const [crewDutyTypes, setCrewDutyTypes] = useState([]);
+            const [masterGames, setMasterGames] = useState([]);
+            
+            // Cast assignment UI state
+            const [castSearchTerm, setCastSearchTerm] = useState('');
+            const [showOnlySelected, setShowOnlySelected] = useState(false);
+            
+            // Games logging state
+            const [loggedGames, setLoggedGames] = useState([]);
+            const [gameSearchTerm, setGameSearchTerm] = useState('');
+            const [showOnlySelectedGames, setShowOnlySelectedGames] = useState(false);
+            const [gameFormData, setGameFormData] = useState({
+                selectedGameId: '',
+                customGameName: '',
+                variationNotes: '',
+                flagForMasterList: false
+            });
             
             // Form state
             const [formData, setFormData] = useState({
@@ -3027,13 +3063,14 @@
 
             const loadModalData = async () => {
                 try {
-                    const [typesResp, roomsResp, directorsResp, castResp, bartendersResp, crewTypesResp] = await Promise.all([
+                    const [typesResp, roomsResp, directorsResp, castResp, bartendersResp, crewTypesResp, gamesResp] = await Promise.all([
                         gasService.getAllShowTypes(),
                         gasService.getAllRooms(),
                         gasService.getAllDirectors(),
                         gasService.getAllCastMembers(),
                         gasService.getAllBartenders(),
-                        gasService.getAllCrewDutyTypes()
+                        gasService.getAllCrewDutyTypes(),
+                        gasService.getAllGames()
                     ]);
 
                     if (typesResp.success || Array.isArray(typesResp)) {
@@ -3053,6 +3090,9 @@
                     }
                     if (crewTypesResp.success || Array.isArray(crewTypesResp)) {
                         setCrewDutyTypes(Array.isArray(crewTypesResp) ? crewTypesResp : (crewTypesResp.data?.data || crewTypesResp.data || []));
+                    }
+                    if (gamesResp.success || Array.isArray(gamesResp)) {
+                        setMasterGames(Array.isArray(gamesResp) ? gamesResp : (gamesResp.data?.data || gamesResp.data || []));
                     }
                 } catch (error) {
                     console.error('Error loading modal data:', error);
@@ -3162,6 +3202,9 @@
                         houseManagerCrew: show.HouseManagerCrewID || show.HouseManagerCrew || '',
                         bartenderAssignment: show.BartenderID || show.BartenderAssignment || ''
                     });
+                    
+                    // Load games for this show
+                    loadShowGames(show.ShowID);
                 } else {
                     setFormData({
                         ShowTypeID: '',
@@ -3176,6 +3219,9 @@
                         houseManagerCrew: '',
                         bartenderAssignment: ''
                     });
+                    
+                    // Clear games for new show
+                    setLoggedGames([]);
                 }
                 
                 setShowModal(true);
@@ -3185,6 +3231,19 @@
             const handleCloseModal = () => {
                 setShowModal(false);
                 setSelectedShow(null);
+                // Reset cast assignment UI state
+                setCastSearchTerm('');
+                setShowOnlySelected(false);
+                // Reset games state
+                setLoggedGames([]);
+                setGameSearchTerm('');
+                setShowOnlySelectedGames(false);
+                setGameFormData({
+                    selectedGameId: '',
+                    customGameName: '',
+                    variationNotes: '',
+                    flagForMasterList: false
+                });
                 setFormData({
                     ShowTypeID: '',
                     ShowDate: '',
@@ -3224,6 +3283,231 @@
                 });
             };
 
+            // Enhanced cast member filtering and sorting
+            const getFilteredAndSortedCastMembers = () => {
+                let filtered = castMembers;
+                
+                // Apply search filter
+                if (castSearchTerm.trim()) {
+                    filtered = filtered.filter(cast => {
+                        const fullName = cast.FullName || `${cast.FirstName} ${cast.LastName}`;
+                        return fullName.toLowerCase().includes(castSearchTerm.toLowerCase());
+                    });
+                }
+                
+                // Apply selection filter
+                if (showOnlySelected) {
+                    filtered = filtered.filter(cast => 
+                        formData.castAssignments.includes(cast.CastMemberID)
+                    );
+                }
+                
+                // Sort alphabetically by name
+                return filtered.sort((a, b) => {
+                    const nameA = a.FullName || `${a.FirstName} ${a.LastName}`;
+                    const nameB = b.FullName || `${b.FirstName} ${b.LastName}`;
+                    return nameA.localeCompare(nameB);
+                });
+            };
+
+            const handleSelectAllCast = () => {
+                const filteredMembers = getFilteredAndSortedCastMembers();
+                const filteredIds = filteredMembers.map(cast => cast.CastMemberID);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    castAssignments: [...new Set([...prev.castAssignments, ...filteredIds])]
+                }));
+            };
+
+            const handleDeselectAllCast = () => {
+                const filteredMembers = getFilteredAndSortedCastMembers();
+                const filteredIds = filteredMembers.map(cast => cast.CastMemberID);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    castAssignments: prev.castAssignments.filter(id => !filteredIds.includes(id))
+                }));
+            };
+
+            // ===================================================================
+            // GAMES LOGGING FUNCTIONS
+            // ===================================================================
+
+            const loadShowGames = async (showId) => {
+                if (!showId) return;
+                try {
+                    console.log('Loading games for show:', showId);
+                    const response = await gasService.getShowGames(showId);
+                    console.log('getShowGames response:', response);
+                    
+                    if (response.success) {
+                        // Handle different response structures
+                        let gamesData = response.data || [];
+                        
+                        // If data has nested structure, extract the actual array
+                        if (gamesData.data && Array.isArray(gamesData.data)) {
+                            gamesData = gamesData.data;
+                        } else if (!Array.isArray(gamesData)) {
+                            console.log('Warning: gamesData is not an array:', gamesData);
+                            gamesData = [];
+                        }
+                        
+                        console.log('Setting logged games:', gamesData);
+                        // Convert to the format needed for the UI
+                        const formattedGames = gamesData.map(game => ({
+                            ...game,
+                            tempId: Date.now() + Math.random(), // Add temp ID for UI tracking
+                            gameName: game.GameName || game.CustomGameName,
+                            isCustom: !game.GameID
+                        }));
+                        setLoggedGames(Array.isArray(formattedGames) ? formattedGames : []);
+                    } else {
+                        console.log('getShowGames failed:', response.error);
+                        setLoggedGames([]);
+                    }
+                } catch (error) {
+                    console.error('Error loading show games:', error);
+                    setLoggedGames([]);
+                }
+            };
+
+            // Enhanced game filtering and sorting similar to cast members
+            const getFilteredAndSortedGames = () => {
+                let filtered = masterGames;
+                
+                // Apply search filter
+                if (gameSearchTerm.trim()) {
+                    filtered = filtered.filter(game => {
+                        const gameName = game.Name || '';
+                        const gameType = game.GameType || '';
+                        const description = game['SHORT DESCRIPTION'] || '';
+                        return gameName.toLowerCase().includes(gameSearchTerm.toLowerCase()) ||
+                               gameType.toLowerCase().includes(gameSearchTerm.toLowerCase()) ||
+                               description.toLowerCase().includes(gameSearchTerm.toLowerCase());
+                    });
+                }
+                
+                // Apply selection filter - show only games not already logged
+                if (showOnlySelectedGames) {
+                    const loggedGameIds = loggedGames.map(lg => lg.GameID).filter(id => id);
+                    filtered = filtered.filter(game => 
+                        !loggedGameIds.includes(game.GameID)
+                    );
+                }
+                
+                // Sort alphabetically by name
+                return filtered.sort((a, b) => {
+                    const nameA = a.Name || '';
+                    const nameB = b.Name || '';
+                    return nameA.localeCompare(nameB);
+                });
+            };
+
+            const handleGameToggle = (gameId) => {
+                const game = masterGames.find(g => g.GameID == gameId);
+                if (!game) return;
+
+                const existingGame = loggedGames.find(lg => lg.GameID == gameId);
+                
+                if (existingGame) {
+                    // Remove game
+                    setLoggedGames(prev => prev.filter(lg => lg.GameID != gameId));
+                } else {
+                    // Add game
+                    const newGame = {
+                        tempId: Date.now() + Math.random(),
+                        GameID: game.GameID,
+                        gameName: game.Name,
+                        CustomGameName: null,
+                        GameVariationNotes: null,
+                        FlagForMasterList: false,
+                        isCustom: false
+                    };
+                    setLoggedGames(prev => [...prev, newGame]);
+                }
+            };
+
+            const handleGameFormChange = (field, value) => {
+                setGameFormData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+            };
+
+            const addCustomGame = () => {
+                const { customGameName, variationNotes, flagForMasterList } = gameFormData;
+                
+                // Validation
+                if (!customGameName.trim()) {
+                    setMessage({ type: 'error', text: 'Please enter a custom game name' });
+                    return;
+                }
+
+                // Create custom game object
+                const customGame = {
+                    tempId: Date.now() + Math.random(),
+                    GameID: null,
+                    gameName: customGameName.trim(),
+                    CustomGameName: customGameName.trim(),
+                    GameVariationNotes: variationNotes.trim() || null,
+                    FlagForMasterList: flagForMasterList,
+                    isCustom: true
+                };
+
+                // Add to logged games
+                setLoggedGames(prev => [...prev, customGame]);
+
+                // Clear form
+                setGameFormData({
+                    selectedGameId: '',
+                    customGameName: '',
+                    variationNotes: '',
+                    flagForMasterList: false
+                });
+            };
+
+            const removeGameFromLog = (tempId) => {
+                setLoggedGames(prev => prev.filter(game => game.tempId !== tempId));
+            };
+
+            const updateGameVariation = (tempId, variation) => {
+                setLoggedGames(prev => prev.map(game => 
+                    game.tempId === tempId 
+                        ? { ...game, GameVariationNotes: variation }
+                        : game
+                ));
+            };
+
+            const handleSelectAllVisibleGames = () => {
+                const filteredGames = getFilteredAndSortedGames();
+                const loggedGameIds = loggedGames.map(lg => lg.GameID).filter(id => id);
+                
+                filteredGames.forEach(game => {
+                    if (!loggedGameIds.includes(game.GameID)) {
+                        const newGame = {
+                            tempId: Date.now() + Math.random(),
+                            GameID: game.GameID,
+                            gameName: game.Name,
+                            CustomGameName: null,
+                            GameVariationNotes: null,
+                            FlagForMasterList: false,
+                            isCustom: false
+                        };
+                        setLoggedGames(prev => [...prev, newGame]);
+                    }
+                });
+            };
+
+            const handleDeselectAllVisibleGames = () => {
+                const filteredGames = getFilteredAndSortedGames();
+                const filteredGameIds = filteredGames.map(game => game.GameID);
+                
+                setLoggedGames(prev => prev.filter(game => 
+                    !filteredGameIds.includes(game.GameID)
+                ));
+            };
+
             const handleSaveShow = async () => {
                 // Validation
                 if (!formData.ShowTypeID || !formData.ShowDate || !formData.ShowTime) {
@@ -3236,6 +3520,33 @@
                     const response = await gasService.createOrUpdateShow(formData);
 
                     if (response.success) {
+                        const showId = selectedShow?.ShowID || response.showId;
+                        
+                        // Save games if there are any logged
+                        if (Array.isArray(loggedGames) && loggedGames.length > 0 && showId) {
+                            const gamesForSave = loggedGames.map(game => ({
+                                gameId: game.GameID,
+                                customName: game.CustomGameName,
+                                variation: game.GameVariationNotes,
+                                flag: game.FlagForMasterList
+                            }));
+                            
+                            const gamesResponse = await gasService.updateShowGames(showId, gamesForSave);
+                            if (!gamesResponse.success) {
+                                console.error('Error saving games:', gamesResponse.error);
+                                setMessage({ type: 'warning', text: 'Show saved but there was an issue saving games' });
+                                return;
+                            } else if (gamesResponse.flaggedGamesProcessed > 0) {
+                                setMessage({ 
+                                    type: 'success', 
+                                    text: `Show saved successfully! ${gamesResponse.flaggedGamesProcessed} custom game(s) added to Master Game List.`
+                                });
+                                handleCloseModal();
+                                loadShows();
+                                return;
+                            }
+                        }
+                        
                         setMessage({ 
                             type: 'success', 
                             text: modalMode === 'create' ? 'Show created successfully!' : 'Show updated successfully!' 
@@ -3290,7 +3601,7 @@
                         e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                             e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
                         ),
-                        '+ Create New Show'
+                        'Create New Show'
                     )
                 ),
 
@@ -3489,31 +3800,135 @@
                             e('div', { className: 'bg-gray-50 p-4 rounded-lg' },
                                 e('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Cast & Crew Assignments'),
                                 
-                                // Cast Members (Multi-select)
+                                // Cast Members (Enhanced Multi-select)
                                 e('div', { className: 'mb-4' },
                                     e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 
                                         `Assign Cast (${formData.castAssignments.length} selected)`
                                     ),
-                                    e('div', { className: 'border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white' },
-                                        castMembers.length === 0 ? 
-                                            e('p', { className: 'text-sm text-gray-500 italic' }, 'No cast members available') :
-                                            castMembers.map(cast =>
-                                                e('label', { 
+                                    
+                                    // Search and filter controls
+                                    e('div', { className: 'mb-3 space-y-2' },
+                                        // Search input
+                                        e('div', { className: 'relative' },
+                                            e('input', {
+                                                type: 'text',
+                                                placeholder: 'Search cast members...',
+                                                value: castSearchTerm,
+                                                onChange: (ev) => setCastSearchTerm(ev.target.value),
+                                                className: 'w-full px-3 py-2 pl-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm'
+                                            }),
+                                            e('svg', {
+                                                className: 'absolute left-2 top-2.5 h-4 w-4 text-gray-400',
+                                                fill: 'none',
+                                                stroke: 'currentColor',
+                                                viewBox: '0 0 24 24'
+                                            },
+                                                e('path', {
+                                                    strokeLinecap: 'round',
+                                                    strokeLinejoin: 'round',
+                                                    strokeWidth: 2,
+                                                    d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                                                })
+                                            )
+                                        ),
+                                        
+                                        // Control buttons
+                                        e('div', { className: 'flex flex-wrap gap-2' },
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: () => setShowOnlySelected(!showOnlySelected),
+                                                className: `px-3 py-1 text-xs rounded-lg border ${
+                                                    showOnlySelected 
+                                                        ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                                                        : 'bg-white border-gray-300 text-gray-700'
+                                                } hover:bg-blue-50`
+                                            }, showOnlySelected ? '✓ Show Selected Only' : 'Show Selected Only'),
+                                            
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: handleSelectAllCast,
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                                            }, 'Select All Visible'),
+                                            
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: handleDeselectAllCast,
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                            }, 'Deselect All Visible'),
+                                            
+                                            castSearchTerm && e('button', {
+                                                type: 'button',
+                                                onClick: () => setCastSearchTerm(''),
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                            }, 'Clear Search')
+                                        )
+                                    ),
+                                    
+                                    // Cast member list
+                                    e('div', { 
+                                        className: 'border border-gray-300 rounded-lg bg-white',
+                                        style: { maxHeight: '300px', overflowY: 'auto' }
+                                    },
+                                        (() => {
+                                            const filteredCastMembers = getFilteredAndSortedCastMembers();
+                                            
+                                            if (castMembers.length === 0) {
+                                                return e('p', { className: 'text-sm text-gray-500 italic p-4' }, 'No cast members available');
+                                            }
+                                            
+                                            if (filteredCastMembers.length === 0) {
+                                                return e('div', { className: 'p-4 text-center' },
+                                                    e('p', { className: 'text-sm text-gray-500 italic mb-2' }, 
+                                                        castSearchTerm ? 'No cast members match your search' : 'No selected cast members'
+                                                    ),
+                                                    castSearchTerm && e('button', {
+                                                        type: 'button',
+                                                        onClick: () => setCastSearchTerm(''),
+                                                        className: 'text-xs text-blue-600 hover:text-blue-800 underline'
+                                                    }, 'Clear search to see all members')
+                                                );
+                                            }
+                                            
+                                            return filteredCastMembers.map((cast, index) => {
+                                                const isSelected = formData.castAssignments.includes(cast.CastMemberID);
+                                                return e('label', { 
                                                     key: cast.CastMemberID,
-                                                    className: 'flex items-center py-2 hover:bg-gray-50 px-2 rounded cursor-pointer'
+                                                    className: `flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                                                        isSelected ? 'bg-blue-50' : ''
+                                                    }`
                                                 },
                                                     e('input', {
                                                         type: 'checkbox',
-                                                        checked: formData.castAssignments.includes(cast.CastMemberID),
+                                                        checked: isSelected,
                                                         onChange: () => handleCastSelection(cast.CastMemberID),
                                                         className: 'mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500'
                                                     }),
-                                                    e('span', { className: 'text-sm text-gray-700' }, 
-                                                        cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                    e('div', { className: 'flex-1 min-w-0' },
+                                                        e('span', { className: 'text-sm text-gray-900 font-medium block truncate' }, 
+                                                            cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                        ),
+                                                        cast.Status && e('span', { 
+                                                            className: `text-xs px-2 py-0.5 rounded-full ml-2 ${
+                                                                cast.Status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                            }`
+                                                        }, cast.Status)
                                                     )
-                                                )
-                                            )
-                                    )
+                                                );
+                                            });
+                                        })()
+                                    ),
+                                    
+                                    // Summary info
+                                    (() => {
+                                        const filteredCount = getFilteredAndSortedCastMembers().length;
+                                        const totalCount = castMembers.length;
+                                        const selectedCount = formData.castAssignments.length;
+                                        
+                                        return e('div', { className: 'mt-2 text-xs text-gray-600' },
+                                            `Showing ${filteredCount} of ${totalCount} cast members`,
+                                            selectedCount > 0 && ` • ${selectedCount} selected`
+                                        );
+                                    })()
                                 ),
 
                                 // Crew Duties
@@ -3583,7 +3998,257 @@
                                         )
                                     )
                                 )
-                            )
+                            ),
+
+                            // Section 3: Log Games Played (only for past shows)
+                            (() => {
+                                // Check if show date is in the past
+                                const showDate = formData.ShowDate;
+                                const isPastShow = showDate && new Date(showDate) < new Date();
+                                
+                                if (!isPastShow) return null;
+                                
+                                return e('div', { 
+                                    className: 'bg-green-50 p-4 rounded-lg border border-green-200'
+                                },
+                                    e('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 
+                                        '🎮 Log Games Played'
+                                    ),
+                                    
+                                    // Games Multi-select (similar to cast section)
+                                    e('div', { className: 'mb-4' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 
+                                            `Select Games (${Array.isArray(loggedGames) ? loggedGames.length : 0} selected)`
+                                        ),
+                                        
+                                        // Search and filter controls
+                                        e('div', { className: 'mb-3 space-y-2' },
+                                            // Search input
+                                            e('div', { className: 'relative' },
+                                                e('input', {
+                                                    type: 'text',
+                                                    placeholder: 'Search games by name, type, or description...',
+                                                    value: gameSearchTerm,
+                                                    onChange: (ev) => setGameSearchTerm(ev.target.value),
+                                                    className: 'w-full px-3 py-2 pl-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm'
+                                                }),
+                                                e('svg', {
+                                                    className: 'absolute left-2 top-2.5 h-4 w-4 text-gray-400',
+                                                    fill: 'none',
+                                                    stroke: 'currentColor',
+                                                    viewBox: '0 0 24 24'
+                                                },
+                                                    e('path', {
+                                                        strokeLinecap: 'round',
+                                                        strokeLinejoin: 'round',
+                                                        strokeWidth: 2,
+                                                        d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                                                    })
+                                                )
+                                            ),
+                                            
+                                            // Control buttons
+                                            e('div', { className: 'flex flex-wrap gap-2' },
+                                                e('button', {
+                                                    type: 'button',
+                                                    onClick: () => setShowOnlySelectedGames(!showOnlySelectedGames),
+                                                    className: `px-3 py-1 text-xs rounded-lg border ${
+                                                        showOnlySelectedGames 
+                                                            ? 'bg-green-50 border-green-300 text-green-700' 
+                                                            : 'bg-white border-gray-300 text-gray-700'
+                                                    } hover:bg-green-50`
+                                                }, showOnlySelectedGames ? '✓ Show Available Only' : 'Show Available Only'),
+                                                
+                                                e('button', {
+                                                    type: 'button',
+                                                    onClick: handleSelectAllVisibleGames,
+                                                    className: 'px-3 py-1 text-xs rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                                                }, 'Select All Visible'),
+                                                
+                                                e('button', {
+                                                    type: 'button',
+                                                    onClick: handleDeselectAllVisibleGames,
+                                                    className: 'px-3 py-1 text-xs rounded-lg border border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                                }, 'Deselect All Visible'),
+                                                
+                                                gameSearchTerm && e('button', {
+                                                    type: 'button',
+                                                    onClick: () => setGameSearchTerm(''),
+                                                    className: 'px-3 py-1 text-xs rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                                }, 'Clear Search')
+                                            )
+                                        ),
+                                        
+                                        // Games list
+                                        e('div', { 
+                                            className: 'border border-gray-300 rounded-lg bg-white',
+                                            style: { maxHeight: '200px', overflowY: 'auto' }
+                                        },
+                                            (() => {
+                                                const filteredGames = getFilteredAndSortedGames();
+                                                const loggedGameIds = loggedGames.map(lg => lg.GameID).filter(id => id);
+                                                
+                                                if (masterGames.length === 0) {
+                                                    return e('p', { className: 'text-sm text-gray-500 italic p-4' }, 'No games available');
+                                                }
+                                                
+                                                if (filteredGames.length === 0) {
+                                                    return e('div', { className: 'p-4 text-center' },
+                                                        e('p', { className: 'text-sm text-gray-500 italic mb-2' }, 
+                                                            gameSearchTerm ? 'No games match your search' : 'No available games'
+                                                        ),
+                                                        gameSearchTerm && e('button', {
+                                                            type: 'button',
+                                                            onClick: () => setGameSearchTerm(''),
+                                                            className: 'text-xs text-green-600 hover:text-green-800 underline'
+                                                        }, 'Clear search to see all games')
+                                                    );
+                                                }
+                                                
+                                                return filteredGames.map((game) => {
+                                                    const isSelected = loggedGameIds.includes(game.GameID);
+                                                    return e('label', { 
+                                                        key: game.GameID,
+                                                        className: `flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                                                            isSelected ? 'bg-green-50' : ''
+                                                        }`
+                                                    },
+                                                        e('input', {
+                                                            type: 'checkbox',
+                                                            checked: isSelected,
+                                                            onChange: () => handleGameToggle(game.GameID),
+                                                            className: 'mr-3 h-4 w-4 text-green-600 rounded focus:ring-green-500'
+                                                        }),
+                                                        e('div', { className: 'flex-1 min-w-0' },
+                                                            e('div', { className: 'flex items-center gap-2' },
+                                                                e('span', { className: 'text-sm text-gray-900 font-medium' }, 
+                                                                    game.Name || 'Unnamed Game'
+                                                                ),
+                                                                game.GameType && e('span', { 
+                                                                    className: 'text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700'
+                                                                }, game.GameType),
+                                                                game.PlayerCount && e('span', { 
+                                                                    className: 'text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600'
+                                                                }, `${game.PlayerCount} players`)
+                                                            ),
+                                                            game['SHORT DESCRIPTION'] && e('div', { 
+                                                                className: 'text-xs text-gray-600 mt-1 truncate'
+                                                            }, game['SHORT DESCRIPTION'])
+                                                        )
+                                                    );
+                                                });
+                                            })()
+                                        ),
+                                        
+                                        // Summary info
+                                        (() => {
+                                            const filteredCount = getFilteredAndSortedGames().length;
+                                            const totalCount = masterGames.length;
+                                            const selectedCount = Array.isArray(loggedGames) ? loggedGames.length : 0;
+                                            
+                                            return e('div', { className: 'mt-2 text-xs text-gray-600' },
+                                                `Showing ${filteredCount} of ${totalCount} games`,
+                                                selectedCount > 0 && ` • ${selectedCount} selected`
+                                            );
+                                        })()
+                                    ),
+                                    
+                                    // Add Custom Game Section
+                                    e('div', { className: 'mb-4 p-3 bg-white rounded-lg border border-gray-200' },
+                                        e('h4', { className: 'text-md font-medium text-gray-800 mb-3' }, '➕ Add Custom Game'),
+                                        
+                                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-3' },
+                                            // Custom Game Name
+                                            e('div', null,
+                                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Custom Game Name'),
+                                                e('input', {
+                                                    type: 'text',
+                                                    value: gameFormData.customGameName,
+                                                    onChange: (ev) => handleGameFormChange('customGameName', ev.target.value),
+                                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm',
+                                                    placeholder: 'Enter custom game name'
+                                                })
+                                            ),
+                                            
+                                            // Variation/Notes
+                                            e('div', null,
+                                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Notes (Optional)'),
+                                                e('input', {
+                                                    type: 'text',
+                                                    value: gameFormData.variationNotes,
+                                                    onChange: (ev) => handleGameFormChange('variationNotes', ev.target.value),
+                                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 text-sm',
+                                                    placeholder: 'e.g., "Speed round", "With props"'
+                                                })
+                                            )
+                                        ),
+                                        
+                                        e('div', { className: 'mt-3 flex items-center gap-3' },
+                                            e('label', { className: 'flex items-center text-sm text-gray-700' },
+                                                e('input', {
+                                                    type: 'checkbox',
+                                                    checked: gameFormData.flagForMasterList,
+                                                    onChange: (ev) => handleGameFormChange('flagForMasterList', ev.target.checked),
+                                                    className: 'mr-2 h-4 w-4 text-green-600 rounded focus:ring-green-500'
+                                                }),
+                                                '🏃 Flag to add to Master Game List'
+                                            ),
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: addCustomGame,
+                                                disabled: !gameFormData.customGameName.trim(),
+                                                className: 'px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium'
+                                            }, 'Add Custom Game')
+                                        )
+                                    ),
+                                    
+                                    // Selected Games List with Variations
+                                    e('div', null,
+                                        e('h4', { className: 'text-md font-medium text-gray-800 mb-3' }, 
+                                            `Games Selected (${Array.isArray(loggedGames) ? loggedGames.length : 0})`
+                                        ),
+                                        !Array.isArray(loggedGames) || loggedGames.length === 0 ? 
+                                            e('p', { className: 'text-sm text-gray-500 italic p-3 bg-white rounded border' }, 
+                                                'No games selected yet. Select games from the list above or add custom games.'
+                                            ) :
+                                            e('div', { className: 'space-y-2' },
+                                                loggedGames.map((game, index) =>
+                                                    e('div', { 
+                                                        key: game.tempId || index,
+                                                        className: 'flex items-center gap-3 p-3 bg-white rounded border border-gray-200'
+                                                    },
+                                                        e('div', { className: 'flex-1' },
+                                                            e('div', { className: 'flex items-center gap-2' },
+                                                                e('span', { className: 'font-medium text-gray-900' }, 
+                                                                    game.gameName
+                                                                ),
+                                                                game.isCustom && e('span', { 
+                                                                    className: 'text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full'
+                                                                }, 'Custom'),
+                                                                game.FlagForMasterList && e('span', { 
+                                                                    className: 'text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full'
+                                                                }, '🏃 Flagged')
+                                                            ),
+                                                            // Inline variation editor
+                                                            e('input', {
+                                                                type: 'text',
+                                                                value: game.GameVariationNotes || '',
+                                                                onChange: (ev) => updateGameVariation(game.tempId, ev.target.value),
+                                                                placeholder: 'Add variation notes...',
+                                                                className: 'mt-2 w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500'
+                                                            })
+                                                        ),
+                                                        e('button', {
+                                                            type: 'button',
+                                                            onClick: () => removeGameFromLog(game.tempId),
+                                                            className: 'px-3 py-1 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50'
+                                                        }, 'Remove')
+                                                    )
+                                                )
+                                            )
+                                    )
+                                );
+                            })()
                         ),
 
                         // Modal Footer
