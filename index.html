@@ -3243,7 +3243,73 @@
                     }
                 } catch (error) {
                     console.error('Error loading shows:', error);
-                    setMessage({ type: 'error', text: 'Error loading shows' });
+                    
+                    // For local testing, use mock data
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.log('Running locally - using mock show data');
+                        const mockShows = [
+                            {
+                                ShowID: 1,
+                                ShowName: 'Mainstage Improv',
+                                ShowType: 'Mainstage',
+                                ShowTypeName: 'Mainstage',
+                                ShowTypeID: 1,
+                                DirectorName: 'John Director',
+                                DirectorID: 101,
+                                ShowDate: '2025-11-15',
+                                ShowTime: '7:30 PM',
+                                RoomName: 'Main Theater',
+                                Venue: 'Main Theater',
+                                Description: 'Weekly mainstage improv show',
+                                cast_members: 'Alice Smith,Bob Jones,Carol Davis',
+                                crew_members: 'Dave Tech,Eve Sound',
+                                bartender_count: 1,
+                                total_games: 12
+                            },
+                            {
+                                ShowID: 2,
+                                ShowName: 'Student Showcase',
+                                ShowType: 'Student Show',
+                                ShowTypeName: 'Student Show',
+                                ShowTypeID: 2,
+                                DirectorName: 'Jane Teacher',
+                                DirectorID: 102,
+                                ShowDate: '2025-11-08',
+                                ShowTime: '8:00 PM',
+                                RoomName: 'Studio B',
+                                Venue: 'Studio B',
+                                Description: 'Student level 3 graduation show',
+                                cast_members: 'Frank Student,Grace Learner,Henry Rookie',
+                                crew_members: 'Ian Support',
+                                bartender_count: 0,
+                                total_games: 8
+                            },
+                            {
+                                ShowID: 3,
+                                ShowName: 'Late Night Improv',
+                                ShowType: 'Late Night',
+                                ShowTypeName: 'Late Night',
+                                ShowTypeID: 3,
+                                DirectorName: 'Mike Night',
+                                DirectorID: 103,
+                                ShowDate: '2025-10-20',
+                                ShowTime: '10:30 PM',
+                                RoomName: 'Main Theater',
+                                Venue: 'Main Theater',
+                                Description: 'Adult-oriented late night show',
+                                cast_members: 'Jack Late,Kate Night,Leo Dark',
+                                crew_members: 'Mary Tech,Nick Sound',
+                                bartender_count: 2,
+                                total_games: 15
+                            }
+                        ];
+                        setShows(mockShows);
+                        const stats = calculateShowStats(mockShows);
+                        setShowStats(stats);
+                        setMessage({ type: 'info', text: 'Using mock data for local testing. Deploy to Google Apps Script to see real data.' });
+                    } else {
+                        setMessage({ type: 'error', text: 'Error loading shows' });
+                    }
                 } finally {
                     setIsLoading(false);
                 }
@@ -3298,6 +3364,45 @@
                     }
                 } catch (error) {
                     console.error('Error loading modal data:', error);
+                    
+                    // For local testing, use mock data
+                    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                        console.log('Loading mock dropdown data for local testing');
+                        setShowTypes([
+                            { ShowTypeID: 1, ShowTypeName: 'Mainstage' },
+                            { ShowTypeID: 2, ShowTypeName: 'Student Show' },
+                            { ShowTypeID: 3, ShowTypeName: 'Late Night' }
+                        ]);
+                        setRooms([
+                            { RoomID: 1, RoomName: 'Main Theater' },
+                            { RoomID: 2, RoomName: 'Studio B' },
+                            { RoomID: 3, RoomName: 'Black Box' }
+                        ]);
+                        setDirectors([
+                            { PersonnelID: 101, FirstName: 'John', LastName: 'Director' },
+                            { PersonnelID: 102, FirstName: 'Jane', LastName: 'Teacher' },
+                            { PersonnelID: 103, FirstName: 'Mike', LastName: 'Night' }
+                        ]);
+                        setCastMembers([
+                            { PersonnelID: 201, FirstName: 'Alice', LastName: 'Smith' },
+                            { PersonnelID: 202, FirstName: 'Bob', LastName: 'Jones' },
+                            { PersonnelID: 203, FirstName: 'Carol', LastName: 'Davis' }
+                        ]);
+                        setBartenders([
+                            { PersonnelID: 301, FirstName: 'Dan', LastName: 'Bartender' },
+                            { PersonnelID: 302, FirstName: 'Eva', LastName: 'Server' }
+                        ]);
+                        setCrewDutyTypes([
+                            { CrewDutyID: 1, DutyName: 'Sound Tech' },
+                            { CrewDutyID: 2, DutyName: 'Light Tech' },
+                            { CrewDutyID: 3, DutyName: 'Stage Manager' }
+                        ]);
+                        setMasterGames([
+                            { GameID: 1, Name: 'Yes And' },
+                            { GameID: 2, Name: 'Word Association' },
+                            { GameID: 3, Name: 'Scene Painting' }
+                        ]);
+                    }
                 }
             };
 
