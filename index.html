@@ -3342,7 +3342,17 @@
                     console.log('getShowGames response:', response);
                     
                     if (response.success) {
-                        const gamesData = response.data || [];
+                        // Handle different response structures
+                        let gamesData = response.data || [];
+                        
+                        // If data has nested structure, extract the actual array
+                        if (gamesData.data && Array.isArray(gamesData.data)) {
+                            gamesData = gamesData.data;
+                        } else if (!Array.isArray(gamesData)) {
+                            console.log('Warning: gamesData is not an array:', gamesData);
+                            gamesData = [];
+                        }
+                        
                         console.log('Setting logged games:', gamesData);
                         // Convert to the format needed for the UI
                         const formattedGames = gamesData.map(game => ({
@@ -3525,6 +3535,14 @@
                             if (!gamesResponse.success) {
                                 console.error('Error saving games:', gamesResponse.error);
                                 setMessage({ type: 'warning', text: 'Show saved but there was an issue saving games' });
+                                return;
+                            } else if (gamesResponse.flaggedGamesProcessed > 0) {
+                                setMessage({ 
+                                    type: 'success', 
+                                    text: `Show saved successfully! ${gamesResponse.flaggedGamesProcessed} custom game(s) added to Master Game List.`
+                                });
+                                handleCloseModal();
+                                loadShows();
                                 return;
                             }
                         }

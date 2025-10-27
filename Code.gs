@@ -1879,6 +1879,7 @@ function getShowGames(showId) {
  * WRITE OPERATION: Updates all games played for a specific show
  * DATA TARGET: GamesPlayed sheet
  * LOGIC: Deletes existing records for show, then inserts new ones
+ * ALSO: Processes flagged custom games and adds them to MasterGameList
  */
 function updateShowGames(showId, gamesArray) {
   try {
@@ -1895,7 +1896,40 @@ function updateShowGames(showId, gamesArray) {
     deleteRowsByCondition(gamesPlayedSheet, 'ShowID', showId);
     Logger.log(`Deleted existing games for ShowID: ${showId}`);
     
-    // Insert new games
+    // Process flagged games first (add to MasterGameList)
+    const flaggedGames = gamesArray.filter(game => game.flag && game.customName);
+    Logger.log(`Found ${flaggedGames.length} flagged custom games to add to master list`);
+    
+    if (flaggedGames.length > 0) {
+      const masterGameListSheet = getSheet(SHEET_CONFIG.masterGameList);
+      
+      flaggedGames.forEach((flaggedGame) => {
+        // Check if game already exists in master list
+        const existingGames = sheetToObjects(masterGameListSheet);
+        const existingGame = existingGames.find(g => 
+          g.Name && g.Name.toLowerCase() === flaggedGame.customName.toLowerCase()
+        );
+        
+        if (!existingGame) {
+          // Add new game to master list
+          const newMasterGame = {
+            Name: flaggedGame.customName,
+            GameType: 'Improv', // Default type
+            PlayerCount: 'Varies', // Default player count
+            'SHORT DESCRIPTION': `Custom game added from show ${showId}`,
+            'SETUP / EDITS / STAGE DIRECTION': '',
+            'Short/Long Form': 'Short'
+          };
+          
+          addOrUpdateRow(masterGameListSheet, newMasterGame, 0);
+          Logger.log(`Added flagged game "${flaggedGame.customName}" to MasterGameList`);
+        } else {
+          Logger.log(`Game "${flaggedGame.customName}" already exists in MasterGameList`);
+        }
+      });
+    }
+    
+    // Insert new games into GamesPlayed
     if (gamesArray && gamesArray.length > 0) {
       gamesArray.forEach((gameObj, index) => {
         const gameRecord = {
@@ -1912,7 +1946,7 @@ function updateShowGames(showId, gamesArray) {
     }
     
     Logger.log(`Successfully updated games for show ${showId}`);
-    return { success: true, message: 'Games updated successfully' };
+    return { success: true, message: 'Games updated successfully', flaggedGamesProcessed: flaggedGames.length };
   } catch (error) {
     Logger.log(`ERROR in updateShowGames(): ${error.toString()}`);
     return { success: false, error: error.toString() };
