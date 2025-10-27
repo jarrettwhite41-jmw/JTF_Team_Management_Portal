@@ -3138,6 +3138,16 @@
                     console.log('- HouseManagerCrewID:', show.HouseManagerCrewID);
                     console.log('- BartenderID:', show.BartenderID);
                     
+                    // Debug: Log cast members data
+                    console.log('Show CastMembers:', show.CastMembers);
+                    console.log('CastMembers length:', show.CastMembers ? show.CastMembers.length : 'undefined');
+                    
+                    // Extract cast member IDs from the CastMembers array
+                    const existingCastAssignments = show.CastMembers && Array.isArray(show.CastMembers) 
+                        ? show.CastMembers.map(castMember => castMember.PersonnelID || castMember.CastMemberID).filter(id => id)
+                        : [];
+                    console.log('Extracted cast assignments:', existingCastAssignments);
+                    
                     setFormData({
                         ShowID: show.ShowID,
                         ShowTypeID: show.ShowTypeID || '',
@@ -3146,7 +3156,7 @@
                         RoomID: show.RoomID || '',
                         DirectorID: show.DirectorID || '',
                         ShowNotes: show.ShowNotes || '',
-                        castAssignments: [],
+                        castAssignments: existingCastAssignments,
                         techCrew: show.TechCrewID || show.TechCrew || '',
                         boxOfficeCrew: show.BoxOfficeCrewID || show.BoxOfficeCrew || '',
                         houseManagerCrew: show.HouseManagerCrewID || show.HouseManagerCrew || '',
