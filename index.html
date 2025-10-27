@@ -2962,6 +2962,10 @@
             const [bartenders, setBartenders] = useState([]);
             const [crewDutyTypes, setCrewDutyTypes] = useState([]);
             
+            // Cast assignment UI state
+            const [castSearchTerm, setCastSearchTerm] = useState('');
+            const [showOnlySelected, setShowOnlySelected] = useState(false);
+            
             // Form state
             const [formData, setFormData] = useState({
                 ShowTypeID: '',
@@ -3185,6 +3189,9 @@
             const handleCloseModal = () => {
                 setShowModal(false);
                 setSelectedShow(null);
+                // Reset cast assignment UI state
+                setCastSearchTerm('');
+                setShowOnlySelected(false);
                 setFormData({
                     ShowTypeID: '',
                     ShowDate: '',
@@ -3222,6 +3229,53 @@
                         };
                     }
                 });
+            };
+
+            // Enhanced cast member filtering and sorting
+            const getFilteredAndSortedCastMembers = () => {
+                let filtered = castMembers;
+                
+                // Apply search filter
+                if (castSearchTerm.trim()) {
+                    filtered = filtered.filter(cast => {
+                        const fullName = cast.FullName || `${cast.FirstName} ${cast.LastName}`;
+                        return fullName.toLowerCase().includes(castSearchTerm.toLowerCase());
+                    });
+                }
+                
+                // Apply selection filter
+                if (showOnlySelected) {
+                    filtered = filtered.filter(cast => 
+                        formData.castAssignments.includes(cast.CastMemberID)
+                    );
+                }
+                
+                // Sort alphabetically by name
+                return filtered.sort((a, b) => {
+                    const nameA = a.FullName || `${a.FirstName} ${a.LastName}`;
+                    const nameB = b.FullName || `${b.FirstName} ${b.LastName}`;
+                    return nameA.localeCompare(nameB);
+                });
+            };
+
+            const handleSelectAllCast = () => {
+                const filteredMembers = getFilteredAndSortedCastMembers();
+                const filteredIds = filteredMembers.map(cast => cast.CastMemberID);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    castAssignments: [...new Set([...prev.castAssignments, ...filteredIds])]
+                }));
+            };
+
+            const handleDeselectAllCast = () => {
+                const filteredMembers = getFilteredAndSortedCastMembers();
+                const filteredIds = filteredMembers.map(cast => cast.CastMemberID);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    castAssignments: prev.castAssignments.filter(id => !filteredIds.includes(id))
+                }));
             };
 
             const handleSaveShow = async () => {
@@ -3489,31 +3543,135 @@
                             e('div', { className: 'bg-gray-50 p-4 rounded-lg' },
                                 e('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Cast & Crew Assignments'),
                                 
-                                // Cast Members (Multi-select)
+                                // Cast Members (Enhanced Multi-select)
                                 e('div', { className: 'mb-4' },
                                     e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 
                                         `Assign Cast (${formData.castAssignments.length} selected)`
                                     ),
-                                    e('div', { className: 'border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white' },
-                                        castMembers.length === 0 ? 
-                                            e('p', { className: 'text-sm text-gray-500 italic' }, 'No cast members available') :
-                                            castMembers.map(cast =>
-                                                e('label', { 
+                                    
+                                    // Search and filter controls
+                                    e('div', { className: 'mb-3 space-y-2' },
+                                        // Search input
+                                        e('div', { className: 'relative' },
+                                            e('input', {
+                                                type: 'text',
+                                                placeholder: 'Search cast members...',
+                                                value: castSearchTerm,
+                                                onChange: (ev) => setCastSearchTerm(ev.target.value),
+                                                className: 'w-full px-3 py-2 pl-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm'
+                                            }),
+                                            e('svg', {
+                                                className: 'absolute left-2 top-2.5 h-4 w-4 text-gray-400',
+                                                fill: 'none',
+                                                stroke: 'currentColor',
+                                                viewBox: '0 0 24 24'
+                                            },
+                                                e('path', {
+                                                    strokeLinecap: 'round',
+                                                    strokeLinejoin: 'round',
+                                                    strokeWidth: 2,
+                                                    d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'
+                                                })
+                                            )
+                                        ),
+                                        
+                                        // Control buttons
+                                        e('div', { className: 'flex flex-wrap gap-2' },
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: () => setShowOnlySelected(!showOnlySelected),
+                                                className: `px-3 py-1 text-xs rounded-lg border ${
+                                                    showOnlySelected 
+                                                        ? 'bg-blue-50 border-blue-300 text-blue-700' 
+                                                        : 'bg-white border-gray-300 text-gray-700'
+                                                } hover:bg-blue-50`
+                                            }, showOnlySelected ? '✓ Show Selected Only' : 'Show Selected Only'),
+                                            
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: handleSelectAllCast,
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                                            }, 'Select All Visible'),
+                                            
+                                            e('button', {
+                                                type: 'button',
+                                                onClick: handleDeselectAllCast,
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                                            }, 'Deselect All Visible'),
+                                            
+                                            castSearchTerm && e('button', {
+                                                type: 'button',
+                                                onClick: () => setCastSearchTerm(''),
+                                                className: 'px-3 py-1 text-xs rounded-lg border border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-100'
+                                            }, 'Clear Search')
+                                        )
+                                    ),
+                                    
+                                    // Cast member list
+                                    e('div', { 
+                                        className: 'border border-gray-300 rounded-lg bg-white',
+                                        style: { maxHeight: '300px', overflowY: 'auto' }
+                                    },
+                                        (() => {
+                                            const filteredCastMembers = getFilteredAndSortedCastMembers();
+                                            
+                                            if (castMembers.length === 0) {
+                                                return e('p', { className: 'text-sm text-gray-500 italic p-4' }, 'No cast members available');
+                                            }
+                                            
+                                            if (filteredCastMembers.length === 0) {
+                                                return e('div', { className: 'p-4 text-center' },
+                                                    e('p', { className: 'text-sm text-gray-500 italic mb-2' }, 
+                                                        castSearchTerm ? 'No cast members match your search' : 'No selected cast members'
+                                                    ),
+                                                    castSearchTerm && e('button', {
+                                                        type: 'button',
+                                                        onClick: () => setCastSearchTerm(''),
+                                                        className: 'text-xs text-blue-600 hover:text-blue-800 underline'
+                                                    }, 'Clear search to see all members')
+                                                );
+                                            }
+                                            
+                                            return filteredCastMembers.map((cast, index) => {
+                                                const isSelected = formData.castAssignments.includes(cast.CastMemberID);
+                                                return e('label', { 
                                                     key: cast.CastMemberID,
-                                                    className: 'flex items-center py-2 hover:bg-gray-50 px-2 rounded cursor-pointer'
+                                                    className: `flex items-center py-2 px-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 ${
+                                                        isSelected ? 'bg-blue-50' : ''
+                                                    }`
                                                 },
                                                     e('input', {
                                                         type: 'checkbox',
-                                                        checked: formData.castAssignments.includes(cast.CastMemberID),
+                                                        checked: isSelected,
                                                         onChange: () => handleCastSelection(cast.CastMemberID),
                                                         className: 'mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500'
                                                     }),
-                                                    e('span', { className: 'text-sm text-gray-700' }, 
-                                                        cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                    e('div', { className: 'flex-1 min-w-0' },
+                                                        e('span', { className: 'text-sm text-gray-900 font-medium block truncate' }, 
+                                                            cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                        ),
+                                                        cast.Status && e('span', { 
+                                                            className: `text-xs px-2 py-0.5 rounded-full ml-2 ${
+                                                                cast.Status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                                                            }`
+                                                        }, cast.Status)
                                                     )
-                                                )
-                                            )
-                                    )
+                                                );
+                                            });
+                                        })()
+                                    ),
+                                    
+                                    // Summary info
+                                    (() => {
+                                        const filteredCount = getFilteredAndSortedCastMembers().length;
+                                        const totalCount = castMembers.length;
+                                        const selectedCount = formData.castAssignments.length;
+                                        
+                                        return e('div', { className: 'mt-2 text-xs text-gray-600' },
+                                            `Showing ${filteredCount} of ${totalCount} cast members`,
+                                            selectedCount > 0 && ` • ${selectedCount} selected`
+                                        );
+                                    })()
                                 ),
 
                                 // Crew Duties
