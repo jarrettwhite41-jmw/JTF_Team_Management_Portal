@@ -17,13 +17,31 @@ export const Shows: React.FC = () => {
   const loadShows = async () => {
     setIsLoading(true);
     try {
-      const response = await gasService.getAllShows();
-      if (response.success && response.data) {
-        setShows(response.data);
+      // Try to get enhanced show details first
+      let response = await gasService.getShowsWithDetails();
+      
+      // If the enhanced function fails, fall back to basic getAllShows
+      if (!response.success || !response.data) {
+        console.log('getShowsWithDetails failed, falling back to getAllShows:', response.error);
+        response = await gasService.getAllShows();
+        
+        if (response.success && response.data) {
+          // Transform basic show data to match ShowWithDetails structure
+          const enhancedShows = response.data.map(show => ({
+            ...show,
+            ShowTypeName: `Type ${show.ShowTypeID}`,
+            DirectorName: 'TBD',
+            CastMembers: []
+          }));
+          setShows(enhancedShows);
+        } else {
+          setMessage({ type: 'error', text: response.error || 'Failed to load shows' });
+        }
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to load shows' });
+        setShows(response.data);
       }
     } catch (error) {
+      console.error('Error loading shows:', error);
       setMessage({ type: 'error', text: 'Error loading shows data' });
     } finally {
       setIsLoading(false);

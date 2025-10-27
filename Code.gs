@@ -1,5 +1,5 @@
 /**
- * 3JTF Team Management Portal - Google Apps Script Backend
+ * 1JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -583,7 +583,21 @@ function deletePersonnel(personnelId) {
  */
 function getAllShows() {
   try {
-    Logger.log('getAllShows() called - fetching from ShowInformation sheet');
+    Logger.log('getAllShows() called - trying enhanced version first');
+    
+    // Try to call the enhanced version first
+    try {
+      const enhancedResult = getShowsWithDetails();
+      if (enhancedResult && enhancedResult.success) {
+        Logger.log('Using enhanced show data from getShowsWithDetails');
+        return enhancedResult.data;
+      }
+    } catch (enhancedError) {
+      Logger.log(`Enhanced version failed, falling back to basic: ${enhancedError.toString()}`);
+    }
+    
+    // Fallback to basic version
+    Logger.log('Using basic show data from ShowInformation sheet');
     const sheet = getSheet(SHEET_CONFIG.showInformation);
     const shows = sheetToObjects(sheet);
     
@@ -594,6 +608,213 @@ function getAllShows() {
   } catch (error) {
     Logger.log(`ERROR in getAllShows(): ${error.toString()}`);
     throw new Error('Failed to retrieve shows data');
+  }
+}
+
+/**
+ * READ OPERATION: Gets all shows with enhanced details
+ * DATA SOURCES: ShowInformation + ShowTypes + Directors + Personnel + Cast
+ * JOINS: ShowInformation → ShowTypes (ShowTypeID), Directors → Personnel (PersonnelID), ShowPerformances → Personnel (CastMemberID)
+ * RETURNS: Array of ShowWithDetails objects including ShowTypeName, DirectorName, and CastMembers
+ */
+function getShowsWithDetails() {
+  try {
+    Logger.log('getShowsWithDetails() called - fetching enhanced show data');
+    
+    // Get base show data
+    const showSheet = getSheet(SHEET_CONFIG.showInformation);
+    const shows = sheetToObjects(showSheet);
+    Logger.log(`Retrieved ${shows.length} shows`);
+    Logger.log(`Sample show data:`, shows.length > 0 ? JSON.stringify(shows[0]) : 'No shows found');
+    Logger.log(`Show DirectorIDs:`, shows.map(s => `Show ${s.ShowID}: DirectorID=${s.DirectorID}`));
+    
+    // Get lookup data with error handling
+    let showTypes = [];
+    try {
+      const showTypesSheet = getSheet(SHEET_CONFIG.showTypes);
+      showTypes = sheetToObjects(showTypesSheet);
+      Logger.log(`Retrieved ${showTypes.length} show types`);
+      Logger.log(`Sample show type:`, showTypes.length > 0 ? JSON.stringify(showTypes[0]) : 'No show types found');
+      Logger.log(`All show types:`, JSON.stringify(showTypes));
+    } catch (e) {
+      Logger.log(`Warning: Could not load show types: ${e.toString()}`);
+    }
+    
+    let directors = [];
+    try {
+      const directorsSheet = getSheet('Directors');
+      directors = sheetToObjects(directorsSheet);
+      Logger.log(`Retrieved ${directors.length} directors`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load directors: ${e.toString()}`);
+    }
+    
+    let personnel = [];
+    try {
+      const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+      personnel = sheetToObjects(personnelSheet);
+      Logger.log(`Retrieved ${personnel.length} personnel`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load personnel: ${e.toString()}`);
+    }
+    
+    let performances = [];
+    try {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      performances = sheetToObjects(performancesSheet);
+      Logger.log(`Retrieved ${performances.length} performances`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load performances: ${e.toString()}`);
+    }
+    
+    // Get rooms data if it exists
+    let rooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      rooms = sheetToObjects(roomsSheet);
+      Logger.log(`Retrieved ${rooms.length} rooms`);
+    } catch (e) {
+      Logger.log(`Info: Rooms sheet not found, using Venue field instead: ${e.toString()}`);
+    }
+
+    // Get crew duties data
+    let crewDuties = [];
+    let crewDutyTypes = [];
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      crewDuties = sheetToObjects(crewDutiesSheet);
+      
+      const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+      crewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+      
+      Logger.log(`Retrieved ${crewDuties.length} crew duties and ${crewDutyTypes.length} crew duty types`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load crew duties: ${e.toString()}`);
+    }
+
+    // Get bartender shifts data
+    let bartenderShifts = [];
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      bartenderShifts = sheetToObjects(bartenderShiftsSheet);
+      Logger.log(`Retrieved ${bartenderShifts.length} bartender shifts`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load bartender shifts: ${e.toString()}`);
+    }
+    
+    // Enhance each show with details
+    const enhancedShows = shows.map(show => {
+      // Get show type name - handle both 'ShowTypeName' and 'Name' column names
+      const showType = showTypes.find(st => st.ShowTypeID == show.ShowTypeID);
+      let showTypeName = `Type ${show.ShowTypeID || 'Unknown'}`;
+      if (showType) {
+        // Try different possible column names for show type name
+        showTypeName = showType.Name || showType.ShowTypeName || showType.TypeName || showTypeName;
+      }
+      Logger.log(`Show ${show.ShowID}: ShowTypeID=${show.ShowTypeID}, found showType:`, showType, `final name: ${showTypeName}`);
+      
+      // Get director information - try two approaches
+      const director = directors.find(d => d.DirectorID == show.DirectorID);
+      let directorName = 'TBD';
+      
+      if (director) {
+        // Standard approach: DirectorID → Directors → Personnel
+        const directorPerson = personnel.find(p => p.PersonnelID == director.PersonnelID);
+        if (directorPerson) {
+          directorName = `${directorPerson.FirstName} ${directorPerson.LastName}`;
+        } else {
+          Logger.log(`Show ${show.ShowID}: Found director ${director.DirectorID} but no personnel with ID ${director.PersonnelID}`);
+        }
+      } else {
+        // Fallback approach: DirectorID might be PersonnelID directly
+        Logger.log(`Show ${show.ShowID}: No director found for DirectorID ${show.DirectorID}, trying as PersonnelID directly`);
+        const directPersonnel = personnel.find(p => p.PersonnelID == show.DirectorID);
+        if (directPersonnel) {
+          directorName = `${directPersonnel.FirstName} ${directPersonnel.LastName}`;
+          Logger.log(`Show ${show.ShowID}: Found director via direct PersonnelID lookup: ${directorName}`);
+        } else {
+          Logger.log(`Show ${show.ShowID}: No personnel found with ID ${show.DirectorID}. Available directors:`, directors.map(d => d.DirectorID));
+        }
+      }
+      Logger.log(`Show ${show.ShowID}: DirectorID=${show.DirectorID}, final name: ${directorName}`);
+      
+      // Get room information if RoomID exists, otherwise use Venue
+      let venue = show.Venue || '';
+      if (show.RoomID && rooms.length > 0) {
+        const room = rooms.find(r => r.RoomID == show.RoomID);
+        if (room) {
+          venue = room.RoomName || room.Name || venue;
+        }
+      }
+      
+      // Get cast members for this show
+      const showPerformances = performances.filter(p => p.ShowID == show.ShowID);
+      const castMembers = showPerformances.map(performance => {
+        const castPerson = personnel.find(p => p.PersonnelID == performance.CastMemberID);
+        return castPerson ? {
+          ...castPerson,
+          Role: performance.Role
+        } : null;
+      }).filter(member => member !== null);
+      
+      // Format show time properly
+      let formattedShowTime = show.ShowTime;
+      if (show.ShowTime) {
+        try {
+          // Convert the time to a proper format
+          const timeDate = new Date(show.ShowTime);
+          if (!isNaN(timeDate.getTime())) {
+            // Format as time only (e.g., "9:15 PM")
+            formattedShowTime = timeDate.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true
+            });
+          }
+        } catch (e) {
+          Logger.log(`Warning: Could not format show time for show ${show.ShowID}: ${e.toString()}`);
+        }
+      }
+      
+      // Get crew assignments for this show
+      const showCrewDuties = crewDuties.filter(cd => cd.ShowID == show.ShowID);
+      
+      // Get specific crew types
+      const techDutyType = crewDutyTypes.find(t => t.DutyName === 'Tech');
+      const boxDutyType = crewDutyTypes.find(t => t.DutyName === 'Box' || t.DutyName === 'Box Office');
+      const houseDutyType = crewDutyTypes.find(t => t.DutyName === 'House' || t.DutyName === 'House Manager');
+      
+      // Find crew members by duty type
+      const techCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == techDutyType?.CrewDutyTypeID);
+      const boxOfficeCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == boxDutyType?.CrewDutyTypeID);
+      const houseManagerCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == houseDutyType?.CrewDutyTypeID);
+      
+      // Get bartender assignment for this show
+      const bartenderShift = bartenderShifts.find(bs => bs.ShowID == show.ShowID);
+
+      return {
+        ...show,
+        ShowTime: formattedShowTime,
+        ShowTypeName: showTypeName,
+        DirectorName: directorName,
+        Venue: venue,
+        CastMembers: castMembers,
+        // Add crew assignment data
+        TechCrew: techCrew?.CastMemberID || null,
+        BoxOfficeCrew: boxOfficeCrew?.CastMemberID || null,
+        HouseManagerCrew: houseManagerCrew?.CastMemberID || null,
+        BartenderAssignment: bartenderShift?.PersonnelID || null
+      };
+    });
+    
+    Logger.log(`Enhanced ${enhancedShows.length} shows with details`);
+    Logger.log(`Sample enhanced show: ${enhancedShows.length > 0 ? JSON.stringify(enhancedShows[0]) : 'No shows found'}`);
+    
+    return { success: true, data: enhancedShows };
+  } catch (error) {
+    Logger.log(`ERROR in getShowsWithDetails(): ${error.toString()}`);
+    Logger.log(`Error stack: ${error.stack}`);
+    return { success: false, data: [], error: error.toString() };
   }
 }
 
@@ -618,6 +839,326 @@ function createShow(showData) {
     Logger.log(`ERROR in createShow(): ${error.toString()}`);
     throw new Error('Failed to create show');
   }
+}
+
+/**
+ * CREATE/UPDATE OPERATION: Creates or updates a show with cast and crew assignments
+ * DATA FLOW: Complete show data → ShowInformation + ShowPerformances + CrewDuties + BartenderShifts sheets
+ * @param {Object} showData - Complete show data including cast/crew assignments
+ * RETURNS: Success status and show ID
+ */
+function createOrUpdateShow(showData) {
+  try {
+    Logger.log(`=== createOrUpdateShow() called ===`);
+    Logger.log(`Show data: ${JSON.stringify(showData)}`);
+    
+    const showInfoSheet = getSheet(SHEET_CONFIG.showInformation);
+    
+    // Prepare core show data (without cast/crew arrays)
+    const coreShowData = {
+      ShowTypeID: showData.ShowTypeID,
+      ShowDate: showData.ShowDate,
+      ShowTime: showData.ShowTime,
+      RoomID: showData.RoomID,
+      DirectorID: showData.DirectorID,
+      ShowNotes: showData.ShowNotes || ''
+    };
+    
+    let showId;
+    
+    // Create or update the show record
+    if (showData.ShowID) {
+      // UPDATE existing show
+      coreShowData.ShowID = showData.ShowID;
+      showId = showData.ShowID;
+      Logger.log(`Updating existing show ${showId}`);
+    } else {
+      // CREATE new show
+      showId = getNextId(showInfoSheet, 0);
+      coreShowData.ShowID = showId;
+      Logger.log(`Creating new show with ID ${showId}`);
+    }
+    
+    // Save core show data
+    addOrUpdateRow(showInfoSheet, coreShowData, 0);
+    Logger.log(`Show ${showId} saved to ShowInformation`);
+    
+    // Handle cast assignments (ShowPerformances table)
+    if (showData.castAssignments && showData.castAssignments.length > 0) {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      
+      // If updating, remove old cast assignments for this show
+      if (showData.ShowID) {
+        deleteRowsByCondition(performancesSheet, 'ShowID', showId);
+      }
+      
+      // Add new cast assignments
+      showData.castAssignments.forEach(castMemberId => {
+        const performanceData = {
+          ShowID: showId,
+          CastMemberID: castMemberId,
+          Role: 'Performer'
+        };
+        addOrUpdateRow(performancesSheet, performanceData, 0);
+        Logger.log(`Added cast member ${castMemberId} to show ${showId}`);
+      });
+    }
+    
+    // Handle crew duty assignments (CrewDuties table)
+    const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+    
+    // Get CrewDutyType IDs
+    const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+    const allCrewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+    
+    const techDutyType = allCrewDutyTypes.find(t => t.DutyName === 'Tech');
+    const boxDutyType = allCrewDutyTypes.find(t => t.DutyName === 'Box' || t.DutyName === 'Box Office');
+    const houseDutyType = allCrewDutyTypes.find(t => t.DutyName === 'House' || t.DutyName === 'House Manager');
+    
+    // If updating, remove old crew assignments for this show
+    if (showData.ShowID) {
+      deleteRowsByCondition(crewDutiesSheet, 'ShowID', showId);
+    }
+    
+    // Add Tech crew
+    if (showData.techCrew && techDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.techCrew,
+        CrewDutyTypeID: techDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added Tech crew member ${showData.techCrew}`);
+    }
+    
+    // Add Box Office crew
+    if (showData.boxOfficeCrew && boxDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.boxOfficeCrew,
+        CrewDutyTypeID: boxDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added Box Office crew member ${showData.boxOfficeCrew}`);
+    }
+    
+    // Add House Manager crew
+    if (showData.houseManagerCrew && houseDutyType) {
+      addOrUpdateRow(crewDutiesSheet, {
+        ShowID: showId,
+        CastMemberID: showData.houseManagerCrew,
+        CrewDutyTypeID: houseDutyType.CrewDutyTypeID
+      }, 0);
+      Logger.log(`Added House Manager crew member ${showData.houseManagerCrew}`);
+    }
+    
+    // Handle bartender assignment (BartenderShifts table)
+    if (showData.bartenderAssignment) {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      
+      // If updating, remove old bartender for this show
+      if (showData.ShowID) {
+        deleteRowsByCondition(bartenderShiftsSheet, 'ShowID', showId);
+      }
+      
+      // Add new bartender
+      addOrUpdateRow(bartenderShiftsSheet, {
+        ShowID: showId,
+        PersonnelID: showData.bartenderAssignment
+      }, 0);
+      Logger.log(`Added bartender ${showData.bartenderAssignment}`);
+    }
+    
+    Logger.log(`=== Show ${showId} fully saved with all assignments ===`);
+    
+    return {
+      success: true,
+      data: {
+        ShowID: showId,
+        message: showData.ShowID ? 'Show updated successfully' : 'Show created successfully'
+      }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in createOrUpdateShow(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * DELETE OPERATION: Deletes a show and all related records
+ * DATA FLOW: Deletes from ShowInformation, ShowPerformances, CrewDuties, BartenderShifts
+ * @param {number} showId - The ShowID to delete
+ */
+function deleteShow(showId) {
+  try {
+    Logger.log(`=== deleteShow(${showId}) called ===`);
+    
+    // Delete from ShowInformation
+    const showInfoSheet = getSheet(SHEET_CONFIG.showInformation);
+    const showDeleted = deleteRow(showInfoSheet, showId, 0);
+    
+    if (!showDeleted) {
+      Logger.log(`Show ${showId} not found in ShowInformation`);
+      return { success: false, error: 'Show not found' };
+    }
+    
+    // Delete related records from ShowPerformances
+    try {
+      const performancesSheet = getSheet(SHEET_CONFIG.showPerformances);
+      deleteRowsByCondition(performancesSheet, 'ShowID', showId);
+      Logger.log(`Deleted cast assignments for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No cast assignments to delete: ${e.toString()}`);
+    }
+    
+    // Delete related records from CrewDuties
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      deleteRowsByCondition(crewDutiesSheet, 'ShowID', showId);
+      Logger.log(`Deleted crew assignments for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No crew assignments to delete: ${e.toString()}`);
+    }
+    
+    // Delete related records from BartenderShifts
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      deleteRowsByCondition(bartenderShiftsSheet, 'ShowID', showId);
+      Logger.log(`Deleted bartender assignment for show ${showId}`);
+    } catch (e) {
+      Logger.log(`No bartender assignment to delete: ${e.toString()}`);
+    }
+    
+    Logger.log(`=== Show ${showId} and all related records deleted ===`);
+    
+    return {
+      success: true,
+      data: { message: 'Show deleted successfully' }
+    };
+    
+  } catch (error) {
+    Logger.log(`ERROR in deleteShow(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all rooms for dropdown selection
+ * DATA SOURCE: Rooms sheet
+ * RETURNS: Array of room objects
+ */
+function getAllRooms() {
+  try {
+    Logger.log('getAllRooms() called');
+    const sheet = getSheet('Rooms');
+    const rooms = sheetToObjects(sheet);
+    Logger.log(`Retrieved ${rooms.length} rooms`);
+    return { success: true, data: rooms };
+  } catch (error) {
+    Logger.log(`ERROR in getAllRooms(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all directors for dropdown selection
+ * DATA SOURCE: Directors table joined with Personnel
+ * RETURNS: Array of director objects with names
+ */
+function getAllDirectors() {
+  try {
+    Logger.log('getAllDirectors() called');
+    const directorsSheet = getSheet('Directors');
+    const allDirectors = sheetToObjects(directorsSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const directorsWithNames = allDirectors.map(director => {
+      const person = allPersonnel.find(p => p.PersonnelID == director.PersonnelID);
+      return {
+        DirectorID: director.DirectorID,
+        PersonnelID: director.PersonnelID,
+        FirstName: person ? person.FirstName : '',
+        LastName: person ? person.LastName : '',
+        DirectorName: person ? `${person.FirstName} ${person.LastName}` : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Retrieved ${directorsWithNames.length} directors`);
+    return { success: true, data: directorsWithNames };
+  } catch (error) {
+    Logger.log(`ERROR in getAllDirectors(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all bartenders for dropdown selection
+ * DATA SOURCE: Bartenders table joined with Personnel
+ * RETURNS: Array of bartender objects with names
+ */
+function getAllBartenders() {
+  try {
+    Logger.log('getAllBartenders() called');
+    const bartendersSheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(bartendersSheet);
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const bartendersWithNames = allBartenders.map(bartender => {
+      const person = allPersonnel.find(p => p.PersonnelID == bartender.PersonnelID);
+      return {
+        BartenderID: bartender.BartenderID,
+        PersonnelID: bartender.PersonnelID,
+        FirstName: person ? person.FirstName : '',
+        LastName: person ? person.LastName : '',
+        FullName: person ? `${person.FirstName} ${person.LastName}` : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Retrieved ${bartendersWithNames.length} bartenders`);
+    return { success: true, data: bartendersWithNames };
+  } catch (error) {
+    Logger.log(`ERROR in getAllBartenders(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * HELPER FUNCTION: Deletes rows that match a condition
+ * @param {Sheet} sheet - The sheet to delete from
+ * @param {string} columnName - The column to check
+ * @param {*} value - The value to match
+ */
+function deleteRowsByCondition(sheet, columnName, value) {
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const columnIndex = headers.indexOf(columnName);
+  
+  if (columnIndex === -1) {
+    Logger.log(`Column ${columnName} not found in sheet ${sheet.getName()}`);
+    return 0;
+  }
+  
+  let deletedCount = 0;
+  
+  // Start from bottom to avoid index shifting issues
+  for (let i = data.length - 1; i > 0; i--) {
+    if (data[i][columnIndex] == value) {
+      sheet.deleteRow(i + 1);
+      deletedCount++;
+    }
+  }
+  
+  Logger.log(`Deleted ${deletedCount} rows from ${sheet.getName()} where ${columnName} = ${value}`);
+  return deletedCount;
 }
 
 // =============================================================================
@@ -1212,7 +1753,7 @@ function getSheetHeaders(sheetName) {
       'AttendanceID', 'RehearsalID', 'PersonnelID', 'AttendanceStatus'
     ],
     [SHEET_CONFIG.showTypes]: [
-      'ShowTypeID', 'ShowTypeName', 'Description'
+      'ShowTypeID', 'Name', 'ShowDescription'
     ],
     [SHEET_CONFIG.classLevels]: [
       'ClassLevelID', 'LevelName', 'Description'

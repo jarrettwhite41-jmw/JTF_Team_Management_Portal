@@ -198,6 +198,41 @@
                 return this.callServerFunction('getAllShows');
             }
 
+            // CREATE/UPDATE: Create or update a show in ShowInformation sheet
+            async createOrUpdateShow(showData) {
+                return this.callServerFunction('createOrUpdateShow', showData);
+            }
+
+            // DELETE: Delete a show from ShowInformation sheet
+            async deleteShow(showId) {
+                return this.callServerFunction('deleteShow', showId);
+            }
+
+            // READ: Get all show types for dropdown
+            async getAllShowTypes() {
+                return this.callServerFunction('getAllShowTypes');
+            }
+
+            // READ: Get all rooms for dropdown
+            async getAllRooms() {
+                return this.callServerFunction('getAllRooms');
+            }
+
+            // READ: Get all directors for dropdown
+            async getAllDirectors() {
+                return this.callServerFunction('getAllDirectors');
+            }
+
+            // READ: Get all bartenders for dropdown
+            async getAllBartenders() {
+                return this.callServerFunction('getAllBartenders');
+            }
+
+            // READ: Get all crew duty types
+            async getAllCrewDutyTypes() {
+                return this.callServerFunction('getAllCrewDutyTypes');
+            }
+
             // ===================================================================
             // CLASS CRUD API METHODS
             // These methods interact with the ClassOfferings sheet in Google Sheets
@@ -1450,7 +1485,8 @@
                 ),
                 
                 e('div', { className: 'p-4 border-t' },
-                    e('p', { className: 'text-xs text-gray-500' }, '© 2024 JTF Team Portal')
+                    e('p', { className: 'text-xs text-gray-500' }, '© 2024 JTF Team Portal'),
+                    e('p', { className: 'text-xs text-gray-400 mt-1' }, 'v1.0.1 - Updated from VS Code')
                 )
             );
         }
@@ -2907,10 +2943,670 @@
 
         // Placeholder Components for other pages
 
+        // Shows Component - Full Show Management
         function Shows() {
-            return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Shows'),
-                e('p', { className: 'text-gray-600' }, 'Show management functionality coming soon...')
+            const [shows, setShows] = useState([]);
+            const [filteredShows, setFilteredShows] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+            const [selectedShow, setSelectedShow] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Dropdown data
+            const [showTypes, setShowTypes] = useState([]);
+            const [rooms, setRooms] = useState([]);
+            const [directors, setDirectors] = useState([]);
+            const [castMembers, setCastMembers] = useState([]);
+            const [bartenders, setBartenders] = useState([]);
+            const [crewDutyTypes, setCrewDutyTypes] = useState([]);
+            
+            // Form state
+            const [formData, setFormData] = useState({
+                ShowTypeID: '',
+                ShowDate: '',
+                ShowTime: '',
+                RoomID: '',
+                DirectorID: '',
+                ShowNotes: '',
+                // Cast and crew assignments
+                castAssignments: [], // Array of CastMemberIDs
+                techCrew: '',
+                boxOfficeCrew: '',
+                houseManagerCrew: '',
+                bartenderAssignment: ''
+            });
+            const [isSaving, setIsSaving] = useState(false);
+
+            useEffect(() => {
+                loadShows();
+            }, []);
+
+            useEffect(() => {
+                applyFilters();
+            }, [shows, searchTerm]);
+
+            const loadShows = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllShows();
+                    console.log('getAllShows response:', response);
+
+                    if (response.success && response.data) {
+                        const showData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                        setShows(showData);
+                    } else if (Array.isArray(response)) {
+                        setShows(response);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load shows' });
+                    }
+                } catch (error) {
+                    console.error('Error loading shows:', error);
+                    setMessage({ type: 'error', text: 'Error loading shows' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const applyFilters = () => {
+                let filtered = [...shows];
+
+                if (searchTerm) {
+                    filtered = filtered.filter(show =>
+                        (show.ShowType && show.ShowType.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (show.DirectorName && show.DirectorName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (show.RoomName && show.RoomName.toLowerCase().includes(searchTerm.toLowerCase()))
+                    );
+                }
+
+                setFilteredShows(filtered);
+            };
+
+            const loadModalData = async () => {
+                try {
+                    const [typesResp, roomsResp, directorsResp, castResp, bartendersResp, crewTypesResp] = await Promise.all([
+                        gasService.getAllShowTypes(),
+                        gasService.getAllRooms(),
+                        gasService.getAllDirectors(),
+                        gasService.getAllCastMembers(),
+                        gasService.getAllBartenders(),
+                        gasService.getAllCrewDutyTypes()
+                    ]);
+
+                    if (typesResp.success || Array.isArray(typesResp)) {
+                        setShowTypes(Array.isArray(typesResp) ? typesResp : (typesResp.data?.data || typesResp.data || []));
+                    }
+                    if (roomsResp.success || Array.isArray(roomsResp)) {
+                        setRooms(Array.isArray(roomsResp) ? roomsResp : (roomsResp.data?.data || roomsResp.data || []));
+                    }
+                    if (directorsResp.success || Array.isArray(directorsResp)) {
+                        setDirectors(Array.isArray(directorsResp) ? directorsResp : (directorsResp.data?.data || directorsResp.data || []));
+                    }
+                    if (castResp.success || Array.isArray(castResp)) {
+                        setCastMembers(Array.isArray(castResp) ? castResp : (castResp.data?.data || castResp.data || []));
+                    }
+                    if (bartendersResp.success || Array.isArray(bartendersResp)) {
+                        setBartenders(Array.isArray(bartendersResp) ? bartendersResp : (bartendersResp.data?.data || bartendersResp.data || []));
+                    }
+                    if (crewTypesResp.success || Array.isArray(crewTypesResp)) {
+                        setCrewDutyTypes(Array.isArray(crewTypesResp) ? crewTypesResp : (crewTypesResp.data?.data || crewTypesResp.data || []));
+                    }
+                } catch (error) {
+                    console.error('Error loading modal data:', error);
+                }
+            };
+
+            const handleOpenModal = (mode, show = null) => {
+                setModalMode(mode);
+                setSelectedShow(show);
+                
+                if (mode === 'edit' && show) {
+                    // Convert ShowTime to proper time format for HTML time input
+                    let timeValue = '';
+                    if (show.ShowTime) {
+                        console.log('Original ShowTime value:', show.ShowTime);
+                        console.log('ShowTime type:', typeof show.ShowTime);
+                        
+                        try {
+                            // Try parsing as formatted time first (e.g., "9:15 PM")
+                            if (show.ShowTime.includes('PM') || show.ShowTime.includes('AM')) {
+                                // Parse 12-hour format time like "9:15 PM"
+                                const timeRegex = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i;
+                                const match = show.ShowTime.match(timeRegex);
+                                
+                                if (match) {
+                                    let hours = parseInt(match[1]);
+                                    const minutes = match[2];
+                                    const period = match[3].toUpperCase();
+                                    
+                                    // Convert to 24-hour format
+                                    if (period === 'PM' && hours !== 12) {
+                                        hours += 12;
+                                    } else if (period === 'AM' && hours === 12) {
+                                        hours = 0;
+                                    }
+                                    
+                                    timeValue = `${hours.toString().padStart(2, '0')}:${minutes}`;
+                                    console.log('Converted 12-hour to 24-hour:', timeValue);
+                                } else {
+                                    console.log('12-hour format regex did not match');
+                                    timeValue = show.ShowTime;
+                                }
+                            } else {
+                                // Try parsing as timestamp or other format
+                                const timeDate = new Date(show.ShowTime);
+                                console.log('Parsed Date object:', timeDate);
+                                console.log('Is valid date:', !isNaN(timeDate.getTime()));
+                                
+                                if (!isNaN(timeDate.getTime())) {
+                                    // Format as HH:MM for HTML time input
+                                    timeValue = timeDate.toLocaleTimeString('en-GB', { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit',
+                                        hour12: false 
+                                    });
+                                    console.log('Formatted time value:', timeValue);
+                                } else {
+                                    // If it's already in HH:MM format, use as is
+                                    timeValue = show.ShowTime;
+                                    console.log('Using original value (not a valid date):', timeValue);
+                                }
+                            }
+                        } catch (e) {
+                            // Fallback to original value
+                            console.log('Error parsing time:', e);
+                            timeValue = show.ShowTime;
+                        }
+                    } else {
+                        console.log('No ShowTime provided');
+                    }
+                    
+                    console.log('Final timeValue for form:', timeValue);
+                    
+                    // Debug: Log all show data to see what crew fields are available
+                    console.log('Complete show object:', show);
+                    console.log('Show crew fields:');
+                    console.log('- TechCrew:', show.TechCrew);
+                    console.log('- BoxOfficeCrew:', show.BoxOfficeCrew);
+                    console.log('- HouseManagerCrew:', show.HouseManagerCrew);
+                    console.log('- BartenderAssignment:', show.BartenderAssignment);
+                    console.log('- TechCrewID:', show.TechCrewID);
+                    console.log('- BoxOfficeCrewID:', show.BoxOfficeCrewID);
+                    console.log('- HouseManagerCrewID:', show.HouseManagerCrewID);
+                    console.log('- BartenderID:', show.BartenderID);
+                    
+                    // Debug: Log cast members data
+                    console.log('Show CastMembers:', show.CastMembers);
+                    console.log('CastMembers length:', show.CastMembers ? show.CastMembers.length : 'undefined');
+                    
+                    // Extract cast member IDs from the CastMembers array
+                    const existingCastAssignments = show.CastMembers && Array.isArray(show.CastMembers) 
+                        ? show.CastMembers.map(castMember => castMember.PersonnelID || castMember.CastMemberID).filter(id => id)
+                        : [];
+                    console.log('Extracted cast assignments:', existingCastAssignments);
+                    
+                    setFormData({
+                        ShowID: show.ShowID,
+                        ShowTypeID: show.ShowTypeID || '',
+                        ShowDate: show.ShowDate ? show.ShowDate.split('T')[0] : '',
+                        ShowTime: timeValue,
+                        RoomID: show.RoomID || '',
+                        DirectorID: show.DirectorID || '',
+                        ShowNotes: show.ShowNotes || '',
+                        castAssignments: existingCastAssignments,
+                        techCrew: show.TechCrewID || show.TechCrew || '',
+                        boxOfficeCrew: show.BoxOfficeCrewID || show.BoxOfficeCrew || '',
+                        houseManagerCrew: show.HouseManagerCrewID || show.HouseManagerCrew || '',
+                        bartenderAssignment: show.BartenderID || show.BartenderAssignment || ''
+                    });
+                } else {
+                    setFormData({
+                        ShowTypeID: '',
+                        ShowDate: '',
+                        ShowTime: '',
+                        RoomID: '',
+                        DirectorID: '',
+                        ShowNotes: '',
+                        castAssignments: [],
+                        techCrew: '',
+                        boxOfficeCrew: '',
+                        houseManagerCrew: '',
+                        bartenderAssignment: ''
+                    });
+                }
+                
+                setShowModal(true);
+                loadModalData();
+            };
+
+            const handleCloseModal = () => {
+                setShowModal(false);
+                setSelectedShow(null);
+                setFormData({
+                    ShowTypeID: '',
+                    ShowDate: '',
+                    ShowTime: '',
+                    RoomID: '',
+                    DirectorID: '',
+                    ShowNotes: '',
+                    castAssignments: [],
+                    techCrew: '',
+                    boxOfficeCrew: '',
+                    houseManagerCrew: '',
+                    bartenderAssignment: ''
+                });
+            };
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: value
+                }));
+            };
+
+            const handleCastSelection = (castMemberId) => {
+                setFormData(prev => {
+                    const currentSelections = prev.castAssignments || [];
+                    if (currentSelections.includes(castMemberId)) {
+                        return {
+                            ...prev,
+                            castAssignments: currentSelections.filter(id => id !== castMemberId)
+                        };
+                    } else {
+                        return {
+                            ...prev,
+                            castAssignments: [...currentSelections, castMemberId]
+                        };
+                    }
+                });
+            };
+
+            const handleSaveShow = async () => {
+                // Validation
+                if (!formData.ShowTypeID || !formData.ShowDate || !formData.ShowTime) {
+                    setMessage({ type: 'error', text: 'Please fill in Show Type, Date, and Time' });
+                    return;
+                }
+
+                setIsSaving(true);
+                try {
+                    const response = await gasService.createOrUpdateShow(formData);
+
+                    if (response.success) {
+                        setMessage({ 
+                            type: 'success', 
+                            text: modalMode === 'create' ? 'Show created successfully!' : 'Show updated successfully!' 
+                        });
+                        handleCloseModal();
+                        loadShows();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to save show' });
+                    }
+                } catch (error) {
+                    console.error('Error saving show:', error);
+                    setMessage({ type: 'error', text: 'Error saving show' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteShow = async (showId) => {
+                if (!confirm('Are you sure you want to delete this show?')) {
+                    return;
+                }
+
+                try {
+                    const response = await gasService.deleteShow(showId);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Show deleted successfully' });
+                        loadShows();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to delete show' });
+                    }
+                } catch (error) {
+                    console.error('Error deleting show:', error);
+                    setMessage({ type: 'error', text: 'Error deleting show' });
+                }
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading shows...' });
+            }
+
+            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+                // Header
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Show Management'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredShows.length} shows`)
+                    ),
+                    e('button', {
+                        onClick: () => handleOpenModal('create'),
+                        className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                    },
+                        e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                        ),
+                        '+ Create New Show'
+                    )
+                ),
+
+                message && e(Message, {
+                    type: message.type,
+                    message: message.text,
+                    onClose: () => setMessage(null)
+                }),
+
+                // Search
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search shows by type, director, or room...',
+                        value: searchTerm,
+                        onChange: (ev) => setSearchTerm(ev.target.value),
+                        className: 'w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    })
+                ),
+
+                // Shows Table
+                filteredShows.length === 0 ? (
+                    e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
+                        e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' })
+                        ),
+                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No shows found'),
+                        e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Get started by creating your first show'),
+                        e('div', { className: 'mt-6' },
+                            e('button', {
+                                onClick: () => handleOpenModal('create'),
+                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                            },
+                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                ),
+                                'Create New Show'
+                            )
+                        )
+                    )
+                ) : (
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden' },
+                        e('table', { className: 'min-w-full divide-y divide-gray-200' },
+                            e('thead', { className: 'bg-gray-50' },
+                                e('tr', null,
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Date'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Time'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Show Type'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Director'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Room'),
+                                    e('th', { className: 'px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Actions')
+                                )
+                            ),
+                            e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                                filteredShows.map(show =>
+                                    e('tr', { key: show.ShowID, className: 'hover:bg-gray-50' },
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            show.ShowDate ? new Date(show.ShowDate).toLocaleDateString() : '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            show.ShowTime || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            show.ShowType || show.ShowTypeName || `Type ${show.ShowTypeID || '-'}`
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                                            show.DirectorName || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                                            show.RoomName || show.Venue || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium' },
+                                            e('div', { className: 'flex justify-end gap-2' },
+                                                e('button', {
+                                                    onClick: () => handleOpenModal('edit', show),
+                                                    className: 'text-blue-600 hover:text-blue-900'
+                                                }, 'Edit'),
+                                                e('button', {
+                                                    onClick: () => handleDeleteShow(show.ShowID),
+                                                    className: 'text-red-600 hover:text-red-900'
+                                                }, 'Delete')
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                // Create/Edit Show Modal
+                showModal && e('div', { 
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    onClick: handleCloseModal
+                },
+                    e('div', { 
+                        className: 'bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        // Modal Header
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10' },
+                            e('h2', { className: 'text-2xl font-bold text-gray-900' }, 
+                                modalMode === 'create' ? 'Create New Show' : 'Edit Show'
+                            ),
+                            e('button', {
+                                onClick: handleCloseModal,
+                                className: 'text-gray-400 hover:text-gray-600 text-2xl font-bold'
+                            }, '×')
+                        ),
+
+                        // Modal Body
+                        e('div', { className: 'px-6 py-6 space-y-6' },
+                            // Section 1: Core Show Details
+                            e('div', { className: 'bg-gray-50 p-4 rounded-lg' },
+                                e('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Show Details'),
+                                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                                    // Show Type
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Type *'),
+                                        e('select', {
+                                            value: formData.ShowTypeID,
+                                            onChange: (ev) => handleInputChange('ShowTypeID', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Show Type --'),
+                                            showTypes.map(type =>
+                                                e('option', { key: type.ShowTypeID, value: type.ShowTypeID }, type.ShowTypeName || type.Name)
+                                            )
+                                        )
+                                    ),
+                                    // Show Date
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Date *'),
+                                        e('input', {
+                                            type: 'date',
+                                            value: formData.ShowDate,
+                                            onChange: (ev) => handleInputChange('ShowDate', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        })
+                                    ),
+                                    // Show Time
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Time *'),
+                                        e('input', {
+                                            type: 'time',
+                                            value: formData.ShowTime,
+                                            onChange: (ev) => handleInputChange('ShowTime', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        })
+                                    ),
+                                    // Room
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Room'),
+                                        e('select', {
+                                            value: formData.RoomID,
+                                            onChange: (ev) => handleInputChange('RoomID', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Room --'),
+                                            rooms.map(room =>
+                                                e('option', { key: room.RoomID, value: room.RoomID }, room.RoomName)
+                                            )
+                                        )
+                                    ),
+                                    // Director
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Director'),
+                                        e('select', {
+                                            value: formData.DirectorID,
+                                            onChange: (ev) => handleInputChange('DirectorID', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Director --'),
+                                            directors.map(director =>
+                                                e('option', { 
+                                                    key: director.PersonnelID, 
+                                                    value: director.PersonnelID 
+                                                }, director.DirectorName || `${director.FirstName} ${director.LastName}`)
+                                            )
+                                        )
+                                    )
+                                ),
+                                // Show Notes
+                                e('div', { className: 'mt-4' },
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Notes'),
+                                    e('textarea', {
+                                        value: formData.ShowNotes,
+                                        onChange: (ev) => handleInputChange('ShowNotes', ev.target.value),
+                                        rows: 3,
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                    })
+                                )
+                            ),
+
+                            // Section 2: Cast & Crew Assignments
+                            e('div', { className: 'bg-gray-50 p-4 rounded-lg' },
+                                e('h3', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Cast & Crew Assignments'),
+                                
+                                // Cast Members (Multi-select)
+                                e('div', { className: 'mb-4' },
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 
+                                        `Assign Cast (${formData.castAssignments.length} selected)`
+                                    ),
+                                    e('div', { className: 'border border-gray-300 rounded-lg p-3 max-h-48 overflow-y-auto bg-white' },
+                                        castMembers.length === 0 ? 
+                                            e('p', { className: 'text-sm text-gray-500 italic' }, 'No cast members available') :
+                                            castMembers.map(cast =>
+                                                e('label', { 
+                                                    key: cast.CastMemberID,
+                                                    className: 'flex items-center py-2 hover:bg-gray-50 px-2 rounded cursor-pointer'
+                                                },
+                                                    e('input', {
+                                                        type: 'checkbox',
+                                                        checked: formData.castAssignments.includes(cast.CastMemberID),
+                                                        onChange: () => handleCastSelection(cast.CastMemberID),
+                                                        className: 'mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500'
+                                                    }),
+                                                    e('span', { className: 'text-sm text-gray-700' }, 
+                                                        cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                    )
+                                                )
+                                            )
+                                    )
+                                ),
+
+                                // Crew Duties
+                                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
+                                    // Tech
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Tech'),
+                                        e('select', {
+                                            value: formData.techCrew,
+                                            onChange: (ev) => handleInputChange('techCrew', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Tech --'),
+                                            castMembers.map(cast =>
+                                                e('option', { key: cast.CastMemberID, value: cast.CastMemberID }, 
+                                                    cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    // Box Office
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Box Office'),
+                                        e('select', {
+                                            value: formData.boxOfficeCrew,
+                                            onChange: (ev) => handleInputChange('boxOfficeCrew', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Box Office --'),
+                                            castMembers.map(cast =>
+                                                e('option', { key: cast.CastMemberID, value: cast.CastMemberID }, 
+                                                    cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    // House Manager
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'House Manager'),
+                                        e('select', {
+                                            value: formData.houseManagerCrew,
+                                            onChange: (ev) => handleInputChange('houseManagerCrew', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select House Manager --'),
+                                            castMembers.map(cast =>
+                                                e('option', { key: cast.CastMemberID, value: cast.CastMemberID }, 
+                                                    cast.FullName || `${cast.FirstName} ${cast.LastName}`
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    // Bartender
+                                    e('div', null,
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Bartender'),
+                                        e('select', {
+                                            value: formData.bartenderAssignment,
+                                            onChange: (ev) => handleInputChange('bartenderAssignment', ev.target.value),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, '-- Select Bartender --'),
+                                            bartenders.map(bartender =>
+                                                e('option', { key: bartender.BartenderID, value: bartender.PersonnelID }, 
+                                                    bartender.FullName || `${bartender.FirstName} ${bartender.LastName}`
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+
+                        // Modal Footer
+                        e('div', { className: 'px-6 py-4 border-t border-gray-200 flex justify-end gap-3 sticky bottom-0 bg-white' },
+                            e('button', {
+                                onClick: handleCloseModal,
+                                disabled: isSaving,
+                                className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50'
+                            }, 'Cancel'),
+                            e('button', {
+                                onClick: handleSaveShow,
+                                disabled: isSaving,
+                                className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2'
+                            },
+                                isSaving && e('svg', { className: 'animate-spin h-4 w-4', fill: 'none', viewBox: '0 0 24 24' },
+                                    e('circle', { className: 'opacity-25', cx: '12', cy: '12', r: '10', stroke: 'currentColor', strokeWidth: '4' }),
+                                    e('path', { className: 'opacity-75', fill: 'currentColor', d: 'M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z' })
+                                ),
+                                isSaving ? 'Saving...' : 'Save Show'
+                            )
+                        )
+                    )
+                )
             );
         }
 
