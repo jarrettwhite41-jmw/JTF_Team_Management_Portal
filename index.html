@@ -3126,6 +3126,18 @@
                     
                     console.log('Final timeValue for form:', timeValue);
                     
+                    // Debug: Log all show data to see what crew fields are available
+                    console.log('Complete show object:', show);
+                    console.log('Show crew fields:');
+                    console.log('- TechCrew:', show.TechCrew);
+                    console.log('- BoxOfficeCrew:', show.BoxOfficeCrew);
+                    console.log('- HouseManagerCrew:', show.HouseManagerCrew);
+                    console.log('- BartenderAssignment:', show.BartenderAssignment);
+                    console.log('- TechCrewID:', show.TechCrewID);
+                    console.log('- BoxOfficeCrewID:', show.BoxOfficeCrewID);
+                    console.log('- HouseManagerCrewID:', show.HouseManagerCrewID);
+                    console.log('- BartenderID:', show.BartenderID);
+                    
                     setFormData({
                         ShowID: show.ShowID,
                         ShowTypeID: show.ShowTypeID || '',
@@ -3135,10 +3147,10 @@
                         DirectorID: show.DirectorID || '',
                         ShowNotes: show.ShowNotes || '',
                         castAssignments: [],
-                        techCrew: '',
-                        boxOfficeCrew: '',
-                        houseManagerCrew: '',
-                        bartenderAssignment: ''
+                        techCrew: show.TechCrewID || show.TechCrew || '',
+                        boxOfficeCrew: show.BoxOfficeCrewID || show.BoxOfficeCrew || '',
+                        houseManagerCrew: show.HouseManagerCrewID || show.HouseManagerCrew || '',
+                        bartenderAssignment: show.BartenderID || show.BartenderAssignment || ''
                     });
                 } else {
                     setFormData({

@@ -676,6 +676,31 @@ function getShowsWithDetails() {
     } catch (e) {
       Logger.log(`Info: Rooms sheet not found, using Venue field instead: ${e.toString()}`);
     }
+
+    // Get crew duties data
+    let crewDuties = [];
+    let crewDutyTypes = [];
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      crewDuties = sheetToObjects(crewDutiesSheet);
+      
+      const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+      crewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+      
+      Logger.log(`Retrieved ${crewDuties.length} crew duties and ${crewDutyTypes.length} crew duty types`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load crew duties: ${e.toString()}`);
+    }
+
+    // Get bartender shifts data
+    let bartenderShifts = [];
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      bartenderShifts = sheetToObjects(bartenderShiftsSheet);
+      Logger.log(`Retrieved ${bartenderShifts.length} bartender shifts`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load bartender shifts: ${e.toString()}`);
+    }
     
     // Enhance each show with details
     const enhancedShows = shows.map(show => {
@@ -751,13 +776,34 @@ function getShowsWithDetails() {
         }
       }
       
+      // Get crew assignments for this show
+      const showCrewDuties = crewDuties.filter(cd => cd.ShowID == show.ShowID);
+      
+      // Get specific crew types
+      const techDutyType = crewDutyTypes.find(t => t.DutyName === 'Tech');
+      const boxDutyType = crewDutyTypes.find(t => t.DutyName === 'Box' || t.DutyName === 'Box Office');
+      const houseDutyType = crewDutyTypes.find(t => t.DutyName === 'House' || t.DutyName === 'House Manager');
+      
+      // Find crew members by duty type
+      const techCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == techDutyType?.CrewDutyTypeID);
+      const boxOfficeCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == boxDutyType?.CrewDutyTypeID);
+      const houseManagerCrew = showCrewDuties.find(cd => cd.CrewDutyTypeID == houseDutyType?.CrewDutyTypeID);
+      
+      // Get bartender assignment for this show
+      const bartenderShift = bartenderShifts.find(bs => bs.ShowID == show.ShowID);
+
       return {
         ...show,
         ShowTime: formattedShowTime,
         ShowTypeName: showTypeName,
         DirectorName: directorName,
         Venue: venue,
-        CastMembers: castMembers
+        CastMembers: castMembers,
+        // Add crew assignment data
+        TechCrew: techCrew?.CastMemberID || null,
+        BoxOfficeCrew: boxOfficeCrew?.CastMemberID || null,
+        HouseManagerCrew: houseManagerCrew?.CastMemberID || null,
+        BartenderAssignment: bartenderShift?.PersonnelID || null
       };
     });
     
