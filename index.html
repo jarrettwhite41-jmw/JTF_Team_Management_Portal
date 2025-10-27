@@ -2974,6 +2974,21 @@
             const [selectedShow, setSelectedShow] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
             
+            // Enhanced filtering and sorting state
+            const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'active', 'completed'
+            const [typeFilter, setTypeFilter] = useState('all');
+            const [dateFilter, setDateFilter] = useState('all');
+            const [sortConfig, setSortConfig] = useState({ key: 'ShowDate', direction: 'asc' });
+            const [viewMode, setViewMode] = useState('table'); // 'table', 'cards', 'calendar'
+            
+            // Quick stats state
+            const [showStats, setShowStats] = useState({
+                total: 0,
+                upcoming: 0,
+                active: 0,
+                completed: 0
+            });
+            
             // Dropdown data
             const [showTypes, setShowTypes] = useState([]);
             const [rooms, setRooms] = useState([]);
@@ -3023,6 +3038,187 @@
                 applyFilters();
             }, [shows, searchTerm]);
 
+            // ===================================================================
+            // UTILITY FUNCTIONS FOR ENHANCED SHOWS MANAGEMENT
+            // ===================================================================
+            
+            const getShowStatus = (showDate) => {
+                if (!showDate) return 'unknown';
+                const today = new Date();
+                const show = new Date(showDate);
+                today.setHours(0, 0, 0, 0);
+                show.setHours(0, 0, 0, 0);
+                
+                if (show < today) return 'past';
+                if (show.getTime() === today.getTime()) return 'today';
+                return 'upcoming';
+            };
+            
+            const calculateShowStats = (allShows) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const oneWeekFromNow = new Date(today);
+                oneWeekFromNow.setDate(today.getDate() + 7);
+                
+                const oneMonthFromNow = new Date(today);
+                oneMonthFromNow.setMonth(today.getMonth() + 1);
+                
+                const stats = {
+                    total: allShows.length,
+                    past: 0,
+                    today: 0,
+                    upcoming: 0,
+                    thisWeek: 0,
+                    thisMonth: 0
+                };
+                
+                allShows.forEach(show => {
+                    if (!show.ShowDate) return;
+                    
+                    const showDate = new Date(show.ShowDate);
+                    showDate.setHours(0, 0, 0, 0);
+                    
+                    const status = getShowStatus(show.ShowDate);
+                    stats[status]++;
+                    
+                    if (status === 'upcoming') {
+                        if (showDate <= oneWeekFromNow) stats.thisWeek++;
+                        if (showDate <= oneMonthFromNow) stats.thisMonth++;
+                    }
+                });
+                
+                return stats;
+            };
+            
+            const getEnhancedFilteredShows = () => {
+                let filtered = [...shows];
+                
+                // Text search
+                if (searchTerm.trim()) {
+                    filtered = filtered.filter(show => {
+                        const searchFields = [
+                            show.ShowTypeName,
+                            show.DirectorName,
+                            show.Venue,
+                            show.ShowNotes
+                        ].filter(Boolean).join(' ').toLowerCase();
+                        
+                        return searchFields.includes(searchTerm.toLowerCase());
+                    });
+                }
+                
+                // Status filter
+                if (statusFilter !== 'all') {
+                    filtered = filtered.filter(show => getShowStatus(show.ShowDate) === statusFilter);
+                }
+                
+                // Type filter
+                if (typeFilter) {
+                    filtered = filtered.filter(show => show.ShowTypeID == typeFilter);
+                }
+                
+                // Date range filter
+                if (dateFilter.start || dateFilter.end) {
+                    filtered = filtered.filter(show => {
+                        if (!show.ShowDate) return false;
+                        const showDate = new Date(show.ShowDate);
+                        
+                        if (dateFilter.start && showDate < new Date(dateFilter.start)) return false;
+                        if (dateFilter.end && showDate > new Date(dateFilter.end)) return false;
+                        
+                        return true;
+                    });
+                }
+                
+                // Sort
+                filtered.sort((a, b) => {
+                    let comparison = 0;
+                    
+                    switch (sortBy) {
+                        case 'date':
+                            const dateA = new Date(a.ShowDate || 0);
+                            const dateB = new Date(b.ShowDate || 0);
+                            comparison = dateA - dateB;
+                            break;
+                        case 'type':
+                            comparison = (a.ShowTypeName || '').localeCompare(b.ShowTypeName || '');
+                            break;
+                        case 'director':
+                            comparison = (a.DirectorName || '').localeCompare(b.DirectorName || '');
+                            break;
+                        default:
+                            comparison = 0;
+                    }
+                    
+                    return sortOrder === 'desc' ? -comparison : comparison;
+                });
+                
+                return filtered;
+            };
+            
+            const handleDuplicateShow = (show) => {
+                const duplicatedShow = {
+                    ...show,
+                    ShowID: null, // Clear ID for new show
+                    ShowDate: '', // Clear date
+                    ShowTime: show.ShowTime || '',
+                    ShowNotes: `Copy of: ${show.ShowNotes || ''}`.trim()
+                };
+                
+                setSelectedShow(duplicatedShow);
+                setModalMode('create');
+                setShowModal(true);
+                loadModalData();
+            };
+            
+            const checkPersonConflicts = (showData) => {
+                const conflicts = [];
+                
+                // Check if cast members are also in crew
+                if (showData.castAssignments && showData.castAssignments.length > 0) {
+                    const crewMembers = [
+                        showData.techCrew,
+                        showData.boxOfficeCrew,
+                        showData.houseManagerCrew,
+                        showData.bartenderAssignment
+                    ].filter(Boolean);
+                    
+                    const castCrewOverlap = showData.castAssignments.filter(castId => 
+                        crewMembers.includes(castId.toString())
+                    );
+                    
+                    if (castCrewOverlap.length > 0) {
+                        conflicts.push(`Person(s) assigned to both cast and crew: ${castCrewOverlap.join(', ')}`);
+                    }
+                }
+                
+                // Check if same person is in multiple crew positions
+                const crewPositions = [
+                    { role: 'Tech', person: showData.techCrew },
+                    { role: 'Box Office', person: showData.boxOfficeCrew },
+                    { role: 'House Manager', person: showData.houseManagerCrew },
+                    { role: 'Bartender', person: showData.bartenderAssignment }
+                ].filter(pos => pos.person);
+                
+                const personCounts = {};
+                crewPositions.forEach(pos => {
+                    if (personCounts[pos.person]) {
+                        personCounts[pos.person].push(pos.role);
+                    } else {
+                        personCounts[pos.person] = [pos.role];
+                    }
+                });
+                
+                Object.entries(personCounts).forEach(([personId, roles]) => {
+                    if (roles.length > 1) {
+                        conflicts.push(`Person assigned to multiple crew positions: ${roles.join(', ')}`);
+                    }
+                });
+                
+                return conflicts;
+            };
+
             const loadShows = async () => {
                 setIsLoading(true);
                 try {
@@ -3034,8 +3230,14 @@
                             ? response.data 
                             : (response.data.data || []);
                         setShows(showData);
+                        
+                        // Calculate and set stats
+                        const stats = calculateShowStats(showData);
+                        setShowStats(stats);
                     } else if (Array.isArray(response)) {
                         setShows(response);
+                        const stats = calculateShowStats(response);
+                        setShowStats(stats);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to load shows' });
                     }
@@ -3583,6 +3785,14 @@
                 }
             };
 
+            const handleSort = (key) => {
+                let direction = 'asc';
+                if (sortConfig.key === key && sortConfig.direction === 'asc') {
+                    direction = 'desc';
+                }
+                setSortConfig({ key, direction });
+            };
+
             if (isLoading) {
                 return e(Loader, { text: 'Loading shows...' });
             }
@@ -3622,6 +3832,90 @@
                     })
                 ),
 
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4' },
+                        // Status Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Status'),
+                            e('select', {
+                                value: statusFilter,
+                                onChange: (ev) => setStatusFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Statuses'),
+                                e('option', { value: 'upcoming' }, 'Upcoming'),
+                                e('option', { value: 'active' }, 'Active'),
+                                e('option', { value: 'completed' }, 'Completed')
+                            )
+                        ),
+                        // Type Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Type'),
+                            e('select', {
+                                value: typeFilter,
+                                onChange: (ev) => setTypeFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Types'),
+                                ...Array.from(new Set(shows.map(s => s.ShowType || s.ShowTypeName).filter(Boolean))).map(type =>
+                                    e('option', { key: type, value: type }, type)
+                                )
+                            )
+                        ),
+                        // Date Range Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Date Range'),
+                            e('select', {
+                                value: dateFilter,
+                                onChange: (ev) => setDateFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Time'),
+                                e('option', { value: 'past-week' }, 'Past Week'),
+                                e('option', { value: 'past-month' }, 'Past Month'),
+                                e('option', { value: 'next-week' }, 'Next Week'),
+                                e('option', { value: 'next-month' }, 'Next Month')
+                            )
+                        ),
+                        // View Mode Toggle
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'View'),
+                            e('div', { className: 'flex border border-gray-300 rounded-md' },
+                                e('button', {
+                                    onClick: () => setViewMode('table'),
+                                    className: `px-3 py-2 text-sm font-medium ${viewMode === 'table' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-50'} border-r border-gray-300`
+                                }, 'Table'),
+                                e('button', {
+                                    onClick: () => setViewMode('cards'),
+                                    className: `px-3 py-2 text-sm font-medium ${viewMode === 'cards' ? 'bg-blue-100 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}`
+                                }, 'Cards')
+                            )
+                        )
+                    ),
+                    // Stats Summary Row
+                    showStats && e('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
+                        e('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-blue-600' }, showStats.total),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Total Shows')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-yellow-600' }, showStats.upcoming),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Upcoming')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-blue-600' }, showStats.active),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Active')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-green-600' }, showStats.completed),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Completed')
+                            )
+                        )
+                    )
+                ),
+
                 // Shows Table
                 filteredShows.length === 0 ? (
                     e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
@@ -3647,38 +3941,83 @@
                         e('table', { className: 'min-w-full divide-y divide-gray-200' },
                             e('thead', { className: 'bg-gray-50' },
                                 e('tr', null,
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Date'),
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Time'),
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Show Type'),
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Director'),
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Room'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Status'),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('name')
+                                    }, 'Show Name ' + (sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('ShowType')
+                                    }, 'Type ' + (sortConfig.key === 'ShowType' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('DirectorName')
+                                    }, 'Director ' + (sortConfig.key === 'DirectorName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('ShowDate')
+                                    }, 'Date ' + (sortConfig.key === 'ShowDate' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Time & Room'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Cast/Crew'),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Games'),
                                     e('th', { className: 'px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Actions')
                                 )
                             ),
                             e('tbody', { className: 'bg-white divide-y divide-gray-200' },
-                                filteredShows.map(show =>
+                                getEnhancedFilteredShows().map(show =>
                                     e('tr', { key: show.ShowID, className: 'hover:bg-gray-50' },
-                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
-                                            show.ShowDate ? new Date(show.ShowDate).toLocaleDateString() : '-'
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('span', { 
+                                                className: `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                    getShowStatus(show) === 'completed' ? 'bg-green-100 text-green-800' :
+                                                    getShowStatus(show) === 'active' ? 'bg-blue-100 text-blue-800' :
+                                                    getShowStatus(show) === 'upcoming' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`
+                                            }, getShowStatus(show))
                                         ),
-                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
-                                            show.ShowTime || '-'
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('div', { className: 'text-sm font-medium text-gray-900' }, show.ShowName || '-'),
+                                            show.Description && e('div', { 
+                                                className: 'text-sm text-gray-500 truncate max-w-xs',
+                                                title: show.Description
+                                            }, show.Description)
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
                                             show.ShowType || show.ShowTypeName || `Type ${show.ShowTypeID || '-'}`
                                         ),
-                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
                                             show.DirectorName || '-'
                                         ),
-                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-500' },
-                                            show.RoomName || show.Venue || '-'
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            show.ShowDate ? new Date(show.ShowDate).toLocaleDateString() : '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('div', { className: 'text-sm text-gray-900' }, show.ShowTime || '-'),
+                                            e('div', { className: 'text-sm text-gray-500' }, show.RoomName || show.Venue || '-')
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('div', { className: 'text-sm text-gray-900' }, 
+                                                `Cast: ${show.cast_members ? show.cast_members.split(',').length : 0}`
+                                            ),
+                                            e('div', { className: 'text-sm text-gray-500' }, 
+                                                `Crew: ${(show.crew_members ? show.crew_members.split(',').length : 0) + (show.bartender_count || 0)}`
+                                            )
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            `${show.total_games || 0} games`
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium' },
                                             e('div', { className: 'flex justify-end gap-2' },
                                                 e('button', {
                                                     onClick: () => handleOpenModal('edit', show),
-                                                    className: 'text-blue-600 hover:text-blue-900'
+                                                    className: 'text-indigo-600 hover:text-indigo-900'
                                                 }, 'Edit'),
+                                                getShowStatus(show) !== 'completed' && e('button', {
+                                                    onClick: () => handleDuplicateShow(show),
+                                                    className: 'text-green-600 hover:text-green-900'
+                                                }, 'Duplicate'),
                                                 e('button', {
                                                     onClick: () => handleDeleteShow(show.ShowID),
                                                     className: 'text-red-600 hover:text-red-900'
