@@ -1585,13 +1585,25 @@ function addInventoryTransaction(transactionData) {
     
     const newId = getNextId(sheet, 0);
     
+    // Handle TransactionDate - ensure it's just a date (YYYY-MM-DD) without time/timezone
+    let transactionDate;
+    if (transactionData.TransactionDate) {
+      // If a date is provided, parse it and format as YYYY-MM-DD
+      const date = new Date(transactionData.TransactionDate);
+      transactionDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    } else {
+      // Use today's date in local timezone
+      const today = new Date();
+      transactionDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+    
     const transaction = {
       TransactionID: newId,
       ItemID: transactionData.ItemID,
       LocationID: transactionData.LocationID,
       PersonnelID: transactionData.PersonnelID,
       QuantityChange: transactionData.QuantityChange,
-      TransactionDate: transactionData.TransactionDate || new Date().toISOString(),
+      TransactionDate: transactionDate,
       TransactionType: transactionData.TransactionType || 'Manual Adjustment',
       Notes: transactionData.Notes || ''
     };
