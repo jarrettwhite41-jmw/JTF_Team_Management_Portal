@@ -1,5 +1,5 @@
 /**
- * 22JTF Team Management Portal - Google Apps Script Backend
+ * 23JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -30,7 +30,12 @@ const SHEET_CONFIG = {
   showInformation: 'ShowInformation',        // All shows/performances  
   classOfferings: 'ClassOfferings',          // Classes and workshops
   masterGameList: 'MasterGameList',          // Catalog of improv games
-  inventory: 'Inventory',                    // Equipment and supplies
+  
+  // NEW INVENTORY SCHEMA - Four-table relational model
+  inventoryItems: 'InventoryItems',          // Master catalog of items (what we stock)
+  inventoryCategories: 'InventoryCategories', // Item categories (lookup table)
+  storageLocations: 'StorageLocations',      // Physical storage locations (lookup table)
+  inventoryTransactions: 'InventoryTransactions', // All inventory changes (the ledger)
   
   // Cast member tracking
   castMemberView: 'Cast Member View',        // Cast member directory view
@@ -1386,26 +1391,88 @@ function getAllCastMembers() {
 }
 
 // =============================================================================
-// INVENTORY FUNCTIONS - FULL CRUD OPERATIONS
-// DATA SOURCE: 'Inventory' sheet
-// COLUMNS: ItemID | ItemName | Category | Quantity | Location | Notes
+// INVENTORY FUNCTIONS - NEW FOUR-TABLE RELATIONAL MODEL
+// DATA SOURCES: 'InventoryItems', 'InventoryCategories', 'StorageLocations', 'InventoryTransactions'
+// NEW SCHEMA: Current quantities calculated from InventoryTransactions.QuantityChange SUM
 // =============================================================================
 
 /**
- * READ OPERATION: Gets all inventory items
- * DATA SOURCE: Inventory sheet → all rows converted to objects
- * RETURNS: Array of inventory objects with ItemID, ItemName, Quantity, etc.
+ * READ OPERATION: Gets all inventory items with current quantities calculated from transactions
+ * DATA SOURCES: InventoryItems (master catalog) + InventoryCategories + StorageLocations + InventoryTransactions
+ * LOGIC: Calculates current stock by SUM(QuantityChange) grouped by ItemID and LocationID
+ * RETURNS: Array of inventory objects with ItemName, CategoryName, LocationName, CurrentQuantity, etc.
  */
 function getAllInventory() {
   try {
-    Logger.log('getAllInventory() called - fetching from Inventory sheet');
-    const sheet = getSheet(SHEET_CONFIG.inventory);
-    const inventory = sheetToObjects(sheet);
+    Logger.log('getAllInventory() called - fetching from new 4-table schema');
     
-    Logger.log(`Retrieved ${inventory.length} inventory records`);
-    Logger.log(`Sample item: ${inventory.length > 0 ? JSON.stringify(inventory[0]) : 'No inventory found'}`);
+    // Get all base tables
+    const itemsSheet = getSheet('InventoryItems');
+    const categoriesSheet = getSheet('InventoryCategories');
+    const locationsSheet = getSheet('StorageLocations');
+    const transactionsSheet = getSheet('InventoryTransactions');
     
-    return inventory;
+    const items = sheetToObjects(itemsSheet);
+    const categories = sheetToObjects(categoriesSheet);
+    const locations = sheetToObjects(locationsSheet);
+    const transactions = sheetToObjects(transactionsSheet);
+    
+    Logger.log(`Loaded ${items.length} items, ${categories.length} categories, ${locations.length} locations, ${transactions.length} transactions`);
+    
+    // Calculate current quantities from transactions
+    // Group by ItemID and LocationID, then SUM(QuantityChange)
+    const quantityMap = new Map(); // Key: "ItemID_LocationID", Value: total quantity
+    
+    transactions.forEach(transaction => {
+      const key = `${transaction.ItemID}_${transaction.LocationID}`;
+      const currentQty = quantityMap.get(key) || 0;
+      const changeAmount = parseInt(transaction.QuantityChange) || 0;
+      quantityMap.set(key, currentQty + changeAmount);
+    });
+    
+    Logger.log(`Calculated quantities for ${quantityMap.size} item-location combinations`);
+    
+    // Build inventory records with all details
+    const inventoryRecords = [];
+    
+    items.forEach(item => {
+      locations.forEach(location => {
+        const key = `${item.ItemID}_${location.LocationID}`;
+        const currentQuantity = quantityMap.get(key) || 0;
+        
+        // Only include records that have had transactions or we want to show all possible combinations
+        // For now, let's include all combinations but mark zero quantities
+        const category = categories.find(c => c.CategoryID == item.CategoryID);
+        
+        inventoryRecords.push({
+          ItemID: item.ItemID,
+          ItemName: item.ItemName,
+          CategoryID: item.CategoryID,
+          CategoryName: category ? category.CategoryName : 'Unknown Category',
+          LocationID: location.LocationID,
+          LocationName: location.LocationName,
+          SKU: item.SKU || '',
+          ReorderPoint: item.ReorderPoint || 0,
+          Description: item.Description || '',
+          CurrentQuantity: currentQuantity,
+          
+          // Stock status calculation
+          StockStatus: currentQuantity <= 0 ? 'Out of Stock' : 
+                      currentQuantity <= (item.ReorderPoint || 0) ? 'Low Stock' : 'Available'
+        });
+      });
+    });
+    
+    // Filter to only show records with quantity > 0 or that have had transactions
+    const filteredRecords = inventoryRecords.filter(record => {
+      const key = `${record.ItemID}_${record.LocationID}`;
+      return quantityMap.has(key) || record.CurrentQuantity > 0;
+    });
+    
+    Logger.log(`Retrieved ${filteredRecords.length} inventory records with quantities`);
+    Logger.log(`Sample item: ${filteredRecords.length > 0 ? JSON.stringify(filteredRecords[0]) : 'No inventory found'}`);
+    
+    return filteredRecords;
   } catch (error) {
     Logger.log(`ERROR in getAllInventory(): ${error.toString()}`);
     throw new Error('Failed to retrieve inventory data');
@@ -1413,22 +1480,44 @@ function getAllInventory() {
 }
 
 /**
- * CREATE OPERATION: Creates new inventory item
- * DATA FLOW: Input object → new row appended to Inventory sheet
+ * CREATE OPERATION: Creates new inventory item in master catalog
+ * DATA FLOW: Input object → new row appended to InventoryItems sheet
  * AUTO-GENERATES: ItemID (next available ID)
+ * NOTE: This only creates the item definition. Use addInventoryTransaction() to add stock.
  */
 function createInventoryItem(itemData) {
   try {
     Logger.log(`createInventoryItem() called with data: ${JSON.stringify(itemData)}`);
-    const sheet = getSheet(SHEET_CONFIG.inventory);
+    const sheet = getSheet('InventoryItems');
     
     const newId = getNextId(sheet, 0);
-    itemData.ItemID = newId;
     
-    const result = addOrUpdateRow(sheet, itemData, 0);
+    const newItem = {
+      ItemID: newId,
+      ItemName: itemData.ItemName,
+      CategoryID: itemData.CategoryID,
+      SKU: itemData.SKU || '',
+      ReorderPoint: itemData.ReorderPoint || 0,
+      Description: itemData.Description || ''
+    };
+    
+    const result = addOrUpdateRow(sheet, newItem, 0);
     Logger.log(`Created new inventory item with ID: ${newId}`);
     
-    return result;
+    // If initial quantity was provided, create initial stock transaction
+    if (itemData.InitialQuantity && itemData.InitialQuantity > 0 && itemData.LocationID) {
+      Logger.log(`Adding initial stock transaction: ${itemData.InitialQuantity} units to location ${itemData.LocationID}`);
+      addInventoryTransaction({
+        ItemID: newId,
+        LocationID: itemData.LocationID,
+        PersonnelID: itemData.PersonnelID || 1, // Default admin user
+        QuantityChange: itemData.InitialQuantity,
+        TransactionType: 'Initial Stock',
+        Notes: 'Initial inventory setup'
+      });
+    }
+    
+    return { ...result, ItemID: newId };
   } catch (error) {
     Logger.log(`ERROR in createInventoryItem(): ${error.toString()}`);
     throw new Error('Failed to create inventory item');
@@ -1436,16 +1525,27 @@ function createInventoryItem(itemData) {
 }
 
 /**
- * UPDATE OPERATION: Updates existing inventory item
- * DATA FLOW: Input object → finds matching ItemID → updates that row
+ * UPDATE OPERATION: Updates existing inventory item in master catalog
+ * DATA FLOW: Input object → finds matching ItemID → updates that row in InventoryItems
+ * NOTE: This only updates item definition. Use addInventoryTransaction() to change quantities.
  */
 function updateInventoryItem(itemData) {
   try {
     Logger.log(`updateInventoryItem() called for ItemID: ${itemData.ItemID}`);
-    const sheet = getSheet(SHEET_CONFIG.inventory);
-    const result = addOrUpdateRow(sheet, itemData, 0);
+    const sheet = getSheet('InventoryItems');
     
+    const updateData = {
+      ItemID: itemData.ItemID,
+      ItemName: itemData.ItemName,
+      CategoryID: itemData.CategoryID,
+      SKU: itemData.SKU || '',
+      ReorderPoint: itemData.ReorderPoint || 0,
+      Description: itemData.Description || ''
+    };
+    
+    const result = addOrUpdateRow(sheet, updateData, 0);
     Logger.log(`Updated inventory item: ${itemData.ItemID}`);
+    
     return result;
   } catch (error) {
     Logger.log(`ERROR in updateInventoryItem(): ${error.toString()}`);
@@ -1454,13 +1554,14 @@ function updateInventoryItem(itemData) {
 }
 
 /**
- * DELETE OPERATION: Deletes inventory item
- * DATA FLOW: ItemID → finds matching row → deletes entire row
+ * DELETE OPERATION: Deletes inventory item from master catalog
+ * DATA FLOW: ItemID → finds matching row → deletes entire row from InventoryItems
+ * WARNING: This will orphan any existing transactions for this item
  */
 function deleteInventoryItem(itemId) {
   try {
     Logger.log(`deleteInventoryItem() called for ItemID: ${itemId}`);
-    const sheet = getSheet(SHEET_CONFIG.inventory);
+    const sheet = getSheet('InventoryItems');
     const result = deleteRow(sheet, itemId, 0);
     
     Logger.log(`Inventory deletion result: ${result ? 'SUCCESS' : 'FAILED - ID not found'}`);
@@ -1468,6 +1569,114 @@ function deleteInventoryItem(itemId) {
   } catch (error) {
     Logger.log(`ERROR in deleteInventoryItem(): ${error.toString()}`);
     throw new Error('Failed to delete inventory item');
+  }
+}
+
+/**
+ * CREATE OPERATION: Adds a new inventory transaction (stock change)
+ * DATA FLOW: Transaction object → new row appended to InventoryTransactions sheet
+ * AUTO-GENERATES: TransactionID (next available ID)
+ * UPDATES: Current quantities are recalculated from all transactions
+ */
+function addInventoryTransaction(transactionData) {
+  try {
+    Logger.log(`addInventoryTransaction() called with data: ${JSON.stringify(transactionData)}`);
+    const sheet = getSheet('InventoryTransactions');
+    
+    const newId = getNextId(sheet, 0);
+    
+    const transaction = {
+      TransactionID: newId,
+      ItemID: transactionData.ItemID,
+      LocationID: transactionData.LocationID,
+      PersonnelID: transactionData.PersonnelID,
+      QuantityChange: transactionData.QuantityChange,
+      TransactionDate: transactionData.TransactionDate || new Date().toISOString(),
+      TransactionType: transactionData.TransactionType || 'Manual Adjustment',
+      Notes: transactionData.Notes || ''
+    };
+    
+    const result = addOrUpdateRow(sheet, transaction, 0);
+    Logger.log(`Created new inventory transaction with ID: ${newId}`);
+    
+    return { ...result, TransactionID: newId };
+  } catch (error) {
+    Logger.log(`ERROR in addInventoryTransaction(): ${error.toString()}`);
+    throw new Error('Failed to add inventory transaction');
+  }
+}
+
+/**
+ * READ OPERATION: Gets all inventory categories for dropdown selection
+ * DATA SOURCE: InventoryCategories sheet
+ * RETURNS: Array of category objects
+ */
+function getAllInventoryCategories() {
+  try {
+    Logger.log('getAllInventoryCategories() called');
+    const sheet = getSheet('InventoryCategories');
+    const categories = sheetToObjects(sheet);
+    
+    Logger.log(`Retrieved ${categories.length} categories`);
+    return { success: true, data: categories };
+  } catch (error) {
+    Logger.log(`ERROR in getAllInventoryCategories(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets all storage locations for dropdown selection
+ * DATA SOURCE: StorageLocations sheet
+ * RETURNS: Array of location objects
+ */
+function getAllStorageLocations() {
+  try {
+    Logger.log('getAllStorageLocations() called');
+    const sheet = getSheet('StorageLocations');
+    const locations = sheetToObjects(sheet);
+    
+    Logger.log(`Retrieved ${locations.length} locations`);
+    return { success: true, data: locations };
+  } catch (error) {
+    Logger.log(`ERROR in getAllStorageLocations(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Gets transaction history for a specific item
+ * DATA SOURCE: InventoryTransactions sheet joined with Personnel for user names
+ * RETURNS: Array of transaction records with personnel names
+ */
+function getItemTransactionHistory(itemId) {
+  try {
+    Logger.log(`getItemTransactionHistory() called for ItemID: ${itemId}`);
+    
+    const transactionsSheet = getSheet('InventoryTransactions');
+    const allTransactions = sheetToObjects(transactionsSheet);
+    const itemTransactions = allTransactions.filter(t => t.ItemID == itemId);
+    
+    // Enrich with personnel names
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const enrichedTransactions = itemTransactions.map(transaction => {
+      const person = allPersonnel.find(p => p.PersonnelID == transaction.PersonnelID);
+      return {
+        ...transaction,
+        PersonnelName: person ? `${person.FirstName} ${person.LastName}` : 'Unknown User'
+      };
+    });
+    
+    // Sort by date descending (most recent first)
+    enrichedTransactions.sort((a, b) => new Date(b.TransactionDate) - new Date(a.TransactionDate));
+    
+    Logger.log(`Retrieved ${enrichedTransactions.length} transactions for item ${itemId}`);
+    return { success: true, data: enrichedTransactions };
+  } catch (error) {
+    Logger.log(`ERROR in getItemTransactionHistory(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
   }
 }
 
@@ -1724,13 +1933,25 @@ function getSheetHeaders(sheetName) {
       'OfferingID', 'ClassLevelID', 'StartDate', 'EndDate', 
       'TeacherPersonnelID', 'VenueOrRoom', 'MaxStudents', 'Status'
     ],
-    // ... keep the rest as they were
     [SHEET_CONFIG.masterGameList]: [
       'GameID', 'GameName', 'GameDescription', 'PlayerCountMin', 'PlayerCountMax'
     ],
-    [SHEET_CONFIG.inventory]: [
-      'ItemID', 'ItemName', 'Category', 'Quantity', 'Location', 'Notes'
+    
+    // NEW INVENTORY SCHEMA HEADERS
+    [SHEET_CONFIG.inventoryItems]: [
+      'ItemID', 'ItemName', 'CategoryID', 'SKU', 'ReorderPoint', 'Description'
     ],
+    [SHEET_CONFIG.inventoryCategories]: [
+      'CategoryID', 'CategoryName'
+    ],
+    [SHEET_CONFIG.storageLocations]: [
+      'LocationID', 'LocationName'
+    ],
+    [SHEET_CONFIG.inventoryTransactions]: [
+      'TransactionID', 'ItemID', 'LocationID', 'PersonnelID', 'QuantityChange', 
+      'TransactionDate', 'TransactionType', 'Notes'
+    ],
+    
     [SHEET_CONFIG.showPerformances]: [
       'PerformanceID', 'ShowID', 'CastMemberID', 'Role'
     ],

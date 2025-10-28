@@ -299,13 +299,36 @@
             }
 
             // ===================================================================
-            // INVENTORY CRUD API METHODS
-            // These methods interact with the Inventory sheet in Google Sheets
+            // INVENTORY CRUD API METHODS (NEW FOUR-TABLE SCHEMA)
+            // These methods work with the new inventory schema:
+            // InventoryItems (master catalog), InventoryCategories, StorageLocations, InventoryTransactions
             // ===================================================================
             
-            // READ: Get all inventory items from Inventory sheet
+            // READ: Get all inventory items with calculated quantities from new schema
             async getAllInventory() {
                 return this.callServerFunction('getAllInventory');
+            }
+
+            // NEW METHODS FOR INVENTORY SCHEMA
+
+            // ADD TRANSACTION: Log inventory changes (stock in/out/transfers)
+            async addInventoryTransaction(transaction) {
+                return this.callServerFunction('addInventoryTransaction', transaction);
+            }
+
+            // GET CATEGORIES: Fetch all inventory categories for dropdowns
+            async getAllInventoryCategories() {
+                return this.callServerFunction('getAllInventoryCategories');
+            }
+
+            // GET LOCATIONS: Fetch all storage locations for dropdowns
+            async getAllStorageLocations() {
+                return this.callServerFunction('getAllStorageLocations');
+            }
+
+            // GET TRANSACTION HISTORY: Get all transactions for a specific item
+            async getItemTransactionHistory(itemId) {
+                return this.callServerFunction('getItemTransactionHistory', itemId);
             }
 
             // ===================================================================
@@ -4501,10 +4524,12 @@
         function Inventory() {
             const [inventory, setInventory] = useState([]);
             const [filteredInventory, setFilteredInventory] = useState([]);
+            const [categories, setCategories] = useState([]);
+            const [locations, setLocations] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
             const [message, setMessage] = useState(null);
             const [showModal, setShowModal] = useState(false);
-            const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+            const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', or 'transaction'
             const [selectedItem, setSelectedItem] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
             
@@ -4523,18 +4548,26 @@
                 outOfStock: 0
             });
             
-            // Form state
+            // Form state - Updated for new schema
             const [formData, setFormData] = useState({
                 ItemName: '',
-                Category: '',
-                Quantity: '',
-                Location: '',
+                CategoryID: '',
+                LocationID: '',
+                SKU: '',
+                ReorderPoint: '',
+                Description: '',
+                InitialQuantity: '', // For new items
+                // Transaction fields
+                QuantityChange: '',
+                TransactionType: 'Stock In',
                 Notes: ''
             });
             const [isSaving, setIsSaving] = useState(false);
 
             useEffect(() => {
                 loadInventory();
+                loadCategories();
+                loadLocations();
             }, []);
 
             useEffect(() => {
@@ -4563,11 +4596,11 @@
                         console.log('Sample inventory item:', itemData[0]);
                         setInventory(itemData);
                         
-                        // Calculate statistics
+                        // Calculate statistics using new schema
                         const stats = calculateInventoryStats(itemData);
                         setInventoryStats(stats);
                         
-                        setMessage({ type: 'success', text: `Loaded ${itemData.length} inventory items successfully` });
+                        setMessage({ type: 'success', text: `Loaded ${itemData.length} inventory records successfully` });
                     } else {
                         setInventory([]);
                         setMessage({ type: 'info', text: 'No inventory items found' });
@@ -4580,21 +4613,45 @@
                 }
             };
 
-            // Utility functions
+            const loadCategories = async () => {
+                try {
+                    const response = await gasService.getAllInventoryCategories();
+                    if (response.success && response.data) {
+                        setCategories(response.data);
+                    }
+                } catch (error) {
+                    console.error('Error loading categories:', error);
+                }
+            };
+
+            const loadLocations = async () => {
+                try {
+                    const response = await gasService.getAllStorageLocations();
+                    if (response.success && response.data) {
+                        setLocations(response.data);
+                    }
+                } catch (error) {
+                    console.error('Error loading locations:', error);
+                }
+            };
+
+            // Utility functions - Updated for new schema
             const calculateInventoryStats = (itemData) => {
                 const stats = {
                     total: itemData.length,
-                    categories: new Set(itemData.map(item => item.Category).filter(Boolean)).size,
-                    locations: new Set(itemData.map(item => item.Location).filter(Boolean)).size,
+                    categories: new Set(itemData.map(item => item.CategoryName).filter(Boolean)).size,
+                    locations: new Set(itemData.map(item => item.LocationName).filter(Boolean)).size,
                     lowStock: 0,
                     outOfStock: 0
                 };
                 
                 itemData.forEach(item => {
-                    const quantity = parseInt(item.Quantity) || 0;
+                    const quantity = parseInt(item.CurrentQuantity) || 0;
+                    const reorderPoint = parseInt(item.ReorderPoint) || 0;
+                    
                     if (quantity === 0) {
                         stats.outOfStock++;
-                    } else if (quantity <= 5) { // Consider 5 or less as low stock
+                    } else if (quantity <= reorderPoint) {
                         stats.lowStock++;
                     }
                 });
@@ -4603,9 +4660,11 @@
             };
 
             const getStockStatus = (item) => {
-                const quantity = parseInt(item.Quantity) || 0;
+                const quantity = parseInt(item.CurrentQuantity) || 0;
+                const reorderPoint = parseInt(item.ReorderPoint) || 0;
+                
                 if (quantity === 0) return 'out';
-                if (quantity <= 5) return 'low';
+                if (quantity <= reorderPoint) return 'low';
                 return 'available';
             };
 
@@ -4616,20 +4675,21 @@
                 if (searchTerm.trim()) {
                     filtered = filtered.filter(item =>
                         (item.ItemName && item.ItemName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                        (item.Category && item.Category.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                        (item.Location && item.Location.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                        (item.Notes && item.Notes.toLowerCase().includes(searchTerm.toLowerCase()))
+                        (item.CategoryName && item.CategoryName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.LocationName && item.LocationName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.Description && item.Description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.SKU && item.SKU.toLowerCase().includes(searchTerm.toLowerCase()))
                     );
                 }
 
                 // Category filter
                 if (categoryFilter !== 'all') {
-                    filtered = filtered.filter(item => item.Category === categoryFilter);
+                    filtered = filtered.filter(item => item.CategoryName === categoryFilter);
                 }
 
                 // Location filter
                 if (locationFilter !== 'all') {
-                    filtered = filtered.filter(item => item.Location === locationFilter);
+                    filtered = filtered.filter(item => item.LocationName === locationFilter);
                 }
 
                 // Stock status filter
@@ -4643,8 +4703,8 @@
                         let aVal = a[sortConfig.key] || '';
                         let bVal = b[sortConfig.key] || '';
                         
-                        // Handle numeric sorting for Quantity
-                        if (sortConfig.key === 'Quantity') {
+                        // Handle numeric sorting for CurrentQuantity and ReorderPoint
+                        if (sortConfig.key === 'CurrentQuantity' || sortConfig.key === 'ReorderPoint') {
                             aVal = parseInt(aVal) || 0;
                             bVal = parseInt(bVal) || 0;
                         }
@@ -4675,17 +4735,40 @@
                 if (mode === 'edit' && item) {
                     setFormData({
                         ItemName: item.ItemName || '',
-                        Category: item.Category || '',
-                        Quantity: item.Quantity || '',
-                        Location: item.Location || '',
-                        Notes: item.Notes || ''
+                        CategoryID: item.CategoryID || '',
+                        LocationID: item.LocationID || '',
+                        SKU: item.SKU || '',
+                        ReorderPoint: item.ReorderPoint || '',
+                        Description: item.Description || '',
+                        InitialQuantity: '',
+                        QuantityChange: '',
+                        TransactionType: 'Stock In',
+                        Notes: ''
+                    });
+                } else if (mode === 'transaction' && item) {
+                    setFormData({
+                        ItemName: item.ItemName || '',
+                        CategoryID: '',
+                        LocationID: item.LocationID || '',
+                        SKU: '',
+                        ReorderPoint: '',
+                        Description: '',
+                        InitialQuantity: '',
+                        QuantityChange: '',
+                        TransactionType: 'Stock In',
+                        Notes: ''
                     });
                 } else {
                     setFormData({
                         ItemName: '',
-                        Category: '',
-                        Quantity: '',
-                        Location: '',
+                        CategoryID: '',
+                        LocationID: '',
+                        SKU: '',
+                        ReorderPoint: '',
+                        Description: '',
+                        InitialQuantity: '',
+                        QuantityChange: '',
+                        TransactionType: 'Stock In',
                         Notes: ''
                     });
                 }
@@ -4698,9 +4781,14 @@
                 setSelectedItem(null);
                 setFormData({
                     ItemName: '',
-                    Category: '',
-                    Quantity: '',
-                    Location: '',
+                    CategoryID: '',
+                    LocationID: '',
+                    SKU: '',
+                    ReorderPoint: '',
+                    Description: '',
+                    InitialQuantity: '',
+                    QuantityChange: '',
+                    TransactionType: 'Stock In',
                     Notes: ''
                 });
             };
@@ -4712,34 +4800,80 @@
                     return;
                 }
 
+                if (modalMode === 'transaction') {
+                    // Transaction mode validation
+                    if (!formData.QuantityChange || parseInt(formData.QuantityChange) === 0) {
+                        setMessage({ type: 'error', text: 'Quantity change is required' });
+                        return;
+                    }
+                    if (!formData.LocationID) {
+                        setMessage({ type: 'error', text: 'Location is required for transactions' });
+                        return;
+                    }
+                } else {
+                    // Item creation/editing validation
+                    if (!formData.CategoryID) {
+                        setMessage({ type: 'error', text: 'Category is required' });
+                        return;
+                    }
+                }
+
                 setIsSaving(true);
                 try {
-                    const itemData = {
-                        ...formData,
-                        Quantity: parseInt(formData.Quantity) || 0
-                    };
-
                     let response;
-                    if (modalMode === 'edit') {
-                        itemData.ItemID = selectedItem.ItemID;
-                        response = await gasService.updateInventoryItem(itemData);
+                    
+                    if (modalMode === 'transaction') {
+                        // Log inventory transaction
+                        const transactionData = {
+                            ItemID: selectedItem.ItemID,
+                            LocationID: formData.LocationID,
+                            PersonnelID: 1, // TODO: Get current user ID
+                            QuantityChange: parseInt(formData.QuantityChange) || 0,
+                            TransactionType: formData.TransactionType,
+                            Notes: formData.Notes || ''
+                        };
+                        
+                        response = await gasService.addInventoryTransaction(transactionData);
                     } else {
-                        response = await gasService.createInventoryItem(itemData);
+                        // Create or update item
+                        const itemData = {
+                            ItemName: formData.ItemName,
+                            CategoryID: formData.CategoryID,
+                            SKU: formData.SKU || '',
+                            ReorderPoint: parseInt(formData.ReorderPoint) || 0,
+                            Description: formData.Description || ''
+                        };
+                        
+                        // Add initial quantity and location if provided for new items
+                        if (modalMode === 'create' && formData.InitialQuantity && formData.LocationID) {
+                            itemData.InitialQuantity = parseInt(formData.InitialQuantity);
+                            itemData.LocationID = formData.LocationID;
+                            itemData.PersonnelID = 1; // TODO: Get current user ID
+                        }
+
+                        if (modalMode === 'edit') {
+                            itemData.ItemID = selectedItem.ItemID;
+                            response = await gasService.updateInventoryItem(itemData);
+                        } else {
+                            response = await gasService.createInventoryItem(itemData);
+                        }
                     }
 
-                    if (response.success || response === true) {
+                    if (response.success || response === true || response.ItemID || response.TransactionID) {
+                        const actionText = modalMode === 'transaction' ? 'Transaction logged' :
+                                         modalMode === 'edit' ? 'Item updated' : 'Item created';
                         setMessage({ 
                             type: 'success', 
-                            text: `Item ${modalMode === 'edit' ? 'updated' : 'created'} successfully` 
+                            text: `${actionText} successfully` 
                         });
                         handleCloseModal();
                         loadInventory();
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to save item' });
+                        setMessage({ type: 'error', text: response.error || `Failed to ${modalMode === 'transaction' ? 'log transaction' : 'save item'}` });
                     }
                 } catch (error) {
-                    console.error('Error saving item:', error);
-                    setMessage({ type: 'error', text: 'Error saving item' });
+                    console.error('Error saving:', error);
+                    setMessage({ type: 'error', text: `Error ${modalMode === 'transaction' ? 'logging transaction' : 'saving item'}` });
                 } finally {
                     setIsSaving(false);
                 }
@@ -4820,7 +4954,7 @@
                                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                             },
                                 e('option', { value: 'all' }, 'All Categories'),
-                                ...Array.from(new Set(inventory.map(item => item.Category).filter(Boolean))).map(category =>
+                                ...Array.from(new Set(inventory.map(item => item.CategoryName).filter(Boolean))).map(category =>
                                     e('option', { key: category, value: category }, category)
                                 )
                             )
@@ -4834,7 +4968,7 @@
                                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                             },
                                 e('option', { value: 'all' }, 'All Locations'),
-                                ...Array.from(new Set(inventory.map(item => item.Location).filter(Boolean))).map(location =>
+                                ...Array.from(new Set(inventory.map(item => item.LocationName).filter(Boolean))).map(location =>
                                     e('option', { key: location, value: location }, location)
                                 )
                             )
@@ -4912,33 +5046,33 @@
                                     }, 'Item Name ' + (sortConfig.key === 'ItemName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
                                     e('th', { 
                                         className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                                        onClick: () => handleSort('Category')
-                                    }, 'Category ' + (sortConfig.key === 'Category' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                        onClick: () => handleSort('CategoryName')
+                                    }, 'Category ' + (sortConfig.key === 'CategoryName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
                                     e('th', { 
                                         className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                                        onClick: () => handleSort('Quantity')
-                                    }, 'Quantity ' + (sortConfig.key === 'Quantity' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                        onClick: () => handleSort('CurrentQuantity')
+                                    }, 'Current Qty ' + (sortConfig.key === 'CurrentQuantity' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
                                     e('th', { 
                                         className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
-                                        onClick: () => handleSort('Location')
-                                    }, 'Location ' + (sortConfig.key === 'Location' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
-                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Notes'),
+                                        onClick: () => handleSort('LocationName')
+                                    }, 'Location ' + (sortConfig.key === 'LocationName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Reorder Point'),
                                     e('th', { className: 'px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Actions')
                                 )
                             ),
                             e('tbody', { className: 'bg-white divide-y divide-gray-200' },
                                 filteredInventory.map(item =>
-                                    e('tr', { key: item.ItemID, className: 'hover:bg-gray-50' },
+                                    e('tr', { key: `${item.ItemID}-${item.LocationID}`, className: 'hover:bg-gray-50' },
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap' },
                                             e('div', { className: 'text-sm font-medium text-gray-900' }, item.ItemName || '-'),
-                                            e('div', { className: 'text-sm text-gray-500' }, `ID: ${item.ItemID}`)
+                                            e('div', { className: 'text-sm text-gray-500' }, `ID: ${item.ItemID}${item.SKU ? ` • SKU: ${item.SKU}` : ''}`)
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
-                                            item.Category || '-'
+                                            item.CategoryName || '-'
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap' },
                                             e('div', { className: 'flex items-center' },
-                                                e('span', { className: 'text-sm font-medium text-gray-900' }, item.Quantity || '0'),
+                                                e('span', { className: 'text-sm font-medium text-gray-900' }, item.CurrentQuantity || '0'),
                                                 e('span', { 
                                                     className: `ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                                         getStockStatus(item) === 'out' ? 'bg-red-100 text-red-800' :
@@ -4952,13 +5086,18 @@
                                             )
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
-                                            item.Location || '-'
+                                            item.LocationName || '-'
                                         ),
-                                        e('td', { className: 'px-6 py-4 text-sm text-gray-500 max-w-xs truncate' },
-                                            item.Notes || '-'
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            item.ReorderPoint || '0'
                                         ),
                                         e('td', { className: 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium' },
                                             e('div', { className: 'flex justify-end gap-2' },
+                                                e('button', {
+                                                    onClick: () => handleOpenModal('transaction', item),
+                                                    className: 'text-green-600 hover:text-green-900',
+                                                    title: 'Log Transaction'
+                                                }, 'Stock'),
                                                 e('button', {
                                                     onClick: () => handleOpenModal('edit', item),
                                                     className: 'text-indigo-600 hover:text-indigo-900'
@@ -4976,70 +5115,160 @@
                     )
                 ),
 
-                // Modal
+                // Modal - Updated for new schema with three modes
                 showModal && e('div', { className: 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50' },
-                    e('div', { className: 'relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white' },
+                    e('div', { className: 'relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto' },
                         e('div', { className: 'mt-3' },
                             e('h3', { className: 'text-lg font-medium text-gray-900 mb-4' },
-                                modalMode === 'edit' ? 'Edit Item' : 'Add New Item'
+                                modalMode === 'edit' ? 'Edit Item' : 
+                                modalMode === 'transaction' ? `Log Transaction - ${selectedItem?.ItemName}` :
+                                'Add New Item'
                             ),
                             e('div', { className: 'space-y-4' },
-                                // Item Name
-                                e('div', null,
-                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Item Name *'),
-                                    e('input', {
-                                        type: 'text',
-                                        value: formData.ItemName,
-                                        onChange: (ev) => setFormData(prev => ({ ...prev, ItemName: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
-                                        placeholder: 'Enter item name'
-                                    })
-                                ),
-                                // Category
-                                e('div', null,
-                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Category'),
-                                    e('input', {
-                                        type: 'text',
-                                        value: formData.Category,
-                                        onChange: (ev) => setFormData(prev => ({ ...prev, Category: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
-                                        placeholder: 'Enter category'
-                                    })
-                                ),
-                                // Quantity
-                                e('div', null,
-                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Quantity'),
-                                    e('input', {
-                                        type: 'number',
-                                        value: formData.Quantity,
-                                        onChange: (ev) => setFormData(prev => ({ ...prev, Quantity: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
-                                        placeholder: '0',
-                                        min: '0'
-                                    })
-                                ),
-                                // Location
-                                e('div', null,
-                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Location'),
-                                    e('input', {
-                                        type: 'text',
-                                        value: formData.Location,
-                                        onChange: (ev) => setFormData(prev => ({ ...prev, Location: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
-                                        placeholder: 'Enter location'
-                                    })
-                                ),
-                                // Notes
-                                e('div', null,
-                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Notes'),
-                                    e('textarea', {
-                                        value: formData.Notes,
-                                        onChange: (ev) => setFormData(prev => ({ ...prev, Notes: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
-                                        rows: 3,
-                                        placeholder: 'Enter notes (optional)'
-                                    })
-                                )
+                                // Show different fields based on modal mode
+                                modalMode === 'transaction' ? [
+                                    // Transaction Mode Fields
+                                    e('div', { key: 'current-info' },
+                                        e('div', { className: 'bg-gray-50 p-3 rounded-md' },
+                                            e('div', { className: 'text-sm text-gray-600' }, 'Current Stock Information'),
+                                            e('div', { className: 'text-lg font-medium' }, `${selectedItem?.ItemName || 'Unknown Item'}`),
+                                            e('div', { className: 'text-sm text-gray-500' }, `Location: ${selectedItem?.LocationName || 'Unknown'}`),
+                                            e('div', { className: 'text-sm text-gray-500' }, `Current Quantity: ${selectedItem?.CurrentQuantity || 0}`)
+                                        )
+                                    ),
+                                    e('div', { key: 'location' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Location *'),
+                                        e('select', {
+                                            value: formData.LocationID,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, LocationID: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, 'Select location...'),
+                                            ...locations.map(location =>
+                                                e('option', { key: location.LocationID, value: location.LocationID }, location.LocationName)
+                                            )
+                                        )
+                                    ),
+                                    e('div', { key: 'quantity-change' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Quantity Change *'),
+                                        e('input', {
+                                            type: 'number',
+                                            value: formData.QuantityChange,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, QuantityChange: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            placeholder: 'e.g., +10 for stock in, -2 for sale'
+                                        })
+                                    ),
+                                    e('div', { key: 'transaction-type' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Transaction Type'),
+                                        e('select', {
+                                            value: formData.TransactionType,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, TransactionType: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: 'Stock In' }, 'Stock In'),
+                                            e('option', { value: 'Sale' }, 'Sale'),
+                                            e('option', { value: 'Internal Transfer' }, 'Internal Transfer'),
+                                            e('option', { value: 'Damage' }, 'Damage'),
+                                            e('option', { value: 'Manual Adjustment' }, 'Manual Adjustment')
+                                        )
+                                    ),
+                                    e('div', { key: 'transaction-notes' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Notes'),
+                                        e('textarea', {
+                                            value: formData.Notes,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, Notes: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            rows: 3,
+                                            placeholder: 'Optional transaction notes'
+                                        })
+                                    )
+                                ] : [
+                                    // Item Creation/Edit Mode Fields
+                                    e('div', { key: 'item-name' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Item Name *'),
+                                        e('input', {
+                                            type: 'text',
+                                            value: formData.ItemName,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, ItemName: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            placeholder: 'Enter item name'
+                                        })
+                                    ),
+                                    e('div', { key: 'category' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Category *'),
+                                        e('select', {
+                                            value: formData.CategoryID,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, CategoryID: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                                        },
+                                            e('option', { value: '' }, 'Select category...'),
+                                            ...categories.map(category =>
+                                                e('option', { key: category.CategoryID, value: category.CategoryID }, category.CategoryName)
+                                            )
+                                        )
+                                    ),
+                                    e('div', { key: 'sku' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'SKU'),
+                                        e('input', {
+                                            type: 'text',
+                                            value: formData.SKU,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, SKU: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            placeholder: 'Optional SKU or barcode'
+                                        })
+                                    ),
+                                    e('div', { key: 'reorder-point' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Reorder Point'),
+                                        e('input', {
+                                            type: 'number',
+                                            value: formData.ReorderPoint,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, ReorderPoint: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            placeholder: '0',
+                                            min: '0'
+                                        })
+                                    ),
+                                    modalMode === 'create' && e('div', { key: 'initial-stock' },
+                                        e('h4', { className: 'text-md font-medium text-gray-900 mt-4 mb-2' }, 'Initial Stock (Optional)'),
+                                        e('div', { className: 'grid grid-cols-2 gap-3' },
+                                            e('div', null,
+                                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Initial Quantity'),
+                                                e('input', {
+                                                    type: 'number',
+                                                    value: formData.InitialQuantity,
+                                                    onChange: (ev) => setFormData(prev => ({ ...prev, InitialQuantity: ev.target.value })),
+                                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                                    placeholder: '0',
+                                                    min: '0'
+                                                })
+                                            ),
+                                            e('div', null,
+                                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Location'),
+                                                e('select', {
+                                                    value: formData.LocationID,
+                                                    onChange: (ev) => setFormData(prev => ({ ...prev, LocationID: ev.target.value })),
+                                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                                                },
+                                                    e('option', { value: '' }, 'Select location...'),
+                                                    ...locations.map(location =>
+                                                        e('option', { key: location.LocationID, value: location.LocationID }, location.LocationName)
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    e('div', { key: 'description' },
+                                        e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Description'),
+                                        e('textarea', {
+                                            value: formData.Description,
+                                            onChange: (ev) => setFormData(prev => ({ ...prev, Description: ev.target.value })),
+                                            className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                            rows: 3,
+                                            placeholder: 'Optional item description'
+                                        })
+                                    )
+                                ]
                             ),
                             e('div', { className: 'flex justify-end gap-3 mt-6' },
                                 e('button', {
@@ -5051,7 +5280,9 @@
                                     onClick: handleSaveItem,
                                     className: 'px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50',
                                     disabled: isSaving
-                                }, isSaving ? 'Saving...' : 'Save')
+                                }, isSaving ? 'Saving...' : 
+                                   modalMode === 'transaction' ? 'Log Transaction' :
+                                   modalMode === 'edit' ? 'Update Item' : 'Create Item')
                             )
                         )
                     )
