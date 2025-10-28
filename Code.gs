@@ -1,5 +1,5 @@
 /**
- * 20JTF Team Management Portal - Google Apps Script Backend
+ * 19JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -353,6 +353,22 @@ function getNextId(sheet, idColumn = 0) {
   
   Logger.log(`Sheet '${sheet.getName()}' - highest ID: ${maxId}, next ID will be: ${nextId}`);
   return nextId;
+}
+
+/**
+ * Formats a Date object as MM/DD/YYYY HH:MM:SS string in local timezone
+ * @param {Date} date - The date to format
+ * @returns {string} Formatted date string like "10/27/2025 14:30:45"
+ */
+function formatDateTime(date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
 // =============================================================================
@@ -1585,16 +1601,21 @@ function addInventoryTransaction(transactionData) {
     
     const newId = getNextId(sheet, 0);
     
-    // Handle TransactionDate - ensure it's just a date (YYYY-MM-DD) without time/timezone
+    // Handle TransactionDate - create proper DateTime stamp
     let transactionDate;
     if (transactionData.TransactionDate) {
-      // If a date is provided, parse it and format as YYYY-MM-DD
-      const date = new Date(transactionData.TransactionDate);
-      transactionDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      // If a specific datetime is provided (from datetime-local input)
+      const providedDateTime = new Date(transactionData.TransactionDate);
+      // Check if the date is valid
+      if (!isNaN(providedDateTime.getTime())) {
+        transactionDate = formatDateTime(providedDateTime);
+      } else {
+        // Fallback to current time if invalid date
+        transactionDate = formatDateTime(new Date());
+      }
     } else {
-      // Use today's date in local timezone
-      const today = new Date();
-      transactionDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      // Use current date and time
+      transactionDate = formatDateTime(new Date());
     }
     
     const transaction = {
