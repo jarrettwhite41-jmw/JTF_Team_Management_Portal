@@ -4618,21 +4618,34 @@
                     const response = await gasService.getAllInventoryCategories();
                     console.log('getAllInventoryCategories response:', response);
                     
-                    // Handle different response formats
+                    // Handle the nested response structure we're seeing
                     let categoryData = [];
-                    if (Array.isArray(response)) {
+                    
+                    // Check for deeply nested data structure
+                    if (response && response.data && response.data.data && Array.isArray(response.data.data)) {
+                        categoryData = response.data.data;
+                        console.log('Using deeply nested response.data.data');
+                    }
+                    // Standard success response
+                    else if (response && response.success === true && Array.isArray(response.data)) {
+                        categoryData = response.data;
+                        console.log('Using standard response.data');
+                    }
+                    // Direct array
+                    else if (Array.isArray(response)) {
                         categoryData = response;
-                    } else if (response && response.success && Array.isArray(response.data)) {
-                        categoryData = response.data;
-                    } else if (response && Array.isArray(response.data)) {
-                        categoryData = response.data;
+                        console.log('Using direct array response');
                     }
                     
+                    console.log('Final categoryData:', categoryData);
+                    console.log('Final categoryData length:', categoryData.length);
+                    if (categoryData.length > 0) {
+                        console.log('Sample category:', categoryData[0]);
+                    }
                     setCategories(categoryData);
-                    console.log('Set categories:', categoryData);
                 } catch (error) {
                     console.error('Error loading categories:', error);
-                    setCategories([]); // Ensure it's always an array
+                    setCategories([]);
                 }
             };
 
@@ -4641,21 +4654,34 @@
                     const response = await gasService.getAllStorageLocations();
                     console.log('getAllStorageLocations response:', response);
                     
-                    // Handle different response formats
+                    // Handle the nested response structure we're seeing
                     let locationData = [];
-                    if (Array.isArray(response)) {
+                    
+                    // Check for deeply nested data structure
+                    if (response && response.data && response.data.data && Array.isArray(response.data.data)) {
+                        locationData = response.data.data;
+                        console.log('Using deeply nested locations response.data.data');
+                    }
+                    // Standard success response
+                    else if (response && response.success === true && Array.isArray(response.data)) {
+                        locationData = response.data;
+                        console.log('Using standard locations response.data');
+                    }
+                    // Direct array
+                    else if (Array.isArray(response)) {
                         locationData = response;
-                    } else if (response && response.success && Array.isArray(response.data)) {
-                        locationData = response.data;
-                    } else if (response && Array.isArray(response.data)) {
-                        locationData = response.data;
+                        console.log('Using direct array locations response');
                     }
                     
+                    console.log('Final locationData:', locationData);
+                    console.log('Final locationData length:', locationData.length);
+                    if (locationData.length > 0) {
+                        console.log('Sample location:', locationData[0]);
+                    }
                     setLocations(locationData);
-                    console.log('Set locations:', locationData);
                 } catch (error) {
                     console.error('Error loading locations:', error);
-                    setLocations([]); // Ensure it's always an array
+                    setLocations([]);
                 }
             };
 
@@ -5227,9 +5253,18 @@
                                             className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                                         },
                                             e('option', { value: '' }, 'Select category...'),
-                                            ...(Array.isArray(categories) ? categories.map(category =>
-                                                e('option', { key: category.CategoryID, value: category.CategoryID }, category.CategoryName)
-                                            ) : [])
+                                            ...((() => {
+                                                console.log('Rendering category dropdown, categories:', categories);
+                                                console.log('Categories is array:', Array.isArray(categories));
+                                                console.log('Categories length:', categories?.length);
+                                                if (Array.isArray(categories) && categories.length > 0) {
+                                                    console.log('First category:', categories[0]);
+                                                }
+                                                return Array.isArray(categories) ? categories.map(category => {
+                                                    console.log('Mapping category:', category);
+                                                    return e('option', { key: category.CategoryID, value: category.CategoryID }, category.CategoryName);
+                                                }) : [];
+                                            })())
                                         )
                                     ),
                                     e('div', { key: 'sku' },
