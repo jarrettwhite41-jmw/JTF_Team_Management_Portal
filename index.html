@@ -4616,22 +4616,46 @@
             const loadCategories = async () => {
                 try {
                     const response = await gasService.getAllInventoryCategories();
-                    if (response.success && response.data) {
-                        setCategories(response.data);
+                    console.log('getAllInventoryCategories response:', response);
+                    
+                    // Handle different response formats
+                    let categoryData = [];
+                    if (Array.isArray(response)) {
+                        categoryData = response;
+                    } else if (response && response.success && Array.isArray(response.data)) {
+                        categoryData = response.data;
+                    } else if (response && Array.isArray(response.data)) {
+                        categoryData = response.data;
                     }
+                    
+                    setCategories(categoryData);
+                    console.log('Set categories:', categoryData);
                 } catch (error) {
                     console.error('Error loading categories:', error);
+                    setCategories([]); // Ensure it's always an array
                 }
             };
 
             const loadLocations = async () => {
                 try {
                     const response = await gasService.getAllStorageLocations();
-                    if (response.success && response.data) {
-                        setLocations(response.data);
+                    console.log('getAllStorageLocations response:', response);
+                    
+                    // Handle different response formats
+                    let locationData = [];
+                    if (Array.isArray(response)) {
+                        locationData = response;
+                    } else if (response && response.success && Array.isArray(response.data)) {
+                        locationData = response.data;
+                    } else if (response && Array.isArray(response.data)) {
+                        locationData = response.data;
                     }
+                    
+                    setLocations(locationData);
+                    console.log('Set locations:', locationData);
                 } catch (error) {
                     console.error('Error loading locations:', error);
+                    setLocations([]); // Ensure it's always an array
                 }
             };
 
@@ -4954,7 +4978,7 @@
                                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                             },
                                 e('option', { value: 'all' }, 'All Categories'),
-                                ...Array.from(new Set(inventory.map(item => item.CategoryName).filter(Boolean))).map(category =>
+                                ...Array.from(new Set((Array.isArray(inventory) ? inventory : []).map(item => item.CategoryName).filter(Boolean))).map(category =>
                                     e('option', { key: category, value: category }, category)
                                 )
                             )
@@ -4968,7 +4992,7 @@
                                 className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                             },
                                 e('option', { value: 'all' }, 'All Locations'),
-                                ...Array.from(new Set(inventory.map(item => item.LocationName).filter(Boolean))).map(location =>
+                                ...Array.from(new Set((Array.isArray(inventory) ? inventory : []).map(item => item.LocationName).filter(Boolean))).map(location =>
                                     e('option', { key: location, value: location }, location)
                                 )
                             )
@@ -5144,9 +5168,9 @@
                                             className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                                         },
                                             e('option', { value: '' }, 'Select location...'),
-                                            ...locations.map(location =>
+                                            ...(Array.isArray(locations) ? locations.map(location =>
                                                 e('option', { key: location.LocationID, value: location.LocationID }, location.LocationName)
-                                            )
+                                            ) : [])
                                         )
                                     ),
                                     e('div', { key: 'quantity-change' },
@@ -5203,9 +5227,9 @@
                                             className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                                         },
                                             e('option', { value: '' }, 'Select category...'),
-                                            ...categories.map(category =>
+                                            ...(Array.isArray(categories) ? categories.map(category =>
                                                 e('option', { key: category.CategoryID, value: category.CategoryID }, category.CategoryName)
-                                            )
+                                            ) : [])
                                         )
                                     ),
                                     e('div', { key: 'sku' },
@@ -5251,9 +5275,9 @@
                                                     className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
                                                 },
                                                     e('option', { value: '' }, 'Select location...'),
-                                                    ...locations.map(location =>
+                                                    ...(Array.isArray(locations) ? locations.map(location =>
                                                         e('option', { key: location.LocationID, value: location.LocationID }, location.LocationName)
-                                                    )
+                                                    ) : [])
                                                 )
                                             )
                                         )
