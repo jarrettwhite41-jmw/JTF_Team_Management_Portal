@@ -4499,9 +4499,563 @@
         }
 
         function Inventory() {
+            const [inventory, setInventory] = useState([]);
+            const [filteredInventory, setFilteredInventory] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [categoryFilter, setCategoryFilter] = useState('all');
+            const [locationFilter, setLocationFilter] = useState('all');
+            const [stockFilter, setStockFilter] = useState('all'); // 'all', 'low', 'out', 'available'
+            const [sortConfig, setSortConfig] = useState({ key: 'ItemName', direction: 'asc' });
+            
+            // Statistics state
+            const [inventoryStats, setInventoryStats] = useState({
+                total: 0,
+                categories: 0,
+                locations: 0,
+                lowStock: 0,
+                outOfStock: 0
+            });
+            
+            // Form state
+            const [formData, setFormData] = useState({
+                ItemName: '',
+                Category: '',
+                Quantity: '',
+                Location: '',
+                Notes: ''
+            });
+            const [isSaving, setIsSaving] = useState(false);
+
+            useEffect(() => {
+                loadInventory();
+            }, []);
+
+            useEffect(() => {
+                // Apply filtering when any filter changes
+                const filtered = getFilteredInventory();
+                setFilteredInventory(filtered);
+            }, [inventory, searchTerm, categoryFilter, locationFilter, stockFilter, sortConfig]);
+
+            const loadInventory = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllInventory();
+                    console.log('getAllInventory response:', response);
+
+                    let itemData = [];
+                    
+                    if (Array.isArray(response)) {
+                        itemData = response;
+                    } else if (response && response.success && response.data) {
+                        itemData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                    }
+                    
+                    if (itemData.length > 0) {
+                        console.log('Sample inventory item:', itemData[0]);
+                        setInventory(itemData);
+                        
+                        // Calculate statistics
+                        const stats = calculateInventoryStats(itemData);
+                        setInventoryStats(stats);
+                        
+                        setMessage({ type: 'success', text: `Loaded ${itemData.length} inventory items successfully` });
+                    } else {
+                        setInventory([]);
+                        setMessage({ type: 'info', text: 'No inventory items found' });
+                    }
+                } catch (error) {
+                    console.error('Error loading inventory:', error);
+                    setMessage({ type: 'error', text: 'Error loading inventory' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            // Utility functions
+            const calculateInventoryStats = (itemData) => {
+                const stats = {
+                    total: itemData.length,
+                    categories: new Set(itemData.map(item => item.Category).filter(Boolean)).size,
+                    locations: new Set(itemData.map(item => item.Location).filter(Boolean)).size,
+                    lowStock: 0,
+                    outOfStock: 0
+                };
+                
+                itemData.forEach(item => {
+                    const quantity = parseInt(item.Quantity) || 0;
+                    if (quantity === 0) {
+                        stats.outOfStock++;
+                    } else if (quantity <= 5) { // Consider 5 or less as low stock
+                        stats.lowStock++;
+                    }
+                });
+                
+                return stats;
+            };
+
+            const getStockStatus = (item) => {
+                const quantity = parseInt(item.Quantity) || 0;
+                if (quantity === 0) return 'out';
+                if (quantity <= 5) return 'low';
+                return 'available';
+            };
+
+            const getFilteredInventory = () => {
+                let filtered = [...inventory];
+                
+                // Text search
+                if (searchTerm.trim()) {
+                    filtered = filtered.filter(item =>
+                        (item.ItemName && item.ItemName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.Category && item.Category.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.Location && item.Location.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        (item.Notes && item.Notes.toLowerCase().includes(searchTerm.toLowerCase()))
+                    );
+                }
+
+                // Category filter
+                if (categoryFilter !== 'all') {
+                    filtered = filtered.filter(item => item.Category === categoryFilter);
+                }
+
+                // Location filter
+                if (locationFilter !== 'all') {
+                    filtered = filtered.filter(item => item.Location === locationFilter);
+                }
+
+                // Stock status filter
+                if (stockFilter !== 'all') {
+                    filtered = filtered.filter(item => getStockStatus(item) === stockFilter);
+                }
+
+                // Sort the results
+                if (sortConfig.key) {
+                    filtered.sort((a, b) => {
+                        let aVal = a[sortConfig.key] || '';
+                        let bVal = b[sortConfig.key] || '';
+                        
+                        // Handle numeric sorting for Quantity
+                        if (sortConfig.key === 'Quantity') {
+                            aVal = parseInt(aVal) || 0;
+                            bVal = parseInt(bVal) || 0;
+                        }
+                        
+                        if (sortConfig.direction === 'asc') {
+                            return aVal.toString().localeCompare(bVal.toString(), undefined, { numeric: true });
+                        } else {
+                            return bVal.toString().localeCompare(aVal.toString(), undefined, { numeric: true });
+                        }
+                    });
+                }
+
+                return filtered;
+            };
+
+            const handleSort = (key) => {
+                let direction = 'asc';
+                if (sortConfig.key === key && sortConfig.direction === 'asc') {
+                    direction = 'desc';
+                }
+                setSortConfig({ key, direction });
+            };
+
+            const handleOpenModal = (mode, item = null) => {
+                setModalMode(mode);
+                setSelectedItem(item);
+                
+                if (mode === 'edit' && item) {
+                    setFormData({
+                        ItemName: item.ItemName || '',
+                        Category: item.Category || '',
+                        Quantity: item.Quantity || '',
+                        Location: item.Location || '',
+                        Notes: item.Notes || ''
+                    });
+                } else {
+                    setFormData({
+                        ItemName: '',
+                        Category: '',
+                        Quantity: '',
+                        Location: '',
+                        Notes: ''
+                    });
+                }
+                
+                setShowModal(true);
+            };
+
+            const handleCloseModal = () => {
+                setShowModal(false);
+                setSelectedItem(null);
+                setFormData({
+                    ItemName: '',
+                    Category: '',
+                    Quantity: '',
+                    Location: '',
+                    Notes: ''
+                });
+            };
+
+            const handleSaveItem = async () => {
+                // Validation
+                if (!formData.ItemName.trim()) {
+                    setMessage({ type: 'error', text: 'Item name is required' });
+                    return;
+                }
+
+                setIsSaving(true);
+                try {
+                    const itemData = {
+                        ...formData,
+                        Quantity: parseInt(formData.Quantity) || 0
+                    };
+
+                    let response;
+                    if (modalMode === 'edit') {
+                        itemData.ItemID = selectedItem.ItemID;
+                        response = await gasService.updateInventoryItem(itemData);
+                    } else {
+                        response = await gasService.createInventoryItem(itemData);
+                    }
+
+                    if (response.success || response === true) {
+                        setMessage({ 
+                            type: 'success', 
+                            text: `Item ${modalMode === 'edit' ? 'updated' : 'created'} successfully` 
+                        });
+                        handleCloseModal();
+                        loadInventory();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to save item' });
+                    }
+                } catch (error) {
+                    console.error('Error saving item:', error);
+                    setMessage({ type: 'error', text: 'Error saving item' });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteItem = async (itemId) => {
+                if (!confirm('Are you sure you want to delete this item?')) {
+                    return;
+                }
+
+                try {
+                    const response = await gasService.deleteInventoryItem(itemId);
+                    if (response.success || response === true) {
+                        setMessage({ type: 'success', text: 'Item deleted successfully' });
+                        loadInventory();
+                    } else {
+                        setMessage({ type: 'error', text: 'Failed to delete item' });
+                    }
+                } catch (error) {
+                    console.error('Error deleting item:', error);
+                    setMessage({ type: 'error', text: 'Error deleting item' });
+                }
+            };
+
+            if (isLoading) {
+                return e('div', { className: 'p-6' },
+                    e('div', { className: 'flex justify-center items-center h-64' },
+                        e('div', { className: 'animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500' })
+                    )
+                );
+            }
+
             return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Inventory'),
-                e('p', { className: 'text-gray-600' }, 'Inventory management functionality coming soon...')
+                // Header
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Inventory Management'),
+                    e('button', {
+                        onClick: () => handleOpenModal('create'),
+                        className: 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2'
+                    },
+                        e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                        ),
+                        'Add New Item'
+                    )
+                ),
+
+                // Message
+                message && e('div', { 
+                    className: `mb-4 p-4 rounded-lg ${
+                        message.type === 'success' ? 'bg-green-100 text-green-700' :
+                        message.type === 'error' ? 'bg-red-100 text-red-700' :
+                        'bg-blue-100 text-blue-700'
+                    }`,
+                    onClick: () => setMessage(null)
+                }, message.text),
+
+                // Search
+                e('div', { className: 'mb-6' },
+                    e('input', {
+                        type: 'text',
+                        placeholder: 'Search items by name, category, location, or notes...',
+                        value: searchTerm,
+                        onChange: (ev) => setSearchTerm(ev.target.value),
+                        className: 'w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    })
+                ),
+
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+                        // Category Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Category'),
+                            e('select', {
+                                value: categoryFilter,
+                                onChange: (ev) => setCategoryFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Categories'),
+                                ...Array.from(new Set(inventory.map(item => item.Category).filter(Boolean))).map(category =>
+                                    e('option', { key: category, value: category }, category)
+                                )
+                            )
+                        ),
+                        // Location Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Location'),
+                            e('select', {
+                                value: locationFilter,
+                                onChange: (ev) => setLocationFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Locations'),
+                                ...Array.from(new Set(inventory.map(item => item.Location).filter(Boolean))).map(location =>
+                                    e('option', { key: location, value: location }, location)
+                                )
+                            )
+                        ),
+                        // Stock Status Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Stock Status'),
+                            e('select', {
+                                value: stockFilter,
+                                onChange: (ev) => setStockFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500'
+                            },
+                                e('option', { value: 'all' }, 'All Items'),
+                                e('option', { value: 'available' }, 'Available (6+)'),
+                                e('option', { value: 'low' }, 'Low Stock (1-5)'),
+                                e('option', { value: 'out' }, 'Out of Stock (0)')
+                            )
+                        )
+                    ),
+                    // Stats Summary Row
+                    inventoryStats && e('div', { className: 'mt-4 pt-4 border-t border-gray-200' },
+                        e('div', { className: 'grid grid-cols-2 md:grid-cols-5 gap-4 text-center' },
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-blue-600' }, inventoryStats.total),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Total Items')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-purple-600' }, inventoryStats.categories),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Categories')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-indigo-600' }, inventoryStats.locations),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Locations')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-yellow-600' }, inventoryStats.lowStock),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Low Stock')
+                            ),
+                            e('div', null,
+                                e('div', { className: 'text-2xl font-bold text-red-600' }, inventoryStats.outOfStock),
+                                e('div', { className: 'text-sm text-gray-600' }, 'Out of Stock')
+                            )
+                        )
+                    )
+                ),
+
+                // Inventory Table
+                filteredInventory.length === 0 ? (
+                    e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
+                        e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' })
+                        ),
+                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No items found'),
+                        e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Get started by adding your first inventory item'),
+                        e('div', { className: 'mt-6' },
+                            e('button', {
+                                onClick: () => handleOpenModal('create'),
+                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                            },
+                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                ),
+                                'Add New Item'
+                            )
+                        )
+                    )
+                ) : (
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden' },
+                        e('table', { className: 'min-w-full divide-y divide-gray-200' },
+                            e('thead', { className: 'bg-gray-50' },
+                                e('tr', null,
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('ItemName')
+                                    }, 'Item Name ' + (sortConfig.key === 'ItemName' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('Category')
+                                    }, 'Category ' + (sortConfig.key === 'Category' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('Quantity')
+                                    }, 'Quantity ' + (sortConfig.key === 'Quantity' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { 
+                                        className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer',
+                                        onClick: () => handleSort('Location')
+                                    }, 'Location ' + (sortConfig.key === 'Location' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '')),
+                                    e('th', { className: 'px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Notes'),
+                                    e('th', { className: 'px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider' }, 'Actions')
+                                )
+                            ),
+                            e('tbody', { className: 'bg-white divide-y divide-gray-200' },
+                                filteredInventory.map(item =>
+                                    e('tr', { key: item.ItemID, className: 'hover:bg-gray-50' },
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('div', { className: 'text-sm font-medium text-gray-900' }, item.ItemName || '-'),
+                                            e('div', { className: 'text-sm text-gray-500' }, `ID: ${item.ItemID}`)
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            item.Category || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap' },
+                                            e('div', { className: 'flex items-center' },
+                                                e('span', { className: 'text-sm font-medium text-gray-900' }, item.Quantity || '0'),
+                                                e('span', { 
+                                                    className: `ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                                        getStockStatus(item) === 'out' ? 'bg-red-100 text-red-800' :
+                                                        getStockStatus(item) === 'low' ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-green-100 text-green-800'
+                                                    }`
+                                                }, 
+                                                    getStockStatus(item) === 'out' ? 'Out' :
+                                                    getStockStatus(item) === 'low' ? 'Low' : 'OK'
+                                                )
+                                            )
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-sm text-gray-900' },
+                                            item.Location || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 text-sm text-gray-500 max-w-xs truncate' },
+                                            item.Notes || '-'
+                                        ),
+                                        e('td', { className: 'px-6 py-4 whitespace-nowrap text-right text-sm font-medium' },
+                                            e('div', { className: 'flex justify-end gap-2' },
+                                                e('button', {
+                                                    onClick: () => handleOpenModal('edit', item),
+                                                    className: 'text-indigo-600 hover:text-indigo-900'
+                                                }, 'Edit'),
+                                                e('button', {
+                                                    onClick: () => handleDeleteItem(item.ItemID),
+                                                    className: 'text-red-600 hover:text-red-900'
+                                                }, 'Delete')
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                // Modal
+                showModal && e('div', { className: 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50' },
+                    e('div', { className: 'relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white' },
+                        e('div', { className: 'mt-3' },
+                            e('h3', { className: 'text-lg font-medium text-gray-900 mb-4' },
+                                modalMode === 'edit' ? 'Edit Item' : 'Add New Item'
+                            ),
+                            e('div', { className: 'space-y-4' },
+                                // Item Name
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Item Name *'),
+                                    e('input', {
+                                        type: 'text',
+                                        value: formData.ItemName,
+                                        onChange: (ev) => setFormData(prev => ({ ...prev, ItemName: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                        placeholder: 'Enter item name'
+                                    })
+                                ),
+                                // Category
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Category'),
+                                    e('input', {
+                                        type: 'text',
+                                        value: formData.Category,
+                                        onChange: (ev) => setFormData(prev => ({ ...prev, Category: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                        placeholder: 'Enter category'
+                                    })
+                                ),
+                                // Quantity
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Quantity'),
+                                    e('input', {
+                                        type: 'number',
+                                        value: formData.Quantity,
+                                        onChange: (ev) => setFormData(prev => ({ ...prev, Quantity: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                        placeholder: '0',
+                                        min: '0'
+                                    })
+                                ),
+                                // Location
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Location'),
+                                    e('input', {
+                                        type: 'text',
+                                        value: formData.Location,
+                                        onChange: (ev) => setFormData(prev => ({ ...prev, Location: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                        placeholder: 'Enter location'
+                                    })
+                                ),
+                                // Notes
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Notes'),
+                                    e('textarea', {
+                                        value: formData.Notes,
+                                        onChange: (ev) => setFormData(prev => ({ ...prev, Notes: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500',
+                                        rows: 3,
+                                        placeholder: 'Enter notes (optional)'
+                                    })
+                                )
+                            ),
+                            e('div', { className: 'flex justify-end gap-3 mt-6' },
+                                e('button', {
+                                    onClick: handleCloseModal,
+                                    className: 'px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300',
+                                    disabled: isSaving
+                                }, 'Cancel'),
+                                e('button', {
+                                    onClick: handleSaveItem,
+                                    className: 'px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50',
+                                    disabled: isSaving
+                                }, isSaving ? 'Saving...' : 'Save')
+                            )
+                        )
+                    )
+                )
             );
         }
 
