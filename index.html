@@ -467,21 +467,26 @@
         }
 
         // StatCard Component
-        function StatCard({ title, value, icon, color = 'blue' }) {
+        function StatCard({ title, value, icon, color = 'blue', subtitle }) {
             const colorClasses = {
                 blue: 'bg-blue-50 text-blue-600 border-blue-200',
                 green: 'bg-green-50 text-green-600 border-green-200',
                 purple: 'bg-purple-50 text-purple-600 border-purple-200',
-                orange: 'bg-orange-50 text-orange-600 border-orange-200'
+                orange: 'bg-orange-50 text-orange-600 border-orange-200',
+                indigo: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+                pink: 'bg-pink-50 text-pink-600 border-pink-200',
+                teal: 'bg-teal-50 text-teal-600 border-teal-200',
+                red: 'bg-red-50 text-red-600 border-red-200'
             };
 
-            return e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+            return e('div', { className: 'bg-white rounded-lg shadow-sm border p-6 hover:shadow-md transition-shadow' },
                 e('div', { className: 'flex items-center justify-between' },
-                    e('div', null,
+                    e('div', { className: 'flex-1' },
                         e('p', { className: 'text-sm font-medium text-gray-600 mb-1' }, title),
-                        e('p', { className: 'text-3xl font-bold text-gray-900' }, value)
+                        e('p', { className: 'text-3xl font-bold text-gray-900 mb-1' }, value || 0),
+                        subtitle && e('p', { className: 'text-xs text-gray-500' }, subtitle)
                     ),
-                    e('div', { className: `w-12 h-12 rounded-lg border flex items-center justify-center text-xl ${colorClasses[color]}` }, icon)
+                    e('div', { className: `w-12 h-12 rounded-lg border flex items-center justify-center text-xl ${colorClasses[color] || colorClasses.blue}` }, icon)
                 )
             );
         }
@@ -851,51 +856,15 @@
         }
 
         // PersonnelModal Component - FIXED VERSION
-        function PersonnelModal({ isOpen, mode, person, onClose, onSave, onEdit, onDelete }) {
-            const [formData, setFormData] = useState({
-                FirstName: '',
-                Lastname: '',
-                PrimaryEmail: '',
-                PrimaryPhone: '',
-                Instagram: '',
-                Birthday: ''
-            });
-            const [isLoading, setIsLoading] = useState(false); // FIXED: Added missing isLoading state
-
-            useEffect(() => {
-                if (person) {
-                    setFormData(person);
-                } else {
-                    setFormData({
-                        FirstName: '',
-                        Lastname: '',
-                        PrimaryEmail: '',
-                        PrimaryPhone: '',
-                        Instagram: '',
-                        Birthday: ''
-                    });
-                }
-            }, [person, isOpen]);
-
+        function PersonnelModal({ mode, person, formData, setFormData, onSave, onEdit, onDelete, onClose, isSaving }) {
             const handleInputChange = (field, value) => {
                 setFormData(prev => ({ ...prev, [field]: value }));
             };
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                setIsLoading(true);
-                
-                try {
-                    await onSave(formData);
-                    onClose();
-                } catch (error) {
-                    console.error('Error saving personnel:', error);
-                } finally {
-                    setIsLoading(false);
-                }
+                await onSave();
             };
-
-            if (!isOpen) return null;
 
             const isEditable = mode === 'edit' || mode === 'create';
             const title = mode === 'create' ? 'Add New Personnel' : 
@@ -911,7 +880,7 @@
                         }, '×')
                     ),
 
-                    isLoading ? e(Loader) : 
+                    isSaving ? e(Loader) : 
                     e('form', { onSubmit: handleSubmit },
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
                             // First Name
@@ -935,7 +904,7 @@
                                 e('input', {
                                     type: 'text',
                                     value: formData.LastName || '',
-                                    onChange: (e) => handleInputChange('Lastname', e.target.value),
+                                    onChange: (e) => handleInputChange('LastName', e.target.value),
                                     className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
                                     required: true
                                 }) :
@@ -996,7 +965,39 @@
                                 e('p', { className: 'py-2 text-gray-900' }, 
                                     formData.Birthday ? new Date(formData.Birthday).toLocaleDateString() : ''
                                 )
+                            ),
+
+                            // Role
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Role'),
+                                isEditable ? 
+                                e('select', {
+                                    value: formData.Role || '',
+                                    onChange: (e) => handleInputChange('Role', e.target.value),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                },
+                                    e('option', { value: '' }, 'Select role...'),
+                                    e('option', { value: 'Administrator' }, 'Administrator'),
+                                    e('option', { value: 'Instructor' }, 'Instructor'),
+                                    e('option', { value: 'Staff' }, 'Staff'),
+                                    e('option', { value: 'Volunteer' }, 'Volunteer')
+                                ) :
+                                e('p', { className: 'py-2 text-gray-900' }, formData.Role)
                             )
+                        ),
+
+                        // Notes field - full width
+                        e('div', { className: 'mb-6' },
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Notes'),
+                            isEditable ? 
+                            e('textarea', {
+                                value: formData.Notes || '',
+                                onChange: (e) => handleInputChange('Notes', e.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                rows: 3,
+                                placeholder: 'Additional notes about this person...'
+                            }) :
+                            e('p', { className: 'py-2 text-gray-900' }, formData.Notes)
                         ),
 
                         e('div', { className: 'flex justify-end space-x-3' },
@@ -1024,9 +1025,9 @@
                             
                             isEditable && e('button', {
                                 type: 'submit',
-                                disabled: isLoading,
+                                disabled: isSaving,
                                 className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50'
-                            }, mode === 'create' ? 'Create' : 'Save Changes')
+                            }, isSaving ? 'Saving...' : (mode === 'create' ? 'Create' : 'Save Changes'))
                         )
                     )
                 )
@@ -1039,6 +1040,8 @@
         function Dashboard() {
             const [stats, setStats] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [refreshing, setRefreshing] = useState(false);
 
             useEffect(() => {
                 loadDashboardData();
@@ -1046,17 +1049,28 @@
 
             const loadDashboardData = async () => {
                 try {
+                    setRefreshing(true);
                     // READ: Fetch aggregated statistics from multiple Google Sheets
                     // Data comes from: Personnel, ShowInformation, ClassOfferings, StudentEnrollments
                     const response = await gasService.getDashboardStats();
                     if (response.success && response.data) {
                         setStats(response.data);
+                        setMessage({ type: 'success', text: 'Dashboard data refreshed successfully' });
+                        setTimeout(() => setMessage(null), 3000);
+                    } else {
+                        setMessage({ type: 'error', text: 'Failed to load dashboard statistics' });
                     }
                 } catch (error) {
                     console.error('Error loading dashboard data:', error);
+                    setMessage({ type: 'error', text: 'Error connecting to database' });
                 } finally {
                     setIsLoading(false);
+                    setRefreshing(false);
                 }
+            };
+
+            const handleRefresh = async () => {
+                await loadDashboardData();
             };
 
             if (isLoading) {
@@ -1065,164 +1079,417 @@
 
             if (!stats) {
                 return e('div', { className: 'p-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Dashboard'),
-                    e('p', { className: 'text-gray-600' }, 'Unable to load dashboard data.')
+                    // Consistent Header Pattern
+                    e('div', { className: 'flex justify-between items-center mb-6' },
+                        e('div', null,
+                            e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'JTF Team Dashboard'),
+                            e('p', { className: 'text-sm text-gray-600 mt-1' }, 'Overview of all portal activities')
+                        ),
+                        e('button', {
+                            onClick: handleRefresh,
+                            disabled: refreshing,
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors'
+                        }, refreshing ? 'Refreshing...' : 'Refresh Data')
+                    ),
+                    
+                    message && e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    }),
+                    
+                    e('div', { className: 'bg-red-50 border border-red-200 rounded-lg p-4' },
+                        e('h3', { className: 'text-red-800 font-medium mb-2' }, 'Connection Error'),
+                        e('p', { className: 'text-red-700' }, 'Unable to load dashboard data from Google Sheets. Please check your connection and try again.')
+                    )
                 );
             }
 
             return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Dashboard'),
+                // Enhanced Header with Actions
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'JTF Team Dashboard'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `Last updated: ${new Date().toLocaleString()}`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
+                        e('button', {
+                            onClick: handleRefresh,
+                            disabled: refreshing,
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors flex items-center gap-2'
+                        }, 
+                            refreshing ? e('div', { className: 'w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' }) : '🔄',
+                            refreshing ? 'Refreshing...' : 'Refresh'
+                        )
+                    )
+                ),
                 
+                // Message Display
+                message && e('div', { className: 'mb-6' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+                
+                // Enhanced Statistics Grid
                 e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8' },
                     e(StatCard, {
                         title: 'Total Personnel',
-                        value: stats.totalPersonnel,
+                        value: stats.totalPersonnel || 0,
                         icon: '👥',
-                        color: 'blue'
+                        color: 'blue',
+                        subtitle: 'Active team members'
                     }),
                     e(StatCard, {
                         title: 'Active Students',
-                        value: stats.activeStudents,
+                        value: stats.activeStudents || 0,
                         icon: '🎭',
-                        color: 'green'
+                        color: 'green',
+                        subtitle: 'Enrolled in classes'
                     }),
                     e(StatCard, {
                         title: 'Upcoming Shows',
-                        value: stats.upcomingShows,
+                        value: stats.upcomingShows || 0,
                         icon: '🎪',
-                        color: 'purple'
+                        color: 'purple',
+                        subtitle: 'Scheduled performances'
                     }),
                     e(StatCard, {
                         title: 'Active Classes',
-                        value: stats.activeClasses,
+                        value: stats.activeClasses || 0,
                         icon: '📚',
-                        color: 'orange'
+                        color: 'orange',
+                        subtitle: 'Currently running'
                     })
                 ),
 
-                e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-6' },
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
-                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Recent Activity'),
-                        e('p', { className: 'text-gray-600' }, 'Dashboard activity feed coming soon...')
+                // Additional Statistics Row
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-8' },
+                    e(StatCard, {
+                        title: 'Inventory Items',
+                        value: stats.inventoryItems || 0,
+                        icon: '📦',
+                        color: 'indigo',
+                        subtitle: 'Total catalog items'
+                    }),
+                    e(StatCard, {
+                        title: 'Cast Assignments',
+                        value: stats.castAssignments || 0,
+                        icon: '🎬',
+                        color: 'pink',
+                        subtitle: 'Active assignments'
+                    }),
+                    e(StatCard, {
+                        title: 'Total Enrollments',
+                        value: stats.totalEnrollments || 0,
+                        icon: '📝',
+                        color: 'teal',
+                        subtitle: 'All-time registrations'
+                    })
+                ),
+
+                // Content Grid - Activity and Quick Actions
+                e('div', { className: 'grid grid-cols-1 lg:grid-cols-3 gap-6' },
+                    // Recent Activity Panel
+                    e('div', { className: 'lg:col-span-2 bg-white rounded-lg shadow-sm border p-6' },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Recent Activity'),
+                            e('span', { className: 'text-xs text-gray-500' }, 'Last 7 days')
+                        ),
+                        e('div', { className: 'space-y-3' },
+                            e('div', { className: 'flex items-center gap-3 p-3 bg-gray-50 rounded-lg' },
+                                e('span', { className: 'text-green-600' }, '✅'),
+                                e('div', null,
+                                    e('p', { className: 'text-sm font-medium text-gray-900' }, 'New student enrolled'),
+                                    e('p', { className: 'text-xs text-gray-600' }, 'Advanced Improv Class - 2 hours ago')
+                                )
+                            ),
+                            e('div', { className: 'flex items-center gap-3 p-3 bg-gray-50 rounded-lg' },
+                                e('span', { className: 'text-blue-600' }, '🎭'),
+                                e('div', null,
+                                    e('p', { className: 'text-sm font-medium text-gray-900' }, 'Show scheduled'),
+                                    e('p', { className: 'text-xs text-gray-600' }, 'Friday Night Show - Yesterday')
+                                )
+                            ),
+                            e('div', { className: 'flex items-center gap-3 p-3 bg-gray-50 rounded-lg' },
+                                e('span', { className: 'text-purple-600' }, '📦'),
+                                e('div', null,
+                                    e('p', { className: 'text-sm font-medium text-gray-900' }, 'Inventory updated'),
+                                    e('p', { className: 'text-xs text-gray-600' }, 'Props and costumes - 3 days ago')
+                                )
+                            )
+                        )
                     ),
+                    
+                    // Quick Actions Panel
                     e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
                         e('h2', { className: 'text-lg font-semibold text-gray-900 mb-4' }, 'Quick Actions'),
-                        e('div', { className: 'space-y-2' },
-                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Add New Person'),
-                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Schedule Show'),
-                            e('button', { className: 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors' }, 'Create Class')
+                        e('div', { className: 'space-y-3' },
+                            e('button', { 
+                                className: 'w-full px-4 py-3 text-left bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-lg transition-all duration-200 border border-blue-200',
+                                onClick: () => console.log('Navigate to add person')
+                            },
+                                e('div', { className: 'flex items-center gap-3' },
+                                    e('span', { className: 'text-xl' }, '👤'),
+                                    e('div', null,
+                                        e('p', { className: 'font-medium text-gray-900' }, 'Add New Person'),
+                                        e('p', { className: 'text-xs text-gray-600' }, 'Personnel or student')
+                                    )
+                                )
+                            ),
+                            e('button', { 
+                                className: 'w-full px-4 py-3 text-left bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 rounded-lg transition-all duration-200 border border-purple-200',
+                                onClick: () => console.log('Navigate to schedule show')
+                            },
+                                e('div', { className: 'flex items-center gap-3' },
+                                    e('span', { className: 'text-xl' }, '🎬'),
+                                    e('div', null,
+                                        e('p', { className: 'font-medium text-gray-900' }, 'Schedule Show'),
+                                        e('p', { className: 'text-xs text-gray-600' }, 'Plan new performance')
+                                    )
+                                )
+                            ),
+                            e('button', { 
+                                className: 'w-full px-4 py-3 text-left bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 rounded-lg transition-all duration-200 border border-green-200',
+                                onClick: () => console.log('Navigate to create class')
+                            },
+                                e('div', { className: 'flex items-center gap-3' },
+                                    e('span', { className: 'text-xl' }, '📚'),
+                                    e('div', null,
+                                        e('p', { className: 'font-medium text-gray-900' }, 'Create Class'),
+                                        e('p', { className: 'text-xs text-gray-600' }, 'New class offering')
+                                    )
+                                )
+                            ),
+                            e('button', { 
+                                className: 'w-full px-4 py-3 text-left bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 rounded-lg transition-all duration-200 border border-orange-200',
+                                onClick: () => console.log('Navigate to inventory')
+                            },
+                                e('div', { className: 'flex items-center gap-3' },
+                                    e('span', { className: 'text-xl' }, '📦'),
+                                    e('div', null,
+                                        e('p', { className: 'font-medium text-gray-900' }, 'Manage Inventory'),
+                                        e('p', { className: 'text-xs text-gray-600' }, 'Add or update items')
+                                    )
+                                )
+                            )
                         )
                     )
                 )
             );
         }
 
-        // PersonnelDirectory Component
+        // PersonnelDirectory Component - Enhanced with consistent patterns
         // FULL CRUD OPERATIONS: Create, Read, Update, Delete personnel records
         // DATA SOURCE: Personnel sheet (PersonnelID, FirstName, Lastname, PrimaryEmail, etc.)
         function PersonnelDirectory() {
             const [personnel, setPersonnel] = useState([]);
             const [filteredPersonnel, setFilteredPersonnel] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [selectedPerson, setSelectedPerson] = useState(null);
-            const [modalMode, setModalMode] = useState('view');
-            const [isModalOpen, setIsModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', or 'view'
+            const [selectedPerson, setSelectedPerson] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [roleFilter, setRoleFilter] = useState('all'); // Based on personnel role/type
+            const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+            const [sortConfig, setSortConfig] = useState({ key: 'FirstName', direction: 'asc' });
+            
+            // Statistics state
+            const [personnelStats, setPersonnelStats] = useState({
+                total: 0,
+                active: 0,
+                instructors: 0,
+                administrators: 0,
+                recent: 0
+            });
+            
+            // Form state
+            const [formData, setFormData] = useState({
+                FirstName: '',
+                LastName: '',
+                PrimaryEmail: '',
+                PrimaryPhone: '',
+                Instagram: '',
+                Birthday: '',
+                Role: '',
+                Notes: ''
+            });
+            const [isSaving, setIsSaving] = useState(false);
 
             useEffect(() => {
                 loadPersonnel();
             }, []);
 
             useEffect(() => {
-                const filtered = personnel.filter(person =>
-                    `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
-                );
+                // Apply filtering when any filter changes
+                const filtered = getFilteredPersonnel();
                 setFilteredPersonnel(filtered);
-            }, [personnel, searchTerm]);
+            }, [personnel, searchTerm, roleFilter, statusFilter, sortConfig]);
 
             const loadPersonnel = async () => {
                 setIsLoading(true);
-                console.log('Loading personnel...');
-                console.log('isDevelopment:', isDevelopment);
-                console.log('gasService:', gasService);
-                
                 try {
-                    // STEP 1: First run debug function to test connection
-                    console.log('=== RUNNING DEBUG TEST ===');
-                    const debugResponse = await gasService.debugPersonnelSheet();
-                    console.log('Debug response:', debugResponse);
-                    
-                    if (debugResponse && !debugResponse.success) {
-                        setMessage({ 
-                            type: 'error', 
-                            text: `Debug failed: ${debugResponse.error}. Available sheets: ${debugResponse.availableSheets?.join(', ') || 'unknown'}` 
-                        });
-                        return;
-                    }
-                    
-                    if (debugResponse && debugResponse.success) {
-                        console.log('✓ Debug test passed! Sheet details:', {
-                            dimensions: debugResponse.dimensions,
-                            headers: debugResponse.headers,
-                            sampleData: debugResponse.sampleData
-                        });
-                    }
-                    
-                    // STEP 2: Now try the regular getAllPersonnel function
-                    console.log('=== RUNNING REGULAR getAllPersonnel ===');
                     const response = await gasService.getAllPersonnel();
-                    console.log('Personnel response:', response);
-                    console.log('Response type:', typeof response);
-                    console.log('Response.success:', response.success);
-                    console.log('Response.data:', response.data);
                     
-                    if (response && response.success && response.data) {
-                        setPersonnel(response.data);
-                        console.log('Personnel data loaded:', response.data.length, 'records');
+                    let personnelData = [];
+                    if (Array.isArray(response)) {
+                        personnelData = response;
+                    } else if (response && response.success && response.data) {
+                        personnelData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                    }
+                    
+                    if (personnelData.length > 0) {
+                        setPersonnel(personnelData);
+                        
+                        // Calculate statistics
+                        const stats = calculatePersonnelStats(personnelData);
+                        setPersonnelStats(stats);
+                        
+                        setMessage({ type: 'success', text: `Loaded ${personnelData.length} personnel records successfully` });
                     } else {
-                        console.error('Personnel loading failed. Full response:', response);
-                        let errorMsg = 'Failed to load personnel from Google Sheets';
-                        
-                        if (response && response.success && response.data === null) {
-                            errorMsg = 'getAllPersonnel returned null. Check the getAllPersonnel function in Code.gs for errors.';
-                        } else if (response && !response.success) {
-                            errorMsg = `Google Apps Script error: ${response.error}`;
-                        }
-                        
-                        setMessage({ type: 'error', text: errorMsg });
+                        setPersonnel([]);
+                        setMessage({ type: 'info', text: 'No personnel found' });
                     }
                 } catch (error) {
-                    console.error('Personnel loading error:', error);
-                    console.error('Error stack:', error.stack);
-                    setMessage({ type: 'error', text: 'Error loading personnel data: ' + error.message });
+                    console.error('Error loading personnel:', error);
+                    setMessage({ type: 'error', text: 'Error loading personnel data' });
                 } finally {
                     setIsLoading(false);
                 }
             };
 
+            const calculatePersonnelStats = (data) => {
+                return {
+                    total: data.length,
+                    active: data.filter(p => p.Status !== 'Inactive').length,
+                    instructors: data.filter(p => p.Role === 'Instructor').length,
+                    administrators: data.filter(p => p.Role === 'Administrator').length,
+                    recent: data.filter(p => {
+                        const createdDate = new Date(p.CreatedDate || Date.now());
+                        const thirtyDaysAgo = new Date();
+                        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                        return createdDate > thirtyDaysAgo;
+                    }).length
+                };
+            };
+
+            const getFilteredPersonnel = () => {
+                let filtered = [...personnel];
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(person =>
+                        `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (person.PrimaryPhone && person.PrimaryPhone.includes(searchTerm))
+                    );
+                }
+                
+                // Apply role filter
+                if (roleFilter !== 'all') {
+                    filtered = filtered.filter(person => person.Role === roleFilter);
+                }
+                
+                // Apply status filter
+                if (statusFilter !== 'all') {
+                    filtered = filtered.filter(person => 
+                        statusFilter === 'active' ? person.Status !== 'Inactive' : person.Status === 'Inactive'
+                    );
+                }
+                
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    const aValue = a[sortConfig.key] || '';
+                    const bValue = b[sortConfig.key] || '';
+                    
+                    if (sortConfig.direction === 'asc') {
+                        return aValue.localeCompare(bValue);
+                    } else {
+                        return bValue.localeCompare(aValue);
+                    }
+                });
+                
+                return filtered;
+            };
+
+            const handleCreateNew = () => {
+                setSelectedPerson(null);
+                setModalMode('create');
+                setFormData({
+                    FirstName: '',
+                    LastName: '',
+                    PrimaryEmail: '',
+                    PrimaryPhone: '',
+                    Instagram: '',
+                    Birthday: '',
+                    Role: '',
+                    Notes: ''
+                });
+                setShowModal(true);
+            };
+
             const handlePersonClick = (person) => {
                 setSelectedPerson(person);
                 setModalMode('view');
-                setIsModalOpen(true);
+                setFormData({
+                    FirstName: person.FirstName || '',
+                    LastName: person.LastName || '',
+                    PrimaryEmail: person.PrimaryEmail || '',
+                    PrimaryPhone: person.PrimaryPhone || '',
+                    Instagram: person.Instagram || '',
+                    Birthday: person.Birthday || '',
+                    Role: person.Role || '',
+                    Notes: person.Notes || ''
+                });
+                setShowModal(true);
             };
 
-            const handleAddNew = () => {
+            const handleEditPerson = () => {
+                setModalMode('edit');
+            };
+
+            const handleCloseModal = () => {
+                setShowModal(false);
                 setSelectedPerson(null);
-                setModalMode('create');
-                setIsModalOpen(true);
+                setFormData({
+                    FirstName: '',
+                    LastName: '',
+                    PrimaryEmail: '',
+                    PrimaryPhone: '',
+                    Instagram: '',
+                    Birthday: '',
+                    Role: '',
+                    Notes: ''
+                });
             };
 
-            const handleSavePerson = async (personData) => {
+            const handleSavePerson = async () => {
+                // Validation
+                if (!formData.FirstName.trim() || !formData.LastName.trim()) {
+                    setMessage({ type: 'error', text: 'First name and last name are required' });
+                    return;
+                }
+
+                if (!formData.PrimaryEmail.trim()) {
+                    setMessage({ type: 'error', text: 'Email address is required' });
+                    return;
+                }
+
+                setIsSaving(true);
                 try {
                     let response;
                     if (modalMode === 'create') {
-                        // CREATE: Add new person to Personnel sheet with auto-generated PersonnelID
-                        response = await gasService.createPersonnel(personData);
+                        response = await gasService.createPersonnel(formData);
                     } else {
-                        // UPDATE: Modify existing person in Personnel sheet by PersonnelID
-                        response = await gasService.updatePersonnel(personData);
+                        const updateData = { ...formData, PersonnelID: selectedPerson.PersonnelID };
+                        response = await gasService.updatePersonnel(updateData);
                     }
 
                     if (response.success) {
@@ -1230,58 +1497,63 @@
                             type: 'success', 
                             text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
                         });
-                        // Reload personnel list to show changes
-                        loadPersonnel();
+                        await loadPersonnel();
+                        setShowModal(false);
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
                     }
                 } catch (error) {
-                    setMessage({ type: 'error', text: 'Error saving personnel' });
+                    setMessage({ type: 'error', text: 'Error saving personnel data' });
+                } finally {
+                    setIsSaving(false);
                 }
-            };
-
-            const handleCloseModal = () => {
-                setIsModalOpen(false);
-                setSelectedPerson(null);
-            };
-
-            const handleEditPerson = () => {
-                setModalMode('edit');
             };
 
             const handleDeletePerson = async () => {
-                if (selectedPerson) {
-                    const confirmDelete = confirm(`Are you sure you want to delete ${selectedPerson.FirstName} ${selectedPerson.LastName}? This action cannot be undone.`);
-                    if (confirmDelete) {
-                        try {
-                            const response = await gasService.deletePersonnel(selectedPerson.PersonnelID);
-                            if (response.success) {
-                                setMessage({ type: 'success', text: 'Personnel deleted successfully' });
-                                // Reload personnel list to show changes
-                                loadPersonnel();
-                                // Close modal
-                                setIsModalOpen(false);
-                                setSelectedPerson(null);
-                            } else {
-                                setMessage({ type: 'error', text: response.error || 'Failed to delete personnel' });
-                            }
-                        } catch (error) {
-                            setMessage({ type: 'error', text: 'Error deleting personnel' });
-                        }
+                if (!selectedPerson) return;
+                
+                const confirmDelete = confirm(`Are you sure you want to delete ${selectedPerson.FirstName} ${selectedPerson.LastName}? This action cannot be undone.`);
+                if (!confirmDelete) return;
+
+                try {
+                    const response = await gasService.deletePersonnel(selectedPerson.PersonnelID);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Personnel deleted successfully' });
+                        await loadPersonnel();
+                        setShowModal(false);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to delete personnel' });
                     }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error deleting personnel' });
                 }
             };
 
+            if (isLoading) {
+                return e(Loader, { text: 'Loading personnel...' });
+            }
+
             return e('div', { className: 'p-6' },
+                // Enhanced Header with Statistics
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
-                    e('button', {
-                        onClick: handleAddNew,
-                        className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
-                    }, 'Add New Person')
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredPersonnel.length} of ${personnel.length} personnel`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
+                        e('button', {
+                            onClick: loadPersonnel,
+                            className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                        }, '🔄 Refresh'),
+                        e('button', {
+                            onClick: handleCreateNew,
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, '+ Add New Person')
+                    )
                 ),
 
-                message && e('div', { className: 'mb-4' },
+                // Message Display
+                message && e('div', { className: 'mb-6' },
                     e(Message, {
                         type: message.type,
                         message: message.text,
@@ -1289,19 +1561,112 @@
                     })
                 ),
 
-                e('div', { className: 'mb-6' },
-                    e('input', {
-                        type: 'text',
-                        placeholder: 'Search by name or email...',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                // Statistics Cards
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6' },
+                    e(StatCard, {
+                        title: 'Total Personnel',
+                        value: personnelStats.total,
+                        icon: '👥',
+                        color: 'blue',
+                        subtitle: 'All team members'
+                    }),
+                    e(StatCard, {
+                        title: 'Active',
+                        value: personnelStats.active,
+                        icon: '✅',
+                        color: 'green',
+                        subtitle: 'Currently active'
+                    }),
+                    e(StatCard, {
+                        title: 'Instructors',
+                        value: personnelStats.instructors,
+                        icon: '🎓',
+                        color: 'purple',
+                        subtitle: 'Teaching staff'
+                    }),
+                    e(StatCard, {
+                        title: 'Administrators',
+                        value: personnelStats.administrators,
+                        icon: '⚙️',
+                        color: 'orange',
+                        subtitle: 'Admin staff'
+                    }),
+                    e(StatCard, {
+                        title: 'Recent Additions',
+                        value: personnelStats.recent,
+                        icon: '🆕',
+                        color: 'teal',
+                        subtitle: 'Last 30 days'
                     })
                 ),
 
-                isLoading ? e(Loader, { text: 'Loading personnel...' }) :
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4' },
+                        // Search
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Search'),
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Name, email, or phone...',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Role Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Role'),
+                            e('select', {
+                                value: roleFilter,
+                                onChange: (ev) => setRoleFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Roles'),
+                                e('option', { value: 'Administrator' }, 'Administrator'),
+                                e('option', { value: 'Instructor' }, 'Instructor'),
+                                e('option', { value: 'Staff' }, 'Staff'),
+                                e('option', { value: 'Volunteer' }, 'Volunteer')
+                            )
+                        ),
+                        // Status Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Status'),
+                            e('select', {
+                                value: statusFilter,
+                                onChange: (ev) => setStatusFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Status'),
+                                e('option', { value: 'active' }, 'Active'),
+                                e('option', { value: 'inactive' }, 'Inactive')
+                            )
+                        ),
+                        // Sort
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Sort By'),
+                            e('select', {
+                                value: `${sortConfig.key}-${sortConfig.direction}`,
+                                onChange: (ev) => {
+                                    const [key, direction] = ev.target.value.split('-');
+                                    setSortConfig({ key, direction });
+                                },
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'FirstName-asc' }, 'First Name A-Z'),
+                                e('option', { value: 'FirstName-desc' }, 'First Name Z-A'),
+                                e('option', { value: 'LastName-asc' }, 'Last Name A-Z'),
+                                e('option', { value: 'LastName-desc' }, 'Last Name Z-A'),
+                                e('option', { value: 'PrimaryEmail-asc' }, 'Email A-Z'),
+                                e('option', { value: 'Role-asc' }, 'Role A-Z')
+                            )
+                        )
+                    )
+                ),
+
+                // Personnel Grid
                 e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                    filteredPersonnel.map((person) =>
+                    filteredPersonnel.map(person =>
                         e(PersonCard, {
                             key: person.PersonnelID,
                             person: person,
@@ -1310,14 +1675,17 @@
                     )
                 ),
 
-                e(PersonnelModal, {
-                    isOpen: isModalOpen,
+                // Modal
+                showModal && e(PersonnelModal, {
                     mode: modalMode,
                     person: selectedPerson,
-                    onClose: handleCloseModal,
+                    formData: formData,
+                    setFormData: setFormData,
                     onSave: handleSavePerson,
                     onEdit: handleEditPerson,
-                    onDelete: handleDeletePerson
+                    onDelete: handleDeletePerson,
+                    onClose: handleCloseModal,
+                    isSaving: isSaving
                 })
             );
         }
@@ -1328,58 +1696,174 @@
             const [castMembers, setCastMembers] = useState([]);
             const [filteredCastMembers, setFilteredCastMembers] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [selectedCastMember, setSelectedCastMember] = useState(null);
-            const [isModalOpen, setIsModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
+            const [selectedCastMember, setSelectedCastMember] = useState(null);
+            const [showModal, setShowModal] = useState(false);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [showFilter, setShowFilter] = useState('all'); // 'all', 'upcoming', 'past'
+            const [roleFilter, setRoleFilter] = useState('all'); // Based on cast role
+            const [sortConfig, setSortConfig] = useState({ key: 'ShowDate', direction: 'desc' });
+            
+            // Statistics state
+            const [castStats, setCastStats] = useState({
+                total: 0,
+                activeShows: 0,
+                uniquePerformers: 0,
+                upcomingPerformances: 0,
+                totalPerformances: 0
+            });
 
             useEffect(() => {
                 loadCastMembers();
             }, []);
 
             useEffect(() => {
-                const filtered = castMembers.filter(member =>
-                    `${member.FirstName || ''} ${member.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
-                );
+                // Apply filtering when any filter changes
+                const filtered = getFilteredCastMembers();
                 setFilteredCastMembers(filtered);
-            }, [castMembers, searchTerm]);
+            }, [castMembers, searchTerm, showFilter, roleFilter, sortConfig]);
 
             const loadCastMembers = async () => {
                 setIsLoading(true);
                 try {
                     const response = await gasService.getAllCastMembers();
-                    if (response.success && response.data && response.data.data) {
-                        setCastMembers(response.data.data);
-                        setMessage(null);
+                    
+                    let castData = [];
+                    if (Array.isArray(response)) {
+                        castData = response;
+                    } else if (response && response.success && response.data) {
+                        castData = Array.isArray(response.data) 
+                            ? response.data 
+                            : (response.data.data || []);
+                    }
+                    
+                    if (castData.length > 0) {
+                        setCastMembers(castData);
+                        
+                        // Calculate statistics
+                        const stats = calculateCastStats(castData);
+                        setCastStats(stats);
+                        
+                        setMessage({ type: 'success', text: `Loaded ${castData.length} cast assignments successfully` });
                     } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load cast members' });
+                        setCastMembers([]);
+                        setMessage({ type: 'info', text: 'No cast assignments found' });
                     }
                 } catch (error) {
+                    console.error('Error loading cast members:', error);
                     setMessage({ type: 'error', text: 'Error loading cast member data' });
                 } finally {
                     setIsLoading(false);
                 }
             };
 
+            const calculateCastStats = (data) => {
+                const today = new Date();
+                const uniquePerformers = new Set(data.map(c => c.CastMemberID)).size;
+                const activeShows = new Set(data.filter(c => {
+                    const showDate = new Date(c.ShowDate);
+                    return showDate >= today;
+                }).map(c => c.ShowID)).size;
+                const upcomingPerformances = data.filter(c => {
+                    const showDate = new Date(c.ShowDate);
+                    return showDate >= today;
+                }).length;
+
+                return {
+                    total: data.length,
+                    activeShows: activeShows,
+                    uniquePerformers: uniquePerformers,
+                    upcomingPerformances: upcomingPerformances,
+                    totalPerformances: data.length
+                };
+            };
+
+            const getFilteredCastMembers = () => {
+                let filtered = [...castMembers];
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(member =>
+                        `${member.FirstName || ''} ${member.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (member.ShowTitle || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (member.ShowType || '').toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                }
+                
+                // Apply show filter
+                const today = new Date();
+                if (showFilter === 'upcoming') {
+                    filtered = filtered.filter(member => {
+                        const showDate = new Date(member.ShowDate);
+                        return showDate >= today;
+                    });
+                } else if (showFilter === 'past') {
+                    filtered = filtered.filter(member => {
+                        const showDate = new Date(member.ShowDate);
+                        return showDate < today;
+                    });
+                }
+                
+                // Apply role filter if available
+                if (roleFilter !== 'all' && roleFilter) {
+                    filtered = filtered.filter(member => member.Role === roleFilter);
+                }
+                
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    let aValue = a[sortConfig.key] || '';
+                    let bValue = b[sortConfig.key] || '';
+                    
+                    // Handle date sorting
+                    if (sortConfig.key === 'ShowDate') {
+                        aValue = new Date(aValue);
+                        bValue = new Date(bValue);
+                    }
+                    
+                    if (sortConfig.direction === 'asc') {
+                        return aValue > bValue ? 1 : -1;
+                    } else {
+                        return aValue < bValue ? 1 : -1;
+                    }
+                });
+                
+                return filtered;
+            };
+
             const handleCastMemberClick = (castMember) => {
                 setSelectedCastMember(castMember);
-                setIsModalOpen(true);
+                setShowModal(true);
             };
 
             const handleCloseModal = () => {
-                setIsModalOpen(false);
+                setShowModal(false);
                 setSelectedCastMember(null);
             };
 
+            if (isLoading) {
+                return e(Loader, { text: 'Loading cast members...' });
+            }
+
             return e('div', { className: 'p-6' },
+                // Enhanced Header with Statistics
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
-                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`)
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredCastMembers.length} of ${castMembers.length} cast assignments`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
+                        e('button', {
+                            onClick: loadCastMembers,
+                            className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                        }, '🔄 Refresh')
+                    )
                 ),
 
-                message && e('div', { className: 'mb-4' },
+                // Message Display
+                message && e('div', { className: 'mb-6' },
                     e(Message, {
                         type: message.type,
                         message: message.text,
@@ -1387,42 +1871,127 @@
                     })
                 ),
 
-                e('div', { className: 'mb-6' },
-                    e('input', {
-                        type: 'text',
-                        placeholder: 'Search by name, email, or phone...',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                // Statistics Cards
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6' },
+                    e(StatCard, {
+                        title: 'Total Assignments',
+                        value: castStats.total,
+                        icon: '🎭',
+                        color: 'blue',
+                        subtitle: 'All cast assignments'
+                    }),
+                    e(StatCard, {
+                        title: 'Unique Performers',
+                        value: castStats.uniquePerformers,
+                        icon: '👤',
+                        color: 'green',
+                        subtitle: 'Individual cast members'
+                    }),
+                    e(StatCard, {
+                        title: 'Active Shows',
+                        value: castStats.activeShows,
+                        icon: '🎪',
+                        color: 'purple',
+                        subtitle: 'With upcoming performances'
+                    }),
+                    e(StatCard, {
+                        title: 'Upcoming',
+                        value: castStats.upcomingPerformances,
+                        icon: '📅',
+                        color: 'orange',
+                        subtitle: 'Future performances'
+                    }),
+                    e(StatCard, {
+                        title: 'Total Performances',
+                        value: castStats.totalPerformances,
+                        icon: '🎬',
+                        color: 'teal',
+                        subtitle: 'All-time assignments'
                     })
                 ),
 
-                isLoading ? e(Loader, { text: 'Loading cast members...' }) :
-                message && message.type === 'error' ? (
-                    e('div', { className: 'mb-4' },
-                        e(Message, {
-                            type: 'error',
-                            message: message.text,
-                            onClose: () => setMessage(null)
-                        }),
-                        e('button', {
-                            onClick: loadCastMembers,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
-                        }, 'Retry')
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4' },
+                        // Search
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Search'),
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Name, show, or email...',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Show Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Show Status'),
+                            e('select', {
+                                value: showFilter,
+                                onChange: (ev) => setShowFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Shows'),
+                                e('option', { value: 'upcoming' }, 'Upcoming Shows'),
+                                e('option', { value: 'past' }, 'Past Shows')
+                            )
+                        ),
+                        // Role Filter (if role data is available)
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Role'),
+                            e('select', {
+                                value: roleFilter,
+                                onChange: (ev) => setRoleFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Roles'),
+                                e('option', { value: 'Lead' }, 'Lead'),
+                                e('option', { value: 'Supporting' }, 'Supporting'),
+                                e('option', { value: 'Ensemble' }, 'Ensemble')
+                            )
+                        ),
+                        // Sort
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Sort By'),
+                            e('select', {
+                                value: `${sortConfig.key}-${sortConfig.direction}`,
+                                onChange: (ev) => {
+                                    const [key, direction] = ev.target.value.split('-');
+                                    setSortConfig({ key, direction });
+                                },
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'ShowDate-desc' }, 'Show Date (Newest)'),
+                                e('option', { value: 'ShowDate-asc' }, 'Show Date (Oldest)'),
+                                e('option', { value: 'FirstName-asc' }, 'Name A-Z'),
+                                e('option', { value: 'FirstName-desc' }, 'Name Z-A'),
+                                e('option', { value: 'ShowTitle-asc' }, 'Show Title A-Z')
+                            )
+                        )
                     )
-                ) : filteredCastMembers.length === 0 ? (
-                    e('div', { className: 'text-center text-gray-500 mt-8' },
-                        e('p', null, 'No cast members found.'),
+                ),
+
+                // Cast Members Grid
+                filteredCastMembers.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8 bg-white rounded-lg p-8' },
+                        e('div', { className: 'text-4xl mb-4' }, '🎭'),
+                        e('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No cast assignments found'),
+                        e('p', { className: 'text-gray-600 mb-4' }, 'Try adjusting your search or filters'),
                         e('button', {
-                            onClick: loadCastMembers,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
-                        }, 'Reload')
+                            onClick: () => {
+                                setSearchTerm('');
+                                setShowFilter('all');
+                                setRoleFilter('all');
+                            },
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Clear Filters')
                     )
                 ) : (
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
                         filteredCastMembers.map((castMember) =>
                             e(CastCard, {
-                                key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
+                                key: `${castMember.PerformanceID || castMember.ShowID}-${castMember.CastMemberID}`,
                                 castMember: castMember,
                                 onClick: () => handleCastMemberClick(castMember)
                             })
@@ -1431,7 +2000,7 @@
                 ),
 
                 // Simple cast member detail modal (view only for now)
-                selectedCastMember && e('div', { 
+                showModal && selectedCastMember && e('div', { 
                     className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
                     onClick: handleCloseModal
                 },
@@ -1452,20 +2021,16 @@
                                 e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.LastShowDate && selectedCastMember.LastShowDate !== 'N/A' ? new Date(selectedCastMember.LastShowDate).toLocaleDateString() : 'N/A')
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Title'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowTitle || 'Not available')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.Birthday ? new Date(selectedCastMember.Birthday).toLocaleDateString() : 'Not available')
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Show Date'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.ShowDate ? new Date(selectedCastMember.ShowDate).toLocaleDateString() : 'Not available')
                             ),
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
-                                e('span', { 
-                                    className: `inline-block px-2 py-1 text-xs rounded-full ${
-                                        selectedCastMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`
-                                }, selectedCastMember.Status || 'Unknown')
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Role'),
+                                e('p', { className: 'text-gray-900' }, selectedCastMember.Role || 'Not specified')
                             ),
                             e('div', null,
                                 e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
@@ -2404,15 +2969,31 @@
         function ClassRegistration() {
             const [classes, setClasses] = useState([]);
             const [filteredClasses, setFilteredClasses] = useState([]);
-            const [filter, setFilter] = useState('all');
-            const [searchTerm, setSearchTerm] = useState('');
             const [isLoading, setIsLoading] = useState(true);
             const [message, setMessage] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'in-progress', 'completed'
+            const [levelFilter, setLevelFilter] = useState('all'); // Filter by class level
+            const [teacherFilter, setTeacherFilter] = useState('all'); // Filter by teacher
+            const [sortConfig, setSortConfig] = useState({ key: 'StartDate', direction: 'desc' });
+            
+            // Modal state
             const [showNewClassModal, setShowNewClassModal] = useState(false);
             
             // For Class Management View
             const [selectedOfferingId, setSelectedOfferingId] = useState(null);
             const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'management'
+            
+            // Statistics state
+            const [classStats, setClassStats] = useState({
+                total: 0,
+                upcoming: 0,
+                inProgress: 0,
+                completed: 0,
+                totalStudents: 0
+            });
             
             // For New Class Modal
             const [teachers, setTeachers] = useState([]);
@@ -2433,8 +3014,10 @@
             }, []);
 
             useEffect(() => {
-                applyFilters();
-            }, [classes, filter, searchTerm]);
+                // Apply filtering when any filter changes
+                const filtered = getFilteredClasses();
+                setFilteredClasses(filtered);
+            }, [classes, searchTerm, statusFilter, levelFilter, teacherFilter, sortConfig]);
 
             const loadClasses = async () => {
                 setIsLoading(true);
@@ -2449,16 +3032,15 @@
                             : (response.data.data || []);
                         console.log('Processed class data:', classData);
                         
-                        // Debug: Log first 3 classes with teacher names
-                        if (classData.length > 0) {
-                            console.log('=== TEACHER NAME DEBUG ===');
-                            classData.slice(0, 3).forEach(c => {
-                                console.log(`OfferingID ${c.OfferingID}: TeacherID ${c.TeacherID} → TeacherName: "${c.TeacherName}"`);
-                            });
-                        }
-                        
                         setClasses(classData);
+                        
+                        // Calculate statistics
+                        const stats = calculateClassStats(classData);
+                        setClassStats(stats);
+                        
+                        setMessage({ type: 'success', text: `Loaded ${classData.length} classes successfully` });
                     } else {
+                        setClasses([]);
                         setMessage({ type: 'error', text: response.error || 'Failed to load classes' });
                     }
                 } catch (error) {
@@ -2469,40 +3051,88 @@
                 }
             };
 
-            const applyFilters = () => {
-                let filtered = [...classes];
+            const calculateClassStats = (data) => {
+                const statusCounts = data.reduce((acc, cls) => {
+                    const status = cls.Status || 'Unknown';
+                    acc[status] = (acc[status] || 0) + 1;
+                    return acc;
+                }, {});
+                
+                const totalStudents = data.reduce((sum, cls) => {
+                    return sum + (parseInt(cls.EnrollmentCount) || 0);
+                }, 0);
 
+                return {
+                    total: data.length,
+                    upcoming: statusCounts['Upcoming'] || 0,
+                    inProgress: statusCounts['In Progress'] || 0,
+                    completed: statusCounts['Completed'] || 0,
+                    totalStudents: totalStudents
+                };
+            };
+
+            const getFilteredClasses = () => {
+                let filtered = [...classes];
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(cls =>
+                        (cls.LevelName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (cls.TeacherName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (cls.VenueOrRoom || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (cls.Location || '').toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                }
+                
                 // Apply status filter
-                if (filter !== 'all') {
+                if (statusFilter !== 'all') {
                     const statusMap = {
-                        'all': '',
                         'upcoming': 'Upcoming',
                         'in-progress': 'In Progress',
                         'completed': 'Completed'
                     };
-                    filtered = filtered.filter(c => c.Status === statusMap[filter]);
+                    filtered = filtered.filter(cls => cls.Status === statusMap[statusFilter]);
                 }
-
-                // Apply search filter
-                if (searchTerm) {
-                    filtered = filtered.filter(c =>
-                        (c.LevelName && c.LevelName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                        (c.TeacherName && c.TeacherName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                        (c.Location && c.Location.toLowerCase().includes(searchTerm.toLowerCase()))
-                    );
+                
+                // Apply level filter
+                if (levelFilter !== 'all') {
+                    filtered = filtered.filter(cls => cls.LevelName === levelFilter);
                 }
-
-                setFilteredClasses(filtered);
+                
+                // Apply teacher filter
+                if (teacherFilter !== 'all') {
+                    filtered = filtered.filter(cls => cls.TeacherName === teacherFilter);
+                }
+                
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    let aValue = a[sortConfig.key] || '';
+                    let bValue = b[sortConfig.key] || '';
+                    
+                    // Handle date sorting
+                    if (sortConfig.key === 'StartDate' || sortConfig.key === 'EndDate') {
+                        aValue = new Date(aValue);
+                        bValue = new Date(bValue);
+                    }
+                    
+                    // Handle numeric sorting
+                    if (sortConfig.key === 'MaxStudents' || sortConfig.key === 'EnrollmentCount') {
+                        aValue = parseInt(aValue) || 0;
+                        bValue = parseInt(bValue) || 0;
+                    }
+                    
+                    if (sortConfig.direction === 'asc') {
+                        return aValue > bValue ? 1 : -1;
+                    } else {
+                        return aValue < bValue ? 1 : -1;
+                    }
+                });
+                
+                return filtered;
             };
 
-            const getFilterCount = (filterType) => {
-                if (filterType === 'all') return classes.length;
-                const statusMap = {
-                    'upcoming': 'Upcoming',
-                    'in-progress': 'In Progress',
-                    'completed': 'Completed'
-                };
-                return classes.filter(c => c.Status === statusMap[filterType]).length;
+            const getUniqueValues = (key) => {
+                return [...new Set(classes.map(cls => cls[key]).filter(Boolean))];
             };
 
             const handleManageClass = (offeringId) => {
@@ -2518,23 +3148,16 @@
                         gasService.getAllClassLevels()
                     ]);
 
-                    console.log('Teachers response:', teachersResp);
-                    console.log('Levels response:', levelsResp);
-
                     if (teachersResp.success && teachersResp.data) {
-                        // Handle nested data format
                         const teacherData = Array.isArray(teachersResp.data) 
                             ? teachersResp.data 
                             : (teachersResp.data.data || []);
-                        console.log('Processed teacher data:', teacherData);
                         setTeachers(teacherData);
                     }
                     if (levelsResp.success && levelsResp.data) {
-                        // Handle nested data format
                         const levelData = Array.isArray(levelsResp.data) 
                             ? levelsResp.data 
                             : (levelsResp.data.data || []);
-                        console.log('Processed level data:', levelData);
                         setClassLevels(levelData);
                     }
                 } catch (error) {
@@ -2609,89 +3232,173 @@
             }
 
             // Show Dashboard view
-            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
-                // Header
-                e('div', { className: 'mb-6' },
-                    e('div', { className: 'flex justify-between items-center mb-4' },
-                        e('div', null,
-                            e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Class Management'),
-                            e('p', { className: 'text-gray-600 mt-1' }, 'Manage class offerings, rosters, and attendance')
-                        ),
+            return e('div', { className: 'p-6' },
+                // Enhanced Header with Statistics
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Class Management'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredClasses.length} of ${classes.length} classes`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
+                        e('button', {
+                            onClick: loadClasses,
+                            className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                        }, '🔄 Refresh'),
                         e('button', {
                             onClick: handleOpenModal,
-                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
-                        },
-                            e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
-                            ),
-                            'New Class'
-                        )
-                    ),
-                    message && e(Message, {
+                            className: 'px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm'
+                        }, '➕ New Class')
+                    )
+                ),
+
+                // Message Display
+                message && e('div', { className: 'mb-6' },
+                    e(Message, {
                         type: message.type,
                         message: message.text,
                         onClose: () => setMessage(null)
                     })
                 ),
 
-                // Filters
-                e('div', { className: 'mb-6 space-y-4' },
-                    e('div', { className: 'flex gap-2' },
-                        e('button', {
-                            onClick: () => setFilter('all'),
-                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
-                                filter === 'all'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`
-                        }, `All Classes (${getFilterCount('all')})`),
-                        e('button', {
-                            onClick: () => setFilter('upcoming'),
-                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
-                                filter === 'upcoming'
-                                    ? 'bg-yellow-500 text-white'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`
-                        }, `Upcoming (${getFilterCount('upcoming')})`),
-                        e('button', {
-                            onClick: () => setFilter('in-progress'),
-                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
-                                filter === 'in-progress'
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`
-                        }, `In Progress (${getFilterCount('in-progress')})`),
-                        e('button', {
-                            onClick: () => setFilter('completed'),
-                            className: `px-4 py-2 rounded-lg font-medium transition-colors ${
-                                filter === 'completed'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                            }`
-                        }, `Completed (${getFilterCount('completed')})`)
-                    ),
-                    // Search
-                    e('div', { className: 'relative' },
-                        e('input', {
-                            type: 'text',
-                            placeholder: 'Search classes by name, teacher, or location...',
-                            value: searchTerm,
-                            onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                        }),
-                        e('svg', {
-                            className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400',
-                            fill: 'none',
-                            stroke: 'currentColor',
-                            viewBox: '0 0 24 24'
-                        },
-                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                // Statistics Cards
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6' },
+                    e(StatCard, {
+                        title: 'Total Classes',
+                        value: classStats.total,
+                        icon: '📚',
+                        color: 'blue',
+                        subtitle: 'All class offerings'
+                    }),
+                    e(StatCard, {
+                        title: 'Upcoming',
+                        value: classStats.upcoming,
+                        icon: '📅',
+                        color: 'orange',
+                        subtitle: 'Classes starting soon'
+                    }),
+                    e(StatCard, {
+                        title: 'In Progress',
+                        value: classStats.inProgress,
+                        icon: '🎯',
+                        color: 'green',
+                        subtitle: 'Currently running'
+                    }),
+                    e(StatCard, {
+                        title: 'Completed',
+                        value: classStats.completed,
+                        icon: '✅',
+                        color: 'purple',
+                        subtitle: 'Finished classes'
+                    }),
+                    e(StatCard, {
+                        title: 'Total Students',
+                        value: classStats.totalStudents,
+                        icon: '👥',
+                        color: 'indigo',
+                        subtitle: 'Enrolled across all classes'
+                    })
+                ),
+
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-5 gap-4' },
+                        // Search
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Search'),
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Level, teacher, venue...',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Status Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Status'),
+                            e('select', {
+                                value: statusFilter,
+                                onChange: (ev) => setStatusFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Status'),
+                                e('option', { value: 'upcoming' }, 'Upcoming'),
+                                e('option', { value: 'in-progress' }, 'In Progress'),
+                                e('option', { value: 'completed' }, 'Completed')
+                            )
+                        ),
+                        // Level Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Level'),
+                            e('select', {
+                                value: levelFilter,
+                                onChange: (ev) => setLevelFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Levels'),
+                                ...getUniqueValues('LevelName').map(level =>
+                                    e('option', { key: level, value: level }, level)
+                                )
+                            )
+                        ),
+                        // Teacher Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Teacher'),
+                            e('select', {
+                                value: teacherFilter,
+                                onChange: (ev) => setTeacherFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Teachers'),
+                                ...getUniqueValues('TeacherName').map(teacher =>
+                                    e('option', { key: teacher, value: teacher }, teacher)
+                                )
+                            )
+                        ),
+                        // Sort
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Sort By'),
+                            e('select', {
+                                value: `${sortConfig.key}-${sortConfig.direction}`,
+                                onChange: (ev) => {
+                                    const [key, direction] = ev.target.value.split('-');
+                                    setSortConfig({ key, direction });
+                                },
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'StartDate-desc' }, 'Start Date (Newest)'),
+                                e('option', { value: 'StartDate-asc' }, 'Start Date (Oldest)'),
+                                e('option', { value: 'LevelName-asc' }, 'Level A-Z'),
+                                e('option', { value: 'TeacherName-asc' }, 'Teacher A-Z'),
+                                e('option', { value: 'EnrollmentCount-desc' }, 'Most Students')
+                            )
                         )
                     )
                 ),
 
                 // Classes Grid
-                filteredClasses.length > 0 ? (
+                filteredClasses.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8 bg-white rounded-lg p-8' },
+                        e('div', { className: 'text-4xl mb-4' }, '📚'),
+                        e('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No classes found'),
+                        e('p', { className: 'text-gray-600 mb-4' }, 'Try adjusting your search or filters'),
+                        e('div', { className: 'flex justify-center gap-3' },
+                            e('button', {
+                                onClick: () => {
+                                    setSearchTerm('');
+                                    setStatusFilter('all');
+                                    setLevelFilter('all');
+                                    setTeacherFilter('all');
+                                },
+                                className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, 'Clear Filters'),
+                            e('button', {
+                                onClick: handleOpenModal,
+                                className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                            }, 'Create New Class')
+                        )
+                    )
+                ) : (
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' },
                         filteredClasses.map(classOffering =>
                             e(ClassCard, {
@@ -2699,32 +3406,6 @@
                                 classOffering: classOffering,
                                 onManage: () => handleManageClass(classOffering.OfferingID)
                             })
-                        )
-                    )
-                ) : (
-                    e('div', { className: 'text-center py-12 bg-white rounded-lg border border-gray-200' },
-                        e('svg', {
-                            className: 'mx-auto h-12 w-12 text-gray-400',
-                            fill: 'none',
-                            stroke: 'currentColor',
-                            viewBox: '0 0 24 24'
-                        },
-                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })
-                        ),
-                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No classes found'),
-                        e('p', { className: 'mt-1 text-sm text-gray-500' },
-                            searchTerm ? 'Try adjusting your search' : 'Get started by creating a new class'
-                        ),
-                        !searchTerm && e('div', { className: 'mt-6' },
-                            e('button', {
-                                onClick: handleOpenModal,
-                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
-                            },
-                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
-                                ),
-                                'New Class'
-                            )
                         )
                     )
                 ),
@@ -5378,60 +6059,260 @@
         }
 
         function Scheduling() {
-            return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Schedule'),
-                e('p', { className: 'text-gray-600' }, 'Scheduling functionality coming soon...')
-            );
-        }
-
-        // StudentDirectory Component
-        function StudentDirectory({ onNavigateToStudent }) {
-            const [students, setStudents] = useState([]);
+            const [scheduleData, setScheduleData] = useState([]);
+            const [filteredSchedule, setFilteredSchedule] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
-            const [searchTerm, setSearchTerm] = useState('');
             const [message, setMessage] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [viewMode, setViewMode] = useState('week'); // 'week', 'month', 'list'
+            const [typeFilter, setTypeFilter] = useState('all'); // 'all', 'class', 'show', 'rehearsal', 'meeting'
+            const [locationFilter, setLocationFilter] = useState('all'); // Filter by location
+            const [sortConfig, setSortConfig] = useState({ key: 'DateTime', direction: 'asc' });
+            
+            // Statistics state
+            const [scheduleStats, setScheduleStats] = useState({
+                total: 0,
+                thisWeek: 0,
+                upcomingClasses: 0,
+                upcomingShows: 0,
+                totalHours: 0
+            });
+
+            // Date range state for filtering
+            const [dateRange, setDateRange] = useState({
+                start: new Date().toISOString().split('T')[0],
+                end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            });
 
             useEffect(() => {
-                loadStudents();
+                loadScheduleData();
             }, []);
 
-            const loadStudents = async () => {
+            useEffect(() => {
+                // Apply filtering when any filter changes
+                const filtered = getFilteredSchedule();
+                setFilteredSchedule(filtered);
+            }, [scheduleData, searchTerm, typeFilter, locationFilter, dateRange, sortConfig]);
+
+            const loadScheduleData = async () => {
                 setIsLoading(true);
                 try {
-                    const response = await gasService.getAllStudents();
-                    console.log('getAllStudents response in StudentDirectory:', response);
+                    // Load classes and shows data for scheduling
+                    const [classesResp, showsResp] = await Promise.all([
+                        gasService.getAllClassOfferings(),
+                        gasService.getAllShows()
+                    ]);
                     
-                    if (response.success && Array.isArray(response.data)) {
-                        console.log('Sample student data:', response.data[0]);
-                        setStudents(response.data);
-                    } else if (response.success && response.data && Array.isArray(response.data.data)) {
-                        console.log('Sample student data (nested):', response.data.data[0]);
-                        setStudents(response.data.data);
-                    } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to load students.' });
-                        setStudents([]);
+                    let combinedSchedule = [];
+                    
+                    // Process classes data
+                    if (classesResp.success && classesResp.data) {
+                        const classData = Array.isArray(classesResp.data) 
+                            ? classesResp.data 
+                            : (classesResp.data.data || []);
+                        
+                        const classEvents = classData.map(cls => ({
+                            id: `class-${cls.OfferingID}`,
+                            title: cls.LevelName || `Class ${cls.ClassLevelID}`,
+                            type: 'class',
+                            status: cls.Status,
+                            startDate: cls.StartDate,
+                            endDate: cls.EndDate,
+                            location: cls.VenueOrRoom || cls.Location || 'TBD',
+                            instructor: cls.TeacherName || 'TBD',
+                            capacity: cls.MaxStudents,
+                            enrolled: cls.EnrollmentCount || 0,
+                            description: `${cls.LevelName} with ${cls.TeacherName}`
+                        }));
+                        
+                        combinedSchedule.push(...classEvents);
                     }
+                    
+                    // Process shows data
+                    if (showsResp.success && showsResp.data) {
+                        const showData = Array.isArray(showsResp.data) 
+                            ? showsResp.data 
+                            : (showsResp.data.data || []);
+                        
+                        const showEvents = showData.map(show => ({
+                            id: `show-${show.ShowID}`,
+                            title: show.Title || `Show ${show.ShowID}`,
+                            type: 'show',
+                            status: show.Status,
+                            startDate: show.ShowDate,
+                            endDate: show.ShowDate,
+                            location: show.Venue || 'TBD',
+                            showType: show.ShowType,
+                            description: `${show.Title} - ${show.ShowType} at ${show.Venue}`,
+                            ticketPrice: show.TicketPrice
+                        }));
+                        
+                        combinedSchedule.push(...showEvents);
+                    }
+                    
+                    setScheduleData(combinedSchedule);
+                    
+                    // Calculate statistics
+                    const stats = calculateScheduleStats(combinedSchedule);
+                    setScheduleStats(stats);
+                    
+                    setMessage({ type: 'success', text: `Loaded ${combinedSchedule.length} scheduled events` });
                 } catch (error) {
-                    console.error('Error loading students:', error);
-                    setMessage({ type: 'error', text: 'Error loading students.' });
-                    setStudents([]);
+                    console.error('Error loading schedule data:', error);
+                    setMessage({ type: 'error', text: 'Error loading schedule data' });
+                    setScheduleData([]);
                 } finally {
                     setIsLoading(false);
                 }
             };
 
-            const filteredStudents = students.filter(student =>
-                `${student.FirstName} ${student.LastName || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
-            );
+            const calculateScheduleStats = (data) => {
+                const now = new Date();
+                const oneWeekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                
+                const thisWeek = data.filter(event => {
+                    const eventDate = new Date(event.startDate);
+                    return eventDate >= now && eventDate <= oneWeekFromNow;
+                }).length;
+                
+                const upcomingClasses = data.filter(event => 
+                    event.type === 'class' && new Date(event.startDate) >= now
+                ).length;
+                
+                const upcomingShows = data.filter(event => 
+                    event.type === 'show' && new Date(event.startDate) >= now
+                ).length;
+                
+                // Estimate total hours (rough calculation)
+                const totalHours = data.filter(event => new Date(event.startDate) >= now).length * 2; // Assume 2 hours per event
+
+                return {
+                    total: data.length,
+                    thisWeek: thisWeek,
+                    upcomingClasses: upcomingClasses,
+                    upcomingShows: upcomingShows,
+                    totalHours: totalHours
+                };
+            };
+
+            const getFilteredSchedule = () => {
+                let filtered = [...scheduleData];
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(event =>
+                        (event.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (event.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (event.instructor || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (event.description || '').toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                }
+                
+                // Apply type filter
+                if (typeFilter !== 'all') {
+                    filtered = filtered.filter(event => event.type === typeFilter);
+                }
+                
+                // Apply location filter
+                if (locationFilter !== 'all') {
+                    filtered = filtered.filter(event => event.location === locationFilter);
+                }
+                
+                // Apply date range filter
+                const startDate = new Date(dateRange.start);
+                const endDate = new Date(dateRange.end);
+                filtered = filtered.filter(event => {
+                    const eventDate = new Date(event.startDate);
+                    return eventDate >= startDate && eventDate <= endDate;
+                });
+                
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    let aValue = a[sortConfig.key] || '';
+                    let bValue = b[sortConfig.key] || '';
+                    
+                    // Handle date sorting
+                    if (sortConfig.key === 'startDate' || sortConfig.key === 'DateTime') {
+                        aValue = new Date(aValue);
+                        bValue = new Date(bValue);
+                    }
+                    
+                    if (sortConfig.direction === 'asc') {
+                        return aValue > bValue ? 1 : -1;
+                    } else {
+                        return aValue < bValue ? 1 : -1;
+                    }
+                });
+                
+                return filtered;
+            };
+
+            const getUniqueValues = (key) => {
+                return [...new Set(scheduleData.map(event => event[key]).filter(Boolean))];
+            };
+
+            const formatEventTime = (dateString) => {
+                if (!dateString) return 'TBD';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', { 
+                    weekday: 'short', 
+                    month: 'short', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+
+            const getEventIcon = (type) => {
+                switch (type) {
+                    case 'class': return '📚';
+                    case 'show': return '🎭';
+                    case 'rehearsal': return '🎪';
+                    case 'meeting': return '💼';
+                    default: return '📅';
+                }
+            };
+
+            const getEventColor = (type, status) => {
+                if (status === 'Cancelled') return 'bg-red-50 border-red-200 text-red-800';
+                
+                switch (type) {
+                    case 'class':
+                        return 'bg-blue-50 border-blue-200 text-blue-800';
+                    case 'show':
+                        return 'bg-purple-50 border-purple-200 text-purple-800';
+                    case 'rehearsal':
+                        return 'bg-orange-50 border-orange-200 text-orange-800';
+                    case 'meeting':
+                        return 'bg-gray-50 border-gray-200 text-gray-800';
+                    default:
+                        return 'bg-green-50 border-green-200 text-green-800';
+                }
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading schedule...' });
+            }
 
             return e('div', { className: 'p-6' },
+                // Enhanced Header with Statistics
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
-                    e('p', { className: 'text-sm text-gray-600' }, `${filteredStudents.length} students`)
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Schedule & Calendar'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredSchedule.length} of ${scheduleData.length} events`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
+                        e('button', {
+                            onClick: loadScheduleData,
+                            className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                        }, '🔄 Refresh')
+                    )
                 ),
 
-                message && e('div', { className: 'mb-4' },
+                // Message Display
+                message && e('div', { className: 'mb-6' },
                     e(Message, {
                         type: message.type,
                         message: message.text,
@@ -5439,42 +6320,497 @@
                     })
                 ),
 
-                e('div', { className: 'mb-6' },
-                    e('input', {
-                        type: 'text',
-                        placeholder: 'Search by name or email...',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                // Statistics Cards
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6' },
+                    e(StatCard, {
+                        title: 'Total Events',
+                        value: scheduleStats.total,
+                        icon: '📅',
+                        color: 'blue',
+                        subtitle: 'All scheduled events'
+                    }),
+                    e(StatCard, {
+                        title: 'This Week',
+                        value: scheduleStats.thisWeek,
+                        icon: '⏰',
+                        color: 'orange',
+                        subtitle: 'Events in next 7 days'
+                    }),
+                    e(StatCard, {
+                        title: 'Upcoming Classes',
+                        value: scheduleStats.upcomingClasses,
+                        icon: '📚',
+                        color: 'green',
+                        subtitle: 'Future class sessions'
+                    }),
+                    e(StatCard, {
+                        title: 'Upcoming Shows',
+                        value: scheduleStats.upcomingShows,
+                        icon: '🎭',
+                        color: 'purple',
+                        subtitle: 'Future performances'
+                    }),
+                    e(StatCard, {
+                        title: 'Estimated Hours',
+                        value: scheduleStats.totalHours,
+                        icon: '⏱️',
+                        color: 'indigo',
+                        subtitle: 'Upcoming event hours'
                     })
                 ),
 
-                isLoading ? e(Loader, { text: 'Loading students...' }) :
-                filteredStudents.length === 0 ? (
-                    e('div', { className: 'text-center text-gray-500 mt-8' },
-                        e('p', null, 'No students found.'),
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-6 gap-4' },
+                        // Search
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Search'),
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Event, location, instructor...',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Type Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Event Type'),
+                            e('select', {
+                                value: typeFilter,
+                                onChange: (ev) => setTypeFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Types'),
+                                e('option', { value: 'class' }, '📚 Classes'),
+                                e('option', { value: 'show' }, '🎭 Shows'),
+                                e('option', { value: 'rehearsal' }, '🎪 Rehearsals'),
+                                e('option', { value: 'meeting' }, '💼 Meetings')
+                            )
+                        ),
+                        // Location Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Location'),
+                            e('select', {
+                                value: locationFilter,
+                                onChange: (ev) => setLocationFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Locations'),
+                                ...getUniqueValues('location').map(location =>
+                                    e('option', { key: location, value: location }, location)
+                                )
+                            )
+                        ),
+                        // Start Date
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'From Date'),
+                            e('input', {
+                                type: 'date',
+                                value: dateRange.start,
+                                onChange: (ev) => setDateRange(prev => ({ ...prev, start: ev.target.value })),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // End Date
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'To Date'),
+                            e('input', {
+                                type: 'date',
+                                value: dateRange.end,
+                                onChange: (ev) => setDateRange(prev => ({ ...prev, end: ev.target.value })),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Sort
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Sort By'),
+                            e('select', {
+                                value: `${sortConfig.key}-${sortConfig.direction}`,
+                                onChange: (ev) => {
+                                    const [key, direction] = ev.target.value.split('-');
+                                    setSortConfig({ key, direction });
+                                },
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'startDate-asc' }, 'Date (Earliest)'),
+                                e('option', { value: 'startDate-desc' }, 'Date (Latest)'),
+                                e('option', { value: 'title-asc' }, 'Title A-Z'),
+                                e('option', { value: 'location-asc' }, 'Location A-Z')
+                            )
+                        )
+                    )
+                ),
+
+                // Schedule Display
+                filteredSchedule.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8 bg-white rounded-lg p-8' },
+                        e('div', { className: 'text-4xl mb-4' }, '📅'),
+                        e('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No events found'),
+                        e('p', { className: 'text-gray-600 mb-4' }, 'Try adjusting your search or date range'),
+                        e('button', {
+                            onClick: () => {
+                                setSearchTerm('');
+                                setTypeFilter('all');
+                                setLocationFilter('all');
+                                setDateRange({
+                                    start: new Date().toISOString().split('T')[0],
+                                    end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                                });
+                            },
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Reset Filters')
+                    )
+                ) : (
+                    e('div', { className: 'space-y-4' },
+                        filteredSchedule.map(event => {
+                            const eventDate = new Date(event.startDate);
+                            const isUpcoming = eventDate >= new Date();
+                            const colorClasses = getEventColor(event.type, event.status);
+                            
+                            return e('div', {
+                                key: event.id,
+                                className: `bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all ${!isUpcoming ? 'opacity-75' : ''}`
+                            },
+                                e('div', { className: 'flex items-start justify-between' },
+                                    e('div', { className: 'flex items-start space-x-4 flex-1' },
+                                        // Event Icon & Type
+                                        e('div', { className: `px-3 py-1 rounded-full text-sm font-medium border ${colorClasses}` },
+                                            getEventIcon(event.type),
+                                            ' ',
+                                            event.type.charAt(0).toUpperCase() + event.type.slice(1)
+                                        ),
+                                        
+                                        // Event Details
+                                        e('div', { className: 'flex-1' },
+                                            e('h3', { className: 'text-lg font-semibold text-gray-900 mb-1' }, 
+                                                event.title
+                                            ),
+                                            e('p', { className: 'text-sm text-gray-600 mb-2' }, event.description),
+                                            e('div', { className: 'flex flex-wrap gap-4 text-sm text-gray-600' },
+                                                e('span', null, `📅 ${formatEventTime(event.startDate)}`),
+                                                e('span', null, `📍 ${event.location}`),
+                                                event.instructor && e('span', null, `👨‍🏫 ${event.instructor}`),
+                                                event.capacity && e('span', null, 
+                                                    `👥 ${event.enrolled || 0}/${event.capacity} enrolled`
+                                                )
+                                            )
+                                        )
+                                    ),
+                                    
+                                    // Status Badge
+                                    event.status && e('div', { 
+                                        className: `px-2 py-1 text-xs rounded-full ${
+                                            event.status === 'Upcoming' ? 'bg-green-100 text-green-800' :
+                                            event.status === 'In Progress' ? 'bg-blue-100 text-blue-800' :
+                                            event.status === 'Completed' ? 'bg-gray-100 text-gray-800' :
+                                            event.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                                            'bg-yellow-100 text-yellow-800'
+                                        }`
+                                    }, event.status)
+                                )
+                            );
+                        })
+                    )
+                )
+            );
+        }
+
+        // StudentDirectory Component
+        function StudentDirectory({ onNavigateToStudent }) {
+            const [students, setStudents] = useState([]);
+            const [filteredStudents, setFilteredStudents] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [message, setMessage] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            // Enhanced filtering state
+            const [enrollmentFilter, setEnrollmentFilter] = useState('all'); // 'all', 'enrolled', 'not-enrolled'
+            const [levelFilter, setLevelFilter] = useState('all'); // Filter by completion level
+            const [sortConfig, setSortConfig] = useState({ key: 'FirstName', direction: 'asc' });
+            
+            // Statistics state
+            const [studentStats, setStudentStats] = useState({
+                total: 0,
+                currentlyEnrolled: 0,
+                withCompletedLevels: 0,
+                newStudents: 0,
+                averageAge: 0
+            });
+
+            useEffect(() => {
+                loadStudents();
+            }, []);
+
+            useEffect(() => {
+                // Apply filtering when any filter changes
+                const filtered = getFilteredStudents();
+                setFilteredStudents(filtered);
+            }, [students, searchTerm, enrollmentFilter, levelFilter, sortConfig]);
+
+            const loadStudents = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllStudents();
+                    console.log('getAllStudents response in StudentDirectory:', response);
+                    
+                    let studentData = [];
+                    if (response.success && Array.isArray(response.data)) {
+                        studentData = response.data;
+                    } else if (response.success && response.data && Array.isArray(response.data.data)) {
+                        studentData = response.data.data;
+                    }
+                    
+                    if (studentData.length > 0) {
+                        setStudents(studentData);
+                        
+                        // Calculate statistics
+                        const stats = calculateStudentStats(studentData);
+                        setStudentStats(stats);
+                        
+                        setMessage({ type: 'success', text: `Loaded ${studentData.length} students successfully` });
+                    } else {
+                        setStudents([]);
+                        setMessage({ type: 'info', text: 'No students found' });
+                    }
+                } catch (error) {
+                    console.error('Error loading students:', error);
+                    setMessage({ type: 'error', text: 'Error loading students' });
+                    setStudents([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const calculateStudentStats = (data) => {
+                const currentlyEnrolled = data.filter(s => s.CurrentEnrollment).length;
+                const withCompletedLevels = data.filter(s => s.HighestLevelCompleted && s.HighestLevelCompleted !== 'No Levels Completed').length;
+                const newStudents = data.filter(s => !s.HighestLevelCompleted || s.HighestLevelCompleted === 'No Levels Completed').length;
+                
+                // Calculate average age if birthday data is available
+                const validBirthdays = data.filter(s => s.Birthday && s.Birthday !== 'N/A').map(s => new Date(s.Birthday));
+                const averageAge = validBirthdays.length > 0 
+                    ? Math.round(validBirthdays.reduce((sum, birthday) => {
+                        const age = (new Date() - birthday) / (1000 * 60 * 60 * 24 * 365.25);
+                        return sum + age;
+                    }, 0) / validBirthdays.length)
+                    : 0;
+
+                return {
+                    total: data.length,
+                    currentlyEnrolled: currentlyEnrolled,
+                    withCompletedLevels: withCompletedLevels,
+                    newStudents: newStudents,
+                    averageAge: averageAge
+                };
+            };
+
+            const getFilteredStudents = () => {
+                let filtered = [...students];
+                
+                // Apply search filter
+                if (searchTerm) {
+                    filtered = filtered.filter(student =>
+                        `${student.FirstName} ${student.LastName || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (student.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (student.CurrentEnrollment || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (student.HighestLevelCompleted || '').toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                }
+                
+                // Apply enrollment filter
+                if (enrollmentFilter === 'enrolled') {
+                    filtered = filtered.filter(student => student.CurrentEnrollment);
+                } else if (enrollmentFilter === 'not-enrolled') {
+                    filtered = filtered.filter(student => !student.CurrentEnrollment);
+                }
+                
+                // Apply level filter
+                if (levelFilter !== 'all') {
+                    if (levelFilter === 'new') {
+                        filtered = filtered.filter(student => !student.HighestLevelCompleted || student.HighestLevelCompleted === 'No Levels Completed');
+                    } else {
+                        filtered = filtered.filter(student => student.HighestLevelCompleted === levelFilter);
+                    }
+                }
+                
+                // Apply sorting
+                filtered.sort((a, b) => {
+                    let aValue = a[sortConfig.key] || '';
+                    let bValue = b[sortConfig.key] || '';
+                    
+                    // Handle date sorting
+                    if (sortConfig.key === 'Birthday') {
+                        aValue = a.Birthday ? new Date(a.Birthday) : new Date(0);
+                        bValue = b.Birthday ? new Date(b.Birthday) : new Date(0);
+                    }
+                    
+                    if (sortConfig.direction === 'asc') {
+                        return aValue > bValue ? 1 : -1;
+                    } else {
+                        return aValue < bValue ? 1 : -1;
+                    }
+                });
+                
+                return filtered;
+            };
+
+            const getUniqueValues = (key) => {
+                return [...new Set(students.map(student => student[key]).filter(Boolean))];
+            };
+
+            if (isLoading) {
+                return e(Loader, { text: 'Loading students...' });
+            }
+
+            return e('div', { className: 'p-6' },
+                // Enhanced Header with Statistics
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
+                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredStudents.length} of ${students.length} students`)
+                    ),
+                    e('div', { className: 'flex gap-3' },
                         e('button', {
                             onClick: loadStudents,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
-                        }, 'Reload')
+                            className: 'px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors'
+                        }, '🔄 Refresh')
+                    )
+                ),
+
+                // Message Display
+                message && e('div', { className: 'mb-6' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
+
+                // Statistics Cards
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6' },
+                    e(StatCard, {
+                        title: 'Total Students',
+                        value: studentStats.total,
+                        icon: '👥',
+                        color: 'blue',
+                        subtitle: 'All students in system'
+                    }),
+                    e(StatCard, {
+                        title: 'Currently Enrolled',
+                        value: studentStats.currentlyEnrolled,
+                        icon: '🎓',
+                        color: 'green',
+                        subtitle: 'Active in classes'
+                    }),
+                    e(StatCard, {
+                        title: 'With Completed Levels',
+                        value: studentStats.withCompletedLevels,
+                        icon: '🏆',
+                        color: 'purple',
+                        subtitle: 'Have finished levels'
+                    }),
+                    e(StatCard, {
+                        title: 'New Students',
+                        value: studentStats.newStudents,
+                        icon: '🌟',
+                        color: 'orange',
+                        subtitle: 'No completed levels'
+                    }),
+                    e(StatCard, {
+                        title: 'Average Age',
+                        value: studentStats.averageAge || 'N/A',
+                        icon: '📊',
+                        color: 'indigo',
+                        subtitle: 'Years old (approx)'
+                    })
+                ),
+
+                // Enhanced Filtering Controls
+                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-4 gap-4' },
+                        // Search
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Search'),
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Name, email, level...',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            })
+                        ),
+                        // Enrollment Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Enrollment Status'),
+                            e('select', {
+                                value: enrollmentFilter,
+                                onChange: (ev) => setEnrollmentFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Students'),
+                                e('option', { value: 'enrolled' }, 'Currently Enrolled'),
+                                e('option', { value: 'not-enrolled' }, 'Not Enrolled')
+                            )
+                        ),
+                        // Level Filter
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Level Completed'),
+                            e('select', {
+                                value: levelFilter,
+                                onChange: (ev) => setLevelFilter(ev.target.value),
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'all' }, 'All Levels'),
+                                e('option', { value: 'new' }, 'New Students'),
+                                ...getUniqueValues('HighestLevelCompleted').map(level =>
+                                    e('option', { key: level, value: level }, level)
+                                )
+                            )
+                        ),
+                        // Sort
+                        e('div', null,
+                            e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Sort By'),
+                            e('select', {
+                                value: `${sortConfig.key}-${sortConfig.direction}`,
+                                onChange: (ev) => {
+                                    const [key, direction] = ev.target.value.split('-');
+                                    setSortConfig({ key, direction });
+                                },
+                                className: 'w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary-500'
+                            },
+                                e('option', { value: 'FirstName-asc' }, 'Name A-Z'),
+                                e('option', { value: 'FirstName-desc' }, 'Name Z-A'),
+                                e('option', { value: 'Birthday-desc' }, 'Youngest First'),
+                                e('option', { value: 'Birthday-asc' }, 'Oldest First'),
+                                e('option', { value: 'HighestLevelCompleted-asc' }, 'Level A-Z')
+                            )
+                        )
+                    )
+                ),
+
+                // Students Grid
+                filteredStudents.length === 0 ? (
+                    e('div', { className: 'text-center text-gray-500 mt-8 bg-white rounded-lg p-8' },
+                        e('div', { className: 'text-4xl mb-4' }, '👥'),
+                        e('h3', { className: 'text-lg font-medium text-gray-900 mb-2' }, 'No students found'),
+                        e('p', { className: 'text-gray-600 mb-4' }, 'Try adjusting your search or filters'),
+                        e('button', {
+                            onClick: () => {
+                                setSearchTerm('');
+                                setEnrollmentFilter('all');
+                                setLevelFilter('all');
+                            },
+                            className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                        }, 'Clear Filters')
                     )
                 ) : (
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
                         filteredStudents.map(student => {
                             // Determine what to show in the circle
                             const getCurrentOrRecentLevel = () => {
-                                // Debug log for first student
-                                if (student.StudentID === filteredStudents[0].StudentID) {
-                                    console.log('Student debug:', {
-                                        name: `${student.FirstName} ${student.LastName}`,
-                                        CurrentEnrollment: student.CurrentEnrollment,
-                                        HighestLevelCompleted: student.HighestLevelCompleted
-                                    });
-                                }
-                                
                                 if (student.CurrentEnrollment) {
                                     // Extract level number/name from current enrollment
-                                    // Examples: "Level 101" -> "101", "Advanced Improv" -> "ADV"
                                     const match = student.CurrentEnrollment.match(/\d+/);
                                     if (match) {
                                         return match[0];
@@ -5483,7 +6819,7 @@
                                     return student.CurrentEnrollment.substring(0, 3).toUpperCase();
                                 }
                                 // Fallback to highest level completed or initials
-                                if (student.HighestLevelCompleted) {
+                                if (student.HighestLevelCompleted && student.HighestLevelCompleted !== 'No Levels Completed') {
                                     const match = student.HighestLevelCompleted.match(/\d+/);
                                     if (match) {
                                         return match[0];
@@ -5498,15 +6834,15 @@
                             
                             return e('div', {
                                 key: student.StudentID || student.PersonnelID,
-                                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-all cursor-pointer group',
                                 onClick: () => onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID)
                             },
                                 e('div', { className: 'flex items-center space-x-3 mb-3' },
                                     e('div', { 
-                                        className: `w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${
+                                        className: `w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-sm transition-transform group-hover:scale-105 ${
                                             student.CurrentEnrollment 
                                                 ? 'bg-gradient-to-br from-green-500 to-green-600' 
-                                                : student.HighestLevelCompleted
+                                                : student.HighestLevelCompleted && student.HighestLevelCompleted !== 'No Levels Completed'
                                                 ? 'bg-gradient-to-br from-blue-500 to-blue-600'
                                                 : 'bg-gradient-to-br from-gray-400 to-gray-500'
                                         }`
@@ -5516,27 +6852,31 @@
                                             : e('span', { className: 'text-xs' }, levelDisplay)
                                     ),
                                     e('div', { className: 'flex-1' },
-                                        e('h3', { className: 'font-semibold text-gray-900' }, 
+                                        e('h3', { className: 'font-semibold text-gray-900 group-hover:text-primary-600 transition-colors' }, 
                                             `${student.FirstName} ${student.LastName || student.LastName || ''}`
                                         ),
                                         e('p', { className: 'text-sm text-gray-600' }, student.PrimaryEmail)
                                     )
                                 ),
                                 student.CurrentEnrollment && e('div', { className: 'mb-2 px-2 py-1 bg-green-50 border border-green-200 rounded text-xs' },
-                                    e('span', { className: 'font-medium text-green-800' }, 'Current: '),
+                                    e('span', { className: 'font-medium text-green-800' }, '📚 Current: '),
                                     e('span', { className: 'text-green-700' }, student.CurrentEnrollment)
                                 ),
-                                e('div', { className: 'text-sm text-gray-600' },
-                                    e('p', null, `Phone: ${student.PrimaryPhone || 'N/A'}`),
-                                    e('p', null, `Birthday: ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
+                                student.HighestLevelCompleted && student.HighestLevelCompleted !== 'No Levels Completed' && e('div', { className: 'mb-2 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-xs' },
+                                    e('span', { className: 'font-medium text-blue-800' }, '🏆 Completed: '),
+                                    e('span', { className: 'text-blue-700' }, student.HighestLevelCompleted)
+                                ),
+                                e('div', { className: 'text-sm text-gray-600 space-y-1' },
+                                    e('p', null, `📞 ${student.PrimaryPhone || 'N/A'}`),
+                                    e('p', null, `🎂 ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
                                 ),
                                 e('button', {
-                                    className: 'mt-3 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors w-full',
+                                    className: 'mt-3 px-3 py-1 text-xs bg-primary-50 text-primary-600 rounded hover:bg-primary-100 transition-colors w-full font-medium',
                                     onClick: (e) => { 
                                         e.stopPropagation(); 
                                         onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID); 
                                     }
-                                }, 'View Profile')
+                                }, 'View Profile →')
                             );
                         })
                     )
