@@ -188,6 +188,16 @@
                 return this.callServerFunction('getAllCastMembers');
             }
 
+            // CREATE: Add a person from Personnel to CastMemberInfo
+            async addPersonAsCastMember(personnelId) {
+                return this.callServerFunction('addPersonAsCastMember', personnelId);
+            }
+
+            // DELETE: Remove a cast member from CastMemberInfo by CastMemberID
+            async removeCastMember(castMemberId) {
+                return this.callServerFunction('removeCastMember', castMemberId);
+            }
+
             // ===================================================================
             // SHOW CRUD API METHODS  
             // These methods interact with the ShowInformation sheet in Google Sheets
@@ -804,7 +814,7 @@
         }
 
         // CastCard Component
-        function CastCard({ castMember, onClick }) {
+        function CastCard({ castMember, onClick, onRemove }) {
             const getInitials = (firstName, lastName) => {
                 const first = (firstName || '').trim();
                 const last = (lastName || '').trim();
@@ -846,6 +856,12 @@
                             castMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`
                     }, castMember.Status)
+                ),
+                onRemove && e('div', { className: 'mt-3 pt-3 border-t border-gray-100' },
+                    e('button', {
+                        onClick: (ev) => { ev.stopPropagation(); onRemove(castMember.CastMemberID); },
+                        className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
+                    }, 'Remove from Cast')
                 )
             );
         }
@@ -1333,6 +1349,16 @@
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
 
+            // Add Cast Member modal state
+            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+            const [allPersonnel, setAllPersonnel] = useState([]);
+            const [personnelSearch, setPersonnelSearch] = useState('');
+            const [isAdding, setIsAdding] = useState(false);
+
+            // Remove confirmation state
+            const [removeTarget, setRemoveTarget] = useState(null);
+            const [isRemoving, setIsRemoving] = useState(false);
+
             useEffect(() => {
                 loadCastMembers();
             }, []);
@@ -1363,6 +1389,76 @@
                 }
             };
 
+            const handleOpenAddModal = async () => {
+                setPersonnelSearch('');
+                setIsAddModalOpen(true);
+                if (allPersonnel.length === 0) {
+                    try {
+                        const response = await gasService.getAllPersonnel();
+                        if (response.success && Array.isArray(response.data)) {
+                            setAllPersonnel(response.data);
+                        }
+                    } catch (err) {
+                        // silently fail
+                    }
+                }
+            };
+
+            const castPersonnelIds = new Set(castMembers.map(c => c.PersonnelID).filter(Boolean));
+            const availablePersonnel = allPersonnel.filter(p => {
+                const notInCast = !castPersonnelIds.has(p.PersonnelID);
+                const matchesSearch = personnelSearch === '' ||
+                    `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                    (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
+                return notInCast && matchesSearch;
+            });
+
+            const handleAddCastMember = async (person) => {
+                setIsAdding(true);
+                try {
+                    const response = await gasService.addPersonAsCastMember(person.PersonnelID);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: `${person.FirstName} ${person.LastName} added to cast.` });
+                        setIsAddModalOpen(false);
+                        await loadCastMembers();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to add cast member.' });
+                        setIsAddModalOpen(false);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error adding cast member.' });
+                    setIsAddModalOpen(false);
+                } finally {
+                    setIsAdding(false);
+                }
+            };
+
+            const handleRemoveClick = (castMemberId) => {
+                const target = castMembers.find(c => c.CastMemberID === castMemberId);
+                if (target) setRemoveTarget(target);
+            };
+
+            const handleConfirmRemove = async () => {
+                if (!removeTarget) return;
+                setIsRemoving(true);
+                try {
+                    const response = await gasService.removeCastMember(removeTarget.CastMemberID);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName} removed from cast.` });
+                        setRemoveTarget(null);
+                        await loadCastMembers();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to remove cast member.' });
+                        setRemoveTarget(null);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error removing cast member.' });
+                    setRemoveTarget(null);
+                } finally {
+                    setIsRemoving(false);
+                }
+            };
+
             const handleCastMemberClick = (castMember) => {
                 setSelectedCastMember(castMember);
                 setIsModalOpen(true);
@@ -1376,7 +1472,13 @@
             return e('div', { className: 'p-6' },
                 e('div', { className: 'flex justify-between items-center mb-6' },
                     e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
-                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`)
+                    e('div', { className: 'flex items-center gap-3' },
+                        e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`),
+                        e('button', {
+                            onClick: handleOpenAddModal,
+                            className: 'px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors'
+                        }, '+ Add Cast Member')
+                    )
                 ),
 
                 message && e('div', { className: 'mb-4' },
@@ -1424,13 +1526,97 @@
                             e(CastCard, {
                                 key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
                                 castMember: castMember,
-                                onClick: () => handleCastMemberClick(castMember)
+                                onClick: () => handleCastMemberClick(castMember),
+                                onRemove: handleRemoveClick
                             })
                         )
                     )
                 ),
 
-                // Simple cast member detail modal (view only for now)
+                // Add Cast Member Modal
+                isAddModalOpen && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: () => setIsAddModalOpen(false)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 flex flex-col',
+                        style: { maxHeight: '80vh' },
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Cast Member from Personnel'),
+                            e('button', {
+                                onClick: () => setIsAddModalOpen(false),
+                                className: 'text-gray-400 hover:text-gray-600 text-xl'
+                            }, '×')
+                        ),
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search personnel...',
+                            value: personnelSearch,
+                            onChange: (ev) => setPersonnelSearch(ev.target.value),
+                            className: 'mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent'
+                        }),
+                        e('div', { className: 'overflow-y-auto flex-1' },
+                            availablePersonnel.length === 0
+                                ? e('p', { className: 'text-center text-gray-500 py-6' }, 'No available personnel found.')
+                                : availablePersonnel.map((person) =>
+                                    e('div', {
+                                        key: person.PersonnelID,
+                                        className: 'flex items-center justify-between p-3 mb-2 border border-gray-200 rounded-lg hover:bg-gray-50'
+                                    },
+                                        e('div', null,
+                                            e('p', { className: 'font-medium text-gray-900' }, `${person.FirstName} ${person.LastName}`.trim()),
+                                            e('p', { className: 'text-sm text-gray-500' }, person.PrimaryEmail || 'No email')
+                                        ),
+                                        e('button', {
+                                            onClick: () => handleAddCastMember(person),
+                                            disabled: isAdding,
+                                            className: 'px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 transition-colors'
+                                        }, isAdding ? 'Adding...' : 'Add')
+                                    )
+                                )
+                        ),
+                        e('div', { className: 'mt-4 flex justify-end' },
+                            e('button', {
+                                onClick: () => setIsAddModalOpen(false),
+                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, 'Cancel')
+                        )
+                    )
+                ),
+
+                // Remove Confirmation Modal
+                removeTarget && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: () => setRemoveTarget(null)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Cast Member'),
+                        e('p', { className: 'text-gray-600 mb-6' },
+                            'Are you sure you want to remove ',
+                            e('span', { className: 'font-medium text-gray-900' }, `${removeTarget.FirstName} ${removeTarget.LastName}`),
+                            ' from the cast directory? This will delete their entry from the CastMemberInfo table.'
+                        ),
+                        e('div', { className: 'flex justify-end gap-3' },
+                            e('button', {
+                                onClick: () => setRemoveTarget(null),
+                                disabled: isRemoving,
+                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                            }, 'Cancel'),
+                            e('button', {
+                                onClick: handleConfirmRemove,
+                                disabled: isRemoving,
+                                className: 'px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors'
+                            }, isRemoving ? 'Removing...' : 'Remove')
+                        )
+                    )
+                ),
+
+                // Cast member detail modal
                 selectedCastMember && e('div', { 
                     className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
                     onClick: handleCloseModal
