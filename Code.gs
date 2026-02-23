@@ -1290,8 +1290,38 @@ function removeBartender(bartenderId) {
 // =============================================================================
 
 /**
+ * HELPER: Derives a class status from StartDate/EndDate relative to today.
+ * Respects a stored 'Cancelled' status; otherwise always computes from dates.
+ * @param {string} startDate - YYYY-MM-DD or Date
+ * @param {string} endDate   - YYYY-MM-DD or Date (optional)
+ * @param {string} storedStatus - Raw value from the Status column
+ * @returns {string} 'In Progress' | 'Upcoming' | 'Completed' | 'Cancelled' | 'Unknown'
+ */
+function computeClassStatus_(startDate, endDate, storedStatus) {
+  const stored = (storedStatus || '').toLowerCase();
+  if (stored === 'cancelled' || stored === 'canceled') return 'Cancelled';
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = startDate ? new Date(startDate) : null;
+  const end   = endDate   ? new Date(endDate)   : null;
+
+  if (start && end) {
+    if (end < today)   return 'Completed';
+    if (start <= today) return 'In Progress';
+    return 'Upcoming';
+  }
+  if (start) {
+    return start <= today ? 'In Progress' : 'Upcoming';
+  }
+  // No dates — fall back to stored value
+  return storedStatus || 'Unknown';
+}
+
+/**
  * READ OPERATION: Gets all teachers with full Personnel details and their class history.
- * DATA FLOW: Teachers.PersonnelID → Personnel; ClassOfferings.TeacherPersonnelID → class list
+ * DATA FLOW: Teachers → Personnel; ClassOfferings.TeacherID → class list
  */
 function getTeachersWithDetails() {
   try {
@@ -1314,24 +1344,26 @@ function getTeachersWithDetails() {
     const result = allTeachers.map(teacher => {
       const person = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
 
-      // Match classes where TeacherPersonnelID == teacher.PersonnelID
+      // Match classes where TeacherID == teacher.TeacherID (ClassOfferings FK → Teachers PK)
       const teacherClasses = allClasses
-        .filter(c => c.TeacherPersonnelID == teacher.PersonnelID)
+        .filter(c => c.TeacherID == teacher.TeacherID)
         .map(c => {
           const level = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
+          const computedStatus = computeClassStatus_(c.StartDate, c.EndDate, c.Status);
           return {
             OfferingID: c.OfferingID,
             LevelName: level ? level.LevelName : (c.ClassLevelID || 'Class'),
             StartDate: c.StartDate || '',
             EndDate: c.EndDate || '',
-            Status: c.Status || 'Unknown',
+            Status: computedStatus,
             VenueOrRoom: c.VenueOrRoom || '',
             MaxStudents: c.MaxStudents || ''
           };
         });
 
+      // 'In Progress' and 'Upcoming' both count as active (not yet completed/cancelled)
       const activeClassCount = teacherClasses.filter(c =>
-        c.Status && (c.Status.toLowerCase() === 'active' || c.Status.toLowerCase() === 'in progress' || c.Status.toLowerCase() === 'scheduled')
+        c.Status === 'In Progress' || c.Status === 'Upcoming'
       ).length;
 
       return {
@@ -1453,11 +1485,17 @@ function getAllClasses() {
     Logger.log('getAllClasses() called - fetching from ClassOfferings sheet');
     const sheet = getSheet(SHEET_CONFIG.classOfferings);
     const classes = sheetToObjects(sheet);
-    
-    Logger.log(`Retrieved ${classes.length} class offering records`);
-    Logger.log(`Sample class: ${classes.length > 0 ? JSON.stringify(classes[0]) : 'No classes found'}`);
-    
-    return classes;
+
+    // Enrich each class with a date-derived Status so callers don't rely on a stale sheet column
+    const enriched = classes.map(c => ({
+      ...c,
+      Status: computeClassStatus_(c.StartDate, c.EndDate, c.Status)
+    }));
+
+    Logger.log(`Retrieved ${enriched.length} class offering records`);
+    Logger.log(`Sample class: ${enriched.length > 0 ? JSON.stringify(enriched[0]) : 'No classes found'}`);
+
+    return enriched;
   } catch (error) {
     Logger.log(`ERROR in getAllClasses(): ${error.toString()}`);
     throw new Error('Failed to retrieve classes data');
@@ -4153,22 +4191,10 @@ function getAllClassOfferings() {
       const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
       const levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
       
-      // Calculate status based on dates if not explicitly set
-      let status = classOffering.Status || 'Upcoming';
-      if (!classOffering.Status) {
-        const today = new Date();
-        const startDate = new Date(classOffering.StartDate);
-        const endDate = new Date(classOffering.EndDate);
-        
-        if (today > endDate) {
-          status = 'Completed';
-        } else if (today >= startDate && today <= endDate) {
-          status = 'In Progress';
-        } else {
-          status = 'Upcoming';
-        }
-      }
-      
+      // Always derive status from dates so stale sheet values are never trusted.
+      // computeClassStatus_ respects a stored 'Cancelled' flag but recomputes everything else.
+      const status = computeClassStatus_(classOffering.StartDate, classOffering.EndDate, classOffering.Status);
+
       return {
         ...classOffering,
         TeacherName: teacherName,
