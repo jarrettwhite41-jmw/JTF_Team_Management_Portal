@@ -2216,6 +2216,342 @@
             );
         }
 
+        // Bartenders Page Component
+        function BartendersPage() {
+            const [bartenders, setBartenders] = useState([]);
+            const [filteredBartenders, setFilteredBartenders] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedBartender, setSelectedBartender] = useState(null);
+            const [isDetailOpen, setIsDetailOpen] = useState(false);
+            const [message, setMessage] = useState(null);
+            const [isAddOpen, setIsAddOpen] = useState(false);
+            const [allPersonnel, setAllPersonnel] = useState([]);
+            const [personnelSearch, setPersonnelSearch] = useState('');
+            const [selectedPersonnelIds, setSelectedPersonnelIds] = useState([]);
+            const [trainedMap, setTrainedMap] = useState({});
+            const [isAdding, setIsAdding] = useState(false);
+            const [removeTarget, setRemoveTarget] = useState(null);
+            const [isRemoving, setIsRemoving] = useState(false);
+
+            useEffect(() => { loadBartenders(); }, []);
+
+            useEffect(() => {
+                const term = searchTerm.toLowerCase();
+                setFilteredBartenders(term
+                    ? bartenders.filter(b =>
+                        `${b.FirstName} ${b.LastName}`.toLowerCase().includes(term) ||
+                        (b.PrimaryEmail || '').toLowerCase().includes(term) ||
+                        (b.PrimaryPhone || '').toLowerCase().includes(term)
+                    )
+                    : bartenders
+                );
+            }, [bartenders, searchTerm]);
+
+            const loadBartenders = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getBartendersWithDetails();
+                    const data = response.data && response.data.data ? response.data.data
+                        : Array.isArray(response.data) ? response.data : [];
+                    if (response.success) {
+                        setBartenders(data);
+                        setMessage(null);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load bartenders.' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error loading bartender data.' });
+                } finally { setIsLoading(false); }
+            };
+
+            const bartenderPersonnelIds = new Set(bartenders.map(b => b.PersonnelID).filter(Boolean));
+            const boolVal = (v) => v === true || String(v).toLowerCase() === 'true' || String(v) === '1';
+            const activeCount = bartenders.filter(b => boolVal(b.Active)).length;
+            const trainedCount = bartenders.filter(b => boolVal(b.Trained)).length;
+
+            const availablePersonnel = allPersonnel.filter(p => {
+                const notBartender = !bartenderPersonnelIds.has(p.PersonnelID);
+                const matchesSearch = personnelSearch === '' ||
+                    `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                    (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
+                return notBartender && matchesSearch;
+            });
+
+            const toggleSelect = (id) =>
+                setSelectedPersonnelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+            const toggleSelectAll = () => {
+                const allIds = availablePersonnel.map(p => p.PersonnelID);
+                setSelectedPersonnelIds(allIds.every(id => selectedPersonnelIds.includes(id)) ? [] : allIds);
+            };
+
+            const handleOpenAdd = async () => {
+                setPersonnelSearch('');
+                setSelectedPersonnelIds([]);
+                setTrainedMap({});
+                setIsAddOpen(true);
+                if (allPersonnel.length === 0) {
+                    try {
+                        const r = await gasService.getAllPersonnel();
+                        if (r.success && Array.isArray(r.data)) setAllPersonnel(r.data);
+                    } catch (err) {}
+                }
+            };
+
+            const handleAddSelected = async () => {
+                if (selectedPersonnelIds.length === 0) return;
+                setIsAdding(true);
+                let successCount = 0, failCount = 0;
+                for (const id of selectedPersonnelIds) {
+                    try {
+                        const r = await gasService.addPersonAsBartender(id, trainedMap[id] || false, 'Active');
+                        if (r.success) successCount++; else failCount++;
+                    } catch (err) { failCount++; }
+                }
+                setIsAdding(false);
+                setIsAddOpen(false);
+                setSelectedPersonnelIds([]);
+                await loadBartenders();
+                if (successCount > 0) setMessage({ type: 'success', text: `${successCount} bartender${successCount !== 1 ? 's' : ''} added successfully.` });
+                if (failCount > 0) setMessage({ type: 'error', text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added.` });
+            };
+
+            const handleConfirmRemove = async () => {
+                if (!removeTarget) return;
+                setIsRemoving(true);
+                try {
+                    const r = await gasService.removeBartender(removeTarget.BartenderID);
+                    if (r.success) {
+                        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName} removed from bartenders.` });
+                        setRemoveTarget(null);
+                        await loadBartenders();
+                    } else {
+                        setMessage({ type: 'error', text: r.error || 'Failed to remove bartender.' });
+                        setRemoveTarget(null);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error removing bartender.' });
+                    setRemoveTarget(null);
+                } finally { setIsRemoving(false); }
+            };
+
+            const formatDate = (d) => {
+                if (!d || d === 'N/A') return 'N/A';
+                try { return new Date(d).toLocaleDateString(); } catch { return d; }
+            };
+            const getInitials = (b) =>
+                `${(b.FirstName || '')[0] || ''}${(b.LastName || '')[0] || ''}`.toUpperCase() || '??';
+
+            return e('div', { className: 'p-6' },
+                // Header
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Bartenders'),
+                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'Manage bartender roster and view shift history')
+                    ),
+                    e('div', { className: 'flex items-center gap-3' },
+                        e('p', { className: 'text-sm text-gray-600' }, `${filteredBartenders.length} bartender${filteredBartenders.length !== 1 ? 's' : ''}`),
+                        e('button', { onClick: handleOpenAdd, className: 'px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors' }, '+ Add Bartender')
+                    )
+                ),
+
+                // Stats
+                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6' },
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Total Bartenders'),
+                        e('p', { className: 'text-2xl font-bold text-amber-600' }, bartenders.length)
+                    ),
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Active'),
+                        e('p', { className: 'text-2xl font-bold text-green-600' }, activeCount)
+                    ),
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Trained'),
+                        e('p', { className: 'text-2xl font-bold text-indigo-600' }, trainedCount)
+                    )
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                ),
+
+                // Search
+                e('div', { className: 'mb-6' },
+                    e('div', { className: 'relative max-w-md' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search by name, email, or phone...',
+                            value: searchTerm,
+                            onChange: (ev) => setSearchTerm(ev.target.value),
+                            className: 'w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent'
+                        }),
+                        e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                    )
+                ),
+
+                // Content
+                isLoading ? e('div', { className: 'flex justify-center py-12' },
+                    e('p', { className: 'text-gray-500' }, 'Loading bartenders...')
+                ) : filteredBartenders.length === 0 ? e('div', { className: 'text-center py-12 text-gray-500' },
+                    e('p', { className: 'text-lg font-medium mb-1' }, 'No bartenders found'),
+                    e('p', { className: 'text-sm' }, 'Try adjusting your search or add a bartender.')
+                ) : e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                    filteredBartenders.map(b =>
+                        e('div', {
+                            key: b.BartenderID,
+                            onClick: () => { setSelectedBartender(b); setIsDetailOpen(true); },
+                            className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+                        },
+                            e('div', { className: 'flex items-center space-x-3 mb-3' },
+                                e('div', { className: 'w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-semibold' }, getInitials(b)),
+                                e('div', { className: 'flex-1 min-w-0' },
+                                    e('h3', { className: 'font-semibold text-gray-900 truncate' }, `${b.FirstName} ${b.LastName}`.trim() || 'Unknown'),
+                                    e('p', { className: 'text-sm text-gray-500 truncate' }, b.PrimaryEmail || 'No email')
+                                )
+                            ),
+                            e('div', { className: 'space-y-1 text-sm text-gray-600 mb-3' },
+                                e('p', null, e('strong', null, 'Phone: '), b.PrimaryPhone || 'N/A'),
+                                e('p', null, e('strong', null, 'Shifts: '), b.ShiftCount || 0),
+                                e('p', null, e('strong', null, 'Last Shift: '), formatDate(b.LastShiftDate))
+                            ),
+                            e('div', { className: 'flex flex-wrap gap-1.5 mb-3' },
+                                boolVal(b.Trained) && e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium' }, 'Trained'),
+                                boolVal(b.Active)
+                                    ? e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-medium' }, 'Active')
+                                    : e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium' }, 'Inactive')
+                            ),
+                            e('div', { className: 'pt-3 border-t border-gray-100' },
+                                e('button', {
+                                    onClick: (ev) => { ev.stopPropagation(); setRemoveTarget(b); },
+                                    className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
+                                }, 'Remove Bartender')
+                            )
+                        )
+                    )
+                ),
+
+                // Add Modal
+                isAddOpen && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setIsAddOpen(false) },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col', onClick: (ev) => ev.stopPropagation() },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Bartenders from Personnel'),
+                            e('button', { onClick: () => setIsAddOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
+                        ),
+                        e('input', {
+                            type: 'text', placeholder: 'Search personnel...',
+                            value: personnelSearch, onChange: (ev) => setPersonnelSearch(ev.target.value),
+                            className: 'mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent'
+                        }),
+                        availablePersonnel.length > 0 && e('div', { className: 'flex items-center justify-between mb-2 px-1' },
+                            e('label', { className: 'flex items-center gap-2 text-sm text-gray-600 cursor-pointer' },
+                                e('input', { type: 'checkbox', checked: availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID)), onChange: toggleSelectAll, className: 'w-4 h-4 accent-amber-600' }),
+                                'Select all'
+                            ),
+                            selectedPersonnelIds.length > 0 && e('span', { className: 'text-sm text-amber-700 font-medium' }, `${selectedPersonnelIds.length} selected`)
+                        ),
+                        e('div', { className: 'overflow-y-auto flex-1' },
+                            availablePersonnel.length === 0
+                                ? e('p', { className: 'text-center text-gray-500 py-6' }, 'No available personnel found.')
+                                : availablePersonnel.map(person => {
+                                    const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
+                                    return e('div', {
+                                        key: person.PersonnelID,
+                                        className: `flex items-center gap-3 p-3 mb-1 border rounded-lg transition-colors ${isChecked ? 'border-amber-400 bg-amber-50' : 'border-gray-200 hover:bg-gray-50'}`
+                                    },
+                                        e('input', { type: 'checkbox', checked: isChecked, onChange: () => toggleSelect(person.PersonnelID), className: 'w-4 h-4 accent-amber-600 flex-shrink-0' }),
+                                        e('div', { className: 'flex-1 min-w-0' },
+                                            e('p', { className: 'font-medium text-gray-900' }, `${person.FirstName} ${person.LastName}`.trim()),
+                                            e('p', { className: 'text-sm text-gray-500 truncate' }, person.PrimaryEmail || 'No email')
+                                        ),
+                                        isChecked && e('label', { className: 'flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer flex-shrink-0' },
+                                            e('input', {
+                                                type: 'checkbox',
+                                                checked: trainedMap[person.PersonnelID] || false,
+                                                onChange: (ev) => setTrainedMap(prev => ({ ...prev, [person.PersonnelID]: ev.target.checked })),
+                                                className: 'w-3.5 h-3.5 accent-indigo-600'
+                                            }),
+                                            'Trained'
+                                        )
+                                    );
+                                })
+                        ),
+                        e('div', { className: 'mt-4 flex justify-between items-center' },
+                            e('button', { onClick: () => setIsAddOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
+                            e('button', {
+                                onClick: handleAddSelected,
+                                disabled: isAdding || selectedPersonnelIds.length === 0,
+                                className: 'px-4 py-2 text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors font-medium'
+                            }, isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`)
+                        )
+                    )
+                ),
+
+                // Remove Confirmation Modal
+                removeTarget && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setRemoveTarget(null) },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4', onClick: (ev) => ev.stopPropagation() },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Bartender'),
+                        e('p', { className: 'text-gray-600 mb-6' },
+                            'Are you sure you want to remove ',
+                            e('span', { className: 'font-medium text-gray-900' }, `${removeTarget.FirstName} ${removeTarget.LastName}`),
+                            ' from the Bartenders table? Their shift history will be preserved.'
+                        ),
+                        e('div', { className: 'flex justify-end gap-3' },
+                            e('button', { onClick: () => setRemoveTarget(null), disabled: isRemoving, className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
+                            e('button', { onClick: handleConfirmRemove, disabled: isRemoving, className: 'px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors' },
+                                isRemoving ? 'Removing...' : 'Remove'
+                            )
+                        )
+                    )
+                ),
+
+                // Detail Modal
+                isDetailOpen && selectedBartender && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setIsDetailOpen(false) },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
+                        e('div', { className: 'flex justify-between items-start mb-6' },
+                            e('div', { className: 'flex items-center gap-3' },
+                                e('div', { className: 'w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold text-lg' }, getInitials(selectedBartender)),
+                                e('div', null,
+                                    e('h2', { className: 'text-xl font-semibold text-gray-900' }, `${selectedBartender.FirstName} ${selectedBartender.LastName}`.trim()),
+                                    e('div', { className: 'flex gap-1.5 mt-1' },
+                                        boolVal(selectedBartender.Trained) && e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium' }, 'Trained'),
+                                        e('span', { className: `px-2 py-0.5 text-xs rounded-full font-medium ${boolVal(selectedBartender.Active) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}` },
+                                            boolVal(selectedBartender.Active) ? 'Active' : 'Inactive'
+                                        )
+                                    )
+                                )
+                            ),
+                            e('button', { onClick: () => setIsDetailOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
+                            e('div', { className: 'bg-gray-50 rounded-lg p-4' },
+                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Contact'),
+                                e('div', { className: 'space-y-2 text-sm' },
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Email'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.PrimaryEmail || 'N/A')),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Phone'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.PrimaryPhone || 'N/A'))
+                                )
+                            ),
+                            e('div', { className: 'bg-amber-50 rounded-lg p-4' },
+                                e('h3', { className: 'text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3' }, 'Shift Summary'),
+                                e('div', { className: 'space-y-2 text-sm' },
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Total Shifts'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.ShiftCount || 0)),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Last Shift'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedBartender.LastShiftDate))),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Last Show'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.LastShowName || 'N/A'))
+                                )
+                            )
+                        ),
+                        e('div', { className: 'flex justify-between items-center' },
+                            e('button', {
+                                onClick: () => { setIsDetailOpen(false); setRemoveTarget(selectedBartender); },
+                                className: 'px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium'
+                            }, 'Remove Bartender'),
+                            e('button', { onClick: () => setIsDetailOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
+                        )
+                    )
+                )
+            );
+        }
+
         // Sidebar Component
         function Sidebar({ currentPage, onNavigate }) {
             const navigationItems = [
@@ -2224,6 +2560,7 @@
                 { id: 'student-directory', label: 'Students', icon: '🎓' },
                 { id: 'cast', label: 'Cast', icon: '🎭' },
                 { id: 'crew', label: 'Crew', icon: '🛠️' },
+                { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
                 { id: 'classes', label: 'Classes', icon: '📚' },
                 { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
@@ -6312,6 +6649,8 @@
                         return e(CastDirectory);
                     case 'crew':
                         return e(CrewDirectory);
+                    case 'bartenders':
+                        return e(BartendersPage);
                     case 'classes':
                         return e(ClassRegistration);
                     case 'shows':
