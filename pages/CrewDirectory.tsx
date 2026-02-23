@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CrewCard } from '../components/crew/CrewCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { CrewMemberWithDetails, Personnel } from '../types';
+import { CrewMemberWithDetails } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 export const CrewDirectory: React.FC = () => {
@@ -15,17 +15,6 @@ export const CrewDirectory: React.FC = () => {
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // Add crew member modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
-  const [personnelSearch, setPersonnelSearch] = useState('');
-  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
-  const [isAdding, setIsAdding] = useState(false);
-
-  // Remove confirmation state
-  const [removeTarget, setRemoveTarget] = useState<CrewMemberWithDetails | null>(null);
-  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     loadCrewMembers();
@@ -66,7 +55,6 @@ export const CrewDirectory: React.FC = () => {
   };
 
   // Derived data
-  const crewPersonnelIds = new Set(crewMembers.map(c => c.PersonnelID).filter(Boolean));
   const uniqueDutyTypes = Array.from(new Set(crewMembers.map(m => m.DutyName).filter(Boolean))) as string[];
   const uniqueShowCount = new Set(crewMembers.map(m => m.ShowName).filter(Boolean)).size;
   const uniqueCrewCount = new Set(crewMembers.map(m => m.PersonnelID).filter(Boolean)).size;
@@ -80,95 +68,9 @@ export const CrewDirectory: React.FC = () => {
   const unassigned = filteredCrewMembers.filter(m => !m.DutyName);
   if (unassigned.length) groupedByDuty['Unassigned'] = unassigned;
 
-  // Add modal helpers
-  const availablePersonnel = allPersonnel.filter(p => {
-    const notInCrew = !crewPersonnelIds.has(p.PersonnelID);
-    const matchesSearch =
-      personnelSearch === '' ||
-      `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
-      (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
-    return notInCrew && matchesSearch;
-  });
-
-  const togglePersonnelSelect = (id: number) => {
-    setSelectedPersonnelIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))) {
-      setSelectedPersonnelIds([]);
-    } else {
-      setSelectedPersonnelIds(availablePersonnel.map(p => p.PersonnelID));
-    }
-  };
-
-  const handleOpenAddModal = async () => {
-    setPersonnelSearch('');
-    setSelectedPersonnelIds([]);
-    setIsAddModalOpen(true);
-    if (allPersonnel.length === 0) {
-      try {
-        const response = await gasService.getAllPersonnel();
-        if (response.success && Array.isArray(response.data)) {
-          setAllPersonnel(response.data as Personnel[]);
-        }
-      } catch { /* silent */ }
-    }
-  };
-
-  const handleAddSelectedCrewMembers = async () => {
-    if (selectedPersonnelIds.length === 0) return;
-    setIsAdding(true);
-    let successCount = 0;
-    let failCount = 0;
-    for (const id of selectedPersonnelIds) {
-      try {
-        const response = await gasService.addPersonAsCrewMember(id);
-        if (response.success) successCount++;
-        else failCount++;
-      } catch { failCount++; }
-    }
-    setIsAdding(false);
-    setIsAddModalOpen(false);
-    setSelectedPersonnelIds([]);
-    await loadCrewMembers();
-    if (successCount > 0)
-      setMessage({ type: 'success', text: `${successCount} crew member${successCount > 1 ? 's' : ''} added successfully.` });
-    if (failCount > 0)
-      setMessage({ type: 'error', text: `${failCount} member${failCount > 1 ? 's' : ''} failed to add.` });
-  };
-
   const handleCardClick = (m: CrewMemberWithDetails) => {
     setSelectedCrewMember(m);
     setIsDetailModalOpen(true);
-  };
-
-  const handleRemoveClick = (personnelId: number) => {
-    const target = crewMembers.find(c => c.PersonnelID === personnelId);
-    if (target) setRemoveTarget(target);
-  };
-
-  const handleConfirmRemove = async () => {
-    if (!removeTarget) return;
-    setIsRemoving(true);
-    try {
-      const response = await gasService.removeCrewMember(removeTarget.CrewMemberID);
-      if (response.success) {
-        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName || removeTarget.Lastname} removed from crew.` });
-        setRemoveTarget(null);
-        await loadCrewMembers();
-      } else {
-        setMessage({ type: 'error', text: (response as any).error || 'Failed to remove crew member.' });
-        setRemoveTarget(null);
-      }
-    } catch {
-      setMessage({ type: 'error', text: 'Error removing crew member.' });
-      setRemoveTarget(null);
-    } finally {
-      setIsRemoving(false);
-    }
   };
 
   const formatDate = (dateString?: string) => {
@@ -186,17 +88,9 @@ export const CrewDirectory: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Crew Directory</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage crew members and show duty assignments</p>
+          <p className="text-sm text-gray-500 mt-1">View crew members and show duty assignments</p>
         </div>
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-gray-600">{filteredCrewMembers.length} assignment{filteredCrewMembers.length !== 1 ? 's' : ''}</p>
-          <button
-            onClick={handleOpenAddModal}
-            className="px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors"
-          >
-            + Add Crew Member
-          </button>
-        </div>
+        <p className="text-sm text-gray-600">{filteredCrewMembers.length} assignment{filteredCrewMembers.length !== 1 ? 's' : ''}</p>
       </div>
 
       {/* Stats bar */}
@@ -272,7 +166,7 @@ export const CrewDirectory: React.FC = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           <p className="text-lg font-medium mb-1">No crew members found</p>
-          <p className="text-sm">Try adjusting your search or filters, or add a crew member.</p>
+          <p className="text-sm">Try adjusting your search or filters.</p>
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -281,7 +175,6 @@ export const CrewDirectory: React.FC = () => {
               key={`${member.PersonnelID}-${member.DutyID}-${idx}`}
               crewMember={member}
               onClick={() => handleCardClick(member)}
-              onRemove={handleRemoveClick}
             />
           ))}
         </div>
@@ -301,132 +194,11 @@ export const CrewDirectory: React.FC = () => {
                     key={`${member.PersonnelID}-${member.DutyID}-${idx}`}
                     crewMember={member}
                     onClick={() => handleCardClick(member)}
-                    onRemove={handleRemoveClick}
                   />
                 ))}
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* ── Add Crew Member Modal ─────────────────────────────────── */}
-      {isAddModalOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => setIsAddModalOpen(false)}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Add Crew Members from Personnel</h2>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
-            </div>
-            <input
-              type="text"
-              placeholder="Search personnel..."
-              value={personnelSearch}
-              onChange={(e) => setPersonnelSearch(e.target.value)}
-              className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-            />
-            {availablePersonnel.length > 0 && (
-              <div className="flex items-center justify-between mb-2 px-1">
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 accent-teal-600"
-                  />
-                  Select all
-                </label>
-                {selectedPersonnelIds.length > 0 && (
-                  <span className="text-sm text-teal-700 font-medium">{selectedPersonnelIds.length} selected</span>
-                )}
-              </div>
-            )}
-            <div className="overflow-y-auto flex-1">
-              {availablePersonnel.length === 0 ? (
-                <p className="text-center text-gray-500 py-6">No available personnel found.</p>
-              ) : (
-                availablePersonnel.map((person) => {
-                  const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
-                  return (
-                    <label
-                      key={person.PersonnelID}
-                      className={`flex items-center gap-3 p-3 mb-1 border rounded-lg cursor-pointer select-none transition-colors ${
-                        isChecked ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => togglePersonnelSelect(person.PersonnelID)}
-                        className="w-4 h-4 accent-teal-600 flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900">{`${person.FirstName} ${person.LastName}`.trim()}</p>
-                        <p className="text-sm text-gray-500 truncate">{person.PrimaryEmail || 'No email'}</p>
-                      </div>
-                    </label>
-                  );
-                })
-              )}
-            </div>
-            <div className="mt-4 flex justify-between items-center">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddSelectedCrewMembers}
-                disabled={isAdding || selectedPersonnelIds.length === 0}
-                className="px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors font-medium"
-              >
-                {isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Remove Confirmation Modal ─────────────────────────────── */}
-      {removeTarget && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={() => setRemoveTarget(null)}
-        >
-          <div
-            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Remove Crew Member</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to remove{' '}
-              <span className="font-medium text-gray-900">{getDisplayName(removeTarget)}</span>{' '}
-              from the crew directory? This will delete their crew member record.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setRemoveTarget(null)}
-                disabled={isRemoving}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmRemove}
-                disabled={isRemoving}
-                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {isRemoving ? 'Removing...' : 'Remove'}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

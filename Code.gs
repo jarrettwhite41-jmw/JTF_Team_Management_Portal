@@ -1495,15 +1495,40 @@ function getAllCrewMembers() {
     const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
     const allCrewDutyTypes = sheetToObjects(crewDutyTypesSheet);
     
-    // Find unique personnel IDs who have crew duties
-    // Note: CrewDuties might use PersonnelID, CrewMemberID, or CastMemberID depending on the sheet column
-    const crewPersonnelIds = [...new Set(allCrewDuties.map(cd => cd.PersonnelID || cd.CrewMemberID || cd.CastMemberID).filter(Boolean))];
+    // Load CastMemberInfo to resolve CastMemberID → PersonnelID
+    // DATA FLOW: CrewDuties.CastMemberID → CastMemberInfo.CastMemberID → CastMemberInfo.PersonnelID → Personnel
+    let allCastMemberInfo = [];
+    try {
+      const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+      allCastMemberInfo = sheetToObjects(castMemberInfoSheet);
+      Logger.log(`Loaded ${allCastMemberInfo.length} CastMemberInfo records`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load CastMemberInfo sheet: ${e.toString()}`);
+    }
+    
+    // Helper: resolve a crew duty's CastMemberID to a PersonnelID via CastMemberInfo
+    const resolvePersonnelId = (cd) => {
+      const castMemberId = cd.CastMemberID || cd.CrewMemberID;
+      if (castMemberId && allCastMemberInfo.length > 0) {
+        const castInfo = allCastMemberInfo.find(ci => ci.CastMemberID == castMemberId);
+        if (castInfo && castInfo.PersonnelID) {
+          return castInfo.PersonnelID;
+        }
+        Logger.log(`Warning: CastMemberID ${castMemberId} not found in CastMemberInfo`);
+      }
+      // Fallback: if PersonnelID is stored directly on the duty row
+      return cd.PersonnelID || null;
+    };
+    
+    // Find unique personnel IDs who have crew duties, resolving through CastMemberInfo
+    const crewPersonnelIds = [...new Set(allCrewDuties.map(resolvePersonnelId).filter(Boolean))];
+    Logger.log(`Resolved ${crewPersonnelIds.length} unique crew PersonnelIDs from ${allCrewDuties.length} crew duties`);
     
     const crewMembers = crewPersonnelIds.map(personnelId => {
       const person = allPersonnel.find(p => p.PersonnelID == personnelId);
       
-      // Get all duties for this person
-      const personDuties = allCrewDuties.filter(cd => (cd.PersonnelID || cd.CrewMemberID || cd.CastMemberID) == personnelId);
+      // Get all duties for this person (resolved through CastMemberInfo)
+      const personDuties = allCrewDuties.filter(cd => resolvePersonnelId(cd) == personnelId);
       
       // Find the most recent show date
       let lastShowDate = 'N/A';
@@ -1550,7 +1575,64 @@ function getAllCrewMembers() {
     });
     
     Logger.log(`Found ${crewMembers.length} crew members`);
-    return { success: true, data: crewMembers };
+    
+    // ── Bartenders ────────────────────────────────────────────────────────────
+    // DATA FLOW: BartenderShifts.PersonnelID → Personnel (direct join, no CastMemberInfo)
+    let bartenderEntries = [];
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      const allBartenderShifts = sheetToObjects(bartenderShiftsSheet);
+      Logger.log(`Loaded ${allBartenderShifts.length} BartenderShifts records`);
+      
+      // Get unique PersonnelIDs from BartenderShifts
+      const bartenderPersonnelIds = [...new Set(allBartenderShifts.map(bs => bs.PersonnelID).filter(Boolean))];
+      
+      bartenderEntries = bartenderPersonnelIds.map(personnelId => {
+        const person = allPersonnel.find(p => p.PersonnelID == personnelId);
+        
+        // Find the most recent bartender shift for this person
+        const personShifts = allBartenderShifts.filter(bs => bs.PersonnelID == personnelId);
+        let lastShowDate = 'N/A';
+        let latestShow = null;
+        
+        const shiftsWithShows = personShifts.map(shift => {
+          const show = allShows.find(s => s.ShowID == shift.ShowID);
+          return { shift, show };
+        }).filter(ss => ss && ss.show && ss.show.ShowDate);
+        
+        shiftsWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+        
+        if (shiftsWithShows.length > 0) {
+          latestShow = shiftsWithShows[0].show;
+          lastShowDate = latestShow.ShowDate;
+        }
+        
+        const firstName = person ? person.FirstName : 'Unknown';
+        const lastName = person ? person.LastName : 'Person';
+        
+        return {
+          PersonnelID: personnelId,
+          FullName: person ? `${firstName} ${lastName}`.trim() : 'Unknown Person',
+          FirstName: firstName,
+          LastName: lastName,
+          PrimaryEmail: person ? person.PrimaryEmail : '',
+          PrimaryPhone: person ? person.PrimaryPhone : '',
+          Birthday: person ? person.Birthday : '',
+          LastShowDate: lastShowDate,
+          ShowName: latestShow ? latestShow.ShowName : 'N/A',
+          DutyName: 'Bartender',
+          Status: person ? (person.Status || 'Active') : 'Unknown'
+        };
+      });
+      
+      Logger.log(`Found ${bartenderEntries.length} bartender entries`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load BartenderShifts: ${e.toString()}`);
+    }
+    
+    const allCrewEntries = crewMembers.concat(bartenderEntries);
+    Logger.log(`Total crew + bartender entries: ${allCrewEntries.length}`);
+    return { success: true, data: allCrewEntries };
     
   } catch (error) {
     Logger.log(`ERROR in getAllCrewMembers(): ${error.toString()}`);

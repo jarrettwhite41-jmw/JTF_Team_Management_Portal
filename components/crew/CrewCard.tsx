@@ -4,10 +4,9 @@ import { CrewMemberWithDetails } from '../../types';
 interface CrewCardProps {
   crewMember: CrewMemberWithDetails;
   onClick: () => void;
-  onRemove?: (personnelId: number) => void;
 }
 
-export const CrewCard: React.FC<CrewCardProps> = ({ crewMember, onClick, onRemove }) => {
+export const CrewCard: React.FC<CrewCardProps> = ({ crewMember, onClick }) => {
   const getInitials = (firstName: string, lastname: string) => {
     const first = (firstName || '').trim();
     const last = (lastname || '').trim();
@@ -59,19 +58,6 @@ export const CrewCard: React.FC<CrewCardProps> = ({ crewMember, onClick, onRemov
           </span>
         )}
       </div>
-      {onRemove && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(crewMember.PersonnelID!);
-            }}
-            className="w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
-          >
-            Remove from Crew
-          </button>
-        </div>
-      )}
     </div>
   );
 };
