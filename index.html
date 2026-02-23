@@ -1670,7 +1670,20 @@
                         placeholder: 'Search by name or email\u2026',
                         value: searchTerm,
                         onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'\n                    })\n                ),\n\n                isLoading ? e(Loader, { text: 'Loading personnel...' }) :\n                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },\n                    filteredPersonnel.map((person) =>\n                        e(PersonCard, {\n                            key: person.PersonnelID,\n                            person: person,\n                            onClick: () => handlePersonClick(person)\n                        })\n                    )\n                ),
+                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    })
+                ),
+
+                isLoading ? e(Loader, { text: 'Loading personnel...' }) :
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },
+                    filteredPersonnel.map((person) =>
+                        e(PersonCard, {
+                            key: person.PersonnelID,
+                            person: person,
+                            onClick: () => handlePersonClick(person)
+                        })
+                    )
+                ),
 
                 e(PersonnelModal, {
                     isOpen: isModalOpen,
