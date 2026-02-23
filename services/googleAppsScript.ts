@@ -242,6 +242,12 @@ class GoogleAppsScriptService {
             case 'removeCastMember':
               data = { deleted: true };
               break;
+            case 'createClassOffering':
+              data = { ...args[0], OfferingID: Date.now() };
+              break;
+            case 'updateClassOffering':
+              data = args[0];
+              break;
             case 'getAllCrewMembers':
               data = { data: mockCrewMembers };
               break;
@@ -494,6 +500,10 @@ class GoogleAppsScriptService {
 
   async updateEnrollmentStatus(enrollmentId: number, status: string): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateEnrollmentStatus', enrollmentId, status);
+  }
+
+  async updateClassOffering(classData: any): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateClassOffering', classData);
   }
 }
 

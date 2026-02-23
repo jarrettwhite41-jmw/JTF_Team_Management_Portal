@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ClassCard } from '../components/classes/ClassCard';
 import { ClassManagementModal } from '../components/classes/ClassManagementModal';
+import { ClassEditModal } from '../components/classes/ClassEditModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { gasService } from '../services/googleAppsScript';
@@ -245,21 +246,16 @@ export const ClassRegistration: React.FC = () => {
         </div>
       )}
 
-      {/* New Class Modal - Placeholder */}
-      {showNewClassModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Class</h3>
-            <p className="text-gray-600 mb-4">New class creation form coming soon!</p>
-            <button
-              onClick={() => setShowNewClassModal(false)}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      {/* New Class Modal */}
+      <ClassEditModal
+        isOpen={showNewClassModal}
+        classOffering={null}
+        onClose={() => setShowNewClassModal(false)}
+        onSaved={() => {
+          setShowNewClassModal(false);
+          loadClasses();
+        }}
+      />
 
       {/* Class Management Modal */}
       {selectedClass && (
