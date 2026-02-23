@@ -3759,6 +3759,53 @@ function createClassOffering(classData) {
 }
 
 /**
+ * UPDATE OPERATION: Updates an existing class offering
+ * DATA SOURCE: ClassOfferings sheet
+ * @param {Object} classData - Object with OfferingID and fields to update
+ * @returns {Object} Success status and updated class data
+ */
+function updateClassOffering(classData) {
+  try {
+    Logger.log('=== updateClassOffering() called ===');
+    Logger.log(`Update data: ${JSON.stringify(classData)}`);
+
+    const sheet = getSheet(SHEET_CONFIG.classOfferings);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const allData = sheet.getDataRange().getValues();
+
+    // Find the row with the matching OfferingID (allData[0] is header row)
+    let targetRow = -1;
+    for (let i = 1; i < allData.length; i++) {
+      const rowObj = {};
+      headers.forEach((h, idx) => { rowObj[h] = allData[i][idx]; });
+      if (rowObj.OfferingID == classData.OfferingID) {
+        targetRow = i + 1; // 1-based row index for Sheets API
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      return { success: false, error: `Class offering with ID ${classData.OfferingID} not found` };
+    }
+
+    // Write back only the fields present in classData, preserving everything else
+    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'VenueOrRoom', 'MeetingDays', 'MeetingTime'];
+    headers.forEach((header, colIdx) => {
+      if (updatableFields.includes(header) && classData[header] !== undefined) {
+        sheet.getRange(targetRow, colIdx + 1).setValue(classData[header]);
+      }
+    });
+
+    Logger.log(`Updated class offering ID ${classData.OfferingID} at row ${targetRow}`);
+    return { success: true, data: classData };
+
+  } catch (error) {
+    Logger.log(`ERROR in updateClassOffering(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
  * READ OPERATION: Gets all class offerings with teacher names and enrollment counts
  * DATA SOURCE: ClassOfferings, Personnel, StudentEnrollments, ClassLevels sheets
  * @returns {Object} Success status and array of class offerings
