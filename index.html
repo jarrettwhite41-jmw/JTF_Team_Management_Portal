@@ -1791,7 +1791,7 @@
                 setProfileData(null);
                 setProfileLoading(true);
                 gasService.getPersonnelProfile(selectedPerson.PersonnelID)
-                    .then(res => { if (res && res.success) setProfileData(res.data); })
+                    .then(res => { if (res && res.success) setProfileData(res.data && res.data.data ? res.data.data : res.data); })
                     .catch(() => {})
                     .finally(() => setProfileLoading(false));
             }, [selectedPerson]);
