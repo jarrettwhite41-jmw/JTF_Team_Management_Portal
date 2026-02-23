@@ -13,6 +13,7 @@ import {
   ApiResponse,
   CastMemberWithDetails,
   CrewMemberWithDetails,
+  BartenderWithDetails,
   ShowWithDetails
 } from '../types';
 
@@ -259,6 +260,15 @@ class GoogleAppsScriptService {
             case 'removeCrewMember':
               data = { deleted: true };
               break;
+            case 'getBartendersWithDetails':
+              data = [];
+              break;
+            case 'addPersonAsBartender':
+              data = { BartenderID: 999, PersonnelID: args[0], Trained: args[1] || false, Status: args[2] || 'Active', Active: true };
+              break;
+            case 'removeBartender':
+              data = { deleted: true };
+              break;
             default:
               data = [];
           }
@@ -375,6 +385,19 @@ class GoogleAppsScriptService {
 
   async removeCrewMember(crewMemberId: number): Promise<ApiResponse<{ deleted: boolean }>> {
     return this.callServerFunction<{ deleted: boolean }>('removeCrewMember', crewMemberId);
+  }
+
+  // Bartender methods
+  async getBartendersWithDetails(): Promise<ApiResponse<BartenderWithDetails[]>> {
+    return this.callServerFunction<BartenderWithDetails[]>('getBartendersWithDetails');
+  }
+
+  async addPersonAsBartender(personnelId: number, trained: boolean, status: string): Promise<ApiResponse<{ BartenderID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ BartenderID: number; PersonnelID: number }>('addPersonAsBartender', personnelId, trained, status);
+  }
+
+  async removeBartender(bartenderId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeBartender', bartenderId);
   }
 
   // Inventory methods

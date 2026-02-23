@@ -1153,6 +1153,137 @@ function getAllBartenders() {
 }
 
 /**
+ * READ OPERATION: Gets all bartenders from the Bartenders table with full Personnel details
+ * and shift history from BartenderShifts.
+ * DATA FLOW: Bartenders.PersonnelID → Personnel; Bartenders.PersonnelID → BartenderShifts → ShowInformation
+ */
+function getBartendersWithDetails() {
+  try {
+    Logger.log('getBartendersWithDetails() called');
+    const bartendersSheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(bartendersSheet);
+
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+
+    let allBartenderShifts = [];
+    let allShows = [];
+    try {
+      const shiftsSheet = getSheet('BartenderShifts');
+      allBartenderShifts = sheetToObjects(shiftsSheet);
+      const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+      allShows = sheetToObjects(showsSheet);
+    } catch (e) {
+      Logger.log(`Warning: Could not load BartenderShifts/Shows: ${e.toString()}`);
+    }
+
+    const result = allBartenders.map(bartender => {
+      const person = allPersonnel.find(p => p.PersonnelID == bartender.PersonnelID);
+
+      // BartenderShifts links directly to Personnel via PersonnelID
+      const shifts = allBartenderShifts.filter(s => s.PersonnelID == bartender.PersonnelID);
+      const shiftCount = shifts.length;
+
+      let lastShiftDate = 'N/A';
+      let lastShowName = 'N/A';
+
+      if (shifts.length > 0) {
+        const shiftsWithShows = shifts.map(s => ({
+          shift: s,
+          show: allShows.find(sh => sh.ShowID == s.ShowID)
+        })).filter(ss => ss.show && ss.show.ShowDate);
+
+        shiftsWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+
+        if (shiftsWithShows.length > 0) {
+          lastShiftDate = shiftsWithShows[0].show.ShowDate;
+          lastShowName = shiftsWithShows[0].show.ShowName || 'N/A';
+        }
+      }
+
+      return {
+        BartenderID: bartender.BartenderID,
+        PersonnelID: bartender.PersonnelID,
+        Trained: bartender.Trained,
+        Status: bartender.Status || 'Active',
+        Active: bartender.Active,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? person.LastName : 'Person',
+        FullName: person ? `${person.FirstName} ${person.LastName}`.trim() : 'Unknown Person',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
+        ShiftCount: shiftCount,
+        LastShiftDate: lastShiftDate,
+        LastShowName: lastShowName
+      };
+    });
+
+    Logger.log(`Retrieved ${result.length} bartenders with details`);
+    return { success: true, data: result };
+  } catch (error) {
+    Logger.log(`ERROR in getBartendersWithDetails(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * CREATE OPERATION: Adds a person from Personnel to the Bartenders table
+ * DATA FLOW: PersonnelID → new row in Bartenders sheet
+ * @param {number} personnelId - The PersonnelID to add
+ * @param {boolean} trained - Whether the person is trained
+ * @param {string} status - Status value (defaults to 'Active')
+ */
+function addPersonAsBartender(personnelId, trained, status) {
+  try {
+    Logger.log(`addPersonAsBartender() called for PersonnelID: ${personnelId}`);
+    const sheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(sheet);
+
+    // Prevent duplicates
+    const existing = allBartenders.find(b => b.PersonnelID == personnelId);
+    if (existing) {
+      return { success: false, error: 'This person is already in the Bartenders table.' };
+    }
+
+    const newId = getNextId(sheet, 0);
+    const newBartender = {
+      BartenderID: newId,
+      PersonnelID: personnelId,
+      Trained: trained || false,
+      Status: status || 'Active',
+      Active: true
+    };
+
+    addOrUpdateRow(sheet, newBartender, 0);
+    Logger.log(`Added bartender with ID: ${newId} for PersonnelID: ${personnelId}`);
+    return { success: true, data: newBartender };
+  } catch (error) {
+    Logger.log(`ERROR in addPersonAsBartender(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a bartender from the Bartenders table by BartenderID
+ * DATA FLOW: BartenderID → delete row from Bartenders sheet
+ * NOTE: Does NOT delete BartenderShifts history — shifts are show records and are preserved.
+ * @param {number} bartenderId - The BartenderID to remove
+ */
+function removeBartender(bartenderId) {
+  try {
+    Logger.log(`removeBartender() called for BartenderID: ${bartenderId}`);
+    const sheet = getSheet('Bartenders');
+    deleteRowsByCondition(sheet, 'BartenderID', bartenderId);
+    Logger.log(`Removed bartender with ID: ${bartenderId}`);
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    Logger.log(`ERROR in removeBartender(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
  * HELPER FUNCTION: Deletes rows that match a condition
  * @param {Sheet} sheet - The sheet to delete from
  * @param {string} columnName - The column to check

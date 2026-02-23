@@ -258,6 +258,21 @@
                 return this.callServerFunction('getAllBartenders');
             }
 
+            // READ: Get all bartenders with full details (for Bartenders management page)
+            async getBartendersWithDetails() {
+                return this.callServerFunction('getBartendersWithDetails');
+            }
+
+            // CREATE: Add a person from Personnel to the Bartenders table
+            async addPersonAsBartender(personnelId, trained, status) {
+                return this.callServerFunction('addPersonAsBartender', personnelId, trained, status);
+            }
+
+            // DELETE: Remove a bartender from the Bartenders table by BartenderID
+            async removeBartender(bartenderId) {
+                return this.callServerFunction('removeBartender', bartenderId);
+            }
+
             // READ: Get all crew duty types
             async getAllCrewDutyTypes() {
                 return this.callServerFunction('getAllCrewDutyTypes');

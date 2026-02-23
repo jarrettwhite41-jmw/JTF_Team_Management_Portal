@@ -71,6 +71,26 @@ export interface CrewDuties {
   CrewDutyTypeID: number;
 }
 
+export interface Bartender {
+  BartenderID: number;
+  PersonnelID: number;
+  Trained: boolean | string;
+  Status: string;
+  Active: boolean | string;
+}
+
+export interface BartenderWithDetails extends Bartender {
+  FirstName: string;
+  LastName: string;
+  FullName?: string;
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  Birthday?: string;
+  ShiftCount?: number;
+  LastShiftDate?: string;
+  LastShowName?: string;
+}
+
 export interface Inventory {
   ItemID: number;
   ItemName: string;
@@ -232,7 +252,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
