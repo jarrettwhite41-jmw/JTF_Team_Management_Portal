@@ -598,6 +598,39 @@
             async getPersonnelProfile(personnelId) {
                 return this.callServerFunction('getPersonnelProfile', personnelId);
             }
+
+            // ── Session Notes / Progress Notes ────────────────────────────
+            async getClassSessionLogs(offeringId) {
+                return this.callServerFunction('getClassSessionLogs', offeringId);
+            }
+            async saveSessionLog(logData) {
+                return this.callServerFunction('saveSessionLog', logData);
+            }
+            async deleteSessionLog(sessionLogId) {
+                return this.callServerFunction('deleteSessionLog', sessionLogId);
+            }
+            async getStudentProgressNotes(offeringId) {
+                return this.callServerFunction('getStudentProgressNotes', offeringId);
+            }
+            async saveProgressNote(noteData) {
+                return this.callServerFunction('saveProgressNote', noteData);
+            }
+            async deleteProgressNote(noteId) {
+                return this.callServerFunction('deleteProgressNote', noteId);
+            }
+            // ── Skill Categories & Competencies ────────────────────────────────────────
+            async getSkillCategories() {
+                return this.callServerFunction('getSkillCategories');
+            }
+            async getStudentCompetencies(offeringId) {
+                return this.callServerFunction('getStudentCompetencies', offeringId);
+            }
+            async upsertStudentCompetency(data) {
+                return this.callServerFunction('upsertStudentCompetency', data);
+            }
+            async deleteStudentCompetency(competencyId) {
+                return this.callServerFunction('deleteStudentCompetency', competencyId);
+            }
         }
 
         const gasService = new GoogleAppsScriptService();
@@ -3795,7 +3828,21 @@
             const [editFormData, setEditFormData] = useState({});
             const [editTeachers, setEditTeachers] = useState([]);
             const [editClassLevels, setEditClassLevels] = useState([]);
+            const [editRooms, setEditRooms] = useState([]);
             const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+            // Tab state: 'roster' | 'attendance' | 'notes'
+            const [cmvTab, setCmvTab] = useState('roster');
+
+            // Session notes state
+            const [sessionLogs, setSessionLogs] = useState([]);
+            const [progressNotes, setProgressNotes] = useState([]); // array of {EnrollmentID, FirstName, LastName, notes:[]}
+            const [loadingNotes, setLoadingNotes] = useState(false);
+            const [sessionLogForm, setSessionLogForm] = useState(null); // {ClassDate, CurriculumCovered, GeneralClassNotes} or null
+            const [progressNoteForm, setProgressNoteForm] = useState(null); // {EnrollmentID, NoteID, NoteDate, FeedbackText} or null
+            const [skillCategories, setSkillCategories] = useState([]);     // [{CategoryID, CategoryName, Description}]
+            const [competencies, setCompetencies] = useState({});            // { [enrollmentId]: [{CompetencyID, SkillCategory, Rating, TeacherComments}] }
+            const [competencyForm, setCompetencyForm] = useState(null);     // {EnrollmentID, CompetencyID, SkillCategory, Rating, TeacherComments, studentName}
 
             // Generate array of class dates based on start and end dates
             const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
@@ -4122,6 +4169,131 @@
                 }
             };
 
+            // Load session logs + progress notes for the Notes tab
+            // Recursively unwrap { success, data: ... } envelopes until an array is found.
+            const extractArray = (x) => {
+                if (!x) return [];
+                if (Array.isArray(x)) return x;
+                if (Object.prototype.hasOwnProperty.call(x, 'data')) return extractArray(x.data);
+                return [];
+            };
+
+            const loadNotes = async () => {
+                setLoadingNotes(true);
+                try {
+                    const [logsResp, notesResp, catsResp, compsResp] = await Promise.all([
+                        gasService.getClassSessionLogs(offeringId),
+                        gasService.getStudentProgressNotes(offeringId),
+                        gasService.getSkillCategories(),
+                        gasService.getStudentCompetencies(offeringId)
+                    ]);
+                    setSessionLogs(extractArray(logsResp));
+                    setProgressNotes(extractArray(notesResp));
+                    setSkillCategories(extractArray(catsResp));
+                    // competencies returns a grouped object { [enrollmentId]: [...] }, not an array
+                    const compsRaw = compsResp && compsResp.data ? (compsResp.data.data || compsResp.data) : {};
+                    setCompetencies(typeof compsRaw === 'object' && !Array.isArray(compsRaw) ? compsRaw : {});
+                } catch (err) {
+                    console.error('Error loading notes:', err);
+                    setSessionLogs([]);
+                    setProgressNotes([]);
+                    setSkillCategories([]);
+                    setCompetencies({});
+                } finally {
+                    setLoadingNotes(false);
+                }
+            };
+
+            useEffect(() => {
+                if (cmvTab === 'notes') loadNotes();
+            }, [cmvTab]);
+
+            const handleSaveSessionLog = async () => {
+                if (!sessionLogForm) return;
+                const resp = await gasService.saveSessionLog({
+                    OfferingID: offeringId,
+                    ClassDate: sessionLogForm.ClassDate,
+                    TeacherID: classData.TeacherID || '',
+                    CurriculumCovered: sessionLogForm.CurriculumCovered,
+                    GeneralClassNotes: sessionLogForm.GeneralClassNotes
+                });
+                if (resp.success) {
+                    setSessionLogForm(null);
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Session note saved.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to save session note.' });
+                }
+            };
+
+            const handleSaveProgressNote = async () => {
+                if (!progressNoteForm) return;
+                const resp = await gasService.saveProgressNote({
+                    NoteID: progressNoteForm.NoteID || null,
+                    EnrollmentID: progressNoteForm.EnrollmentID,
+                    NoteDate: progressNoteForm.NoteDate,
+                    FeedbackText: progressNoteForm.FeedbackText
+                });
+                if (resp.success) {
+                    setProgressNoteForm(null);
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Student note saved.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to save student note.' });
+                }
+            };
+
+            const handleDeleteProgressNote = async (noteId) => {
+                if (!confirm('Delete this note?')) return;
+                const resp = await gasService.deleteProgressNote(noteId);
+                if (resp.success) {
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Note deleted.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to delete note.' });
+                }
+            };
+
+            const handleDeleteSessionLog = async (sessionLogId) => {
+                if (!confirm('Delete this session log?')) return;
+                const resp = await gasService.deleteSessionLog(sessionLogId);
+                if (resp.success) {
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Session log deleted.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to delete session log.' });
+                }
+            };
+
+            const handleSaveCompetency = async () => {
+                if (!competencyForm) return;
+                const resp = await gasService.upsertStudentCompetency({
+                    CompetencyID: competencyForm.CompetencyID || null,
+                    EnrollmentID: competencyForm.EnrollmentID,
+                    SkillCategory: competencyForm.SkillCategory,
+                    Rating: competencyForm.Rating,
+                    TeacherComments: competencyForm.TeacherComments
+                });
+                if (resp.success) {
+                    setCompetencyForm(null);
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Skill rating saved.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to save rating.' });
+                }
+            };
+
+            const handleDeleteCompetency = async (competencyId) => {
+                if (!confirm('Delete this skill rating?')) return;
+                const resp = await gasService.deleteStudentCompetency(competencyId);
+                if (resp.success) {
+                    loadNotes();
+                    setMessage({ type: 'success', text: 'Rating deleted.' });
+                } else {
+                    setMessage({ type: 'error', text: resp.error || 'Failed to delete rating.' });
+                }
+            };
+
             // Open edit modal and pre-fill form
             const handleOpenEditModal = async () => {
                 setEditFormData({
@@ -4204,6 +4376,10 @@
                 );
             }
 
+            // Safe arrays — always arrays regardless of response shape
+            const safeLogs = Array.isArray(sessionLogs) ? sessionLogs : [];
+            const safeNotes = Array.isArray(progressNotes) ? progressNotes : [];
+
             return e('div', { className: 'p-6 max-w-7xl mx-auto' },
                 // Back Button and Header
                 e('div', { className: 'mb-6' },
@@ -4265,8 +4441,26 @@
                     onClose: () => setMessage(null)
                 }),
 
+                // Tab bar
+                e('div', { className: 'flex border-b border-gray-200 mb-6 bg-white rounded-t-xl overflow-hidden shadow-sm' },
+                    [{ id: 'roster', label: 'Roster', icon: '👤' }, { id: 'attendance', label: 'Attendance', icon: '📋' }, { id: 'notes', label: 'Session Notes', icon: '📝' }].map(tab =>
+                        e('button', {
+                            key: tab.id,
+                            onClick: () => setCmvTab(tab.id),
+                            className: 'flex items-center gap-2 px-5 py-3 text-sm font-medium transition-colors border-b-2 ' + (
+                                cmvTab === tab.id
+                                    ? 'border-sky-500 text-sky-600 bg-sky-50/50'
+                                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                            )
+                        },
+                            e('span', null, tab.icon),
+                            e('span', null, tab.label)
+                        )
+                    )
+                ),
+
                 // Roster Management Section
-                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6 mb-6' },
+                cmvTab === 'roster' && e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6 mb-6' },
                     e('div', { className: 'flex justify-between items-center mb-4' },
                         e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Class Roster'),
                         e('button', {
@@ -4351,7 +4545,7 @@
                 ),
 
                 // Attendance Tracking Grid
-                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                cmvTab === 'attendance' && e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
                     e('div', { className: 'flex justify-between items-center mb-4' },
                         e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Attendance Tracking'),
                         
@@ -4427,6 +4621,228 @@
                             )
                         )
                     )
+                ),
+
+                // Notes Tab
+                cmvTab === 'notes' && e('div', { className: 'space-y-6 mb-6' },
+                    // Session Notes section
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Session Notes'),
+                            e('button', {
+                                onClick: () => setSessionLogForm({ ClassDate: '', CurriculumCovered: '', GeneralClassNotes: '' }),
+                                className: 'btn-primary text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2'
+                            },
+                                e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                ),
+                                'Add Session Note'
+                            )
+                        ),
+                        sessionLogForm && e('div', { className: 'mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-3' },
+                            e('h3', { className: 'text-sm font-semibold text-blue-800 mb-2' }, 'Session Note'),
+                            e('input', { type: 'date', value: sessionLogForm.ClassDate || '', onChange: ev => setSessionLogForm(f => ({ ...f, ClassDate: ev.target.value })), className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm w-48 focus:border-sky-400 block mb-2' }),
+                            e('label', { className: 'block text-xs font-medium text-gray-600 mb-1' }, 'Curriculum Covered'),
+                            e('textarea', { rows: 2, value: sessionLogForm.CurriculumCovered || '', onChange: ev => setSessionLogForm(f => ({ ...f, CurriculumCovered: ev.target.value })), placeholder: 'What was taught this session...', className: 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400 block mb-2' }),
+                            e('label', { className: 'block text-xs font-medium text-gray-600 mb-1' }, 'General Class Notes'),
+                            e('textarea', { rows: 2, value: sessionLogForm.GeneralClassNotes || '', onChange: ev => setSessionLogForm(f => ({ ...f, GeneralClassNotes: ev.target.value })), placeholder: 'How the group performed overall...', className: 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400 block mb-2' }),
+                            e('div', { className: 'flex gap-2' },
+                                e('button', { onClick: handleSaveSessionLog, className: 'px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700' }, 'Save'),
+                                e('button', { onClick: () => setSessionLogForm(null), className: 'px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300' }, 'Cancel')
+                            )
+                        ),
+                        loadingNotes
+                            ? e(Loader, { text: 'Loading...' })
+                            : safeLogs.length === 0
+                                ? e('div', { className: 'text-center py-8 text-gray-400' },
+                                    e('p', { className: 'text-4xl mb-2' }, '\uD83D\uDCCB'),
+                                    e('p', { className: 'text-sm' }, 'No session notes yet.')
+                                  )
+                                : e('div', { className: 'space-y-3' },
+                                    safeLogs.map(log =>
+                                        e('div', { key: log.SessionLogID || log.ClassDate, className: 'border border-gray-200 rounded-xl p-4 bg-gray-50' },
+                                            e('div', { className: 'flex justify-between items-start mb-2' },
+                                                e('p', { className: 'text-sm font-semibold text-gray-800' },
+                                                    log.ClassDate ? new Date(log.ClassDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'
+                                                ),
+                                            e('div', { className: 'flex items-center gap-3' },
+                                                e('button', { onClick: () => setSessionLogForm({ ...log }), className: 'text-xs text-blue-600 hover:underline' }, 'Edit'),
+                                                e('button', { onClick: () => handleDeleteSessionLog(log.SessionLogID), className: 'text-xs text-red-500 hover:underline' }, 'Delete')
+                                            )
+                                            ),
+                                            log.CurriculumCovered && e('div', { className: 'mb-1 text-sm' },
+                                                e('span', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Curriculum: '),
+                                                e('span', { className: 'text-gray-700' }, log.CurriculumCovered)
+                                            ),
+                                            log.GeneralClassNotes && e('div', { className: 'text-sm' },
+                                                e('span', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'General Notes: '),
+                                                e('span', { className: 'text-gray-700' }, log.GeneralClassNotes)
+                                            )
+                                        )
+                                    )
+                                  )
+                    ),
+
+                    // Student Progress Notes section
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900 mb-4' }, 'Student Progress Notes'),
+                        progressNoteForm && e('div', { className: 'mb-4 p-4 bg-green-50 border border-green-200 rounded-xl space-y-3' },
+                            e('h3', { className: 'text-sm font-semibold text-green-800 mb-2' }, `${progressNoteForm.NoteID ? 'Edit' : 'Add'} Note \u2014 ${progressNoteForm.studentName || ''}`),
+                            e('input', { type: 'date', value: progressNoteForm.NoteDate || '', onChange: ev => setProgressNoteForm(f => ({ ...f, NoteDate: ev.target.value })), className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm w-48 focus:border-sky-400 block mb-2' }),
+                            e('textarea', { rows: 3, value: progressNoteForm.FeedbackText || '', onChange: ev => setProgressNoteForm(f => ({ ...f, FeedbackText: ev.target.value })), placeholder: 'Feedback on this student...', className: 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400 block mb-2' }),
+                            e('div', { className: 'flex gap-2' },
+                                e('button', { onClick: handleSaveProgressNote, className: 'px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700' }, 'Save'),
+                                e('button', { onClick: () => setProgressNoteForm(null), className: 'px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300' }, 'Cancel')
+                            )
+                        ),
+                        loadingNotes
+                            ? e(Loader, { text: 'Loading...' })
+                            : safeNotes.length === 0
+                                ? e('div', { className: 'text-center py-8 text-gray-400' },
+                                    e('p', { className: 'text-4xl mb-2' }, '\uD83D\uDCCB'),
+                                    e('p', { className: 'text-sm' }, 'No students enrolled yet.')
+                                  )
+                                : e('div', { className: 'divide-y divide-gray-100' },
+                                    safeNotes.map(student =>
+                                        e('div', { key: student.EnrollmentID, className: 'py-4' },
+                                            e('div', { className: 'flex justify-between items-center mb-2' },
+                                                e('p', { className: 'font-medium text-gray-900 text-sm' }, `${student.FirstName} ${student.LastName}`),
+                                                e('button', {
+                                                    onClick: () => setProgressNoteForm({ EnrollmentID: student.EnrollmentID, studentName: `${student.FirstName} ${student.LastName}`, NoteID: null, NoteDate: '', FeedbackText: '' }),
+                                                    className: 'text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full font-medium hover:bg-green-200'
+                                                }, '+ Add Note')
+                                            ),
+                                            (student.notes || []).length === 0
+                                                ? e('p', { className: 'text-xs text-gray-400 italic' }, 'No notes yet.')
+                                                : e('div', { className: 'space-y-2' },
+                                                    (student.notes || []).map(note =>
+                                                        e('div', { key: note.NoteID, className: 'bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm' },
+                                                            e('div', { className: 'flex justify-between items-start mb-1' },
+                                                                e('span', { className: 'text-xs text-gray-500' }, note.NoteDate ? new Date(note.NoteDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''),
+                                                                e('div', { className: 'flex gap-3' },
+                                                                    e('button', { onClick: () => setProgressNoteForm({ ...note, EnrollmentID: student.EnrollmentID, studentName: `${student.FirstName} ${student.LastName}` }), className: 'text-xs text-blue-600 hover:underline' }, 'Edit'),
+                                                                    e('button', { onClick: () => handleDeleteProgressNote(note.NoteID), className: 'text-xs text-red-500 hover:underline' }, 'Delete')
+                                                                )
+                                                            ),
+                                                            e('p', { className: 'text-gray-700' }, note.FeedbackText)
+                                                        )
+                                                    )
+                                                  )
+                                        )
+                                    )
+                                  )
+                    ),
+
+                // Skill Ratings section
+                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                    e('div', { className: 'flex justify-between items-center mb-4' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Skill Ratings'),
+                        e('span', { className: 'text-sm text-gray-400' }, `${skillCategories.length} ${skillCategories.length === 1 ? 'category' : 'categories'}`)
+                    ),
+
+                    // Inline form
+                    competencyForm && e('div', { className: 'mb-4 p-4 bg-violet-50 border border-violet-200 rounded-xl' },
+                        e('h3', { className: 'text-sm font-semibold text-violet-800 mb-3' },
+                            `${competencyForm.CompetencyID ? 'Edit' : 'Add'} Rating \u2014 ${competencyForm.studentName || ''}`
+                        ),
+                        e('div', { className: 'flex flex-wrap gap-3 mb-3' },
+                            e('div', null,
+                                e('label', { className: 'block text-xs font-medium text-gray-600 mb-1' }, 'Skill Category'),
+                                e('select', {
+                                    value: competencyForm.SkillCategory || '',
+                                    onChange: ev => setCompetencyForm(f => ({ ...f, SkillCategory: ev.target.value })),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400'
+                                },
+                                    e('option', { value: '' }, '\u2014 Select category \u2014'),
+                                    skillCategories.map(cat => e('option', { key: cat.CategoryID, value: cat.CategoryID }, cat.CategoryName))
+                                )
+                            ),
+                            e('div', null,
+                                e('label', { className: 'block text-xs font-medium text-gray-600 mb-1' }, 'Rating'),
+                                e('select', {
+                                    value: competencyForm.Rating || '',
+                                    onChange: ev => setCompetencyForm(f => ({ ...f, Rating: ev.target.value })),
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400'
+                                },
+                                    e('option', { value: '' }, '\u2014 Select \u2014'),
+                                    e('option', { value: '1' }, '1 \u2014 Beginning'),
+                                    e('option', { value: '2' }, '2 \u2014 Developing'),
+                                    e('option', { value: '3' }, '3 \u2014 Proficient'),
+                                    e('option', { value: '4' }, '4 \u2014 Advanced'),
+                                    e('option', { value: '5' }, '5 \u2014 Mastery')
+                                )
+                            )
+                        ),
+                        e('label', { className: 'block text-xs font-medium text-gray-600 mb-1' }, 'Teacher Comments'),
+                        e('textarea', {
+                            rows: 2,
+                            value: competencyForm.TeacherComments || '',
+                            onChange: ev => setCompetencyForm(f => ({ ...f, TeacherComments: ev.target.value })),
+                            placeholder: 'Optional notes on this skill...',
+                            className: 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400 block mb-3'
+                        }),
+                        e('div', { className: 'flex gap-2' },
+                            e('button', { onClick: handleSaveCompetency, className: 'px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700' }, 'Save'),
+                            e('button', { onClick: () => setCompetencyForm(null), className: 'px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300' }, 'Cancel')
+                        )
+                    ),
+
+                    loadingNotes
+                        ? e(Loader, { text: 'Loading...' })
+                        : skillCategories.length === 0
+                            ? e('div', { className: 'text-center py-8 text-gray-400' },
+                                e('p', { className: 'text-4xl mb-2' }, '\uD83C\uDFAF'),
+                                e('p', { className: 'text-sm' }, 'No skill categories found. Add rows to the SkillCategories sheet to start rating students.')
+                              )
+                            : safeNotes.length === 0
+                                ? e('div', { className: 'text-center py-8 text-gray-400' },
+                                    e('p', { className: 'text-sm' }, 'No students enrolled yet.')
+                                  )
+                                : e('div', { className: 'divide-y divide-gray-100' },
+                                    safeNotes.map(student => {
+                                        const studentComps = competencies[String(student.EnrollmentID)] || [];
+                                        return e('div', { key: student.EnrollmentID, className: 'py-4' },
+                                            e('div', { className: 'flex justify-between items-center mb-2' },
+                                                e('p', { className: 'font-medium text-gray-900 text-sm' }, `${student.FirstName} ${student.LastName}`),
+                                                e('button', {
+                                                    onClick: () => setCompetencyForm({
+                                                        EnrollmentID: student.EnrollmentID,
+                                                        studentName: `${student.FirstName} ${student.LastName}`,
+                                                        CompetencyID: null, SkillCategory: '', Rating: '', TeacherComments: ''
+                                                    }),
+                                                    className: 'text-xs px-3 py-1 bg-violet-100 text-violet-700 rounded-full font-medium hover:bg-violet-200'
+                                                }, '+ Rate')
+                                            ),
+                                            e('div', { className: 'flex flex-wrap gap-2' },
+                                                skillCategories.map(cat => {
+                                                    const comp = studentComps.find(c => String(c.SkillCategory) === String(cat.CategoryID));
+                                                    const ratingLabels = { '1': 'Beg', '2': 'Dev', '3': 'Prof', '4': 'Adv', '5': 'Mast' };
+                                                    return e('div', {
+                                                        key: cat.CategoryID,
+                                                        title: comp && comp.TeacherComments ? comp.TeacherComments : cat.CategoryName,
+                                                        className: 'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs border ' + (
+                                                            comp ? 'bg-violet-50 border-violet-200 text-violet-800' : 'bg-gray-50 border-gray-200 text-gray-400'
+                                                        )
+                                                    },
+                                                        e('span', null, cat.CategoryName),
+                                                        comp
+                                                            ? e('span', { className: 'font-bold ml-1' }, `${comp.Rating} (${ratingLabels[String(comp.Rating)] || comp.Rating})`)
+                                                            : e('span', { className: 'text-gray-300 ml-1' }, '\u2014'),
+                                                        comp && e('button', {
+                                                            onClick: () => setCompetencyForm({ ...comp, studentName: `${student.FirstName} ${student.LastName}` }),
+                                                            className: 'ml-1.5 text-violet-400 hover:text-violet-600 leading-none'
+                                                        }, '\u270F\uFE0F'),
+                                                        comp && e('button', {
+                                                            onClick: () => handleDeleteCompetency(comp.CompetencyID),
+                                                            className: 'ml-0.5 text-red-300 hover:text-red-500 font-bold leading-none'
+                                                        }, '\u00D7')
+                                                    );
+                                                })
+                                            )
+                                        );
+                                    })
+                                  )
+                )
                 ),
 
                 // Student Enrollment Management Modal

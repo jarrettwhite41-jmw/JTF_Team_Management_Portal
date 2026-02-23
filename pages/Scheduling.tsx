@@ -47,7 +47,7 @@ export const Scheduling: React.FC = () => {
           while (currentDate <= endDate) {
             calendarEvents.push({
               id: `class-${classOffering.OfferingID}-${currentDate.toISOString().split('T')[0]}`,
-              title: `${classOffering.LevelName || 'Class'} - ${classOffering.VenueOrRoom}`,
+              title: `${classOffering.LevelName || 'Class'} - ${classOffering.RoomName || classOffering.VenueOrRoom || ''}`,
               date: currentDate.toISOString().split('T')[0],
               type: 'class',
               details: classOffering

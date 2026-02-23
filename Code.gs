@@ -1565,7 +1565,7 @@ function getTeachersWithDetails() {
             StartDate: c.StartDate || '',
             EndDate: c.EndDate || '',
             Status: computedStatus,
-            VenueOrRoom: c.VenueOrRoom || '',
+            RoomID: c.RoomID || '',
             MaxStudents: c.MaxStudents || ''
           };
         });
@@ -1681,7 +1681,7 @@ function deleteRowsByCondition(sheet, columnName, value) {
 // =============================================================================
 // CLASS FUNCTIONS - READ OPERATIONS
 // DATA SOURCE: 'ClassOfferings' sheet  
-// COLUMNS: OfferingID | ClassLevelID | StartDate | EndDate | TeacherPersonnelID | VenueOrRoom | MaxStudents | Status
+// COLUMNS: OfferingID | ClassLevelID | StartDate | EndDate | TeacherPersonnelID | RoomID | MaxStudents | Status
 // =============================================================================
 
 /**
@@ -2821,7 +2821,7 @@ function getSheetHeaders(sheetName) {
     ],
     [SHEET_CONFIG.classOfferings]: [
       'OfferingID', 'ClassLevelID', 'StartDate', 'EndDate', 
-      'TeacherPersonnelID', 'VenueOrRoom', 'MaxStudents', 'Status'
+      'TeacherPersonnelID', 'RoomID', 'MaxStudents', 'Status'
     ],
     [SHEET_CONFIG.masterGameList]: [
       'GameID', 'GameName', 'GameDescription', 'PlayerCountMin', 'PlayerCountMax'
@@ -3118,6 +3118,14 @@ function getStudentProfileData(studentId) {
     } catch (e) {
       Logger.log('ClassLevels sheet not found');
     }
+
+    let allRooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      allRooms = sheetToObjects(roomsSheet);
+    } catch (e) {
+      Logger.log('Rooms sheet not found in getStudentProfile');
+    }
     
     // Get teachers for teacher names
     const allTeachers = allPersonnel;  // Teachers are in Personnel table
@@ -3130,7 +3138,8 @@ function getStudentProfileData(studentId) {
       let teacherName = '';
       let startDate = '';
       let endDate = '';
-      let venueOrRoom = '';
+      let roomId = '';
+      let roomName = '';
       
       if (classOffering) {
         // Get level name
@@ -3143,7 +3152,9 @@ function getStudentProfileData(studentId) {
         
         startDate = classOffering.StartDate;
         endDate = classOffering.EndDate;
-        venueOrRoom = classOffering.VenueOrRoom;
+        roomId = classOffering.RoomID;
+        const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+        roomName = room ? room.RoomName : '';
       }
       
       return {
@@ -3157,7 +3168,8 @@ function getStudentProfileData(studentId) {
         TeacherName: teacherName,
         StartDate: startDate,
         EndDate: endDate,
-        VenueOrRoom: venueOrRoom
+        RoomID: roomId,
+        RoomName: roomName
       };
     });
     
@@ -3966,7 +3978,7 @@ function getEnrollmentsWithDetails(studentId = null) {
           enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
           enriched.StartDate = classOffering.StartDate;
           enriched.EndDate = classOffering.EndDate;
-          enriched.VenueOrRoom = classOffering.VenueOrRoom;
+          enriched.RoomID = classOffering.RoomID;
         }
         
         return enriched;
@@ -4281,7 +4293,7 @@ function updateClassOffering(classData) {
     }
 
     // Write back only the fields present in classData, preserving everything else
-    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'VenueOrRoom', 'MeetingDays', 'MeetingTime'];
+    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'RoomID', 'MeetingDays', 'MeetingTime'];
     headers.forEach((header, colIdx) => {
       if (updatableFields.includes(header) && classData[header] !== undefined) {
         sheet.getRange(targetRow, colIdx + 1).setValue(classData[header]);
@@ -4336,6 +4348,15 @@ function getAllClassOfferings() {
       allLevels = sheetToObjects(levelsSheet);
     } catch (e) {
       Logger.log('ClassLevels sheet not found');
+    }
+
+    // Get Rooms for room names
+    let allRooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      allRooms = sheetToObjects(roomsSheet);
+    } catch (e) {
+      Logger.log('Rooms sheet not found');
     }
     
     Logger.log(`Processing ${allClasses.length} class offerings`);
@@ -4399,6 +4420,10 @@ function getAllClassOfferings() {
       // Get level name
       const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
       const levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+
+      // Resolve room name
+      const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+      const roomName = room ? room.RoomName : '';
       
       // Always derive status from dates so stale sheet values are never trusted.
       // computeClassStatus_ respects a stored 'Cancelled' flag but recomputes everything else.
@@ -4408,6 +4433,7 @@ function getAllClassOfferings() {
         ...classOffering,
         TeacherName: teacherName,
         LevelName: levelName,
+        RoomName: roomName,
         EnrolledCount: enrolledCount,
         MaxStudents: classOffering.MaxStudents || 12,
         Status: status
@@ -4481,6 +4507,17 @@ function getClassOfferingDetails(offeringId) {
       Logger.log('ClassLevels sheet not found');
       levelName = `Level ${classOffering.ClassLevelID}`;
     }
+
+    // Resolve room name
+    let roomName = '';
+    try {
+      const roomsSheet = getSheet('Rooms');
+      const allRooms = sheetToObjects(roomsSheet);
+      const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+      roomName = room ? room.RoomName : '';
+    } catch (e) {
+      Logger.log('Rooms sheet not found in getClassOfferingDetails');
+    }
     
     // Get enrolled students
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
@@ -4541,7 +4578,8 @@ function getClassOfferingDetails(offeringId) {
         classOffering: {
           ...classOffering,
           TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.LastName}` : 'TBA',
-          LevelName: levelName
+          LevelName: levelName,
+          RoomName: roomName
         },
         enrolledStudents: enrolledStudents,
         attendanceRecords: attendanceRecords
@@ -4742,5 +4780,292 @@ function getActiveTeachers() {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+// ===================================================================
+// CLASS SESSION LOGS & STUDENT PROGRESS NOTES
+// ===================================================================
+
+/**
+ * Get all session logs for a class offering, sorted by date.
+ */
+function getClassSessionLogs(offeringId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const rows = sheetToObjects(sheet);
+    const logs = rows
+      .filter(r => r.OfferingID == offeringId)
+      .sort((a, b) => new Date(a.ClassDate) - new Date(b.ClassDate));
+    return { success: true, data: logs };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a session log for a given OfferingID + SessionDate combo.
+ * If a log already exists for that date it is updated; otherwise a new row is appended.
+ */
+function saveSessionLog(logData) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows = sheetToObjects(sheet);
+
+    // Find existing row for this offering + date
+    const existingIdx = rows.findIndex(
+      r => r.OfferingID == logData.OfferingID &&
+           String(r.ClassDate).split('T')[0] === String(logData.ClassDate).split('T')[0]
+    );
+
+    if (existingIdx >= 0) {
+      // Update existing row (sheet row = header + 1-based + 1 = existingIdx + 2)
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'TeacherID')         sheet.getRange(rowNum, colIdx + 1).setValue(logData.TeacherID || '');
+        if (h === 'CurriculumCovered') sheet.getRange(rowNum, colIdx + 1).setValue(logData.CurriculumCovered || '');
+        if (h === 'GeneralClassNotes') sheet.getRange(rowNum, colIdx + 1).setValue(logData.GeneralClassNotes || '');
+      });
+      const updated = sheetToObjects(getSheet(SHEET_CONFIG.classSessionLogs))
+        .find(r => r.OfferingID == logData.OfferingID &&
+                   String(r.ClassDate).split('T')[0] === String(logData.ClassDate).split('T')[0]);
+      return { success: true, data: updated };
+    } else {
+      // Append new row
+      const idSheet = getSheet(SHEET_CONFIG.classSessionLogs);
+      const newId = getNextId(idSheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'SessionLogID')      return newId;
+        if (h === 'OfferingID')        return logData.OfferingID;
+        if (h === 'ClassDate')         return logData.ClassDate;
+        if (h === 'TeacherID')         return logData.TeacherID || '';
+        if (h === 'CurriculumCovered') return logData.CurriculumCovered || '';
+        if (h === 'GeneralClassNotes') return logData.GeneralClassNotes || '';
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { SessionLogID: newId, ...logData } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all student progress notes for all enrollments in a class offering.
+ * Joins with StudentEnrollments + Personnel to return student names.
+ */
+function getStudentProgressNotes(offeringId) {
+  try {
+    const notesSheet      = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const enrollSheet     = getSheet(SHEET_CONFIG.studentEnrollments);
+    const studentSheet    = getSheet(SHEET_CONFIG.studentInfo);
+    const personnelSheet  = getSheet(SHEET_CONFIG.personnel);
+
+    const notes      = sheetToObjects(notesSheet);
+    const enrollments = sheetToObjects(enrollSheet).filter(e => e.OfferingID == offeringId);
+    const students   = sheetToObjects(studentSheet);
+    const personnel  = sheetToObjects(personnelSheet);
+
+    const enriched = enrollments.map(enr => {
+      const student   = students.find(s => s.StudentID == enr.StudentID);
+      const person    = personnel.find(p => p.PersonnelID == (student ? student.PersonnelID : null));
+      const myNotes   = notes
+        .filter(n => n.EnrollmentID == enr.EnrollmentID)
+        .sort((a, b) => new Date(a.NoteDate) - new Date(b.NoteDate));
+      return {
+        EnrollmentID: enr.EnrollmentID,
+        StudentID:    enr.StudentID,
+        PersonnelID:  student ? student.PersonnelID : null,
+        FirstName:    person ? person.FirstName : '',
+        LastName:     person ? (person.LastName || person.Lastname || '') : '',
+        notes:        myNotes
+      };
+    });
+
+    return { success: true, data: enriched };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a student progress note.
+ * If noteData.NoteID is provided, update that row; otherwise append a new row.
+ */
+function saveProgressNote(noteData) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    if (noteData.NoteID) {
+      // Update existing
+      const rows = sheetToObjects(sheet);
+      const existingIdx = rows.findIndex(r => r.NoteID == noteData.NoteID);
+      if (existingIdx < 0) return { success: false, error: 'Note not found' };
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'NoteDate')          sheet.getRange(rowNum, colIdx + 1).setValue(noteData.NoteDate || '');
+        if (h === 'FeedbackText')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.FeedbackText || '');
+        if (h === 'AuthorPersonnelID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.AuthorPersonnelID || '');
+        if (h === 'InternalOnly')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.InternalOnly || false);
+      });
+      return { success: true, data: { ...noteData } };
+    } else {
+      // Append new row
+      const newId = getNextId(sheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'NoteID')          return newId;
+        if (h === 'EnrollmentID')    return noteData.EnrollmentID;
+        if (h === 'AuthorPersonnelID') return noteData.AuthorPersonnelID || '';
+        if (h === 'NoteDate')        return noteData.NoteDate || '';
+        if (h === 'FeedbackText')    return noteData.FeedbackText || '';
+        if (h === 'InternalOnly')    return noteData.InternalOnly || false;
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { NoteID: newId, ...noteData } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a student progress note by NoteID.
+ */
+function deleteProgressNote(noteId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.NoteID == noteId);
+    if (idx < 0) return { success: false, error: 'Note not found' };
+    sheet.deleteRow(idx + 2); // +1 for header, +1 for 1-based index
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a session log by SessionLogID.
+ */
+function deleteSessionLog(sessionLogId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.SessionLogID == sessionLogId);
+    if (idx < 0) return { success: false, error: 'Session log not found' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ─── Skill Categories ───────────────────────────────────────────────────────
+
+/**
+ * Returns all rows from SkillCategories (CategoryID, CategoryName, Description).
+ */
+function getSkillCategories() {
+  try {
+    const rows = sheetToObjects(getSheet(SHEET_CONFIG.skillCategories));
+    return { success: true, data: rows };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ─── Student Competencies ────────────────────────────────────────────────────
+
+/**
+ * Get all StudentCompetency rows for every enrollment in a given offering.
+ * Returns a plain object keyed by EnrollmentID (as string):
+ *   { "42": [{ CompetencyID, EnrollmentID, SkillCategory, Rating, TeacherComments }, ...], ... }
+ */
+function getStudentCompetencies(offeringId) {
+  try {
+    const compSheet   = getSheet(SHEET_CONFIG.studentCompetencies);
+    const enrollSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+
+    const enrollmentIds = sheetToObjects(enrollSheet)
+      .filter(e => e.OfferingID == offeringId)
+      .map(e => String(e.EnrollmentID));
+
+    const grouped = {};
+    enrollmentIds.forEach(id => { grouped[id] = []; });
+
+    sheetToObjects(compSheet)
+      .filter(c => enrollmentIds.includes(String(c.EnrollmentID)))
+      .forEach(c => {
+        const key = String(c.EnrollmentID);
+        grouped[key].push(c);
+      });
+
+    return { success: true, data: grouped };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a StudentCompetency row.
+ * Upserts by CompetencyID (if provided) or by EnrollmentID + SkillCategory.
+ */
+function upsertStudentCompetency(data) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentCompetencies);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows = sheetToObjects(sheet);
+
+    let existingIdx = -1;
+    if (data.CompetencyID) {
+      existingIdx = rows.findIndex(r => r.CompetencyID == data.CompetencyID);
+    } else {
+      existingIdx = rows.findIndex(
+        r => r.EnrollmentID == data.EnrollmentID && r.SkillCategory == data.SkillCategory
+      );
+    }
+
+    if (existingIdx >= 0) {
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'Rating')          sheet.getRange(rowNum, colIdx + 1).setValue(data.Rating !== undefined ? data.Rating : '');
+        if (h === 'TeacherComments') sheet.getRange(rowNum, colIdx + 1).setValue(data.TeacherComments || '');
+      });
+      return { success: true, data: { ...rows[existingIdx], ...data } };
+    } else {
+      const newId = getNextId(sheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'CompetencyID')    return newId;
+        if (h === 'EnrollmentID')    return data.EnrollmentID;
+        if (h === 'SkillCategory')   return data.SkillCategory || '';
+        if (h === 'Rating')          return data.Rating !== undefined ? data.Rating : '';
+        if (h === 'TeacherComments') return data.TeacherComments || '';
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { CompetencyID: newId, ...data } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a StudentCompetency row by CompetencyID.
+ */
+function deleteStudentCompetency(competencyId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentCompetencies);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.CompetencyID == competencyId);
+    if (idx < 0) return { success: false, error: 'Competency not found' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
   }
 }
