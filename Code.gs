@@ -2175,54 +2175,175 @@ function getAllCrewDutyTypes() {
  * RETURNS: Object with totalPersonnel, activeStudents, upcomingShows, activeClasses
  */
 function getDashboardStats() {
+  try {
+    Logger.log('getDashboardStats() called - calculating enhanced stats from multiple sheets');
+
+    // --- PERSONNEL ---
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const totalPersonnel = Math.max(0, personnelSheet.getLastRow() - 1);
+    Logger.log(`Total personnel: ${totalPersonnel}`);
+
+    // --- SHOWS ---
+    const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+    const allShows = sheetToObjects(showsSheet);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledShows = allShows.filter(s => s.Status === 'Scheduled');
+    const canceledShows  = allShows.filter(s => s.Status === 'Canceled');
+    const totalShows     = allShows.length;
+
+    // Next upcoming show (soonest future Scheduled show)
+    const futureScheduled = scheduledShows
+      .filter(s => s.ShowDate && new Date(s.ShowDate) >= today)
+      .sort((a, b) => new Date(a.ShowDate) - new Date(b.ShowDate));
+    const nextShow = futureScheduled.length > 0
+      ? { ShowDate: futureScheduled[0].ShowDate, ShowTime: futureScheduled[0].ShowTime, Venue: futureScheduled[0].Venue }
+      : null;
+    Logger.log(`Shows — total: ${totalShows}, scheduled: ${scheduledShows.length}, canceled: ${canceledShows.length}`);
+
+    // --- CLASSES ---
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+
+    let upcomingClasses = 0, inProgressClasses = 0, completedClasses = 0, cancelledClasses = 0;
+    allClasses.forEach(c => {
+      const st = c.Status || 'Upcoming';
+      if (st === 'Upcoming')       upcomingClasses++;
+      else if (st === 'In Progress') inProgressClasses++;
+      else if (st === 'Completed')   completedClasses++;
+      else if (st === 'Cancelled')   cancelledClasses++;
+    });
+    const activeClasses = upcomingClasses + inProgressClasses;
+    const totalClasses  = allClasses.length;
+    Logger.log(`Classes — total: ${totalClasses}, active: ${activeClasses}`);
+
+    // --- ENROLLMENTS ---
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const activeEnrollmentRows = allEnrollments.filter(e => {
+      const st = e.CompletionStatus || e.Status || '';
+      return st !== 'Dropped' && st !== 'Withdrawn' && st !== 'Completed';
+    });
+    const activeStudentIds = new Set(activeEnrollmentRows.map(e => e.StudentID));
+    const activeStudents    = activeStudentIds.size;
+    const totalEnrollments  = activeEnrollmentRows.length;
+
+    // Class enrollment details for each active/upcoming class
+    let allLevels = [];
     try {
-        Logger.log('getDashboardStats() called - calculating from multiple sheets');
-        
-        // READ: Count total personnel from Personnel sheet
-        const personnelSheet = getSheet(SHEET_CONFIG.personnel);
-        const totalPersonnel = Math.max(0, personnelSheet.getLastRow() - 1);
-        Logger.log(`Total personnel count: ${totalPersonnel}`);
-        
-        // READ: Count upcoming shows from ShowInformation sheet
-        const showsSheet = getSheet(SHEET_CONFIG.showInformation);
-        const upcomingShows = Math.max(0, showsSheet.getLastRow() - 1);
-        Logger.log(`Upcoming shows count: ${upcomingShows}`);
-        
-        // READ: Count active classes from ClassOfferings sheet
-        const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
-        const activeClasses = Math.max(0, classesSheet.getLastRow() - 1);
-        Logger.log(`Active classes count: ${activeClasses}`);
-        
-        // READ: Count unique active students from StudentEnrollments sheet
-        const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
-        const enrollments = sheetToObjects(enrollmentsSheet);
-        const activeStudentIds = new Set(
-          enrollments
-            .filter(e => e.Status === 'Enrolled')  // Only count currently enrolled
-            .map(e => e.StudentID)                 // Get unique student IDs
-        );
-        const activeStudents = activeStudentIds.size;
-        Logger.log(`Active students count: ${activeStudents} (from ${enrollments.length} total enrollments)`);
-        
-        const stats = {
-          totalPersonnel,
-          activeStudents,
-          upcomingShows,
-          activeClasses
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch(e) {}
+
+    const classEnrollmentData = allClasses
+      .filter(c => c.Status === 'Upcoming' || c.Status === 'In Progress')
+      .map(c => {
+        const enrolled = allEnrollments.filter(e => {
+          if (e.OfferingID != c.OfferingID) return false;
+          const st = e.CompletionStatus || e.Status || '';
+          return st !== 'Dropped' && st !== 'Withdrawn';
+        }).length;
+        const level     = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
+        const levelName = level ? level.LevelName : (c.ClassLevelID ? `Level ${c.ClassLevelID}` : 'Class');
+        return {
+          OfferingID:   c.OfferingID,
+          LevelName:    levelName,
+          Status:       c.Status || 'Upcoming',
+          MaxStudents:  Number(c.MaxStudents) || 12,
+          EnrolledCount: enrolled
         };
-        
-        Logger.log(`Dashboard stats calculated: ${JSON.stringify(stats)}`);
-        return stats;  } catch (error) {
-    Logger.log(`ERROR in getDashboardStats(): ${error.toString()}`);
-    // Return zero stats if there's an error
-    const errorStats = {
-      totalPersonnel: 0,
-      activeStudents: 0,
-      upcomingShows: 0,
-      activeClasses: 0
+      });
+
+    // --- STUDENT STATUS (from StudentInfo) ---
+    let studentsActive = 0, studentsInactive = 0, studentsGraduated = 0, totalStudents = 0;
+    try {
+      const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+      const allStudentInfo = sheetToObjects(studentInfoSheet);
+      totalStudents      = allStudentInfo.length;
+      studentsActive     = allStudentInfo.filter(s => s.Status === 'Active').length;
+      studentsInactive   = allStudentInfo.filter(s => s.Status === 'Inactive').length;
+      studentsGraduated  = allStudentInfo.filter(s => s.Status === 'Graduated').length;
+    } catch(e) {
+      Logger.log(`Warning: Could not load StudentInfo: ${e.toString()}`);
+      totalStudents  = activeStudents;
+      studentsActive = activeStudents;
+    }
+
+    // --- CAST MEMBERS ---
+    let totalCastMembers = 0;
+    try {
+      const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+      totalCastMembers = Math.max(0, castMemberInfoSheet.getLastRow() - 1);
+    } catch(e) {}
+
+    // --- CREW MEMBERS (unique people in CrewDuties) ---
+    let totalCrewMembers = 0;
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      const allCrewDuties = sheetToObjects(crewDutiesSheet);
+      const uniqueCrewIds = new Set(
+        allCrewDuties.map(d => d.CastMemberID || d.CrewMemberID || d.PersonnelID).filter(id => id != null)
+      );
+      totalCrewMembers = uniqueCrewIds.size;
+    } catch(e) {}
+
+    // --- BARTENDERS ---
+    let totalBartenders = 0, activeBartenders = 0;
+    try {
+      const bartendersSheet = getSheet('Bartenders');
+      const allBartenders = sheetToObjects(bartendersSheet);
+      totalBartenders  = allBartenders.length;
+      activeBartenders = allBartenders.filter(b => {
+        const a = b.Active;
+        return a === true || a === 'TRUE' || a === 'Yes' || a === 'true';
+      }).length;
+    } catch(e) {}
+
+    const stats = {
+      totalPersonnel,
+      // Students
+      activeStudents,
+      totalStudents,
+      studentsActive,
+      studentsInactive,
+      studentsGraduated,
+      // Shows
+      scheduledShows: scheduledShows.length,
+      canceledShows:  canceledShows.length,
+      totalShows,
+      nextShow,
+      // Classes
+      activeClasses,
+      upcomingClasses,
+      inProgressClasses,
+      completedClasses,
+      cancelledClasses,
+      totalClasses,
+      // Enrollments
+      totalEnrollments,
+      classEnrollmentData,
+      // Roles
+      totalCastMembers,
+      totalCrewMembers,
+      totalBartenders,
+      activeBartenders
     };
-    Logger.log('Returning zero stats due to error');
-    return errorStats;
+
+    Logger.log(`Enhanced dashboard stats calculated: ${JSON.stringify(stats)}`);
+    return stats;
+
+  } catch (error) {
+    Logger.log(`ERROR in getDashboardStats(): ${error.toString()}`);
+    return {
+      totalPersonnel: 0, activeStudents: 0, totalStudents: 0,
+      studentsActive: 0, studentsInactive: 0, studentsGraduated: 0,
+      scheduledShows: 0, canceledShows: 0, totalShows: 0, nextShow: null,
+      activeClasses: 0, upcomingClasses: 0, inProgressClasses: 0,
+      completedClasses: 0, cancelledClasses: 0, totalClasses: 0,
+      totalEnrollments: 0, classEnrollmentData: [],
+      totalCastMembers: 0, totalCrewMembers: 0,
+      totalBartenders: 0, activeBartenders: 0
+    };
   }
 }
 

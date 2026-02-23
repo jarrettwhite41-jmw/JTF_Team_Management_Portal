@@ -220,11 +220,48 @@ export interface StudentProfileData {
 }
 
 // UI State Types
+export interface ClassEnrollmentEntry {
+  OfferingID: number;
+  LevelName: string;
+  Status: string;
+  MaxStudents: number;
+  EnrolledCount: number;
+}
+
+export interface NextShowInfo {
+  ShowDate: Date | string;
+  ShowTime: string;
+  Venue: string;
+}
+
 export interface DashboardStats {
   totalPersonnel: number;
+  // Students
   activeStudents: number;
-  upcomingShows: number;
+  totalStudents: number;
+  studentsActive: number;
+  studentsInactive: number;
+  studentsGraduated: number;
+  // Shows
+  scheduledShows: number;
+  canceledShows: number;
+  totalShows: number;
+  nextShow: NextShowInfo | null;
+  // Classes
   activeClasses: number;
+  upcomingClasses: number;
+  inProgressClasses: number;
+  completedClasses: number;
+  cancelledClasses: number;
+  totalClasses: number;
+  // Enrollments
+  totalEnrollments: number;
+  classEnrollmentData: ClassEnrollmentEntry[];
+  // Roles
+  totalCastMembers: number;
+  totalCrewMembers: number;
+  totalBartenders: number;
+  activeBartenders: number;
 }
 
 export interface CalendarEvent {
