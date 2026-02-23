@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JTF Team Management Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,6 +15,9 @@
         tailwind.config = {
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif']
+                    },
                     colors: {
                         primary: {
                             50: '#f0f9ff',
@@ -37,36 +43,122 @@
                             800: '#86198f',
                             900: '#701a75'
                         }
+                    },
+                    boxShadow: {
+                        'card': '0 1px 3px 0 rgba(0,0,0,0.07), 0 1px 2px -1px rgba(0,0,0,0.05)',
+                        'card-hover': '0 4px 12px 0 rgba(0,0,0,0.10), 0 2px 4px -2px rgba(0,0,0,0.06)',
+                        'modal': '0 20px 60px -15px rgba(0,0,0,0.35)'
                     }
                 }
             }
         }
     </script>
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
+
+        /* ── Scrollbar ───────────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* ── Loading spinner ─────────────────────────────────────────── */
         .loading-spinner {
-            border: 4px solid #f3f4f6;
-            border-top: 4px solid #0ea5e9;
+            border: 3px solid #e2e8f0;
+            border-top: 3px solid #0ea5e9;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+            width: 36px;
+            height: 36px;
+            animation: spin 0.8s linear infinite;
         }
         @keyframes spin {
-            0% { transform: rotate(0deg); }
+            0%   { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* ── Page fade-in ────────────────────────────────────────────── */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .page-enter { animation: fadeIn 0.18s ease-out forwards; }
+
+        /* ── Modal slide-in ──────────────────────────────────────────── */
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.97) translateY(-8px); }
+            to   { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .modal-panel { animation: modalIn 0.18s ease-out forwards; }
+
+        /* ── Sidebar nav item ────────────────────────────────────────── */
+        .nav-item { transition: background 0.12s ease, color 0.12s ease; }
+
+        /* ── Card hover ──────────────────────────────────────────────── */
+        .data-card {
+            transition: box-shadow 0.15s ease, transform 0.15s ease;
+        }
+        .data-card:hover {
+            box-shadow: 0 4px 12px 0 rgba(0,0,0,0.10), 0 2px 4px -2px rgba(0,0,0,0.06);
+            transform: translateY(-1px);
+        }
+
+        /* ── Focus ring ──────────────────────────────────────────────── */
+        input:focus, select:focus, textarea:focus, button:focus-visible {
+            outline: 2px solid #0ea5e9;
+            outline-offset: 2px;
+        }
+        input, select, textarea { outline: none; }
+
+        /* ── Stat card accent bar ────────────────────────────────────── */
+        .stat-card { position: relative; overflow: hidden; }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            border-radius: 3px 0 0 3px;
+        }
+        .stat-card.accent-blue::before   { background: #0ea5e9; }
+        .stat-card.accent-green::before  { background: #22c55e; }
+        .stat-card.accent-purple::before { background: #a855f7; }
+        .stat-card.accent-orange::before { background: #f97316; }
+
+        /* ── Primary button ──────────────────────────────────────────── */
+        .btn-primary {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            box-shadow: 0 1px 3px rgba(2, 132, 199, 0.4);
+            transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.1s ease;
+        }
+        .btn-primary:hover {
+            filter: brightness(1.06);
+            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn-primary:active { transform: translateY(0); filter: brightness(0.97); }
+        .btn-primary:disabled { filter: none; opacity: 0.55; transform: none; box-shadow: none; cursor: not-allowed; }
+
+        /* ── Danger button ───────────────────────────────────────────── */
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 1px 3px rgba(220, 38, 38, 0.35);
+            transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.1s ease;
+        }
+        .btn-danger:hover { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(220,38,38,0.35); transform: translateY(-1px); }
+        .btn-danger:active { transform: translateY(0); }
     </style>
 </head>
 <body>
     <div id="root">
-        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column;">
+        <div style="display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; background: #f8fafc;">
             <div class="loading-spinner"></div>
-            <p style="margin-top: 20px; color: #6b7280;">Loading JTF Portal...</p>
+            <p style="margin-top: 16px; color: #64748b; font-size: 14px; font-family: Inter, sans-serif; font-weight: 500;">Loading JTF Portal…</p>
         </div>
     </div>
 
@@ -482,56 +574,46 @@
 
         // Loader Component
         function Loader({ text = 'Loading...' }) {
-            return e('div', { className: 'flex flex-col items-center justify-center p-4' },
+            return e('div', { className: 'flex flex-col items-center justify-center p-12 gap-3' },
                 e('div', { className: 'loading-spinner' }),
-                e('p', { className: 'mt-2 text-sm text-gray-600' }, text)
+                e('p', { className: 'text-sm font-medium text-slate-500' }, text)
             );
         }
 
         // Message Component
         function Message({ type, message, onClose }) {
-            const typeClasses = {
-                success: "bg-green-50 text-green-800 border border-green-200",
-                error: "bg-red-50 text-red-800 border border-red-200",
-                warning: "bg-yellow-50 text-yellow-800 border border-yellow-200",
-                info: "bg-blue-50 text-blue-800 border border-blue-200"
+            const styles = {
+                success: { wrap: 'bg-emerald-50 border border-emerald-200 text-emerald-800', dot: 'bg-emerald-500', icon: '✓' },
+                error:   { wrap: 'bg-red-50 border border-red-200 text-red-800',         dot: 'bg-red-500',     icon: '✕' },
+                warning: { wrap: 'bg-amber-50 border border-amber-200 text-amber-800',    dot: 'bg-amber-500',   icon: '!' },
+                info:    { wrap: 'bg-sky-50 border border-sky-200 text-sky-800',           dot: 'bg-sky-500',     icon: 'i' }
             };
-
-            const iconClasses = {
-                success: "✓",
-                error: "✗",
-                warning: "⚠",
-                info: "ℹ"
-            };
-
-            return e('div', { className: `p-4 rounded-lg flex items-center justify-between ${typeClasses[type]}` },
-                e('div', { className: 'flex items-center' },
-                    e('span', { className: 'mr-2 font-semibold' }, iconClasses[type]),
-                    e('span', null, message)
-                ),
+            const s = styles[type] || styles.info;
+            return e('div', { className: `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium ${s.wrap}` },
+                e('span', { className: `flex-shrink-0 w-5 h-5 rounded-full ${s.dot} text-white flex items-center justify-center text-xs font-bold` }, s.icon),
+                e('span', { className: 'flex-1' }, message),
                 onClose && e('button', {
                     onClick: onClose,
-                    className: 'ml-4 hover:opacity-70 transition-opacity'
+                    className: 'ml-2 text-current opacity-50 hover:opacity-100 transition-opacity text-lg leading-none'
                 }, '×')
             );
         }
 
         // StatCard Component
         function StatCard({ title, value, icon, color = 'blue' }) {
-            const colorClasses = {
-                blue: 'bg-blue-50 text-blue-600 border-blue-200',
-                green: 'bg-green-50 text-green-600 border-green-200',
-                purple: 'bg-purple-50 text-purple-600 border-purple-200',
-                orange: 'bg-orange-50 text-orange-600 border-orange-200'
+            const iconBg = {
+                blue:   'bg-sky-100 text-sky-600',
+                green:  'bg-emerald-100 text-emerald-600',
+                purple: 'bg-violet-100 text-violet-600',
+                orange: 'bg-orange-100 text-orange-600'
             };
-
-            return e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+            return e('div', { className: `stat-card accent-${color} bg-white rounded-xl shadow-card border border-gray-100 px-5 py-4` },
                 e('div', { className: 'flex items-center justify-between' },
                     e('div', null,
-                        e('p', { className: 'text-sm font-medium text-gray-600 mb-1' }, title),
-                        e('p', { className: 'text-3xl font-bold text-gray-900' }, value)
+                        e('p', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1' }, title),
+                        e('p', { className: 'text-2xl font-bold text-gray-900 leading-tight' }, value ?? '—')
                     ),
-                    e('div', { className: `w-12 h-12 rounded-lg border flex items-center justify-center text-xl ${colorClasses[color]}` }, icon)
+                    e('div', { className: `w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${iconBg[color] || iconBg.blue}` }, icon)
                 )
             );
         }
@@ -539,20 +621,19 @@
         // PersonCard Component
         function PersonCard({ person, onClick }) {
             const getInitials = (firstName, lastName) => {
-                return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+                return `${(firstName || '').charAt(0)}${(lastName || '').charAt(0)}`.toUpperCase() || '?';
             };
-
             return e('div', {
                 onClick: onClick,
-                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+                className: 'data-card bg-white rounded-xl shadow-card border border-gray-100 p-4 cursor-pointer'
             },
-                e('div', { className: 'flex items-center space-x-3 mb-3' },
-                    e('div', { className: 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold' },
+                e('div', { className: 'flex items-center gap-3' },
+                    e('div', { className: 'w-10 h-10 bg-sky-100 rounded-full flex items-center justify-center text-sky-700 text-sm font-bold flex-shrink-0' },
                         getInitials(person.FirstName, person.LastName)
                     ),
-                    e('div', null,
-                        e('h3', { className: 'font-semibold text-gray-900' }, `${person.FirstName} ${person.LastName}`),
-                        e('p', { className: 'text-sm text-gray-600' }, person.PrimaryEmail)
+                    e('div', { className: 'min-w-0' },
+                        e('h3', { className: 'font-semibold text-gray-900 text-sm truncate' }, `${person.FirstName} ${person.LastName}`),
+                        e('p', { className: 'text-xs text-gray-500 truncate' }, person.PrimaryEmail)
                     )
                 )
             );
@@ -640,7 +721,7 @@
                 // Student Information Panel
                 e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-6' },
                     // Basic Information
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-6' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
                         e('div', { className: 'flex items-center mb-6' },
                             e('div', { className: 'w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl mr-4' },
                                 `${(student.FirstName || '').charAt(0)}${(student.LastName || '').charAt(0)}`.toUpperCase()
@@ -771,7 +852,7 @@
                 ),
 
                 // Enrollment History
-                student.Enrollments && student.Enrollments.length > 0 && e('div', { className: 'mt-6 bg-white rounded-lg shadow-sm border p-6' },
+                student.Enrollments && student.Enrollments.length > 0 && e('div', { className: 'mt-6 bg-white rounded-xl shadow-card border border-gray-100 p-6' },
                     e('div', { className: 'flex items-center justify-between mb-6' },
                         e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Enrollment History'),
                         e('span', { className: 'text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full' }, 
@@ -858,51 +939,46 @@
             const getInitials = (firstName, lastName) => {
                 const first = (firstName || '').trim();
                 const last = (lastName || '').trim();
-                const firstInitial = first.length > 0 ? first.charAt(0) : '';
-                const lastInitial = last.length > 0 ? last.charAt(0) : '';
-                return `${firstInitial}${lastInitial}`.toUpperCase() || '??';
+                return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '??';
             };
-
             const formatDate = (dateString) => {
                 if (!dateString) return 'TBD';
-                try {
-                    return new Date(dateString).toLocaleDateString();
-                } catch {
-                    return dateString;
-                }
+                try { return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+                catch { return dateString; }
             };
-
+            const fullName = `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name';
             return e('div', {
                 onClick: onClick,
-                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+                className: 'data-card bg-white rounded-xl shadow-card border border-gray-100 p-4 cursor-pointer flex flex-col gap-3'
             },
-                e('div', { className: 'flex items-center space-x-3 mb-3' },
-                    e('div', { className: 'w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-semibold' },
+                e('div', { className: 'flex items-center gap-3' },
+                    e('div', { className: 'w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center text-violet-700 text-sm font-bold flex-shrink-0' },
                         getInitials(castMember.FirstName, castMember.LastName)
                     ),
-                    e('div', { className: 'flex-1' },
-                        e('h3', { className: 'font-semibold text-gray-900' }, 
-                            `${castMember.FirstName || ''} ${castMember.LastName || ''}`.trim() || 'Unknown Name'
-                        ),
-                        e('p', { className: 'text-sm text-gray-600' }, castMember.PrimaryEmail || 'No email')
-                    )
-                ),
-                e('div', { className: 'space-y-1 text-sm text-gray-600' },
-                    e('p', null, `Last Show: ${formatDate(castMember.LastShowDate)}`),
-                    e('p', null, `Phone: ${castMember.PrimaryPhone || 'No phone'}`),
-                    e('p', null, `Birthday: ${formatDate(castMember.Birthday)}`),
-                    castMember.Status && e('span', { 
-                        className: `inline-block px-2 py-1 text-xs rounded-full ${
-                            castMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    e('div', { className: 'flex-1 min-w-0' },
+                        e('h3', { className: 'font-semibold text-sm text-gray-900 truncate' }, fullName),
+                        e('p', { className: 'text-xs text-gray-500 truncate' }, castMember.PrimaryEmail || 'No email')
+                    ),
+                    castMember.Status && e('span', {
+                        className: `text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
+                            castMember.Status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                         }`
                     }, castMember.Status)
                 ),
-                onRemove && e('div', { className: 'mt-3 pt-3 border-t border-gray-100' },
-                    e('button', {
-                        onClick: (ev) => { ev.stopPropagation(); onRemove(castMember.CastMemberID); },
-                        className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
-                    }, 'Remove from Cast')
-                )
+                e('div', { className: 'grid grid-cols-2 gap-x-3 gap-y-1' },
+                    e('div', null,
+                        e('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium' }, 'Last Show'),
+                        e('p', { className: 'text-xs text-gray-700 font-medium' }, formatDate(castMember.LastShowDate))
+                    ),
+                    e('div', null,
+                        e('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium' }, 'Phone'),
+                        e('p', { className: 'text-xs text-gray-700 font-medium truncate' }, castMember.PrimaryPhone || '—')
+                    )
+                ),
+                onRemove && e('button', {
+                    onClick: (ev) => { ev.stopPropagation(); onRemove(castMember.CastMemberID); },
+                    className: 'w-full px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors border border-red-100'
+                }, 'Remove from Cast')
             );
         }
 
@@ -937,39 +1013,43 @@
                 return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '??';
             };
             const formatDate = (dateString) => {
-                if (!dateString || dateString === 'N/A') return 'N/A';
-                try { return new Date(dateString).toLocaleDateString(); } catch { return dateString; }
+                if (!dateString || dateString === 'N/A') return '—';
+                try { return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch { return dateString; }
             };
             const badgeClasses = showColorClasses || 'bg-gray-100 text-gray-600 border-gray-200';
+            const fullName = `${crewMember.FirstName || ''} ${displayLastName}`.trim() || 'Unknown Name';
 
             return e('div', {
                 onClick: onClick,
-                className: 'bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer overflow-hidden'
+                className: 'data-card bg-white rounded-xl shadow-card border border-gray-100 cursor-pointer overflow-hidden'
             },
                 crewMember.ShowName && e('div', {
-                    className: `px-3 py-1 text-xs font-medium border-b truncate ${badgeClasses}`
+                    className: `px-3 py-1.5 text-xs font-semibold border-b truncate ${badgeClasses}`
                 }, crewMember.ShowName),
-                e('div', { className: 'p-4' },
-                    e('div', { className: 'flex items-center space-x-3 mb-3' },
-                        e('div', { className: 'w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-semibold flex-shrink-0' },
+                e('div', { className: 'p-4 flex flex-col gap-3' },
+                    e('div', { className: 'flex items-center gap-3' },
+                        e('div', { className: 'w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 text-sm font-bold flex-shrink-0' },
                             getInitials(crewMember.FirstName, displayLastName)
                         ),
                         e('div', { className: 'flex-1 min-w-0' },
-                            e('h3', { className: 'font-semibold text-gray-900 truncate' },
-                                `${crewMember.FirstName || ''} ${displayLastName}`.trim() || 'Unknown Name'
-                            ),
-                            e('p', { className: 'text-sm text-gray-500 truncate' }, crewMember.PrimaryEmail || 'No email')
-                        )
-                    ),
-                    e('div', { className: 'space-y-1 text-sm text-gray-600' },
-                        e('p', null, e('span', { className: 'text-gray-400' }, 'Duty: '), e('strong', { className: 'text-gray-800' }, crewMember.DutyName || 'N/A')),
-                        e('p', null, e('span', { className: 'text-gray-400' }, 'Date: '), formatDate(crewMember.ShowDate || crewMember.LastShowDate)),
-                        e('p', null, e('span', { className: 'text-gray-400' }, 'Phone: '), crewMember.PrimaryPhone || 'No phone'),
+                            e('h3', { className: 'font-semibold text-sm text-gray-900 truncate' }, fullName),
+                            e('p', { className: 'text-xs text-gray-500 truncate' }, crewMember.PrimaryEmail || 'No email')
+                        ),
                         crewMember.Status && e('span', {
-                            className: `inline-block px-2 py-0.5 text-xs rounded-full mt-2 ${
-                                crewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            className: `text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${
+                                crewMember.Status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                             }`
                         }, crewMember.Status)
+                    ),
+                    e('div', { className: 'grid grid-cols-2 gap-x-3 gap-y-1' },
+                        e('div', null,
+                            e('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium' }, 'Duty'),
+                            e('p', { className: 'text-xs text-gray-800 font-semibold' }, crewMember.DutyName || '—')
+                        ),
+                        e('div', null,
+                            e('p', { className: 'text-xs text-gray-400 uppercase tracking-wide font-medium' }, 'Date'),
+                            e('p', { className: 'text-xs text-gray-700 font-medium' }, formatDate(crewMember.ShowDate || crewMember.LastShowDate))
+                        )
                     )
                 )
             );
@@ -1026,109 +1106,109 @@
             const title = mode === 'create' ? 'Add New Personnel' : 
                          mode === 'edit' ? 'Edit Personnel' : 'Personnel Details';
 
-            return e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50' },
-                e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto' },
-                    e('div', { className: 'flex justify-between items-center mb-6' },
-                        e('h2', { className: 'text-xl font-semibold text-gray-900' }, title),
+            return e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4' },
+                e('div', { className: 'modal-panel bg-white rounded-2xl shadow-modal max-w-2xl w-full mx-auto max-h-[90vh] overflow-y-auto' },
+                    e('div', { className: 'flex justify-between items-center px-6 py-5 border-b border-gray-100' },
+                        e('h2', { className: 'text-lg font-bold text-gray-900' }, title),
                         e('button', {
                             onClick: onClose,
-                            className: 'text-gray-400 hover:text-gray-600 text-xl'
+                            className: 'w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-xl leading-none font-light'
                         }, '×')
                     ),
 
-                    isLoading ? e(Loader) : 
-                    e('form', { onSubmit: handleSubmit },
+                    isLoading ? e('div', { className: 'p-8' }, e(Loader)) : 
+                    e('form', { onSubmit: handleSubmit, className: 'p-6' },
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
                             // First Name
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'First Name'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'First Name'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'text',
                                     value: formData.FirstName || '',
                                     onChange: (e) => handleInputChange('FirstName', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors',
                                     required: true
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.FirstName)
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, formData.FirstName)
                             ),
                             
                             // Last Name
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Name'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'Last Name'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'text',
                                     value: formData.LastName || '',
                                     onChange: (e) => handleInputChange('Lastname', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors',
                                     required: true
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.LastName)
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, formData.LastName)
                             ),
 
                             // Email
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'Email'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'email',
                                     value: formData.PrimaryEmail || '',
                                     onChange: (e) => handleInputChange('PrimaryEmail', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors',
                                     required: true
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.PrimaryEmail)
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, formData.PrimaryEmail)
                             ),
 
                             // Phone
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Phone'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'Phone'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'tel',
                                     value: formData.PrimaryPhone || '',
                                     onChange: (e) => handleInputChange('PrimaryPhone', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors'
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.PrimaryPhone)
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, formData.PrimaryPhone)
                             ),
 
                             // Instagram
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Instagram'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'Instagram'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'text',
                                     value: formData.Instagram || '',
                                     onChange: (e) => handleInputChange('Instagram', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent',
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors',
                                     placeholder: '@username'
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, formData.Instagram)
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, formData.Instagram)
                             ),
 
                             // Birthday
                             e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
+                                e('label', { className: 'block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5' }, 'Birthday'),
                                 isEditable ? 
                                 e('input', {
                                     type: 'date',
                                     value: formData.Birthday ? formData.Birthday.toString().split('T')[0] : '',
                                     onChange: (e) => handleInputChange('Birthday', e.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors'
                                 }) :
-                                e('p', { className: 'py-2 text-gray-900' }, 
+                                e('p', { className: 'py-2 text-sm text-gray-900 font-medium' }, 
                                     formData.Birthday ? new Date(formData.Birthday).toLocaleDateString() : ''
                                 )
                             )
                         ),
 
-                        e('div', { className: 'flex justify-end space-x-3' },
+                        e('div', { className: 'flex justify-end gap-2 pt-4 border-t border-gray-100' },
                             e('button', {
                                 type: 'button',
                                 onClick: onClose,
-                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
+                                className: 'px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
                             }, mode === 'view' ? 'Close' : 'Cancel'),
                             
                             // Edit and Delete buttons for view mode
@@ -1137,20 +1217,20 @@
                                     key: 'edit',
                                     type: 'button',
                                     onClick: onEdit,
-                                    className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+                                    className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-lg'
                                 }, 'Edit'),
                                 e('button', {
                                     key: 'delete',
                                     type: 'button',
                                     onClick: onDelete,
-                                    className: 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors'
+                                    className: 'btn-danger px-4 py-2 text-sm font-semibold text-white rounded-lg'
                                 }, 'Delete')
                             ],
                             
                             isEditable && e('button', {
                                 type: 'submit',
                                 disabled: isLoading,
-                                className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50'
+                                className: 'btn-primary px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50'
                             }, mode === 'create' ? 'Create' : 'Save Changes')
                         )
                     )
@@ -1279,16 +1359,19 @@
                 );
             }
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
 
                 // ── Header ───────────────────────────────────────────────────
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Dashboard'),
-                    loadedAt && e('p', { className: 'text-xs text-gray-400' }, `Updated at ${loadedAt}`)
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Dashboard'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'JTF Team overview')
+                    ),
+                    loadedAt && e('p', { className: 'text-xs text-gray-400 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm' }, `Updated ${loadedAt}`)
                 ),
 
                 // ── ROW 1: KPI Cards (6 up) ──────────────────────────────────
-                e('div', { className: 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6' },
+                e('div', { className: 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6' },
                     e(StatCard, { title: 'Total Personnel', value: stats.totalPersonnel,                          icon: '👥', color: 'blue'   }),
                     e(StatCard, { title: 'Active Students',  value: stats.studentsActive || stats.activeStudents, icon: '🎓', color: 'green'  }),
                     e(StatCard, { title: 'Scheduled Shows',  value: stats.scheduledShows,                        icon: '🎪', color: 'purple' }),
@@ -1298,42 +1381,42 @@
                 ),
 
                 // ── ROW 2: Status Distribution Panels ───────────────────────
-                e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6' },
+                e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-6' },
 
                     // Show Status
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
-                        e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1' }, 'Show Status'),
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
+                        e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1' }, 'Show Status'),
                         e('p', { className: 'text-2xl font-bold text-gray-900 mb-3' }, `${stats.totalShows} Total`),
                         e(SegmentedBar, {
                             segments: [
-                                { label: 'Scheduled', count: stats.scheduledShows, color: 'bg-purple-500' },
+                                { label: 'Scheduled', count: stats.scheduledShows, color: 'bg-violet-500' },
                                 { label: 'Canceled',  count: stats.canceledShows,  color: 'bg-red-400'   }
                             ]
                         })
                     ),
 
                     // Student Status
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
-                        e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1' }, 'Student Status'),
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
+                        e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1' }, 'Student Status'),
                         e('p', { className: 'text-2xl font-bold text-gray-900 mb-3' }, `${stats.totalStudents} Total`),
                         e(SegmentedBar, {
                             segments: [
-                                { label: 'Active',    count: stats.studentsActive,    color: 'bg-green-500' },
-                                { label: 'Inactive',  count: stats.studentsInactive,  color: 'bg-gray-400'  },
-                                { label: 'Graduated', count: stats.studentsGraduated, color: 'bg-blue-400'  }
+                                { label: 'Active',    count: stats.studentsActive,    color: 'bg-emerald-500' },
+                                { label: 'Inactive',  count: stats.studentsInactive,  color: 'bg-gray-300'    },
+                                { label: 'Graduated', count: stats.studentsGraduated, color: 'bg-sky-400'     }
                             ]
                         })
                     ),
 
                     // Class Status
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
-                        e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1' }, 'Class Status'),
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
+                        e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1' }, 'Class Status'),
                         e('p', { className: 'text-2xl font-bold text-gray-900 mb-3' }, `${stats.totalClasses} Total`),
                         e(SegmentedBar, {
                             segments: [
-                                { label: 'Upcoming',    count: stats.upcomingClasses,    color: 'bg-yellow-400' },
-                                { label: 'In Progress', count: stats.inProgressClasses,  color: 'bg-blue-500'   },
-                                { label: 'Completed',   count: stats.completedClasses,   color: 'bg-green-400'  },
+                                { label: 'Upcoming',    count: stats.upcomingClasses,    color: 'bg-amber-400'  },
+                                { label: 'In Progress', count: stats.inProgressClasses,  color: 'bg-sky-500'    },
+                                { label: 'Completed',   count: stats.completedClasses,   color: 'bg-emerald-400'},
                                 { label: 'Cancelled',   count: stats.cancelledClasses,   color: 'bg-red-300'    }
                             ]
                         })
@@ -1341,13 +1424,13 @@
                 ),
 
                 // ── ROW 3: Detail Panels ─────────────────────────────────────
-                e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-4' },
+                e('div', { className: 'grid grid-cols-1 lg:grid-cols-2 gap-3' },
 
                     // Active Class Enrollment
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
                         e('div', { className: 'flex justify-between items-center mb-4' },
-                            e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider' }, 'Active Class Enrollment'),
-                            e('span', { className: 'text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full' },
+                            e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Active Class Enrollment'),
+                            e('span', { className: 'text-xs text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full font-medium' },
                                 `${stats.totalEnrollments} enrollments`
                             )
                         ),
@@ -1363,17 +1446,17 @@
                                     })
                                 )
                             )
-                            : e('p', { className: 'text-sm text-gray-400 text-center py-6' },
+                            : e('p', { className: 'text-sm text-gray-400 text-center py-8' },
                                 'No active classes at this time.'
                             )
                     ),
 
                     // Right column — Next Show + Personnel Breakdown
-                    e('div', { className: 'flex flex-col gap-4' },
+                    e('div', { className: 'flex flex-col gap-3' },
 
                         // Next Upcoming Show
-                        e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
-                            e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3' }, 'Next Upcoming Show'),
+                        e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
+                            e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3' }, 'Next Upcoming Show'),
                             stats.nextShow
                                 ? e('div', null,
                                     e('p', { className: 'text-lg font-bold text-gray-900' },
@@ -1392,8 +1475,8 @@
                         ),
 
                         // Personnel Breakdown
-                        e('div', { className: 'bg-white rounded-lg shadow-sm border p-5' },
-                            e('h2', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3' }, 'Personnel Breakdown'),
+                        e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-5' },
+                            e('h2', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3' }, 'Personnel Breakdown'),
                             e('div', { className: 'grid grid-cols-2 gap-3' },
                                 e(MetricTile, { value: stats.studentsActive || stats.activeStudents, label: 'Active Students',  color: 'green'  }),
                                 e(MetricTile, { value: stats.studentsGraduated,                      label: 'Graduated',        color: 'blue'   }),
@@ -1561,13 +1644,16 @@
                 }
             };
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage all team members')
+                    ),
                     e('button', {
                         onClick: handleAddNew,
-                        className: 'px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
-                    }, 'Add New Person')
+                        className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl'
+                    }, '+ Add New Person')
                 ),
 
                 message && e('div', { className: 'mb-4' },
@@ -1581,23 +1667,10 @@
                 e('div', { className: 'mb-6' },
                     e('input', {
                         type: 'text',
-                        placeholder: 'Search by name or email...',
+                        placeholder: 'Search by name or email\u2026',
                         value: searchTerm,
                         onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
-                    })
-                ),
-
-                isLoading ? e(Loader, { text: 'Loading personnel...' }) :
-                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                    filteredPersonnel.map((person) =>
-                        e(PersonCard, {
-                            key: person.PersonnelID,
-                            person: person,
-                            onClick: () => handlePersonClick(person)
-                        })
-                    )
-                ),
+                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'\n                    })\n                ),\n\n                isLoading ? e(Loader, { text: 'Loading personnel...' }) :\n                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },\n                    filteredPersonnel.map((person) =>\n                        e(PersonCard, {\n                            key: person.PersonnelID,\n                            person: person,\n                            onClick: () => handlePersonClick(person)\n                        })\n                    )\n                ),
 
                 e(PersonnelModal, {
                     isOpen: isModalOpen,
@@ -1765,16 +1838,16 @@
                 setSelectedCastMember(null);
             };
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
-                    e('div', { className: 'flex items-center gap-3' },
-                        e('p', { className: 'text-sm text-gray-600' }, `${filteredCastMembers.length} cast assignments`),
-                        e('button', {
-                            onClick: handleOpenAddModal,
-                            className: 'px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors'
-                        }, '+ Add Cast Member')
-                    )
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, `${filteredCastMembers.length} cast assignments`)
+                    ),
+                    e('button', {
+                        onClick: handleOpenAddModal,
+                        className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl'
+                    }, '+ Add Cast Member')
                 ),
 
                 message && e('div', { className: 'mb-4' },
@@ -1788,10 +1861,10 @@
                 e('div', { className: 'mb-6' },
                     e('input', {
                         type: 'text',
-                        placeholder: 'Search by name, email, or phone...',
+                        placeholder: 'Search by name, email, or phone…',
                         value: searchTerm,
                         onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     })
                 ),
 
@@ -1805,7 +1878,7 @@
                         }),
                         e('button', {
                             onClick: loadCastMembers,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                            className: 'btn-primary mt-2 px-4 py-2 text-sm font-semibold text-white rounded-xl'
                         }, 'Retry')
                     )
                 ) : filteredCastMembers.length === 0 ? (
@@ -1813,11 +1886,11 @@
                         e('p', null, 'No cast members found.'),
                         e('button', {
                             onClick: loadCastMembers,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                            className: 'btn-primary mt-2 px-4 py-2 text-sm font-semibold text-white rounded-xl'
                         }, 'Reload')
                     )
                 ) : (
-                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },
                         filteredCastMembers.map((castMember) =>
                             e(CastCard, {
                                 key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
@@ -1831,7 +1904,7 @@
 
                 // Add Cast Member Modal
                 isAddModalOpen && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
                     onClick: () => setIsAddModalOpen(false)
                 },
                     e('div', {
@@ -1907,7 +1980,7 @@
 
                 // Remove Confirmation Modal
                 removeTarget && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
                     onClick: () => setRemoveTarget(null)
                 },
                     e('div', {
@@ -1937,7 +2010,7 @@
 
                 // Cast member detail modal
                 selectedCastMember && e('div', { 
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
                     onClick: handleCloseModal
                 },
                     e('div', { 
@@ -2090,29 +2163,29 @@
             };
             const getDisplayName = (m) => `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.trim() || 'Unknown';
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 // Header
                 e('div', { className: 'flex justify-between items-center mb-6' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Crew Directory'),
-                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'View crew members and show duty assignments')
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'View crew members and show duty assignments')
                     ),
-                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCrewMembers.length} assignment${filteredCrewMembers.length !== 1 ? 's' : ''}`)
+                    e('p', { className: 'text-sm text-gray-500 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm font-medium' }, `${filteredCrewMembers.length} assignment${filteredCrewMembers.length !== 1 ? 's' : ''}`)
                 ),
 
                 // Stats bar
-                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6' },
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Total Crew Members'),
-                        e('p', { className: 'text-2xl font-bold text-teal-600' }, uniqueCrewCount)
+                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-6' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Crew Members'),
+                        e('p', { className: 'text-2xl font-bold text-teal-600 mt-1' }, uniqueCrewCount)
                     ),
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Duty Types'),
-                        e('p', { className: 'text-2xl font-bold text-indigo-600' }, uniqueDutyTypes.length)
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Duty Types'),
+                        e('p', { className: 'text-2xl font-bold text-indigo-600 mt-1' }, uniqueDutyTypes.length)
                     ),
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Shows Supported'),
-                        e('p', { className: 'text-2xl font-bold text-purple-600' }, uniqueShowCount)
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Shows Supported'),
+                        e('p', { className: 'text-2xl font-bold text-violet-600 mt-1' }, uniqueShowCount)
                     )
                 ),
 
@@ -2125,17 +2198,17 @@
                     e('div', { className: 'relative flex-1' },
                         e('input', {
                             type: 'text',
-                            placeholder: 'Search by name, email, duty, or show...',
+                            placeholder: 'Search by name, email, duty, or show…',
                             value: searchTerm,
                             onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent'
+                            className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                         }),
                         e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
                     ),
                     e('select', {
                         value: dutyFilter,
                         onChange: (ev) => setDutyFilter(ev.target.value),
-                        className: 'px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm'
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     },
                         e('option', { value: 'all' }, 'All Duties'),
                         ...uniqueDutyTypes.map(duty => e('option', { key: duty, value: duty }, duty))
@@ -2143,23 +2216,23 @@
                     e('select', {
                         value: showFilter,
                         onChange: (ev) => setShowFilter(ev.target.value),
-                        className: 'px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm'
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     },
                         e('option', { value: 'all' }, 'All Shows'),
                         ...uniqueShows.map(show => e('option', { key: show, value: show }, show))
                     ),
-                    e('div', { className: 'flex rounded-lg border border-gray-300 overflow-hidden' },
+                    e('div', { className: 'flex rounded-xl border border-gray-200 overflow-hidden shadow-sm' },
                         e('button', {
                             onClick: () => setViewMode('grid'),
-                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grid' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
                         }, 'Grid'),
                         e('button', {
                             onClick: () => setViewMode('grouped'),
-                            className: `px-3 py-2 text-sm transition-colors border-l ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'grouped' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
                         }, 'By Duty'),
                         e('button', {
                             onClick: () => setViewMode('byShow'),
-                            className: `px-3 py-2 text-sm transition-colors border-l ${viewMode === 'byShow' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'byShow' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
                         }, 'By Show')
                     )
                 ),
@@ -2167,13 +2240,13 @@
                 // Content
                 isLoading ? e(Loader, { text: 'Loading crew members...' }) :
                 filteredCrewMembers.length === 0 ?
-                    e('div', { className: 'text-center py-12 text-gray-500' },
+                    e('div', { className: 'text-center py-12 text-gray-400' },
                         e('p', { className: 'text-4xl mb-3' }, '👷'),
-                        e('p', { className: 'text-lg font-medium mb-1' }, 'No crew members found'),
+                        e('p', { className: 'text-lg font-medium mb-1 text-gray-600' }, 'No crew members found'),
                         e('p', { className: 'text-sm' }, 'Try adjusting your search or filters.')
                     ) :
                 viewMode === 'grid' ?
-                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },
                         filteredCrewMembers.map((member, idx) =>
                             e(CrewCard, {
                                 key: `${member.PersonnelID}-${member.DutyID || idx}`,
@@ -2186,7 +2259,7 @@
                 viewMode === 'grouped' ?
                     e('div', { className: 'space-y-6' },
                         Object.entries(groupedByDuty).map(([duty, members]) =>
-                            e('div', { key: duty, className: 'bg-white rounded-lg shadow-sm border' },
+                            e('div', { key: duty, className: 'bg-white rounded-xl shadow-card border border-gray-100' },
                                 e('div', { className: 'px-5 py-3 border-b bg-gray-50 rounded-t-lg flex justify-between items-center' },
                                     e('h3', { className: 'font-semibold text-gray-800' }, duty),
                                     e('span', { className: 'text-sm text-gray-500 bg-white border px-2 py-0.5 rounded-full' },
@@ -2242,7 +2315,7 @@
 
                 // Detail Modal
                 isDetailModalOpen && selectedCrewMember && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
                     onClick: () => setIsDetailModalOpen(false)
                 },
                     e('div', {
@@ -2439,32 +2512,32 @@
             const getInitials = (b) =>
                 `${(b.FirstName || '')[0] || ''}${(b.LastName || '')[0] || ''}`.toUpperCase() || '??';
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 // Header
                 e('div', { className: 'flex justify-between items-center mb-6' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Bartenders'),
-                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'Manage bartender roster and view shift history')
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage bartender roster and view shift history')
                     ),
                     e('div', { className: 'flex items-center gap-3' },
-                        e('p', { className: 'text-sm text-gray-600' }, `${filteredBartenders.length} bartender${filteredBartenders.length !== 1 ? 's' : ''}`),
-                        e('button', { onClick: handleOpenAdd, className: 'px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors' }, '+ Add Bartender')
+                        e('p', { className: 'text-sm text-gray-500 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm font-medium' }, `${filteredBartenders.length} bartender${filteredBartenders.length !== 1 ? 's' : ''}`),
+                        e('button', { onClick: handleOpenAdd, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add Bartender')
                     )
                 ),
 
                 // Stats
-                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6' },
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Total Bartenders'),
-                        e('p', { className: 'text-2xl font-bold text-amber-600' }, bartenders.length)
+                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-6' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Bartenders'),
+                        e('p', { className: 'text-2xl font-bold text-amber-600 mt-1' }, bartenders.length)
                     ),
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Active'),
-                        e('p', { className: 'text-2xl font-bold text-green-600' }, activeCount)
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Active'),
+                        e('p', { className: 'text-2xl font-bold text-emerald-600 mt-1' }, activeCount)
                     ),
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
-                        e('p', { className: 'text-sm text-gray-500' }, 'Trained'),
-                        e('p', { className: 'text-2xl font-bold text-indigo-600' }, trainedCount)
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Trained'),
+                        e('p', { className: 'text-2xl font-bold text-indigo-600 mt-1' }, trainedCount)
                     )
                 ),
 
@@ -2474,13 +2547,13 @@
 
                 // Search
                 e('div', { className: 'mb-6' },
-                    e('div', { className: 'relative max-w-md' },
+                    e('div', { className: 'relative max-w-sm' },
                         e('input', {
                             type: 'text',
-                            placeholder: 'Search by name, email, or phone...',
+                            placeholder: 'Search by name, email, or phone…',
                             value: searchTerm,
                             onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent'
+                            className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                         }),
                         e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
                     )
@@ -2497,7 +2570,7 @@
                         e('div', {
                             key: b.BartenderID,
                             onClick: () => { setSelectedBartender(b); setIsDetailOpen(true); },
-                            className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+                            className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer'
                         },
                             e('div', { className: 'flex items-center space-x-3 mb-3' },
                                 e('div', { className: 'w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-semibold' }, getInitials(b)),
@@ -2528,7 +2601,7 @@
                 ),
 
                 // Add Modal
-                isAddOpen && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setIsAddOpen(false) },
+                isAddOpen && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setIsAddOpen(false) },
                     e('div', { className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col', onClick: (ev) => ev.stopPropagation() },
                         e('div', { className: 'flex justify-between items-center mb-4' },
                             e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Bartenders from Personnel'),
@@ -2537,7 +2610,7 @@
                         e('input', {
                             type: 'text', placeholder: 'Search personnel...',
                             value: personnelSearch, onChange: (ev) => setPersonnelSearch(ev.target.value),
-                            className: 'mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent'
+                            className: 'mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                         }),
                         availablePersonnel.length > 0 && e('div', { className: 'flex items-center justify-between mb-2 px-1' },
                             e('label', { className: 'flex items-center gap-2 text-sm text-gray-600 cursor-pointer' },
@@ -2584,7 +2657,7 @@
                 ),
 
                 // Remove Confirmation Modal
-                removeTarget && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setRemoveTarget(null) },
+                removeTarget && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setRemoveTarget(null) },
                     e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4', onClick: (ev) => ev.stopPropagation() },
                         e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Bartender'),
                         e('p', { className: 'text-gray-600 mb-6' },
@@ -2602,7 +2675,7 @@
                 ),
 
                 // Detail Modal
-                isDetailOpen && selectedBartender && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50', onClick: () => setIsDetailOpen(false) },
+                isDetailOpen && selectedBartender && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setIsDetailOpen(false) },
                     e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
                         e('div', { className: 'flex justify-between items-start mb-6' },
                             e('div', { className: 'flex items-center gap-3' },
@@ -2650,49 +2723,79 @@
 
         // Sidebar Component
         function Sidebar({ currentPage, onNavigate }) {
+            // SVG icon map — simple, consistent stroke icons
+            const icons = {
+                dashboard:         e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' })),
+                personnel:         e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z' })),
+                'student-directory': e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z' })),
+                cast:              e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })),
+                crew:              e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })),
+                bartenders:        e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' })),
+                classes:           e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' })),
+                shows:             e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z' })),
+                inventory:         e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' })),
+                scheduling:        e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' }))
+            };
+
             const navigationItems = [
-                { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-                { id: 'personnel', label: 'Personnel', icon: '👥' },
-                { id: 'student-directory', label: 'Students', icon: '🎓' },
-                { id: 'cast', label: 'Cast', icon: '🎭' },
-                { id: 'crew', label: 'Crew', icon: '🛠️' },
-                { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
-                { id: 'classes', label: 'Classes', icon: '📚' },
-                { id: 'shows', label: 'Shows', icon: '🎬' },
-                { id: 'inventory', label: 'Inventory', icon: '📦' },
-                { id: 'scheduling', label: 'Schedule', icon: '📅' }
+                { id: 'dashboard',         label: 'Dashboard'  },
+                { id: 'personnel',         label: 'Personnel'  },
+                { id: 'student-directory', label: 'Students'   },
+                { id: 'cast',              label: 'Cast'        },
+                { id: 'crew',              label: 'Crew'        },
+                { id: 'bartenders',        label: 'Bartenders' },
+                { id: 'classes',           label: 'Classes'    },
+                { id: 'shows',             label: 'Shows'      },
+                { id: 'inventory',         label: 'Inventory'  },
+                { id: 'scheduling',        label: 'Schedule'   }
             ];
 
-            return e('div', { className: 'bg-white shadow-sm border-r h-full w-64 flex flex-col' },
-                e('div', { className: 'p-6 border-b' },
-                    e('h1', { className: 'text-xl font-bold text-gray-900' }, 'JTF Portal'),
-                    e('p', { className: 'text-sm text-gray-600' }, 'Team Management'),
-                    e('p', { className: 'text-xs text-gray-400 mt-1' }, 'v1.0.1 - Updated from VS Code')
-                ),
-                
-                e('nav', { className: 'flex-1 p-4' },
-                    e('ul', { className: 'space-y-2' },
-                        navigationItems.map((item) =>
-                            e('li', { key: item.id },
-                                e('button', {
-                                    onClick: () => onNavigate(item.id),
-                                    className: `w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                                        currentPage === item.id
-                                            ? 'bg-primary-100 text-primary-700'
-                                            : 'text-gray-700 hover:bg-gray-100'
-                                    }`
-                                },
-                                    e('span', { className: 'text-lg' }, item.icon),
-                                    e('span', { className: 'font-medium' }, item.label)
-                                )
+            return e('div', { className: 'bg-slate-900 h-full w-60 flex flex-col flex-shrink-0', style: { minWidth: '240px' } },
+
+                // ── Brand ──────────────────────────────────────────────
+                e('div', { className: 'px-5 py-5 border-b border-slate-700/60' },
+                    e('div', { className: 'flex items-center gap-2.5 mb-0.5' },
+                        e('div', { className: 'w-7 h-7 rounded-lg bg-sky-500 flex items-center justify-center flex-shrink-0' },
+                            e('svg', { className: 'w-4 h-4 text-white', fill: 'none', stroke: 'currentColor', strokeWidth: '2.5', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M13 10V3L4 14h7v7l9-11h-7z' })
                             )
+                        ),
+                        e('div', null,
+                            e('h1', { className: 'text-sm font-bold text-white leading-tight tracking-wide' }, 'JTF PORTAL'),
+                            e('p', { className: 'text-xs text-slate-400 leading-tight' }, 'Team Management')
                         )
                     )
                 ),
-                
-                e('div', { className: 'p-4 border-t' },
-                    e('p', { className: 'text-xs text-gray-500' }, '© 2024 JTF Team Portal'),
-                    e('p', { className: 'text-xs text-gray-400 mt-1' }, 'v1.0.1 - Updated from VS Code')
+
+                // ── Nav ────────────────────────────────────────────────
+                e('nav', { className: 'flex-1 px-3 py-4 overflow-y-auto' },
+                    e('p', { className: 'px-2 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-widest' }, 'Navigation'),
+                    e('ul', { className: 'space-y-0.5' },
+                        navigationItems.map((item) => {
+                            const isActive = currentPage === item.id;
+                            return e('li', { key: item.id },
+                                e('button', {
+                                    onClick: () => onNavigate(item.id),
+                                    className: `nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium ${
+                                        isActive
+                                            ? 'bg-sky-500 text-white shadow-sm'
+                                            : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                                    }`
+                                },
+                                    e('span', { className: `flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}` },
+                                        icons[item.id] || e('span', { className: 'w-4 h-4 block' })
+                                    ),
+                                    e('span', null, item.label)
+                                )
+                            );
+                        })
+                    )
+                ),
+
+                // ── Footer ─────────────────────────────────────────────
+                e('div', { className: 'px-5 py-4 border-t border-slate-700/60' },
+                    e('p', { className: 'text-xs text-slate-500' }, '© 2026 JTF Team Portal'),
+                    e('p', { className: 'text-xs text-slate-600 mt-0.5' }, 'v1.0.1')
                 )
             );
         }
@@ -3144,7 +3247,7 @@
                         'Back to Classes'
                     ),
                     
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
                         e('div', { className: 'flex justify-between items-start' },
                             e('div', null,
                                 e('h1', { className: 'text-3xl font-bold text-gray-900' }, classData.LevelName || 'Class'),
@@ -3193,12 +3296,12 @@
                 }),
 
                 // Roster Management Section
-                e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6' },
+                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6 mb-6' },
                     e('div', { className: 'flex justify-between items-center mb-4' },
                         e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Class Roster'),
                         e('button', {
                             onClick: () => setShowAddStudentModal(true),
-                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                            className: 'btn-primary text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2'
                         },
                             e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                 e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
@@ -3278,7 +3381,7 @@
                 ),
 
                 // Attendance Tracking Grid
-                e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-6' },
+                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-6' },
                     e('div', { className: 'flex justify-between items-center mb-4' },
                         e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Attendance Tracking'),
                         
@@ -3358,7 +3461,7 @@
 
                 // Student Enrollment Management Modal
                 showAddStudentModal && e('div', { 
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 p-4',
                     onClick: () => {
                         setShowAddStudentModal(false);
                         setModalTab('enrolled');
@@ -3447,7 +3550,7 @@
                                     placeholder: 'Search by name or email...',
                                     value: modalSearchTerm,
                                     onChange: (ev) => setModalSearchTerm(ev.target.value),
-                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:border-sky-400'
                                 }),
                                 e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                     e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
@@ -3460,7 +3563,7 @@
                                 e('select', {
                                     value: roleFilter,
                                     onChange: (ev) => setRoleFilter(ev.target.value),
-                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400'
                                 },
                                     e('option', { value: 'all' }, 'All Roles'),
                                     e('option', { value: 'cast' }, '🎭 Cast Members'),
@@ -3473,7 +3576,7 @@
                                 roleFilter !== 'cast' && roleFilter !== 'teacher' && e('select', {
                                     value: levelFilter,
                                     onChange: (ev) => setLevelFilter(ev.target.value),
-                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-sky-400'
                                 },
                                     e('option', { value: 'all' }, 'All Levels'),
                                     e('option', { value: 'No Levels Completed' }, 'No Level (New Students)'),
@@ -3504,7 +3607,7 @@
                                     placeholder: 'Search students...',
                                     value: modalSearchTerm,
                                     onChange: (ev) => setModalSearchTerm(ev.target.value),
-                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:border-sky-400'
                                 }),
                                 e('svg', { className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                     e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
@@ -3646,7 +3749,7 @@
 
                 // Edit Class Details Modal
                 showEditModal && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 p-4',
                     onClick: () => setShowEditModal(false)
                 },
                     e('div', {
@@ -3667,7 +3770,7 @@
                                     e('select', {
                                         value: editFormData.ClassLevelID || '',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, ClassLevelID: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     },
                                         e('option', { value: '' }, 'Select a level…'),
                                         editClassLevels.map(l =>
@@ -3680,7 +3783,7 @@
                                     e('select', {
                                         value: editFormData.TeacherID || '',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, TeacherID: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     },
                                         e('option', { value: '' }, 'Select a teacher…'),
                                         editTeachers.map(p =>
@@ -3697,7 +3800,7 @@
                                         type: 'date',
                                         value: editFormData.StartDate || '',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, StartDate: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 ),
                                 e('div', null,
@@ -3706,7 +3809,7 @@
                                         type: 'date',
                                         value: editFormData.EndDate || '',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, EndDate: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 )
                             ),
@@ -3717,7 +3820,7 @@
                                     e('select', {
                                         value: editFormData.Status || 'Upcoming',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, Status: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     },
                                         e('option', { value: 'Upcoming' }, 'Upcoming'),
                                         e('option', { value: 'In Progress' }, 'In Progress'),
@@ -3733,7 +3836,7 @@
                                         max: 100,
                                         value: editFormData.MaxStudents || '12',
                                         onChange: (ev) => setEditFormData(prev => ({ ...prev, MaxStudents: ev.target.value })),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 )
                             ),
@@ -3745,7 +3848,7 @@
                                     placeholder: 'e.g. Studio A, Room 12…',
                                     value: editFormData.VenueOrRoom || '',
                                     onChange: (ev) => setEditFormData(prev => ({ ...prev, VenueOrRoom: ev.target.value })),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                 })
                             ),
                             // Meeting Days
@@ -3776,7 +3879,7 @@
                                     type: 'time',
                                     value: editFormData.MeetingTime || '',
                                     onChange: (ev) => setEditFormData(prev => ({ ...prev, MeetingTime: ev.target.value })),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                 })
                             )
                         ),
@@ -4013,19 +4116,19 @@
             }
 
             // Show Dashboard view
-            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 // Header
                 e('div', { className: 'mb-6' },
                     e('div', { className: 'flex justify-between items-center mb-4' },
                         e('div', null,
-                            e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Class Management'),
-                            e('p', { className: 'text-gray-600 mt-1' }, 'Manage class offerings, rosters, and attendance')
+                            e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Class Management'),
+                            e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage class offerings, rosters, and attendance')
                         ),
                         e('button', {
                             onClick: handleOpenModal,
-                            className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                            className: 'btn-primary text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2'
                         },
-                            e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                                 e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
                             ),
                             'New Class'
@@ -4081,7 +4184,7 @@
                             placeholder: 'Search classes by name, teacher, or location...',
                             value: searchTerm,
                             onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                            className: 'w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:border-sky-400'
                         }),
                         e('svg', {
                             className: 'absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400',
@@ -4134,7 +4237,7 @@
                 ),
 
                 // New Class Modal
-                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4', onClick: handleCloseModal },
+                showNewClassModal && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 p-4', onClick: handleCloseModal },
                     e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
                         // Header
                         e('div', { className: 'flex justify-between items-center mb-6' },
@@ -4160,7 +4263,7 @@
                                 e('select', {
                                     value: newClassData.ClassLevelID,
                                     onChange: (ev) => handleInputChange('ClassLevelID', ev.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                 },
                                     e('option', { value: '' }, 'Select a class level...'),
                                     classLevels.map(level =>
@@ -4180,7 +4283,7 @@
                                 e('select', {
                                     value: newClassData.TeacherID,
                                     onChange: (ev) => handleInputChange('TeacherID', ev.target.value),
-                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                 },
                                     e('option', { value: '' }, 'Select a teacher...'),
                                     teachers.map(teacher =>
@@ -4203,7 +4306,7 @@
                                         type: 'date',
                                         value: newClassData.StartDate,
                                         onChange: (ev) => handleInputChange('StartDate', ev.target.value),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 ),
                                 // End Date
@@ -4216,7 +4319,7 @@
                                         type: 'date',
                                         value: newClassData.EndDate,
                                         onChange: (ev) => handleInputChange('EndDate', ev.target.value),
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 )
                             ),
@@ -4234,7 +4337,7 @@
                                         onChange: (ev) => handleInputChange('MaxStudents', ev.target.value),
                                         min: '1',
                                         max: '50',
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 ),
                                 // Location
@@ -4247,7 +4350,7 @@
                                         value: newClassData.VenueOrRoom,
                                         onChange: (ev) => handleInputChange('VenueOrRoom', ev.target.value),
                                         placeholder: 'e.g., Studio A',
-                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                                     })
                                 )
                             )
@@ -4263,7 +4366,7 @@
                             e('button', {
                                 onClick: handleCreateClass,
                                 disabled: isSaving,
-                                className: 'flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2'
+                                className: 'btn-primary flex-1 text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center justify-center gap-2 disabled:opacity-50'
                             },
                                 isSaving && e('svg', { className: 'animate-spin h-5 w-5', fill: 'none', viewBox: '0 0 24 24' },
                                     e('circle', { className: 'opacity-25', cx: 12, cy: 12, r: 10, stroke: 'currentColor', strokeWidth: 4 }),
@@ -4314,7 +4417,7 @@
 
             return e('div', {
                 onClick: onManage,
-                className: 'bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-all cursor-pointer group'
+                className: 'data-card bg-white rounded-xl shadow-card border border-gray-100 p-5 cursor-pointer group'
             },
                 // Header
                 e('div', { className: 'flex items-start justify-between mb-3' },
@@ -5156,43 +5259,45 @@
                 return e(Loader, { text: 'Loading shows...' });
             }
 
-            return e('div', { className: 'p-6 max-w-7xl mx-auto' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 // Header
                 e('div', { className: 'flex justify-between items-center mb-6' },
                     e('div', null,
-                        e('h1', { className: 'text-3xl font-bold text-gray-900' }, 'Show Management'),
-                        e('p', { className: 'text-sm text-gray-600 mt-1' }, `${filteredShows.length} shows`)
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Show Management'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, `${filteredShows.length} shows`)
                     ),
                     e('button', {
                         onClick: () => handleOpenModal('create'),
-                        className: 'px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2'
+                        className: 'btn-primary text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2'
                     },
-                        e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                             e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
                         ),
                         'Create New Show'
                     )
                 ),
 
-                message && e(Message, {
-                    type: message.type,
-                    message: message.text,
-                    onClose: () => setMessage(null)
-                }),
+                message && e('div', { className: 'mb-4' },
+                    e(Message, {
+                        type: message.type,
+                        message: message.text,
+                        onClose: () => setMessage(null)
+                    })
+                ),
 
                 // Search
-                e('div', { className: 'mb-6' },
+                e('div', { className: 'mb-5' },
                     e('input', {
                         type: 'text',
-                        placeholder: 'Search shows by type, director, or room...',
+                        placeholder: 'Search shows by type, director, or room…',
                         value: searchTerm,
                         onChange: (ev) => setSearchTerm(ev.target.value),
-                        className: 'w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     })
                 ),
 
                 // Enhanced Filtering Controls
-                e('div', { className: 'mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200' },
+                e('div', { className: 'mb-6 bg-white p-4 rounded-xl shadow-card border border-gray-100' },
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
                         // Status Filter
                         e('div', null,
@@ -5282,7 +5387,7 @@
                         )
                     )
                 ) : (
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 overflow-hidden' },
                         e('table', { className: 'min-w-full divide-y divide-gray-200' },
                             e('thead', { className: 'bg-gray-50' },
                                 e('tr', null,
@@ -5344,7 +5449,7 @@
 
                 // Create/Edit Show Modal
                 showModal && e('div', { 
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 p-4',
                     onClick: handleCloseModal
                 },
                     e('div', { 
@@ -6379,15 +6484,18 @@
                 );
             }
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 // Header
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Inventory Management'),
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Inventory Management'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Track and manage your inventory items')
+                    ),
                     e('button', {
                         onClick: () => handleOpenModal('create'),
-                        className: 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2'
+                        className: 'btn-primary text-white px-4 py-2 text-sm font-semibold rounded-xl flex items-center gap-2'
                     },
-                        e('svg', { className: 'w-5 h-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                        e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
                             e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
                         ),
                         'Add New Item'
@@ -6395,14 +6503,9 @@
                 ),
 
                 // Message
-                message && e('div', { 
-                    className: `mb-4 p-4 rounded-lg ${
-                        message.type === 'success' ? 'bg-green-100 text-green-700' :
-                        message.type === 'error' ? 'bg-red-100 text-red-700' :
-                        'bg-blue-100 text-blue-700'
-                    }`,
-                    onClick: () => setMessage(null)
-                }, message.text),
+                message && e('div', { className: 'mb-4' },
+                    e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                ),
 
                 // Search
                 e('div', { className: 'mb-6' },
@@ -6411,7 +6514,7 @@
                         placeholder: 'Search items by name, category, location, or notes...',
                         value: searchTerm,
                         onChange: (ev) => setSearchTerm(ev.target.value),
-                        className: 'w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                        className: 'w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
                     })
                 ),
 
@@ -6509,7 +6612,7 @@
                         )
                     )
                 ) : (
-                    e('div', { className: 'bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 overflow-hidden' },
                         e('table', { className: 'min-w-full divide-y divide-gray-200' },
                             e('thead', { className: 'bg-gray-50' },
                                 e('tr', null,
@@ -6782,9 +6885,16 @@
         }
 
         function Scheduling() {
-            return e('div', { className: 'p-6' },
-                e('h1', { className: 'text-2xl font-bold text-gray-900 mb-6' }, 'Schedule'),
-                e('p', { className: 'text-gray-600' }, 'Scheduling functionality coming soon...')
+            return e('div', { className: 'p-6 max-w-screen-xl' },
+                e('div', { className: 'mb-6' },
+                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Schedule'),
+                    e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Upcoming features')
+                ),
+                e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-12 text-center' },
+                    e('p', { className: 'text-4xl mb-3' }, '📅'),
+                    e('p', { className: 'text-lg font-semibold text-gray-700 mb-1' }, 'Scheduling Coming Soon'),
+                    e('p', { className: 'text-sm text-gray-400' }, 'This feature is under development.')
+                )
             );
         }
 
@@ -6829,10 +6939,12 @@
                 (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
             );
 
-            return e('div', { className: 'p-6' },
+            return e('div', { className: 'p-6 max-w-screen-xl' },
                 e('div', { className: 'flex justify-between items-center mb-6' },
-                    e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
-                    e('p', { className: 'text-sm text-gray-600' }, `${filteredStudents.length} students`)
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Student Directory'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, `${filteredStudents.length} students`)
+                    )
                 ),
 
                 message && e('div', { className: 'mb-4' },
@@ -6846,20 +6958,20 @@
                 e('div', { className: 'mb-6' },
                     e('input', {
                         type: 'text',
-                        placeholder: 'Search by name or email...',
+                        placeholder: 'Search by name or email…',
                         value: searchTerm,
                         onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent'
+                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     })
                 ),
 
                 isLoading ? e(Loader, { text: 'Loading students...' }) :
                 filteredStudents.length === 0 ? (
-                    e('div', { className: 'text-center text-gray-500 mt-8' },
-                        e('p', null, 'No students found.'),
+                    e('div', { className: 'text-center text-gray-400 mt-8' },
+                        e('p', { className: 'text-gray-600 font-medium' }, 'No students found.'),
                         e('button', {
                             onClick: loadStudents,
-                            className: 'mt-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors'
+                            className: 'btn-primary mt-3 px-4 py-2 text-sm font-semibold text-white rounded-xl'
                         }, 'Reload')
                     )
                 ) : (
@@ -6902,7 +7014,7 @@
                             
                             return e('div', {
                                 key: student.StudentID || student.PersonnelID,
-                                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer',
                                 onClick: () => onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID)
                             },
                                 e('div', { className: 'flex items-center space-x-3 mb-3' },
@@ -6926,16 +7038,16 @@
                                         e('p', { className: 'text-sm text-gray-600' }, student.PrimaryEmail)
                                     )
                                 ),
-                                student.CurrentEnrollment && e('div', { className: 'mb-2 px-2 py-1 bg-green-50 border border-green-200 rounded text-xs' },
-                                    e('span', { className: 'font-medium text-green-800' }, 'Current: '),
-                                    e('span', { className: 'text-green-700' }, student.CurrentEnrollment)
+                                student.CurrentEnrollment && e('div', { className: 'mb-2 px-2.5 py-1.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs' },
+                                    e('span', { className: 'font-semibold text-emerald-700' }, 'Current: '),
+                                    e('span', { className: 'text-emerald-600' }, student.CurrentEnrollment)
                                 ),
-                                e('div', { className: 'text-sm text-gray-600' },
-                                    e('p', null, `Phone: ${student.PrimaryPhone || 'N/A'}`),
-                                    e('p', null, `Birthday: ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
+                                e('div', { className: 'text-xs text-gray-500 space-y-0.5' },
+                                    e('p', null, `📞 ${student.PrimaryPhone || 'N/A'}`),
+                                    e('p', null, `🎂 ${student.Birthday ? new Date(student.Birthday).toLocaleDateString() : 'N/A'}`)
                                 ),
                                 e('button', {
-                                    className: 'mt-3 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors w-full',
+                                    className: 'mt-3 px-3 py-1.5 text-xs font-semibold bg-sky-50 text-sky-600 rounded-lg hover:bg-sky-100 transition-colors w-full border border-sky-100',
                                     onClick: (e) => { 
                                         e.stopPropagation(); 
                                         onNavigateToStudent && onNavigateToStudent(student.StudentID || student.PersonnelID); 
@@ -7001,12 +7113,12 @@
                 }
             };
 
-            return e('div', { className: 'flex h-screen bg-gray-50' },
+            return e('div', { className: 'flex h-screen bg-slate-100 overflow-hidden' },
                 e(Sidebar, { currentPage: currentPage, onNavigate: (page) => {
                     setShowStudentProfile(false);
                     setCurrentPage(page);
                 }}),
-                e('main', { className: 'flex-1 overflow-auto' }, renderPage())
+                e('main', { key: showStudentProfile ? `profile-${selectedStudentId}` : currentPage, className: 'flex-1 overflow-auto page-enter' }, renderPage())
             );
         }
 
