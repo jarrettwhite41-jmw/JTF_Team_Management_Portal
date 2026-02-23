@@ -478,7 +478,7 @@
         const gasService = new GoogleAppsScriptService();
 
         // React Components
-        const { useState, useEffect, createElement: e } = React;
+        const { useState, useEffect, useMemo, createElement: e } = React;
 
         // Loader Component
         function Loader({ text = 'Loading...' }) {
@@ -906,8 +906,30 @@
             );
         }
 
+        // Show color palettes — one set per show, cycles after 8 shows
+        const SHOW_COLORS = [
+            'bg-violet-100 text-violet-700 border-violet-200',
+            'bg-sky-100 text-sky-700 border-sky-200',
+            'bg-amber-100 text-amber-700 border-amber-200',
+            'bg-rose-100 text-rose-700 border-rose-200',
+            'bg-emerald-100 text-emerald-700 border-emerald-200',
+            'bg-orange-100 text-orange-700 border-orange-200',
+            'bg-pink-100 text-pink-700 border-pink-200',
+            'bg-cyan-100 text-cyan-700 border-cyan-200',
+        ];
+        const SHOW_HEADER_COLORS = [
+            'bg-violet-600 text-white',
+            'bg-sky-600 text-white',
+            'bg-amber-500 text-white',
+            'bg-rose-600 text-white',
+            'bg-emerald-600 text-white',
+            'bg-orange-500 text-white',
+            'bg-pink-600 text-white',
+            'bg-cyan-600 text-white',
+        ];
+
         // CrewCard Component
-        function CrewCard({ crewMember, onClick, onRemove }) {
+        function CrewCard({ crewMember, onClick, showColorClasses }) {
             const displayLastName = crewMember.LastName || crewMember.Lastname || '';
             const getInitials = (firstName, lastName) => {
                 const first = (firstName || '').trim();
@@ -918,37 +940,37 @@
                 if (!dateString || dateString === 'N/A') return 'N/A';
                 try { return new Date(dateString).toLocaleDateString(); } catch { return dateString; }
             };
+            const badgeClasses = showColorClasses || 'bg-gray-100 text-gray-600 border-gray-200';
+
             return e('div', {
                 onClick: onClick,
-                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+                className: 'bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow cursor-pointer overflow-hidden'
             },
-                e('div', { className: 'flex items-center space-x-3 mb-3' },
-                    e('div', { className: 'w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-semibold' },
-                        getInitials(crewMember.FirstName, displayLastName)
-                    ),
-                    e('div', { className: 'flex-1' },
-                        e('h3', { className: 'font-semibold text-gray-900' },
-                            `${crewMember.FirstName || ''} ${displayLastName}`.trim() || 'Unknown Name'
+                crewMember.ShowName && e('div', {
+                    className: `px-3 py-1 text-xs font-medium border-b truncate ${badgeClasses}`
+                }, crewMember.ShowName),
+                e('div', { className: 'p-4' },
+                    e('div', { className: 'flex items-center space-x-3 mb-3' },
+                        e('div', { className: 'w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-semibold flex-shrink-0' },
+                            getInitials(crewMember.FirstName, displayLastName)
                         ),
-                        e('p', { className: 'text-sm text-gray-600' }, crewMember.PrimaryEmail || 'No email')
+                        e('div', { className: 'flex-1 min-w-0' },
+                            e('h3', { className: 'font-semibold text-gray-900 truncate' },
+                                `${crewMember.FirstName || ''} ${displayLastName}`.trim() || 'Unknown Name'
+                            ),
+                            e('p', { className: 'text-sm text-gray-500 truncate' }, crewMember.PrimaryEmail || 'No email')
+                        )
+                    ),
+                    e('div', { className: 'space-y-1 text-sm text-gray-600' },
+                        e('p', null, e('span', { className: 'text-gray-400' }, 'Duty: '), e('strong', { className: 'text-gray-800' }, crewMember.DutyName || 'N/A')),
+                        e('p', null, e('span', { className: 'text-gray-400' }, 'Date: '), formatDate(crewMember.ShowDate || crewMember.LastShowDate)),
+                        e('p', null, e('span', { className: 'text-gray-400' }, 'Phone: '), crewMember.PrimaryPhone || 'No phone'),
+                        crewMember.Status && e('span', {
+                            className: `inline-block px-2 py-0.5 text-xs rounded-full mt-2 ${
+                                crewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`
+                        }, crewMember.Status)
                     )
-                ),
-                e('div', { className: 'space-y-1 text-sm text-gray-600' },
-                    e('p', null, e('strong', null, 'Show: '), crewMember.ShowName || 'N/A'),
-                    e('p', null, e('strong', null, 'Duty: '), crewMember.DutyName || 'N/A'),
-                    e('p', null, e('strong', null, 'Date: '), formatDate(crewMember.ShowDate || crewMember.LastShowDate)),
-                    e('p', null, e('strong', null, 'Phone: '), crewMember.PrimaryPhone || 'No phone'),
-                    crewMember.Status && e('span', {
-                        className: `inline-block px-2 py-1 text-xs rounded-full mt-2 ${
-                            crewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`
-                    }, crewMember.Status)
-                ),
-                onRemove && e('div', { className: 'mt-3 pt-3 border-t border-gray-100' },
-                    e('button', {
-                        onClick: (ev) => { ev.stopPropagation(); onRemove(crewMember.PersonnelID); },
-                        className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
-                    }, 'Remove from Crew')
                 )
             );
         }
@@ -1813,17 +1835,11 @@
             const [isLoading, setIsLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState('');
             const [dutyFilter, setDutyFilter] = useState('all');
+            const [showFilter, setShowFilter] = useState('all');
             const [viewMode, setViewMode] = useState('grid');
             const [selectedCrewMember, setSelectedCrewMember] = useState(null);
             const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
-            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-            const [allPersonnel, setAllPersonnel] = useState([]);
-            const [personnelSearch, setPersonnelSearch] = useState('');
-            const [selectedPersonnelIds, setSelectedPersonnelIds] = useState([]);
-            const [isAdding, setIsAdding] = useState(false);
-            const [removeTarget, setRemoveTarget] = useState(null);
-            const [isRemoving, setIsRemoving] = useState(false);
 
             useEffect(() => { loadCrewMembers(); }, []);
 
@@ -1841,8 +1857,11 @@
                 if (dutyFilter !== 'all') {
                     filtered = filtered.filter(m => (m.DutyName || '') === dutyFilter);
                 }
+                if (showFilter !== 'all') {
+                    filtered = filtered.filter(m => (m.ShowName || '') === showFilter);
+                }
                 setFilteredCrewMembers(filtered);
-            }, [crewMembers, searchTerm, dutyFilter]);
+            }, [crewMembers, searchTerm, dutyFilter, showFilter]);
 
             const loadCrewMembers = async () => {
                 setIsLoading(true);
@@ -1861,11 +1880,29 @@
                 }
             };
 
-            const crewPersonnelIds = new Set(crewMembers.map(c => c.PersonnelID).filter(Boolean));
             const uniqueDutyTypes = [...new Set(crewMembers.map(m => m.DutyName).filter(Boolean))];
-            const uniqueShowCount = new Set(crewMembers.map(m => m.ShowName).filter(Boolean)).size;
+            const uniqueShows = [...new Set(crewMembers.map(m => m.ShowName).filter(Boolean))];
+            const uniqueShowCount = uniqueShows.length;
             const uniqueCrewCount = new Set(crewMembers.map(m => m.PersonnelID).filter(Boolean)).size;
 
+            // Unique show dates sorted chronologically
+            const getDateKey = (m) => m.ShowDate || m.LastShowDate || '';
+            const uniqueShowDates = [...new Set(crewMembers.map(getDateKey).filter(Boolean))]
+                .sort((a, b) => new Date(a) - new Date(b));
+
+            // Stable date → color index map
+            const showColorMap = useMemo(() => {
+                const map = {};
+                uniqueShowDates.forEach((date, i) => { map[date] = i % SHOW_COLORS.length; });
+                return map;
+            }, [uniqueShowDates.join('|')]);
+
+            const getShowBadge = (dateKey) =>
+                dateKey && showColorMap[dateKey] !== undefined ? SHOW_COLORS[showColorMap[dateKey]] : 'bg-gray-100 text-gray-600 border-gray-200';
+            const getShowHeader = (dateKey) =>
+                dateKey && showColorMap[dateKey] !== undefined ? SHOW_HEADER_COLORS[showColorMap[dateKey]] : 'bg-gray-500 text-white';
+
+            // Group by duty
             const groupedByDuty = uniqueDutyTypes.reduce((acc, duty) => {
                 const members = filteredCrewMembers.filter(m => m.DutyName === duty);
                 if (members.length) acc[duty] = members;
@@ -1874,77 +1911,14 @@
             const unassigned = filteredCrewMembers.filter(m => !m.DutyName);
             if (unassigned.length) groupedByDuty['Unassigned'] = unassigned;
 
-            const availablePersonnel = allPersonnel.filter(p => {
-                const notInCrew = !crewPersonnelIds.has(p.PersonnelID);
-                const matchesSearch = personnelSearch === '' ||
-                    `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
-                    (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
-                return notInCrew && matchesSearch;
-            });
-
-            const togglePersonnelSelect = (id) => {
-                setSelectedPersonnelIds(prev =>
-                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                );
-            };
-            const toggleSelectAll = () => {
-                const allIds = availablePersonnel.map(p => p.PersonnelID);
-                setSelectedPersonnelIds(allIds.every(id => selectedPersonnelIds.includes(id)) ? [] : allIds);
-            };
-
-            const handleOpenAddModal = async () => {
-                setPersonnelSearch('');
-                setSelectedPersonnelIds([]);
-                setIsAddModalOpen(true);
-                if (allPersonnel.length === 0) {
-                    try {
-                        const response = await gasService.getAllPersonnel();
-                        if (response.success && Array.isArray(response.data)) setAllPersonnel(response.data);
-                    } catch (err) {}
-                }
-            };
-
-            const handleAddSelectedCrewMembers = async () => {
-                if (selectedPersonnelIds.length === 0) return;
-                setIsAdding(true);
-                let successCount = 0, failCount = 0;
-                for (const id of selectedPersonnelIds) {
-                    try {
-                        const response = await gasService.addPersonAsCrewMember(id);
-                        if (response.success) successCount++; else failCount++;
-                    } catch (err) { failCount++; }
-                }
-                setIsAdding(false);
-                setIsAddModalOpen(false);
-                setSelectedPersonnelIds([]);
-                await loadCrewMembers();
-                if (successCount > 0) setMessage({ type: 'success', text: `${successCount} crew member${successCount > 1 ? 's' : ''} added successfully.` });
-                if (failCount > 0) setMessage({ type: 'error', text: `${failCount} member${failCount > 1 ? 's' : ''} failed to add.` });
-            };
-
-            const handleRemoveClick = (personnelId) => {
-                const target = crewMembers.find(c => c.PersonnelID === personnelId);
-                if (target) setRemoveTarget(target);
-            };
-
-            const handleConfirmRemove = async () => {
-                if (!removeTarget) return;
-                setIsRemoving(true);
-                try {
-                    const response = await gasService.removeCrewMember(removeTarget.CrewMemberID);
-                    if (response.success) {
-                        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName || removeTarget.Lastname} removed from crew.` });
-                        setRemoveTarget(null);
-                        await loadCrewMembers();
-                    } else {
-                        setMessage({ type: 'error', text: response.error || 'Failed to remove crew member.' });
-                        setRemoveTarget(null);
-                    }
-                } catch (err) {
-                    setMessage({ type: 'error', text: 'Error removing crew member.' });
-                    setRemoveTarget(null);
-                } finally { setIsRemoving(false); }
-            };
+            // Group by show date (sorted chronologically)
+            const groupedByShow = uniqueShowDates.reduce((acc, date) => {
+                const members = filteredCrewMembers.filter(m => getDateKey(m) === date);
+                if (members.length) acc[date] = members;
+                return acc;
+            }, {});
+            const noShow = filteredCrewMembers.filter(m => !getDateKey(m));
+            if (noShow.length) groupedByShow[''] = noShow;
 
             const formatDate = (d) => {
                 if (!d || d === 'N/A') return 'N/A';
@@ -1957,15 +1931,9 @@
                 e('div', { className: 'flex justify-between items-center mb-6' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Crew Directory'),
-                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'Manage crew members and show duty assignments')
+                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'View crew members and show duty assignments')
                     ),
-                    e('div', { className: 'flex items-center gap-3' },
-                        e('p', { className: 'text-sm text-gray-600' }, `${filteredCrewMembers.length} assignment${filteredCrewMembers.length !== 1 ? 's' : ''}`),
-                        e('button', {
-                            onClick: handleOpenAddModal,
-                            className: 'px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors'
-                        }, '+ Add Crew Member')
-                    )
+                    e('p', { className: 'text-sm text-gray-600' }, `${filteredCrewMembers.length} assignment${filteredCrewMembers.length !== 1 ? 's' : ''}`)
                 ),
 
                 // Stats bar
@@ -2008,6 +1976,14 @@
                         e('option', { value: 'all' }, 'All Duties'),
                         ...uniqueDutyTypes.map(duty => e('option', { key: duty, value: duty }, duty))
                     ),
+                    e('select', {
+                        value: showFilter,
+                        onChange: (ev) => setShowFilter(ev.target.value),
+                        className: 'px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm'
+                    },
+                        e('option', { value: 'all' }, 'All Shows'),
+                        ...uniqueShows.map(show => e('option', { key: show, value: show }, show))
+                    ),
                     e('div', { className: 'flex rounded-lg border border-gray-300 overflow-hidden' },
                         e('button', {
                             onClick: () => setViewMode('grid'),
@@ -2015,8 +1991,12 @@
                         }, 'Grid'),
                         e('button', {
                             onClick: () => setViewMode('grouped'),
-                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
-                        }, 'By Duty')
+                            className: `px-3 py-2 text-sm transition-colors border-l ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                        }, 'By Duty'),
+                        e('button', {
+                            onClick: () => setViewMode('byShow'),
+                            className: `px-3 py-2 text-sm transition-colors border-l ${viewMode === 'byShow' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                        }, 'By Show')
                     )
                 ),
 
@@ -2026,7 +2006,7 @@
                     e('div', { className: 'text-center py-12 text-gray-500' },
                         e('p', { className: 'text-4xl mb-3' }, '👷'),
                         e('p', { className: 'text-lg font-medium mb-1' }, 'No crew members found'),
-                        e('p', { className: 'text-sm' }, 'Try adjusting your search or filters, or add a crew member.')
+                        e('p', { className: 'text-sm' }, 'Try adjusting your search or filters.')
                     ) :
                 viewMode === 'grid' ?
                     e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
@@ -2035,10 +2015,11 @@
                                 key: `${member.PersonnelID}-${member.DutyID || idx}`,
                                 crewMember: member,
                                 onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
-                                onRemove: handleRemoveClick
+                                showColorClasses: getShowBadge(getDateKey(member))
                             })
                         )
                     ) :
+                viewMode === 'grouped' ?
                     e('div', { className: 'space-y-6' },
                         Object.entries(groupedByDuty).map(([duty, members]) =>
                             e('div', { key: duty, className: 'bg-white rounded-lg shadow-sm border' },
@@ -2054,100 +2035,46 @@
                                             key: `${member.PersonnelID}-${member.DutyID || idx}`,
                                             crewMember: member,
                                             onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
-                                            onRemove: handleRemoveClick
+                                            showColorClasses: getShowBadge(getDateKey(member))
+                                        })
+                                    )
+                                )
+                            )
+                        )
+                    ) :
+                    // By Show view
+                    e('div', { className: 'space-y-6' },
+                        uniqueShowDates.length > 0 && e('div', { className: 'flex flex-wrap gap-2 mb-2' },
+                            uniqueShowDates.map(date =>
+                                e('span', { key: date, className: `px-3 py-1 text-xs font-medium rounded-full border ${getShowBadge(date)}` },
+                                    formatDate(date)
+                                )
+                            )
+                        ),
+                        Object.entries(groupedByShow).map(([date, members]) =>
+                            e('div', { key: date || 'nodate', className: 'rounded-lg shadow-sm border overflow-hidden' },
+                                e('div', { className: `px-5 py-3 flex justify-between items-center ${getShowHeader(date)}` },
+                                    e('div', null,
+                                        e('h3', { className: 'font-semibold text-lg' }, date ? formatDate(date) : 'No Date'),
+                                        members[0] && members[0].ShowName && e('p', { className: 'text-xs opacity-80 mt-0.5' }, members[0].ShowName)
+                                    ),
+                                    e('span', { className: 'text-sm bg-white bg-opacity-20 border border-white border-opacity-30 px-2 py-0.5 rounded-full' },
+                                        `${members.length} assignment${members.length !== 1 ? 's' : ''}`
+                                    )
+                                ),
+                                e('div', { className: 'p-4 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                                    members.map((member, idx) =>
+                                        e(CrewCard, {
+                                            key: `${member.PersonnelID}-${member.DutyID || idx}`,
+                                            crewMember: member,
+                                            onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                            showColorClasses: getShowBadge(getDateKey(member))
                                         })
                                     )
                                 )
                             )
                         )
                     ),
-
-                // Add Crew Member Modal
-                isAddModalOpen && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
-                    onClick: () => setIsAddModalOpen(false)
-                },
-                    e('div', {
-                        className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 flex flex-col',
-                        style: { maxHeight: '80vh' },
-                        onClick: (ev) => ev.stopPropagation()
-                    },
-                        e('div', { className: 'flex justify-between items-center mb-4' },
-                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Crew Members from Personnel'),
-                            e('button', { onClick: () => setIsAddModalOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
-                        ),
-                        e('input', {
-                            type: 'text', placeholder: 'Search personnel...',
-                            value: personnelSearch, onChange: (ev) => setPersonnelSearch(ev.target.value),
-                            className: 'mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent'
-                        }),
-                        availablePersonnel.length > 0 && e('div', { className: 'flex items-center justify-between mb-2 px-1' },
-                            e('label', { className: 'flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none' },
-                                e('input', {
-                                    type: 'checkbox',
-                                    checked: availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID)),
-                                    onChange: toggleSelectAll,
-                                    className: 'w-4 h-4 accent-teal-600'
-                                }),
-                                'Select all'
-                            ),
-                            selectedPersonnelIds.length > 0 && e('span', { className: 'text-sm text-teal-700 font-medium' }, `${selectedPersonnelIds.length} selected`)
-                        ),
-                        e('div', { className: 'overflow-y-auto flex-1' },
-                            availablePersonnel.length === 0
-                                ? e('p', { className: 'text-center text-gray-500 py-6' }, 'No available personnel found.')
-                                : availablePersonnel.map((person) => {
-                                    const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
-                                    return e('label', {
-                                        key: person.PersonnelID,
-                                        className: `flex items-center gap-3 p-3 mb-1 border rounded-lg cursor-pointer select-none transition-colors ${
-                                            isChecked ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:bg-gray-50'
-                                        }`
-                                    },
-                                        e('input', {
-                                            type: 'checkbox', checked: isChecked,
-                                            onChange: () => togglePersonnelSelect(person.PersonnelID),
-                                            className: 'w-4 h-4 accent-teal-600 flex-shrink-0'
-                                        }),
-                                        e('div', { className: 'flex-1 min-w-0' },
-                                            e('p', { className: 'font-medium text-gray-900' }, `${person.FirstName} ${person.LastName}`.trim()),
-                                            e('p', { className: 'text-sm text-gray-500 truncate' }, person.PrimaryEmail || 'No email')
-                                        )
-                                    );
-                                })
-                        ),
-                        e('div', { className: 'mt-4 flex justify-between items-center' },
-                            e('button', { onClick: () => setIsAddModalOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
-                            e('button', {
-                                onClick: handleAddSelectedCrewMembers,
-                                disabled: isAdding || selectedPersonnelIds.length === 0,
-                                className: 'px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors font-medium'
-                            }, isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`)
-                        )
-                    )
-                ),
-
-                // Remove Confirmation Modal
-                removeTarget && e('div', {
-                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
-                    onClick: () => setRemoveTarget(null)
-                },
-                    e('div', {
-                        className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4',
-                        onClick: (ev) => ev.stopPropagation()
-                    },
-                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Crew Member'),
-                        e('p', { className: 'text-gray-600 mb-6' },
-                            'Are you sure you want to remove ',
-                            e('span', { className: 'font-medium text-gray-900' }, getDisplayName(removeTarget)),
-                            ' from the crew directory?'
-                        ),
-                        e('div', { className: 'flex justify-end gap-3' },
-                            e('button', { onClick: () => setRemoveTarget(null), disabled: isRemoving, className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
-                            e('button', { onClick: handleConfirmRemove, disabled: isRemoving, className: 'px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors' }, isRemoving ? 'Removing...' : 'Remove')
-                        )
-                    )
-                ),
 
                 // Detail Modal
                 isDetailModalOpen && selectedCrewMember && e('div', {
@@ -2201,18 +2128,18 @@
                                 e('div', { className: 'space-y-2' },
                                     allDuties.map((duty, idx) =>
                                         e('div', { key: idx, className: 'flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50' },
-                                            e('div', null,
+                                            e('div', { className: 'flex items-center gap-2 min-w-0' },
                                                 e('span', { className: 'font-medium text-gray-900' }, duty.DutyName || 'Unassigned'),
-                                                e('span', { className: 'text-gray-400 mx-2' }, '·'),
-                                                e('span', { className: 'text-gray-600 text-sm' }, duty.ShowName || 'Unknown Show')
+                                                duty.ShowName && e('span', {
+                                                    className: `px-2 py-0.5 text-xs rounded-full border ${getShowBadge(duty.ShowName)}`
+                                                }, duty.ShowName)
                                             ),
-                                            e('span', { className: 'text-sm text-gray-500' }, formatDate(duty.ShowDate || duty.LastShowDate))
+                                            e('span', { className: 'text-sm text-gray-500 flex-shrink-0 ml-2' }, formatDate(duty.ShowDate || duty.LastShowDate))
                                         )
                                     )
                                 )
                             );
-                        })()
-                        ,
+                        })(),
                         e('div', { className: 'mt-6 flex justify-end' },
                             e('button', { onClick: () => setIsDetailModalOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
                         )

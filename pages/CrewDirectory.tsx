@@ -1,9 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CrewCard } from '../components/crew/CrewCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { CrewMemberWithDetails } from '../types';
 import { gasService } from '../services/googleAppsScript';
+
+// Palette of Tailwind badge class sets — one per show (cycles if > 8 shows)
+const SHOW_COLORS = [
+  'bg-violet-100 text-violet-700 border-violet-200',
+  'bg-sky-100 text-sky-700 border-sky-200',
+  'bg-amber-100 text-amber-700 border-amber-200',
+  'bg-rose-100 text-rose-700 border-rose-200',
+  'bg-emerald-100 text-emerald-700 border-emerald-200',
+  'bg-orange-100 text-orange-700 border-orange-200',
+  'bg-pink-100 text-pink-700 border-pink-200',
+  'bg-cyan-100 text-cyan-700 border-cyan-200',
+];
+
+// Heavier header versions that match each badge
+const SHOW_HEADER_COLORS = [
+  'bg-violet-600 text-white',
+  'bg-sky-600 text-white',
+  'bg-amber-500 text-white',
+  'bg-rose-600 text-white',
+  'bg-emerald-600 text-white',
+  'bg-orange-500 text-white',
+  'bg-pink-600 text-white',
+  'bg-cyan-600 text-white',
+];
 
 export const CrewDirectory: React.FC = () => {
   const [crewMembers, setCrewMembers] = useState<CrewMemberWithDetails[]>([]);
@@ -11,7 +35,8 @@ export const CrewDirectory: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dutyFilter, setDutyFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'grouped'>('grid');
+  const [showFilter, setShowFilter] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'grouped' | 'byShow'>('grid');
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -34,8 +59,11 @@ export const CrewDirectory: React.FC = () => {
     if (dutyFilter !== 'all') {
       filtered = filtered.filter(m => (m.DutyName || '') === dutyFilter);
     }
+    if (showFilter !== 'all') {
+      filtered = filtered.filter(m => (m.ShowName || '') === showFilter);
+    }
     setFilteredCrewMembers(filtered);
-  }, [crewMembers, searchTerm, dutyFilter]);
+  }, [crewMembers, searchTerm, dutyFilter, showFilter]);
 
   const loadCrewMembers = async () => {
     setIsLoading(true);
@@ -56,8 +84,27 @@ export const CrewDirectory: React.FC = () => {
 
   // Derived data
   const uniqueDutyTypes = Array.from(new Set(crewMembers.map(m => m.DutyName).filter(Boolean))) as string[];
-  const uniqueShowCount = new Set(crewMembers.map(m => m.ShowName).filter(Boolean)).size;
+  const uniqueShows = Array.from(new Set(crewMembers.map(m => m.ShowName).filter(Boolean))) as string[];
+  const uniqueShowCount = uniqueShows.length;
   const uniqueCrewCount = new Set(crewMembers.map(m => m.PersonnelID).filter(Boolean)).size;
+
+  // Unique show dates sorted chronologically
+  const getDateKey = (m: CrewMemberWithDetails) => m.ShowDate || m.LastShowDate || '';
+  const uniqueShowDates = Array.from(new Set(crewMembers.map(getDateKey).filter(Boolean)))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  // Map each show date to a stable color index
+  const showColorMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    uniqueShowDates.forEach((date, i) => { map[date] = i % SHOW_COLORS.length; });
+    return map;
+  }, [uniqueShowDates.join('|')]);
+
+  const getShowBadgeClasses = (dateKey?: string) =>
+    dateKey && showColorMap[dateKey] !== undefined ? SHOW_COLORS[showColorMap[dateKey]] : 'bg-gray-100 text-gray-600 border-gray-200';
+
+  const getShowHeaderClasses = (dateKey?: string) =>
+    dateKey && showColorMap[dateKey] !== undefined ? SHOW_HEADER_COLORS[showColorMap[dateKey]] : 'bg-gray-500 text-white';
 
   // Group filtered members by duty type
   const groupedByDuty = uniqueDutyTypes.reduce<Record<string, CrewMemberWithDetails[]>>((acc, duty) => {
@@ -67,6 +114,15 @@ export const CrewDirectory: React.FC = () => {
   }, {});
   const unassigned = filteredCrewMembers.filter(m => !m.DutyName);
   if (unassigned.length) groupedByDuty['Unassigned'] = unassigned;
+
+  // Group filtered members by show date (sorted chronologically)
+  const groupedByShow = uniqueShowDates.reduce<Record<string, CrewMemberWithDetails[]>>((acc, date) => {
+    const members = filteredCrewMembers.filter(m => getDateKey(m) === date);
+    if (members.length) acc[date] = members;
+    return acc;
+  }, {});
+  const noShow = filteredCrewMembers.filter(m => !getDateKey(m));
+  if (noShow.length) groupedByShow[''] = noShow;
 
   const handleCardClick = (m: CrewMemberWithDetails) => {
     setSelectedCrewMember(m);
@@ -141,6 +197,16 @@ export const CrewDirectory: React.FC = () => {
             <option key={duty} value={duty}>{duty}</option>
           ))}
         </select>
+        <select
+          value={showFilter}
+          onChange={(e) => setShowFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm"
+        >
+          <option value="all">All Shows</option>
+          {uniqueShows.map(show => (
+            <option key={show} value={show}>{show}</option>
+          ))}
+        </select>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden">
           <button
             onClick={() => setViewMode('grid')}
@@ -150,9 +216,15 @@ export const CrewDirectory: React.FC = () => {
           </button>
           <button
             onClick={() => setViewMode('grouped')}
-            className={`px-3 py-2 text-sm transition-colors ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`px-3 py-2 text-sm transition-colors border-l ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
           >
             By Duty
+          </button>
+          <button
+            onClick={() => setViewMode('byShow')}
+            className={`px-3 py-2 text-sm transition-colors border-l ${viewMode === 'byShow' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+          >
+            By Show
           </button>
         </div>
       </div>
@@ -175,10 +247,11 @@ export const CrewDirectory: React.FC = () => {
               key={`${member.PersonnelID}-${member.DutyID}-${idx}`}
               crewMember={member}
               onClick={() => handleCardClick(member)}
+              showColorClasses={getShowBadgeClasses(getDateKey(member))}
             />
           ))}
         </div>
-      ) : (
+      ) : viewMode === 'grouped' ? (
         <div className="space-y-6">
           {Object.entries(groupedByDuty).map(([duty, members]) => (
             <div key={duty} className="bg-white rounded-lg shadow-sm border">
@@ -194,6 +267,49 @@ export const CrewDirectory: React.FC = () => {
                     key={`${member.PersonnelID}-${member.DutyID}-${idx}`}
                     crewMember={member}
                     onClick={() => handleCardClick(member)}
+                    showColorClasses={getShowBadgeClasses(getDateKey(member))}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* ── By Show view ─────────────────────────────────────────── */
+        <div className="space-y-6">
+          {/* Legend */}
+          {uniqueShowDates.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {uniqueShowDates.map(date => (
+                <span
+                  key={date}
+                  className={`px-3 py-1 text-xs font-medium rounded-full border ${getShowBadgeClasses(date)}`}
+                >
+                  {formatDate(date)}
+                </span>
+              ))}
+            </div>
+          )}
+          {Object.entries(groupedByShow).map(([date, members]) => (
+            <div key={date || 'nodate'} className="rounded-lg shadow-sm border overflow-hidden">
+              <div className={`px-5 py-3 flex justify-between items-center ${getShowHeaderClasses(date)}`}>
+                <div>
+                  <h3 className="font-semibold text-lg">{date ? formatDate(date) : 'No Date'}</h3>
+                  {members[0]?.ShowName && (
+                    <p className="text-xs opacity-80 mt-0.5">{members[0].ShowName}</p>
+                  )}
+                </div>
+                <span className="text-sm bg-white bg-opacity-20 border border-white border-opacity-30 px-2 py-0.5 rounded-full">
+                  {members.length} assignment{members.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="p-4 bg-white grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {members.map((member, idx) => (
+                  <CrewCard
+                    key={`${member.PersonnelID}-${member.DutyID}-${idx}`}
+                    crewMember={member}
+                    onClick={() => handleCardClick(member)}
+                    showColorClasses={getShowBadgeClasses(getDateKey(member))}
                   />
                 ))}
               </div>
@@ -282,12 +398,15 @@ export const CrewDirectory: React.FC = () => {
                   <div className="space-y-2">
                     {allDuties.map((duty, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                        <div>
+                        <div className="flex items-center gap-2 min-w-0">
                           <span className="font-medium text-gray-900">{duty.DutyName || 'Unassigned'}</span>
-                          <span className="text-gray-400 mx-2">·</span>
-                          <span className="text-gray-600 text-sm">{duty.ShowName || 'Unknown Show'}</span>
+                          {duty.ShowName && (
+                            <span className={`px-2 py-0.5 text-xs rounded-full border ${getShowBadgeClasses(duty.ShowName)}`}>
+                              {duty.ShowName}
+                            </span>
+                          )}
                         </div>
-                        <span className="text-sm text-gray-500">{formatDate(duty.ShowDate || duty.LastShowDate)}</span>
+                        <span className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatDate(duty.ShowDate || duty.LastShowDate)}</span>
                       </div>
                     ))}
                   </div>
