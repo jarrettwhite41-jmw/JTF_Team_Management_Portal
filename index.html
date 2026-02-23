@@ -1903,126 +1903,138 @@
                                     )
                                 )
                             )
-                        ) : profileLoading ? (
-                            e('div', { className: 'flex items-center justify-center py-12' },
-                                e('div', { className: 'text-center' },
-                                    e('div', { className: 'w-7 h-7 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-2' }),
-                                    e('p', { className: 'text-xs text-slate-400' }, 'Loading profile...')
-                                )
-                            )
-                        ) : (() => {
-                            const p = profileData;
-                            const fmt = (iso) => { try { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null; } catch { return null; } };
-                            const truthy = (v) => v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1' || v === 'Yes';
-                            const FL = ({ label, value }) => value != null && value !== '' ? e('div', null,
-                                e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, label),
-                                e('p', { className: 'text-sm text-slate-800 font-medium' }, String(value))
-                            ) : null;
-                            const Sec = ({ icon, title, children }) => e('div', { className: 'border border-slate-100 rounded-xl overflow-hidden' },
-                                e('div', { className: 'flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-100' },
-                                    e('span', { className: 'text-sm' }, icon),
-                                    e('span', { className: 'text-xs font-bold text-slate-500 uppercase tracking-wider' }, title)
+                        ) : e('div', { className: 'space-y-4' },
+                            // ── Contact fields — always visible immediately ──
+                            e('div', { className: 'grid grid-cols-2 gap-x-4 gap-y-3' },
+                                e('div', null,
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'First Name'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.FirstName || '—')
                                 ),
-                                e('div', { className: 'p-3 space-y-2' }, children)
-                            );
-
-                            if (!p) return e('div', { className: 'grid grid-cols-2 gap-x-4 gap-y-3' },
-                                e(FL, { label: 'First Name', value: selectedPerson.FirstName }),
-                                e(FL, { label: 'Last Name',  value: selectedPerson.LastName || selectedPerson.Lastname }),
-                                e('div', { className: 'col-span-2' }, e(FL, { label: 'Email', value: selectedPerson.PrimaryEmail })),
-                                e(FL, { label: 'Phone',     value: selectedPerson.PrimaryPhone }),
-                                e(FL, { label: 'Instagram', value: selectedPerson.Instagram }),
-                                e(FL, { label: 'Birthday',  value: selectedPerson.Birthday })
-                            );
-
-                            const roles = [
-                                p.isCast      && { label: '🎭 Cast',      cls: 'bg-purple-100 text-purple-700' },
-                                p.isDirector  && { label: '🎬 Director',  cls: 'bg-indigo-100 text-indigo-700' },
-                                p.isStudent   && { label: '🎒 Student',   cls: 'bg-sky-100 text-sky-700' },
-                                p.isBartender && { label: '🍸 Bartender', cls: 'bg-amber-100 text-amber-700' },
-                                p.isTeacher   && { label: '🎓 Teacher',   cls: 'bg-emerald-100 text-emerald-700' },
-                            ].filter(Boolean);
-
-                            const days = p.daysSinceLastCrew;
-                            const crewBanner = (() => {
-                                if (!p.isCast && !p.isDirector) return null;
-                                if (p.crewNever)
-                                    return e('div', { className: 'flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700' },
-                                        e('span', null, '⚠️'), e('span', null, 'No crew or directing activity on record'));
-                                if (p.crewOverdue)
-                                    return e('div', { className: 'flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700' },
-                                        e('span', null, '⚠️'), e('span', null, `${days}d since last crew/directing (${fmt(p.lastCrewEquivDate)})`));
-                                return e('div', { className: 'flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700' },
-                                    e('span', null, '✓'), e('span', null, `Crew/directing: ${fmt(p.lastCrewEquivDate)} (${days}d ago)`));
-                            })();
-
-                            return e('div', { className: 'space-y-3' },
-                                // Contact quick-view
-                                e('div', { className: 'grid grid-cols-2 gap-x-4 gap-y-2' },
-                                    e(FL, { label: 'Email',     value: p.PrimaryEmail }),
-                                    e(FL, { label: 'Phone',     value: p.PrimaryPhone }),
-                                    p.Instagram && e(FL, { label: 'Instagram', value: p.Instagram }),
-                                    p.Birthday  && e(FL, { label: 'Birthday',  value: fmt(p.Birthday) })
+                                e('div', null,
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Last Name'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.LastName || selectedPerson.Lastname || '—')
                                 ),
-                                // Role badges
-                                roles.length > 0 && e('div', { className: 'flex flex-wrap gap-1' },
-                                    roles.map(r => e('span', { key: r.label, className: `inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${r.cls}` }, r.label))
+                                e('div', { className: 'col-span-2' },
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Email'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.PrimaryEmail || '—')
                                 ),
-                                // Crew recency banner
-                                crewBanner,
-                                // Cast
-                                p.isCast && e(Sec, { icon: '🎭', title: 'Cast' },
-                                    e('div', { className: 'grid grid-cols-2 gap-2' },
-                                        e(FL, { label: 'Status',    value: p.castDetails?.Status }),
-                                        e(FL, { label: 'Shows',     value: p.castDetails?.showCount }),
-                                        e(FL, { label: 'Last Show', value: fmt(p.castDetails?.lastShowDate) })
-                                    )
+                                e('div', null,
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Phone'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.PrimaryPhone || '—')
                                 ),
-                                // Crew
-                                p.isCrew && e(Sec, { icon: '⚙️', title: 'Crew' },
-                                    e('div', { className: 'grid grid-cols-2 gap-2 mb-2' },
-                                        e(FL, { label: 'Total',     value: p.crewDetails?.totalCrewDuties }),
-                                        e(FL, { label: 'Last Date', value: fmt(p.crewDetails?.lastCrewDate) })
-                                    ),
-                                    p.crewDetails?.recentDuties?.length > 0 && e('div', null,
-                                        e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1' }, 'Recent'),
-                                        p.crewDetails.recentDuties.slice(0,3).map((d, i) =>
-                                            e('div', { key: i, className: 'flex justify-between text-xs text-slate-600' },
-                                                e('span', null, d.DutyName),
-                                                e('span', { className: 'text-slate-400' }, fmt(d.ShowDate))
-                                            )
+                                selectedPerson.Instagram ? e('div', null,
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Instagram'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.Instagram)
+                                ) : null,
+                                selectedPerson.Birthday ? e('div', null,
+                                    e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Birthday'),
+                                    e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedPerson.Birthday)
+                                ) : null
+                            ),
+                            // ── Role sections — load async below contact ──
+                            profileLoading ? e('div', { className: 'flex items-center gap-2 py-2 text-xs text-slate-400' },
+                                e('div', { className: 'w-4 h-4 border-2 border-sky-400 border-t-transparent rounded-full animate-spin' }),
+                                'Loading roles...'
+                            ) : profileData ? e('div', { className: 'space-y-3' },
+                                // helpers defined once, used below
+                                ...(() => {
+                                    const p = profileData;
+                                    const fmt = (iso) => { try { return iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null; } catch(err) { return null; } };
+                                    const truthy = (v) => v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1' || v === 'Yes';
+                                    const fld = (label, value) => value != null && value !== '' ? e('div', null,
+                                        e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, label),
+                                        e('p', { className: 'text-sm text-slate-800 font-medium' }, String(value))
+                                    ) : null;
+                                    const sec = (icon, title, ...children) => e('div', { className: 'border border-slate-100 rounded-xl overflow-hidden' },
+                                        e('div', { className: 'flex items-center gap-1.5 px-3 py-2 bg-slate-50 border-b border-slate-100' },
+                                            e('span', null, icon),
+                                            e('span', { className: 'text-xs font-bold text-slate-500 uppercase tracking-wider' }, title)
+                                        ),
+                                        e('div', { className: 'p-3' }, ...children)
+                                    );
+
+                                    const days = p.daysSinceLastCrew;
+                                    const items = [];
+
+                                    // Role badges
+                                    const roles = [
+                                        p.isCast      && { label: '🎭 Cast',      cls: 'bg-purple-100 text-purple-700' },
+                                        p.isDirector  && { label: '🎬 Director',  cls: 'bg-indigo-100 text-indigo-700' },
+                                        p.isStudent   && { label: '🎒 Student',   cls: 'bg-sky-100 text-sky-700' },
+                                        p.isBartender && { label: '🍸 Bartender', cls: 'bg-amber-100 text-amber-700' },
+                                        p.isTeacher   && { label: '🎓 Teacher',   cls: 'bg-emerald-100 text-emerald-700' },
+                                    ].filter(Boolean);
+                                    if (roles.length > 0) items.push(
+                                        e('div', { key: 'badges', className: 'flex flex-wrap gap-1' },
+                                            roles.map(r => e('span', { key: r.label, className: 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ' + r.cls }, r.label))
                                         )
-                                    )
-                                ),
-                                // Director
-                                p.isDirector && e(Sec, { icon: '🎬', title: 'Directing' },
-                                    e('div', { className: 'grid grid-cols-2 gap-2' },
-                                        e(FL, { label: 'Shows', value: p.directorDetails?.showCount }),
-                                        e(FL, { label: 'Last',  value: fmt(p.directorDetails?.lastDirectedDate) })
-                                    )
-                                ),
-                                // Student
-                                p.isStudent && e(Sec, { icon: '🎒', title: 'Student' },
-                                    e('div', { className: 'grid grid-cols-2 gap-2' },
-                                        e(FL, { label: 'Status', value: p.studentDetails?.StudentStatus }),
-                                        e(FL, { label: 'Level',  value: p.studentDetails?.CurrentLevelName || p.studentDetails?.CurrentLevel }),
-                                        e(FL, { label: 'Enrolled', value: fmt(p.studentDetails?.EnrollmentDate) })
-                                    )
-                                ),
-                                // Bartender
-                                p.isBartender && e(Sec, { icon: '🍸', title: 'Bartender' },
-                                    e('div', { className: 'grid grid-cols-2 gap-2' },
-                                        e(FL, { label: 'Trained', value: truthy(p.bartenderDetails?.Trained) ? 'Yes' : 'No' }),
-                                        e(FL, { label: 'Active',  value: truthy(p.bartenderDetails?.Active)  ? 'Yes' : 'No' }),
-                                        e(FL, { label: 'Status',  value: p.bartenderDetails?.Status })
-                                    )
-                                ),
-                                // Teacher
-                                p.isTeacher && e(Sec, { icon: '🎓', title: 'Teacher' },
-                                    e(FL, { label: 'Active', value: truthy(p.teacherDetails?.Active) ? 'Yes' : 'No' })
-                                )
-                            );
-                        })()
+                                    );
+
+                                    // Crew recency banner
+                                    if (p.isCast || p.isDirector) {
+                                        if (p.crewNever)
+                                            items.push(e('div', { key: 'crew-banner', className: 'flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700' },
+                                                e('span', null, '⚠️'), e('span', null, 'No crew or directing activity on record')));
+                                        else if (p.crewOverdue)
+                                            items.push(e('div', { key: 'crew-banner', className: 'flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700' },
+                                                e('span', null, '⚠️'), e('span', null, days + 'd since last crew/directing (' + fmt(p.lastCrewEquivDate) + ')')));
+                                        else
+                                            items.push(e('div', { key: 'crew-banner', className: 'flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700' },
+                                                e('span', null, '✓'), e('span', null, 'Crew/directing: ' + fmt(p.lastCrewEquivDate) + ' (' + days + 'd ago)')));
+                                    }
+
+                                    if (p.isCast) items.push(sec('🎭', 'Cast',
+                                        e('div', { className: 'grid grid-cols-2 gap-2' },
+                                            fld('Status', p.castDetails && p.castDetails.Status),
+                                            fld('Shows',  p.castDetails && p.castDetails.showCount),
+                                            fld('Last Show', fmt(p.castDetails && p.castDetails.lastShowDate))
+                                        )
+                                    ));
+                                    if (p.isCrew) items.push(sec('⚙️', 'Crew',
+                                        e('div', { className: 'grid grid-cols-2 gap-2 mb-2' },
+                                            fld('Total', p.crewDetails && p.crewDetails.totalCrewDuties),
+                                            fld('Last Date', fmt(p.crewDetails && p.crewDetails.lastCrewDate))
+                                        ),
+                                        p.crewDetails && p.crewDetails.recentDuties && p.crewDetails.recentDuties.length > 0 ? e('div', null,
+                                            e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1' }, 'Recent'),
+                                            e('div', { className: 'space-y-0.5' },
+                                                p.crewDetails.recentDuties.slice(0,3).map((d, i) =>
+                                                    e('div', { key: i, className: 'flex justify-between text-xs text-slate-600' },
+                                                        e('span', null, d.DutyName),
+                                                        e('span', { className: 'text-slate-400' }, fmt(d.ShowDate))
+                                                    )
+                                                )
+                                            )
+                                        ) : null
+                                    ));
+                                    if (p.isDirector) items.push(sec('🎬', 'Directing',
+                                        e('div', { className: 'grid grid-cols-2 gap-2' },
+                                            fld('Shows Directed', p.directorDetails && p.directorDetails.showCount),
+                                            fld('Last Directed', fmt(p.directorDetails && p.directorDetails.lastDirectedDate))
+                                        )
+                                    ));
+                                    if (p.isStudent) items.push(sec('🎒', 'Student',
+                                        e('div', { className: 'grid grid-cols-2 gap-2' },
+                                            fld('Status',   p.studentDetails && p.studentDetails.StudentStatus),
+                                            fld('Level',    p.studentDetails && (p.studentDetails.CurrentLevelName || p.studentDetails.CurrentLevel)),
+                                            fld('Enrolled', fmt(p.studentDetails && p.studentDetails.EnrollmentDate))
+                                        )
+                                    ));
+                                    if (p.isBartender) items.push(sec('🍸', 'Bartender',
+                                        e('div', { className: 'grid grid-cols-2 gap-2' },
+                                            fld('Trained', truthy(p.bartenderDetails && p.bartenderDetails.Trained) ? 'Yes' : 'No'),
+                                            fld('Active',  truthy(p.bartenderDetails && p.bartenderDetails.Active)  ? 'Yes' : 'No'),
+                                            fld('Status',  p.bartenderDetails && p.bartenderDetails.Status)
+                                        )
+                                    ));
+                                    if (p.isTeacher) items.push(sec('🎓', 'Teacher',
+                                        fld('Active', truthy(p.teacherDetails && p.teacherDetails.Active) ? 'Yes' : 'No')
+                                    ));
+
+                                    return items;
+                                })()
+                            ) : null
+                        )
                     ),
                     // Panel footer actions
                     e('div', { className: 'flex items-center gap-2 px-5 py-4 border-t border-slate-100 flex-shrink-0' },
