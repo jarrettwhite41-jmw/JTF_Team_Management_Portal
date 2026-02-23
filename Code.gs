@@ -1,5 +1,5 @@
 /**
- * 27JTF Team Management Portal - Google Apps Script Backend
+ * 38JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1467,6 +1467,94 @@ function removeCastMember(castMemberId) {
   } catch (error) {
     Logger.log(`ERROR in removeCastMember(): ${error.toString()}`);
     return { success: false, error: error.toString() };
+  }
+}
+
+// =============================================================================
+// CREW FUNCTIONS
+// =============================================================================
+
+/**
+ * READ OPERATION: Gets all personnel who have crew duties
+ * DATA SOURCE: Personnel + CrewDuties + ShowInformation + CrewDutyTypes
+ * RETURNS: Array of CrewMemberWithDetails objects
+ */
+function getAllCrewMembers() {
+  try {
+    Logger.log('=== getAllCrewMembers() called ===');
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+    const allCrewDuties = sheetToObjects(crewDutiesSheet);
+    
+    const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+    const allShows = sheetToObjects(showsSheet);
+    
+    const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+    const allCrewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+    
+    // Find unique personnel IDs who have crew duties
+    // Note: CrewDuties might use PersonnelID, CrewMemberID, or CastMemberID depending on the sheet column
+    const crewPersonnelIds = [...new Set(allCrewDuties.map(cd => cd.PersonnelID || cd.CrewMemberID || cd.CastMemberID).filter(Boolean))];
+    
+    const crewMembers = crewPersonnelIds.map(personnelId => {
+      const person = allPersonnel.find(p => p.PersonnelID == personnelId);
+      
+      // Get all duties for this person
+      const personDuties = allCrewDuties.filter(cd => (cd.PersonnelID || cd.CrewMemberID || cd.CastMemberID) == personnelId);
+      
+      // Find the most recent show date
+      let lastShowDate = 'N/A';
+      let latestShow = null;
+      let latestDuty = null;
+      
+      if (personDuties.length > 0) {
+        // Sort duties by show date descending
+        const dutiesWithShows = personDuties.map(duty => {
+          const show = allShows.find(s => s.ShowID == duty.ShowID);
+          return { duty, show };
+        }).filter(ds => ds && ds.show && ds.show.ShowDate);
+        
+        dutiesWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+        
+        if (dutiesWithShows.length > 0) {
+          latestShow = dutiesWithShows[0].show;
+          latestDuty = dutiesWithShows[0].duty;
+          lastShowDate = latestShow.ShowDate;
+        }
+      }
+      
+      const dutyType = latestDuty ? allCrewDutyTypes.find(t => t.CrewDutyTypeID == latestDuty.CrewDutyTypeID) : null;
+      
+      const firstName = person ? person.FirstName : 'Unknown';
+      const lastName = person ? person.LastName : 'Person';
+      const fullName = person ? `${firstName} ${lastName}`.trim() : 'Unknown Person';
+      
+      return {
+        PersonnelID: personnelId,
+        FullName: fullName,
+        FirstName: firstName,
+        LastName: lastName,
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
+        
+        // Last show information
+        LastShowDate: lastShowDate,
+        ShowName: latestShow ? latestShow.ShowName : 'N/A',
+        DutyName: dutyType ? dutyType.DutyName : 'N/A',
+        Status: person ? (person.Status || 'Active') : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Found ${crewMembers.length} crew members`);
+    return { success: true, data: crewMembers };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllCrewMembers(): ${error.toString()}`);
+    return { success: false, data: null, error: error.toString() };
   }
 }
 

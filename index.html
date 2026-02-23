@@ -199,6 +199,26 @@
             }
 
             // ===================================================================
+            // CREW CRUD API METHODS
+            // These methods interact with crew duty data from CrewDuties sheet
+            // ===================================================================
+
+            // READ: Get all crew members with duty and show details
+            async getAllCrewMembers() {
+                return this.callServerFunction('getAllCrewMembers');
+            }
+
+            // CREATE: Add a person from Personnel to CrewMemberInfo
+            async addPersonAsCrewMember(personnelId) {
+                return this.callServerFunction('addPersonAsCrewMember', personnelId);
+            }
+
+            // DELETE: Remove a crew member from CrewMemberInfo by CrewMemberID
+            async removeCrewMember(crewMemberId) {
+                return this.callServerFunction('removeCrewMember', crewMemberId);
+            }
+
+            // ===================================================================
             // SHOW CRUD API METHODS  
             // These methods interact with the ShowInformation sheet in Google Sheets
             // ===================================================================
@@ -862,6 +882,53 @@
                         onClick: (ev) => { ev.stopPropagation(); onRemove(castMember.CastMemberID); },
                         className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
                     }, 'Remove from Cast')
+                )
+            );
+        }
+
+        // CrewCard Component
+        function CrewCard({ crewMember, onClick, onRemove }) {
+            const displayLastName = crewMember.LastName || crewMember.Lastname || '';
+            const getInitials = (firstName, lastName) => {
+                const first = (firstName || '').trim();
+                const last = (lastName || '').trim();
+                return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase() || '??';
+            };
+            const formatDate = (dateString) => {
+                if (!dateString || dateString === 'N/A') return 'N/A';
+                try { return new Date(dateString).toLocaleDateString(); } catch { return dateString; }
+            };
+            return e('div', {
+                onClick: onClick,
+                className: 'bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow cursor-pointer'
+            },
+                e('div', { className: 'flex items-center space-x-3 mb-3' },
+                    e('div', { className: 'w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-semibold' },
+                        getInitials(crewMember.FirstName, displayLastName)
+                    ),
+                    e('div', { className: 'flex-1' },
+                        e('h3', { className: 'font-semibold text-gray-900' },
+                            `${crewMember.FirstName || ''} ${displayLastName}`.trim() || 'Unknown Name'
+                        ),
+                        e('p', { className: 'text-sm text-gray-600' }, crewMember.PrimaryEmail || 'No email')
+                    )
+                ),
+                e('div', { className: 'space-y-1 text-sm text-gray-600' },
+                    e('p', null, e('strong', null, 'Show: '), crewMember.ShowName || 'N/A'),
+                    e('p', null, e('strong', null, 'Duty: '), crewMember.DutyName || 'N/A'),
+                    e('p', null, e('strong', null, 'Date: '), formatDate(crewMember.ShowDate || crewMember.LastShowDate)),
+                    e('p', null, e('strong', null, 'Phone: '), crewMember.PrimaryPhone || 'No phone'),
+                    crewMember.Status && e('span', {
+                        className: `inline-block px-2 py-1 text-xs rounded-full mt-2 ${
+                            crewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`
+                    }, crewMember.Status)
+                ),
+                onRemove && e('div', { className: 'mt-3 pt-3 border-t border-gray-100' },
+                    e('button', {
+                        onClick: (ev) => { ev.stopPropagation(); onRemove(crewMember.PersonnelID); },
+                        className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
+                    }, 'Remove from Crew')
                 )
             );
         }
@@ -1719,6 +1786,421 @@
             );
         }
 
+        // CrewDirectory Component
+        function CrewDirectory() {
+            const [crewMembers, setCrewMembers] = useState([]);
+            const [filteredCrewMembers, setFilteredCrewMembers] = useState([]);
+            const [isLoading, setIsLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [dutyFilter, setDutyFilter] = useState('all');
+            const [viewMode, setViewMode] = useState('grid');
+            const [selectedCrewMember, setSelectedCrewMember] = useState(null);
+            const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+            const [message, setMessage] = useState(null);
+            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+            const [allPersonnel, setAllPersonnel] = useState([]);
+            const [personnelSearch, setPersonnelSearch] = useState('');
+            const [selectedPersonnelIds, setSelectedPersonnelIds] = useState([]);
+            const [isAdding, setIsAdding] = useState(false);
+            const [removeTarget, setRemoveTarget] = useState(null);
+            const [isRemoving, setIsRemoving] = useState(false);
+
+            useEffect(() => { loadCrewMembers(); }, []);
+
+            useEffect(() => {
+                let filtered = crewMembers;
+                if (searchTerm) {
+                    const term = searchTerm.toLowerCase();
+                    filtered = filtered.filter(m =>
+                        `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.toLowerCase().includes(term) ||
+                        (m.PrimaryEmail || '').toLowerCase().includes(term) ||
+                        (m.DutyName || '').toLowerCase().includes(term) ||
+                        (m.ShowName || '').toLowerCase().includes(term)
+                    );
+                }
+                if (dutyFilter !== 'all') {
+                    filtered = filtered.filter(m => (m.DutyName || '') === dutyFilter);
+                }
+                setFilteredCrewMembers(filtered);
+            }, [crewMembers, searchTerm, dutyFilter]);
+
+            const loadCrewMembers = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getAllCrewMembers();
+                    if (response.success && response.data && response.data.data) {
+                        setCrewMembers(response.data.data);
+                        setMessage(null);
+                    } else {
+                        setMessage({ type: 'error', text: (response.data && response.data.error) || response.error || 'Failed to load crew members' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error loading crew member data' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const crewPersonnelIds = new Set(crewMembers.map(c => c.PersonnelID).filter(Boolean));
+            const uniqueDutyTypes = [...new Set(crewMembers.map(m => m.DutyName).filter(Boolean))];
+            const uniqueShowCount = new Set(crewMembers.map(m => m.ShowName).filter(Boolean)).size;
+            const uniqueCrewCount = new Set(crewMembers.map(m => m.PersonnelID).filter(Boolean)).size;
+
+            const groupedByDuty = uniqueDutyTypes.reduce((acc, duty) => {
+                const members = filteredCrewMembers.filter(m => m.DutyName === duty);
+                if (members.length) acc[duty] = members;
+                return acc;
+            }, {});
+            const unassigned = filteredCrewMembers.filter(m => !m.DutyName);
+            if (unassigned.length) groupedByDuty['Unassigned'] = unassigned;
+
+            const availablePersonnel = allPersonnel.filter(p => {
+                const notInCrew = !crewPersonnelIds.has(p.PersonnelID);
+                const matchesSearch = personnelSearch === '' ||
+                    `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                    (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
+                return notInCrew && matchesSearch;
+            });
+
+            const togglePersonnelSelect = (id) => {
+                setSelectedPersonnelIds(prev =>
+                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                );
+            };
+            const toggleSelectAll = () => {
+                const allIds = availablePersonnel.map(p => p.PersonnelID);
+                setSelectedPersonnelIds(allIds.every(id => selectedPersonnelIds.includes(id)) ? [] : allIds);
+            };
+
+            const handleOpenAddModal = async () => {
+                setPersonnelSearch('');
+                setSelectedPersonnelIds([]);
+                setIsAddModalOpen(true);
+                if (allPersonnel.length === 0) {
+                    try {
+                        const response = await gasService.getAllPersonnel();
+                        if (response.success && Array.isArray(response.data)) setAllPersonnel(response.data);
+                    } catch (err) {}
+                }
+            };
+
+            const handleAddSelectedCrewMembers = async () => {
+                if (selectedPersonnelIds.length === 0) return;
+                setIsAdding(true);
+                let successCount = 0, failCount = 0;
+                for (const id of selectedPersonnelIds) {
+                    try {
+                        const response = await gasService.addPersonAsCrewMember(id);
+                        if (response.success) successCount++; else failCount++;
+                    } catch (err) { failCount++; }
+                }
+                setIsAdding(false);
+                setIsAddModalOpen(false);
+                setSelectedPersonnelIds([]);
+                await loadCrewMembers();
+                if (successCount > 0) setMessage({ type: 'success', text: `${successCount} crew member${successCount > 1 ? 's' : ''} added successfully.` });
+                if (failCount > 0) setMessage({ type: 'error', text: `${failCount} member${failCount > 1 ? 's' : ''} failed to add.` });
+            };
+
+            const handleRemoveClick = (personnelId) => {
+                const target = crewMembers.find(c => c.PersonnelID === personnelId);
+                if (target) setRemoveTarget(target);
+            };
+
+            const handleConfirmRemove = async () => {
+                if (!removeTarget) return;
+                setIsRemoving(true);
+                try {
+                    const response = await gasService.removeCrewMember(removeTarget.CrewMemberID);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName || removeTarget.Lastname} removed from crew.` });
+                        setRemoveTarget(null);
+                        await loadCrewMembers();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to remove crew member.' });
+                        setRemoveTarget(null);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error removing crew member.' });
+                    setRemoveTarget(null);
+                } finally { setIsRemoving(false); }
+            };
+
+            const formatDate = (d) => {
+                if (!d || d === 'N/A') return 'N/A';
+                try { return new Date(d).toLocaleDateString(); } catch { return d; }
+            };
+            const getDisplayName = (m) => `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.trim() || 'Unknown';
+
+            return e('div', { className: 'p-6' },
+                // Header
+                e('div', { className: 'flex justify-between items-center mb-6' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Crew Directory'),
+                        e('p', { className: 'text-sm text-gray-500 mt-1' }, 'Manage crew members and show duty assignments')
+                    ),
+                    e('div', { className: 'flex items-center gap-3' },
+                        e('p', { className: 'text-sm text-gray-600' }, `${filteredCrewMembers.length} assignment${filteredCrewMembers.length !== 1 ? 's' : ''}`),
+                        e('button', {
+                            onClick: handleOpenAddModal,
+                            className: 'px-4 py-2 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 transition-colors'
+                        }, '+ Add Crew Member')
+                    )
+                ),
+
+                // Stats bar
+                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6' },
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Total Crew Members'),
+                        e('p', { className: 'text-2xl font-bold text-teal-600' }, uniqueCrewCount)
+                    ),
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Duty Types'),
+                        e('p', { className: 'text-2xl font-bold text-indigo-600' }, uniqueDutyTypes.length)
+                    ),
+                    e('div', { className: 'bg-white rounded-lg shadow-sm border p-4' },
+                        e('p', { className: 'text-sm text-gray-500' }, 'Shows Supported'),
+                        e('p', { className: 'text-2xl font-bold text-purple-600' }, uniqueShowCount)
+                    )
+                ),
+
+                message && e('div', { className: 'mb-4' },
+                    e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                ),
+
+                // Toolbar
+                e('div', { className: 'flex flex-col sm:flex-row gap-3 mb-6' },
+                    e('div', { className: 'relative flex-1' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search by name, email, duty, or show...',
+                            value: searchTerm,
+                            onChange: (ev) => setSearchTerm(ev.target.value),
+                            className: 'w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent'
+                        }),
+                        e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                    ),
+                    e('select', {
+                        value: dutyFilter,
+                        onChange: (ev) => setDutyFilter(ev.target.value),
+                        className: 'px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm'
+                    },
+                        e('option', { value: 'all' }, 'All Duties'),
+                        ...uniqueDutyTypes.map(duty => e('option', { key: duty, value: duty }, duty))
+                    ),
+                    e('div', { className: 'flex rounded-lg border border-gray-300 overflow-hidden' },
+                        e('button', {
+                            onClick: () => setViewMode('grid'),
+                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grid' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                        }, 'Grid'),
+                        e('button', {
+                            onClick: () => setViewMode('grouped'),
+                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grouped' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                        }, 'By Duty')
+                    )
+                ),
+
+                // Content
+                isLoading ? e(Loader, { text: 'Loading crew members...' }) :
+                filteredCrewMembers.length === 0 ?
+                    e('div', { className: 'text-center py-12 text-gray-500' },
+                        e('p', { className: 'text-4xl mb-3' }, '👷'),
+                        e('p', { className: 'text-lg font-medium mb-1' }, 'No crew members found'),
+                        e('p', { className: 'text-sm' }, 'Try adjusting your search or filters, or add a crew member.')
+                    ) :
+                viewMode === 'grid' ?
+                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                        filteredCrewMembers.map((member, idx) =>
+                            e(CrewCard, {
+                                key: `${member.PersonnelID}-${member.DutyID || idx}`,
+                                crewMember: member,
+                                onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                onRemove: handleRemoveClick
+                            })
+                        )
+                    ) :
+                    e('div', { className: 'space-y-6' },
+                        Object.entries(groupedByDuty).map(([duty, members]) =>
+                            e('div', { key: duty, className: 'bg-white rounded-lg shadow-sm border' },
+                                e('div', { className: 'px-5 py-3 border-b bg-gray-50 rounded-t-lg flex justify-between items-center' },
+                                    e('h3', { className: 'font-semibold text-gray-800' }, duty),
+                                    e('span', { className: 'text-sm text-gray-500 bg-white border px-2 py-0.5 rounded-full' },
+                                        `${members.length} assignment${members.length !== 1 ? 's' : ''}`
+                                    )
+                                ),
+                                e('div', { className: 'p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                                    members.map((member, idx) =>
+                                        e(CrewCard, {
+                                            key: `${member.PersonnelID}-${member.DutyID || idx}`,
+                                            crewMember: member,
+                                            onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                            onRemove: handleRemoveClick
+                                        })
+                                    )
+                                )
+                            )
+                        )
+                    ),
+
+                // Add Crew Member Modal
+                isAddModalOpen && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: () => setIsAddModalOpen(false)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 flex flex-col',
+                        style: { maxHeight: '80vh' },
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Crew Members from Personnel'),
+                            e('button', { onClick: () => setIsAddModalOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
+                        ),
+                        e('input', {
+                            type: 'text', placeholder: 'Search personnel...',
+                            value: personnelSearch, onChange: (ev) => setPersonnelSearch(ev.target.value),
+                            className: 'mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent'
+                        }),
+                        availablePersonnel.length > 0 && e('div', { className: 'flex items-center justify-between mb-2 px-1' },
+                            e('label', { className: 'flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none' },
+                                e('input', {
+                                    type: 'checkbox',
+                                    checked: availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID)),
+                                    onChange: toggleSelectAll,
+                                    className: 'w-4 h-4 accent-teal-600'
+                                }),
+                                'Select all'
+                            ),
+                            selectedPersonnelIds.length > 0 && e('span', { className: 'text-sm text-teal-700 font-medium' }, `${selectedPersonnelIds.length} selected`)
+                        ),
+                        e('div', { className: 'overflow-y-auto flex-1' },
+                            availablePersonnel.length === 0
+                                ? e('p', { className: 'text-center text-gray-500 py-6' }, 'No available personnel found.')
+                                : availablePersonnel.map((person) => {
+                                    const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
+                                    return e('label', {
+                                        key: person.PersonnelID,
+                                        className: `flex items-center gap-3 p-3 mb-1 border rounded-lg cursor-pointer select-none transition-colors ${
+                                            isChecked ? 'border-teal-400 bg-teal-50' : 'border-gray-200 hover:bg-gray-50'
+                                        }`
+                                    },
+                                        e('input', {
+                                            type: 'checkbox', checked: isChecked,
+                                            onChange: () => togglePersonnelSelect(person.PersonnelID),
+                                            className: 'w-4 h-4 accent-teal-600 flex-shrink-0'
+                                        }),
+                                        e('div', { className: 'flex-1 min-w-0' },
+                                            e('p', { className: 'font-medium text-gray-900' }, `${person.FirstName} ${person.LastName}`.trim()),
+                                            e('p', { className: 'text-sm text-gray-500 truncate' }, person.PrimaryEmail || 'No email')
+                                        )
+                                    );
+                                })
+                        ),
+                        e('div', { className: 'mt-4 flex justify-between items-center' },
+                            e('button', { onClick: () => setIsAddModalOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
+                            e('button', {
+                                onClick: handleAddSelectedCrewMembers,
+                                disabled: isAdding || selectedPersonnelIds.length === 0,
+                                className: 'px-4 py-2 text-white bg-teal-600 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors font-medium'
+                            }, isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`)
+                        )
+                    )
+                ),
+
+                // Remove Confirmation Modal
+                removeTarget && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: () => setRemoveTarget(null)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Crew Member'),
+                        e('p', { className: 'text-gray-600 mb-6' },
+                            'Are you sure you want to remove ',
+                            e('span', { className: 'font-medium text-gray-900' }, getDisplayName(removeTarget)),
+                            ' from the crew directory?'
+                        ),
+                        e('div', { className: 'flex justify-end gap-3' },
+                            e('button', { onClick: () => setRemoveTarget(null), disabled: isRemoving, className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
+                            e('button', { onClick: handleConfirmRemove, disabled: isRemoving, className: 'px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors' }, isRemoving ? 'Removing...' : 'Remove')
+                        )
+                    )
+                ),
+
+                // Detail Modal
+                isDetailModalOpen && selectedCrewMember && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50',
+                    onClick: () => setIsDetailModalOpen(false)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 overflow-y-auto',
+                        style: { maxHeight: '90vh' },
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        e('div', { className: 'flex justify-between items-start mb-6' },
+                            e('div', { className: 'flex items-center gap-3' },
+                                e('div', { className: 'w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-bold text-lg' },
+                                    `${(selectedCrewMember.FirstName || '')[0] || ''}${((selectedCrewMember.LastName || selectedCrewMember.Lastname) || '')[0] || ''}`
+                                ),
+                                e('div', null,
+                                    e('h2', { className: 'text-xl font-semibold text-gray-900' }, getDisplayName(selectedCrewMember)),
+                                    e('span', {
+                                        className: `inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
+                                            selectedCrewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                                        }`
+                                    }, selectedCrewMember.Status || 'Crew Member')
+                                )
+                            ),
+                            e('button', { onClick: () => setIsDetailModalOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
+                        ),
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
+                            e('div', { className: 'bg-gray-50 rounded-lg p-4' },
+                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Contact'),
+                                e('div', { className: 'space-y-2 text-sm' },
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Email'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryEmail || 'N/A')),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Phone'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryPhone || 'N/A')),
+                                    selectedCrewMember.Birthday && e('div', null, e('p', { className: 'text-gray-500' }, 'Birthday'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.Birthday)))
+                                )
+                            ),
+                            e('div', { className: 'bg-teal-50 rounded-lg p-4' },
+                                e('h3', { className: 'text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3' }, 'Latest Assignment'),
+                                e('div', { className: 'space-y-2 text-sm' },
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Duty'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.DutyName || 'Unassigned')),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Show'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.ShowName || 'N/A')),
+                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Show Date'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.ShowDate || selectedCrewMember.LastShowDate)))
+                                )
+                            )
+                        ),
+                        (() => {
+                            const allDuties = crewMembers.filter(m => m.PersonnelID === selectedCrewMember.PersonnelID);
+                            if (allDuties.length <= 1) return null;
+                            return e('div', null,
+                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, `All Duty Assignments (${allDuties.length})`),
+                                e('div', { className: 'space-y-2' },
+                                    allDuties.map((duty, idx) =>
+                                        e('div', { key: idx, className: 'flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50' },
+                                            e('div', null,
+                                                e('span', { className: 'font-medium text-gray-900' }, duty.DutyName || 'Unassigned'),
+                                                e('span', { className: 'text-gray-400 mx-2' }, '·'),
+                                                e('span', { className: 'text-gray-600 text-sm' }, duty.ShowName || 'Unknown Show')
+                                            ),
+                                            e('span', { className: 'text-sm text-gray-500' }, formatDate(duty.ShowDate || duty.LastShowDate))
+                                        )
+                                    )
+                                )
+                            );
+                        })()
+                        ,
+                        e('div', { className: 'mt-6 flex justify-end' },
+                            e('button', { onClick: () => setIsDetailModalOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
+                        )
+                    )
+                )
+            );
+        }
+
         // Sidebar Component
         function Sidebar({ currentPage, onNavigate }) {
             const navigationItems = [
@@ -1726,6 +2208,7 @@
                 { id: 'personnel', label: 'Personnel', icon: '👥' },
                 { id: 'student-directory', label: 'Students', icon: '🎓' },
                 { id: 'cast', label: 'Cast', icon: '🎭' },
+                { id: 'crew', label: 'Crew', icon: '🛠️' },
                 { id: 'classes', label: 'Classes', icon: '📚' },
                 { id: 'shows', label: 'Shows', icon: '🎬' },
                 { id: 'inventory', label: 'Inventory', icon: '📦' },
@@ -5812,6 +6295,8 @@
                         });
                     case 'cast':
                         return e(CastDirectory);
+                    case 'crew':
+                        return e(CrewDirectory);
                     case 'classes':
                         return e(ClassRegistration);
                     case 'shows':

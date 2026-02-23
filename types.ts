@@ -120,6 +120,25 @@ export interface CastMemberWithDetails extends ShowPerformances {
   Status: string;
 }
 
+export interface CrewMemberWithDetails extends CrewDuties {
+  // Person details - matches Personnel sheet structure
+  FullName?: string;
+  FirstName: string;
+  Lastname: string;   // matches Personnel sheet column
+  LastName?: string;  // alias used in UI components
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  PersonnelID?: number;
+  Birthday?: string;
+  // Show details
+  ShowName?: string;
+  ShowDate?: string;
+  LastShowDate?: string;
+  // Duty details
+  DutyName?: string;
+  Status: string;
+}
+
 export interface ShowWithDetails extends ShowInformation {
   DirectorName?: string;
   ShowTypeName?: string;
@@ -213,7 +232,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
