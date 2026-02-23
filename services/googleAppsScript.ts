@@ -159,6 +159,12 @@ class GoogleAppsScriptService {
             case 'deletePersonnel':
               data = { deleted: true };
               break;
+            case 'addPersonAsCastMember':
+              data = { CastMemberID: 999, PersonnelID: args[0] };
+              break;
+            case 'removeCastMember':
+              data = { deleted: true };
+              break;
             default:
               data = [];
           }
@@ -254,6 +260,14 @@ class GoogleAppsScriptService {
 
   async updateShowCast(showId: number, castMembers: ShowPerformances[]): Promise<ApiResponse<boolean>> {
     return this.callServerFunction<boolean>('updateShowCast', showId, castMembers);
+  }
+
+  async addPersonAsCastMember(personnelId: number): Promise<ApiResponse<{ CastMemberID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ CastMemberID: number; PersonnelID: number }>('addPersonAsCastMember', personnelId);
+  }
+
+  async removeCastMember(castMemberId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeCastMember', castMemberId);
   }
 
   // Inventory methods

@@ -1406,6 +1406,70 @@ function getAllCastMembers() {
   }
 }
 
+/**
+ * CREATE OPERATION: Adds a person from Personnel to the CastMemberInfo table
+ * DATA FLOW: personnelId → new row in CastMemberInfo (CastMemberID auto-generated, PersonnelID stored)
+ * @param {number} personnelId - The PersonnelID from the Personnel table
+ * RETURNS: { success, data: { CastMemberID, PersonnelID } }
+ */
+function addPersonAsCastMember(personnelId) {
+  try {
+    Logger.log(`=== addPersonAsCastMember() called with personnelId: ${personnelId} ===`);
+
+    const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+
+    // Check if this person is already a cast member
+    const existing = sheetToObjects(castMemberInfoSheet);
+    const alreadyExists = existing.find(row => row.PersonnelID == personnelId);
+    if (alreadyExists) {
+      return { success: false, error: 'This person is already a cast member.' };
+    }
+
+    // Generate a new CastMemberID (max existing + 1)
+    const newCastMemberId = existing.length > 0
+      ? Math.max(...existing.map(r => Number(r.CastMemberID) || 0)) + 1
+      : 1;
+
+    castMemberInfoSheet.appendRow([newCastMemberId, personnelId]);
+    Logger.log(`Added cast member: CastMemberID=${newCastMemberId}, PersonnelID=${personnelId}`);
+
+    return { success: true, data: { CastMemberID: newCastMemberId, PersonnelID: personnelId } };
+  } catch (error) {
+    Logger.log(`ERROR in addPersonAsCastMember(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a cast member from the CastMemberInfo table
+ * DATA FLOW: castMemberId → finds matching row in CastMemberInfo → deletes row
+ * @param {number} castMemberId - The CastMemberID to remove
+ * RETURNS: { success, data: { deleted: true } }
+ */
+function removeCastMember(castMemberId) {
+  try {
+    Logger.log(`=== removeCastMember() called with castMemberId: ${castMemberId} ===`);
+
+    const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+    const data = castMemberInfoSheet.getDataRange().getValues();
+
+    // Find the row with matching CastMemberID (column 0)
+    const rowIndex = data.findIndex((row, index) => index > 0 && row[0] == castMemberId);
+
+    if (rowIndex < 1) {
+      return { success: false, error: `Cast member with ID ${castMemberId} not found.` };
+    }
+
+    castMemberInfoSheet.deleteRow(rowIndex + 1);
+    Logger.log(`Deleted CastMemberID ${castMemberId} from CastMemberInfo (row ${rowIndex + 1})`);
+
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    Logger.log(`ERROR in removeCastMember(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
 // =============================================================================
 // INVENTORY FUNCTIONS - NEW FOUR-TABLE RELATIONAL MODEL
 // DATA SOURCES: 'InventoryItems', 'InventoryCategories', 'StorageLocations', 'InventoryTransactions'
@@ -1985,6 +2049,9 @@ function getSheetHeaders(sheetName) {
       'TransactionDate', 'TransactionType', 'Notes'
     ],
     
+    [SHEET_CONFIG.castMemberInfo]: [
+      'CastMemberID', 'PersonnelID'
+    ],
     [SHEET_CONFIG.showPerformances]: [
       'PerformanceID', 'ShowID', 'CastMemberID', 'Role'
     ],
