@@ -1526,18 +1526,22 @@
             const [selectedPerson, setSelectedPerson] = useState(null);
             const [modalMode, setModalMode] = useState('view');
             const [message, setMessage] = useState(null);
+            const [sortBy, setSortBy] = useState('az');
 
             useEffect(() => {
                 loadPersonnel();
             }, []);
 
             useEffect(() => {
-                const filtered = personnel.filter(person =>
-                    `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
+                const name = p => `${p.FirstName || ''} ${p.LastName || p.Lastname || ''}`.toLowerCase();
+                let filtered = personnel.filter(person =>
+                    name(person).includes(searchTerm.toLowerCase()) ||
+                    (person.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase())
                 );
+                if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
+                else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
                 setFilteredPersonnel(filtered);
-            }, [personnel, searchTerm]);
+            }, [personnel, searchTerm, sortBy]);
 
             const loadPersonnel = async () => {
                 setIsLoading(true);
@@ -1775,15 +1779,22 @@
                     e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
-                // Search
-                e('div', { className: 'flex-shrink-0' },
+                // Search + Sort
+                e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
                     e('input', {
                         type: 'text',
                         placeholder: 'Search by name or email\u2026',
                         value: searchTerm,
                         onChange: (ev) => setSearchTerm(ev.target.value),
-                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    })
+                        className: 'flex-1 min-w-[180px] max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    }),
+                    e('select', {
+                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'Name A \u2192 Z'),
+                        e('option', { value: 'za' }, 'Name Z \u2192 A')
+                    )
                 ),
 
                 // Split panel
@@ -1844,19 +1855,29 @@
             // Remove confirmation state
             const [removeTarget, setRemoveTarget] = useState(null);
             const [isRemoving, setIsRemoving] = useState(false);
+            const [sortBy, setSortBy] = useState('az');
 
             useEffect(() => {
                 loadCastMembers();
             }, []);
 
             useEffect(() => {
-                const filtered = castMembers.filter(member =>
-                    `${member.FirstName || ''} ${member.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                const name = m => `${m.FirstName || ''} ${m.LastName || ''}`.toLowerCase();
+                let filtered = castMembers.filter(member =>
+                    name(member).includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                     (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
                 );
+                if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
+                else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
+                else if (sortBy === 'active') filtered = [...filtered].sort((a, b) => (a.Status === 'Active' ? 0 : 1) - (b.Status === 'Active' ? 0 : 1));
+                else if (sortBy === 'lastshow') filtered = [...filtered].sort((a, b) => {
+                    const da = a.LastShowDate && a.LastShowDate !== 'N/A' ? new Date(a.LastShowDate) : new Date(0);
+                    const db = b.LastShowDate && b.LastShowDate !== 'N/A' ? new Date(b.LastShowDate) : new Date(0);
+                    return db - da;
+                });
                 setFilteredCastMembers(filtered);
-            }, [castMembers, searchTerm]);
+            }, [castMembers, searchTerm, sortBy]);
 
             const loadCastMembers = async () => {
                 setIsLoading(true);
@@ -2011,8 +2032,17 @@
                     e('button', { onClick: handleOpenAddModal, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add Cast Member')
                 ),
                 message && e('div', { className: 'flex-shrink-0' }, e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })),
-                e('div', { className: 'flex-shrink-0' },
-                    e('input', { type: 'text', placeholder: 'Search by name, email, or phone…', value: searchTerm, onChange: (ev) => setSearchTerm(ev.target.value), className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors' })
+                e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
+                    e('input', { type: 'text', placeholder: 'Search by name, email, or phone…', value: searchTerm, onChange: (ev) => setSearchTerm(ev.target.value), className: 'flex-1 min-w-[180px] max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors' }),
+                    e('select', {
+                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'Name A → Z'),
+                        e('option', { value: 'za' }, 'Name Z → A'),
+                        e('option', { value: 'active' }, 'Active First'),
+                        e('option', { value: 'lastshow' }, 'Last Show Date')
+                    )
                 ),
                 e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
                     e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
@@ -2146,17 +2176,19 @@
             const [dutyFilter, setDutyFilter] = useState('all');
             const [showFilter, setShowFilter] = useState('all');
             const [viewMode, setViewMode] = useState('grid');
+            const [sortBy, setSortBy] = useState('az');
             const [selectedCrewMember, setSelectedCrewMember] = useState(null);
             const [message, setMessage] = useState(null);
 
             useEffect(() => { loadCrewMembers(); }, []);
 
             useEffect(() => {
+                const name = m => `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.toLowerCase();
                 let filtered = crewMembers;
                 if (searchTerm) {
                     const term = searchTerm.toLowerCase();
                     filtered = filtered.filter(m =>
-                        `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.toLowerCase().includes(term) ||
+                        name(m).includes(term) ||
                         (m.PrimaryEmail || '').toLowerCase().includes(term) ||
                         (m.DutyName || '').toLowerCase().includes(term) ||
                         (m.ShowName || '').toLowerCase().includes(term)
@@ -2168,8 +2200,16 @@
                 if (showFilter !== 'all') {
                     filtered = filtered.filter(m => (m.ShowName || '') === showFilter);
                 }
+                if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
+                else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
+                else if (sortBy === 'duty') filtered = [...filtered].sort((a, b) => (a.DutyName || '').localeCompare(b.DutyName || ''));
+                else if (sortBy === 'showdate') filtered = [...filtered].sort((a, b) => {
+                    const da = a.ShowDate || a.LastShowDate ? new Date(a.ShowDate || a.LastShowDate) : new Date(0);
+                    const db = b.ShowDate || b.LastShowDate ? new Date(b.ShowDate || b.LastShowDate) : new Date(0);
+                    return db - da;
+                });
                 setFilteredCrewMembers(filtered);
-            }, [crewMembers, searchTerm, dutyFilter, showFilter]);
+            }, [crewMembers, searchTerm, dutyFilter, showFilter, sortBy]);
 
             const loadCrewMembers = async () => {
                 setIsLoading(true);
@@ -2347,6 +2387,15 @@
                         e('option', { value: 'all' }, 'All Shows'),
                         ...uniqueShows.map(show => e('option', { key: show, value: show }, show))
                     ),
+                    e('select', {
+                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'Name A \u2192 Z'),
+                        e('option', { value: 'za' }, 'Name Z \u2192 A'),
+                        e('option', { value: 'duty' }, 'By Duty'),
+                        e('option', { value: 'showdate' }, 'Show Date (Newest)')
+                    ),
                     e('div', { className: 'flex rounded-xl border border-gray-200 overflow-hidden shadow-sm' },
                         e('button', {
                             onClick: () => setViewMode('grid'),
@@ -2463,20 +2512,35 @@
             const [isAdding, setIsAdding] = useState(false);
             const [removeTarget, setRemoveTarget] = useState(null);
             const [isRemoving, setIsRemoving] = useState(false);
+            const [sortBy, setSortBy] = useState('az');
 
             useEffect(() => { loadBartenders(); }, []);
 
             useEffect(() => {
+                const name = b => `${b.FirstName || ''} ${b.LastName || ''}`.toLowerCase();
                 const term = searchTerm.toLowerCase();
-                setFilteredBartenders(term
+                let filtered = term
                     ? bartenders.filter(b =>
-                        `${b.FirstName} ${b.LastName}`.toLowerCase().includes(term) ||
+                        name(b).includes(term) ||
                         (b.PrimaryEmail || '').toLowerCase().includes(term) ||
                         (b.PrimaryPhone || '').toLowerCase().includes(term)
                     )
-                    : bartenders
-                );
-            }, [bartenders, searchTerm]);
+                    : [...bartenders];
+                if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
+                else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
+                else if (sortBy === 'shifts') filtered = [...filtered].sort((a, b) => (b.ShiftCount || 0) - (a.ShiftCount || 0));
+                else if (sortBy === 'active') filtered = [...filtered].sort((a, b) => {
+                    const aA = String(a.Active).toLowerCase() === 'true' || a.Active === true ? 0 : 1;
+                    const bA = String(b.Active).toLowerCase() === 'true' || b.Active === true ? 0 : 1;
+                    return aA - bA;
+                });
+                else if (sortBy === 'trained') filtered = [...filtered].sort((a, b) => {
+                    const aT = String(a.Trained).toLowerCase() === 'true' || a.Trained === true ? 0 : 1;
+                    const bT = String(b.Trained).toLowerCase() === 'true' || b.Trained === true ? 0 : 1;
+                    return aT - bT;
+                });
+                setFilteredBartenders(filtered);
+            }, [bartenders, searchTerm, sortBy]);
 
             const loadBartenders = async () => {
                 setIsLoading(true);
@@ -2657,9 +2721,9 @@
                     e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
-                // Search
-                e('div', { className: 'flex-shrink-0' },
-                    e('div', { className: 'relative max-w-sm' },
+                // Search + Sort
+                e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
+                    e('div', { className: 'relative flex-1 min-w-[180px] max-w-sm' },
                         e('input', {
                             type: 'text',
                             placeholder: 'Search by name, email, or phone…',
@@ -2668,6 +2732,16 @@
                             className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                         }),
                         e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                    ),
+                    e('select', {
+                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'Name A → Z'),
+                        e('option', { value: 'za' }, 'Name Z → A'),
+                        e('option', { value: 'shifts' }, 'Most Shifts'),
+                        e('option', { value: 'active' }, 'Active First'),
+                        e('option', { value: 'trained' }, 'Trained First')
                     )
                 ),
 
@@ -2814,20 +2888,31 @@
             const [isAdding, setIsAdding] = React.useState(false);
             const [removeTarget, setRemoveTarget] = React.useState(null);
             const [isRemoving, setIsRemoving] = React.useState(false);
+            const [sortBy, setSortBy] = React.useState('az');
 
             React.useEffect(() => { loadTeachers(); }, []);
 
             React.useEffect(() => {
+                const name = t => `${t.FirstName || ''} ${t.LastName || ''}`.toLowerCase();
                 const term = searchTerm.toLowerCase();
-                setFilteredTeachers(term
+                let filtered = term
                     ? teachers.filter(t =>
-                        `${t.FirstName} ${t.LastName}`.toLowerCase().includes(term) ||
+                        name(t).includes(term) ||
                         (t.PrimaryEmail || '').toLowerCase().includes(term) ||
                         (t.PrimaryPhone || '').toLowerCase().includes(term)
                     )
-                    : teachers
-                );
-            }, [teachers, searchTerm]);
+                    : [...teachers];
+                if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
+                else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
+                else if (sortBy === 'active') filtered = [...filtered].sort((a, b) => {
+                    const aA = String(a.Active).toLowerCase() === 'true' || a.Active === true ? 0 : 1;
+                    const bA = String(b.Active).toLowerCase() === 'true' || b.Active === true ? 0 : 1;
+                    return aA - bA;
+                });
+                else if (sortBy === 'totalclasses') filtered = [...filtered].sort((a, b) => (b.TotalClasses || 0) - (a.TotalClasses || 0));
+                else if (sortBy === 'activeclasses') filtered = [...filtered].sort((a, b) => (b.ActiveClasses || 0) - (a.ActiveClasses || 0));
+                setFilteredTeachers(filtered);
+            }, [teachers, searchTerm, sortBy]);
 
             const loadTeachers = async () => {
                 setIsLoading(true);
@@ -3022,9 +3107,9 @@
                     e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
-                // Search
-                e('div', { className: 'flex-shrink-0' },
-                    e('div', { className: 'relative max-w-sm' },
+                // Search + Sort
+                e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
+                    e('div', { className: 'relative flex-1 min-w-[180px] max-w-sm' },
                         e('input', {
                             type: 'text',
                             placeholder: 'Search by name, email, or phone…',
@@ -3033,6 +3118,16 @@
                             className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                         }),
                         e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                    ),
+                    e('select', {
+                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'Name A → Z'),
+                        e('option', { value: 'za' }, 'Name Z → A'),
+                        e('option', { value: 'active' }, 'Active First'),
+                        e('option', { value: 'totalclasses' }, 'Most Classes'),
+                        e('option', { value: 'activeclasses' }, 'Active Classes')
                     )
                 ),
 
