@@ -3,6 +3,8 @@ import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { PersonnelDirectory } from './pages/PersonnelDirectory';
 import { CastDirectory } from './pages/CastDirectory';
+import { CrewDirectory } from './pages/CrewDirectory';
+import { BartendersPage } from './pages/BartendersPage';
 import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
 import { InventoryPage } from './pages/Inventory';
@@ -23,6 +25,10 @@ const App: React.FC = () => {
         return <PersonnelDirectory />;
       case 'cast':
         return <CastDirectory />;
+      case 'crew':
+        return <CrewDirectory />;
+      case 'bartenders':
+        return <BartendersPage />;
       case 'classes':
         return <ClassRegistration />;
       case 'shows':

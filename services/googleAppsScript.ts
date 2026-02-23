@@ -12,6 +12,8 @@ import {
   DashboardStats,
   ApiResponse,
   CastMemberWithDetails,
+  CrewMemberWithDetails,
+  BartenderWithDetails,
   ShowWithDetails
 } from '../types';
 
@@ -80,6 +82,81 @@ const mockInventory: Inventory[] = [
     Quantity: 5,
     Location: "Storage Room A",
     Notes: "Wireless mics for performances"
+  }
+];
+
+const mockCrewMembers: CrewMemberWithDetails[] = [
+  {
+    DutyID: 1, ShowID: 1, CrewMemberID: 1, CrewDutyTypeID: 1,
+    FirstName: "Alex", LastName: "Rivera", Lastname: "Rivera",
+    PrimaryEmail: "alex.rivera@email.com", PrimaryPhone: "555-1001",
+    PersonnelID: 10, Birthday: "1992-03-18",
+    DutyName: "Stage Manager", ShowName: "Spring Improv Night",
+    ShowDate: "2025-03-15", LastShowDate: "2025-03-15", Status: "Active"
+  },
+  {
+    DutyID: 2, ShowID: 2, CrewMemberID: 1, CrewDutyTypeID: 1,
+    FirstName: "Alex", LastName: "Rivera", Lastname: "Rivera",
+    PrimaryEmail: "alex.rivera@email.com", PrimaryPhone: "555-1001",
+    PersonnelID: 10, Birthday: "1992-03-18",
+    DutyName: "Stage Manager", ShowName: "Summer Showcase",
+    ShowDate: "2025-07-20", LastShowDate: "2025-07-20", Status: "Active"
+  },
+  {
+    DutyID: 3, ShowID: 1, CrewMemberID: 2, CrewDutyTypeID: 2,
+    FirstName: "Morgan", LastName: "Chen", Lastname: "Chen",
+    PrimaryEmail: "morgan.chen@email.com", PrimaryPhone: "555-1002",
+    PersonnelID: 11, Birthday: "1995-11-05",
+    DutyName: "Lighting Tech", ShowName: "Spring Improv Night",
+    ShowDate: "2025-03-15", LastShowDate: "2025-03-15", Status: "Active"
+  },
+  {
+    DutyID: 4, ShowID: 2, CrewMemberID: 3, CrewDutyTypeID: 2,
+    FirstName: "Taylor", LastName: "Brooks", Lastname: "Brooks",
+    PrimaryEmail: "taylor.brooks@email.com", PrimaryPhone: "555-1003",
+    PersonnelID: 12, Birthday: "1990-07-22",
+    DutyName: "Lighting Tech", ShowName: "Summer Showcase",
+    ShowDate: "2025-07-20", LastShowDate: "2025-07-20", Status: "Active"
+  },
+  {
+    DutyID: 5, ShowID: 1, CrewMemberID: 4, CrewDutyTypeID: 3,
+    FirstName: "Jordan", LastName: "Patel", Lastname: "Patel",
+    PrimaryEmail: "jordan.patel@email.com", PrimaryPhone: "555-1004",
+    PersonnelID: 13, Birthday: "1988-09-30",
+    DutyName: "Sound Tech", ShowName: "Spring Improv Night",
+    ShowDate: "2025-03-15", LastShowDate: "2025-03-15", Status: "Active"
+  },
+  {
+    DutyID: 6, ShowID: 2, CrewMemberID: 4, CrewDutyTypeID: 3,
+    FirstName: "Jordan", LastName: "Patel", Lastname: "Patel",
+    PrimaryEmail: "jordan.patel@email.com", PrimaryPhone: "555-1004",
+    PersonnelID: 13, Birthday: "1988-09-30",
+    DutyName: "Sound Tech", ShowName: "Summer Showcase",
+    ShowDate: "2025-07-20", LastShowDate: "2025-07-20", Status: "Active"
+  },
+  {
+    DutyID: 7, ShowID: 1, CrewMemberID: 5, CrewDutyTypeID: 4,
+    FirstName: "Casey", LastName: "Nguyen", Lastname: "Nguyen",
+    PrimaryEmail: "casey.nguyen@email.com", PrimaryPhone: "555-1005",
+    PersonnelID: 14, Birthday: "1997-01-14",
+    DutyName: "Props Manager", ShowName: "Spring Improv Night",
+    ShowDate: "2025-03-15", LastShowDate: "2025-03-15", Status: "Active"
+  },
+  {
+    DutyID: 8, ShowID: 3, CrewMemberID: 6, CrewDutyTypeID: 5,
+    FirstName: "Riley", LastName: "Owens", Lastname: "Owens",
+    PrimaryEmail: "riley.owens@email.com", PrimaryPhone: "555-1006",
+    PersonnelID: 15, Birthday: "1993-05-08",
+    DutyName: "Front of House", ShowName: "Fall Comedy Show",
+    ShowDate: "2025-11-08", LastShowDate: "2025-11-08", Status: "Active"
+  },
+  {
+    DutyID: 9, ShowID: 3, CrewMemberID: 7, CrewDutyTypeID: 5,
+    FirstName: "Drew", LastName: "Vasquez", Lastname: "Vasquez",
+    PrimaryEmail: "drew.vasquez@email.com", PrimaryPhone: "555-1007",
+    PersonnelID: 16, Birthday: "1996-12-19",
+    DutyName: "Front of House", ShowName: "Fall Comedy Show",
+    ShowDate: "2025-11-08", LastShowDate: "2025-11-08", Status: "Inactive"
   }
 ];
 
@@ -163,6 +240,39 @@ class GoogleAppsScriptService {
               data = { CastMemberID: 999, PersonnelID: args[0] };
               break;
             case 'removeCastMember':
+              data = { deleted: true };
+              break;
+            case 'createClassOffering':
+              data = { ...args[0], OfferingID: Date.now() };
+              break;
+            case 'updateClassOffering':
+              data = args[0];
+              break;
+            case 'getAllCrewMembers':
+              data = { data: mockCrewMembers };
+              break;
+            case 'getAllCrewDutyTypes':
+              data = [
+                { CrewDutyTypeID: 1, DutyName: 'Stage Manager' },
+                { CrewDutyTypeID: 2, DutyName: 'Lighting Tech' },
+                { CrewDutyTypeID: 3, DutyName: 'Sound Tech' },
+                { CrewDutyTypeID: 4, DutyName: 'Props Manager' },
+                { CrewDutyTypeID: 5, DutyName: 'Front of House' }
+              ];
+              break;
+            case 'addPersonAsCrewMember':
+              data = { CrewMemberID: 999, PersonnelID: args[0] };
+              break;
+            case 'removeCrewMember':
+              data = { deleted: true };
+              break;
+            case 'getBartendersWithDetails':
+              data = [];
+              break;
+            case 'addPersonAsBartender':
+              data = { BartenderID: 999, PersonnelID: args[0], Trained: args[1] || false, Status: args[2] || 'Active', Active: true };
+              break;
+            case 'removeBartender':
               data = { deleted: true };
               break;
             default:
@@ -270,6 +380,32 @@ class GoogleAppsScriptService {
     return this.callServerFunction<{ deleted: boolean }>('removeCastMember', castMemberId);
   }
 
+  // Crew methods
+  async getAllCrewMembers(): Promise<ApiResponse<CrewMemberWithDetails[]>> {
+    return this.callServerFunction<CrewMemberWithDetails[]>('getAllCrewMembers');
+  }
+
+  async addPersonAsCrewMember(personnelId: number): Promise<ApiResponse<{ CrewMemberID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ CrewMemberID: number; PersonnelID: number }>('addPersonAsCrewMember', personnelId);
+  }
+
+  async removeCrewMember(crewMemberId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeCrewMember', crewMemberId);
+  }
+
+  // Bartender methods
+  async getBartendersWithDetails(): Promise<ApiResponse<BartenderWithDetails[]>> {
+    return this.callServerFunction<BartenderWithDetails[]>('getBartendersWithDetails');
+  }
+
+  async addPersonAsBartender(personnelId: number, trained: boolean, status: string): Promise<ApiResponse<{ BartenderID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ BartenderID: number; PersonnelID: number }>('addPersonAsBartender', personnelId, trained, status);
+  }
+
+  async removeBartender(bartenderId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeBartender', bartenderId);
+  }
+
   // Inventory methods
   async getAllInventory(): Promise<ApiResponse<Inventory[]>> {
     return this.callServerFunction<Inventory[]>('getAllInventory');
@@ -364,6 +500,10 @@ class GoogleAppsScriptService {
 
   async updateEnrollmentStatus(enrollmentId: number, status: string): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateEnrollmentStatus', enrollmentId, status);
+  }
+
+  async updateClassOffering(classData: any): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateClassOffering', classData);
   }
 }
 

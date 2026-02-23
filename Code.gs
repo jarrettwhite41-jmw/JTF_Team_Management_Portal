@@ -1,5 +1,5 @@
 /**
- * 27JTF Team Management Portal - Google Apps Script Backend
+ * 38JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1153,6 +1153,137 @@ function getAllBartenders() {
 }
 
 /**
+ * READ OPERATION: Gets all bartenders from the Bartenders table with full Personnel details
+ * and shift history from BartenderShifts.
+ * DATA FLOW: Bartenders.PersonnelID → Personnel; Bartenders.PersonnelID → BartenderShifts → ShowInformation
+ */
+function getBartendersWithDetails() {
+  try {
+    Logger.log('getBartendersWithDetails() called');
+    const bartendersSheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(bartendersSheet);
+
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+
+    let allBartenderShifts = [];
+    let allShows = [];
+    try {
+      const shiftsSheet = getSheet('BartenderShifts');
+      allBartenderShifts = sheetToObjects(shiftsSheet);
+      const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+      allShows = sheetToObjects(showsSheet);
+    } catch (e) {
+      Logger.log(`Warning: Could not load BartenderShifts/Shows: ${e.toString()}`);
+    }
+
+    const result = allBartenders.map(bartender => {
+      const person = allPersonnel.find(p => p.PersonnelID == bartender.PersonnelID);
+
+      // BartenderShifts links directly to Personnel via PersonnelID
+      const shifts = allBartenderShifts.filter(s => s.PersonnelID == bartender.PersonnelID);
+      const shiftCount = shifts.length;
+
+      let lastShiftDate = 'N/A';
+      let lastShowName = 'N/A';
+
+      if (shifts.length > 0) {
+        const shiftsWithShows = shifts.map(s => ({
+          shift: s,
+          show: allShows.find(sh => sh.ShowID == s.ShowID)
+        })).filter(ss => ss.show && ss.show.ShowDate);
+
+        shiftsWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+
+        if (shiftsWithShows.length > 0) {
+          lastShiftDate = shiftsWithShows[0].show.ShowDate;
+          lastShowName = shiftsWithShows[0].show.ShowName || 'N/A';
+        }
+      }
+
+      return {
+        BartenderID: bartender.BartenderID,
+        PersonnelID: bartender.PersonnelID,
+        Trained: bartender.Trained,
+        Status: bartender.Status || 'Active',
+        Active: bartender.Active,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? person.LastName : 'Person',
+        FullName: person ? `${person.FirstName} ${person.LastName}`.trim() : 'Unknown Person',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
+        ShiftCount: shiftCount,
+        LastShiftDate: lastShiftDate,
+        LastShowName: lastShowName
+      };
+    });
+
+    Logger.log(`Retrieved ${result.length} bartenders with details`);
+    return { success: true, data: result };
+  } catch (error) {
+    Logger.log(`ERROR in getBartendersWithDetails(): ${error.toString()}`);
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * CREATE OPERATION: Adds a person from Personnel to the Bartenders table
+ * DATA FLOW: PersonnelID → new row in Bartenders sheet
+ * @param {number} personnelId - The PersonnelID to add
+ * @param {boolean} trained - Whether the person is trained
+ * @param {string} status - Status value (defaults to 'Active')
+ */
+function addPersonAsBartender(personnelId, trained, status) {
+  try {
+    Logger.log(`addPersonAsBartender() called for PersonnelID: ${personnelId}`);
+    const sheet = getSheet('Bartenders');
+    const allBartenders = sheetToObjects(sheet);
+
+    // Prevent duplicates
+    const existing = allBartenders.find(b => b.PersonnelID == personnelId);
+    if (existing) {
+      return { success: false, error: 'This person is already in the Bartenders table.' };
+    }
+
+    const newId = getNextId(sheet, 0);
+    const newBartender = {
+      BartenderID: newId,
+      PersonnelID: personnelId,
+      Trained: trained || false,
+      Status: status || 'Active',
+      Active: true
+    };
+
+    addOrUpdateRow(sheet, newBartender, 0);
+    Logger.log(`Added bartender with ID: ${newId} for PersonnelID: ${personnelId}`);
+    return { success: true, data: newBartender };
+  } catch (error) {
+    Logger.log(`ERROR in addPersonAsBartender(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a bartender from the Bartenders table by BartenderID
+ * DATA FLOW: BartenderID → delete row from Bartenders sheet
+ * NOTE: Does NOT delete BartenderShifts history — shifts are show records and are preserved.
+ * @param {number} bartenderId - The BartenderID to remove
+ */
+function removeBartender(bartenderId) {
+  try {
+    Logger.log(`removeBartender() called for BartenderID: ${bartenderId}`);
+    const sheet = getSheet('Bartenders');
+    deleteRowsByCondition(sheet, 'BartenderID', bartenderId);
+    Logger.log(`Removed bartender with ID: ${bartenderId}`);
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    Logger.log(`ERROR in removeBartender(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
  * HELPER FUNCTION: Deletes rows that match a condition
  * @param {Sheet} sheet - The sheet to delete from
  * @param {string} columnName - The column to check
@@ -1467,6 +1598,176 @@ function removeCastMember(castMemberId) {
   } catch (error) {
     Logger.log(`ERROR in removeCastMember(): ${error.toString()}`);
     return { success: false, error: error.toString() };
+  }
+}
+
+// =============================================================================
+// CREW FUNCTIONS
+// =============================================================================
+
+/**
+ * READ OPERATION: Gets all personnel who have crew duties
+ * DATA SOURCE: Personnel + CrewDuties + ShowInformation + CrewDutyTypes
+ * RETURNS: Array of CrewMemberWithDetails objects
+ */
+function getAllCrewMembers() {
+  try {
+    Logger.log('=== getAllCrewMembers() called ===');
+    
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+    
+    const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+    const allCrewDuties = sheetToObjects(crewDutiesSheet);
+    
+    const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+    const allShows = sheetToObjects(showsSheet);
+    
+    const crewDutyTypesSheet = getSheet(SHEET_CONFIG.crewDutyTypes);
+    const allCrewDutyTypes = sheetToObjects(crewDutyTypesSheet);
+    
+    // Load CastMemberInfo to resolve CastMemberID → PersonnelID
+    // DATA FLOW: CrewDuties.CastMemberID → CastMemberInfo.CastMemberID → CastMemberInfo.PersonnelID → Personnel
+    let allCastMemberInfo = [];
+    try {
+      const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+      allCastMemberInfo = sheetToObjects(castMemberInfoSheet);
+      Logger.log(`Loaded ${allCastMemberInfo.length} CastMemberInfo records`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load CastMemberInfo sheet: ${e.toString()}`);
+    }
+    
+    // Helper: resolve a crew duty's CastMemberID to a PersonnelID via CastMemberInfo
+    const resolvePersonnelId = (cd) => {
+      const castMemberId = cd.CastMemberID || cd.CrewMemberID;
+      if (castMemberId && allCastMemberInfo.length > 0) {
+        const castInfo = allCastMemberInfo.find(ci => ci.CastMemberID == castMemberId);
+        if (castInfo && castInfo.PersonnelID) {
+          return castInfo.PersonnelID;
+        }
+        Logger.log(`Warning: CastMemberID ${castMemberId} not found in CastMemberInfo`);
+      }
+      // Fallback: if PersonnelID is stored directly on the duty row
+      return cd.PersonnelID || null;
+    };
+    
+    // Find unique personnel IDs who have crew duties, resolving through CastMemberInfo
+    const crewPersonnelIds = [...new Set(allCrewDuties.map(resolvePersonnelId).filter(Boolean))];
+    Logger.log(`Resolved ${crewPersonnelIds.length} unique crew PersonnelIDs from ${allCrewDuties.length} crew duties`);
+    
+    const crewMembers = crewPersonnelIds.map(personnelId => {
+      const person = allPersonnel.find(p => p.PersonnelID == personnelId);
+      
+      // Get all duties for this person (resolved through CastMemberInfo)
+      const personDuties = allCrewDuties.filter(cd => resolvePersonnelId(cd) == personnelId);
+      
+      // Find the most recent show date
+      let lastShowDate = 'N/A';
+      let latestShow = null;
+      let latestDuty = null;
+      
+      if (personDuties.length > 0) {
+        // Sort duties by show date descending
+        const dutiesWithShows = personDuties.map(duty => {
+          const show = allShows.find(s => s.ShowID == duty.ShowID);
+          return { duty, show };
+        }).filter(ds => ds && ds.show && ds.show.ShowDate);
+        
+        dutiesWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+        
+        if (dutiesWithShows.length > 0) {
+          latestShow = dutiesWithShows[0].show;
+          latestDuty = dutiesWithShows[0].duty;
+          lastShowDate = latestShow.ShowDate;
+        }
+      }
+      
+      const dutyType = latestDuty ? allCrewDutyTypes.find(t => t.CrewDutyTypeID == latestDuty.CrewDutyTypeID) : null;
+      
+      const firstName = person ? person.FirstName : 'Unknown';
+      const lastName = person ? person.LastName : 'Person';
+      const fullName = person ? `${firstName} ${lastName}`.trim() : 'Unknown Person';
+      
+      return {
+        PersonnelID: personnelId,
+        FullName: fullName,
+        FirstName: firstName,
+        LastName: lastName,
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Birthday: person ? person.Birthday : '',
+        
+        // Last show information
+        LastShowDate: lastShowDate,
+        ShowName: latestShow ? latestShow.ShowName : 'N/A',
+        DutyName: dutyType ? dutyType.DutyName : 'N/A',
+        Status: person ? (person.Status || 'Active') : 'Unknown'
+      };
+    });
+    
+    Logger.log(`Found ${crewMembers.length} crew members`);
+    
+    // ── Bartenders ────────────────────────────────────────────────────────────
+    // DATA FLOW: BartenderShifts.PersonnelID → Personnel (direct join, no CastMemberInfo)
+    let bartenderEntries = [];
+    try {
+      const bartenderShiftsSheet = getSheet('BartenderShifts');
+      const allBartenderShifts = sheetToObjects(bartenderShiftsSheet);
+      Logger.log(`Loaded ${allBartenderShifts.length} BartenderShifts records`);
+      
+      // Get unique PersonnelIDs from BartenderShifts
+      const bartenderPersonnelIds = [...new Set(allBartenderShifts.map(bs => bs.PersonnelID).filter(Boolean))];
+      
+      bartenderEntries = bartenderPersonnelIds.map(personnelId => {
+        const person = allPersonnel.find(p => p.PersonnelID == personnelId);
+        
+        // Find the most recent bartender shift for this person
+        const personShifts = allBartenderShifts.filter(bs => bs.PersonnelID == personnelId);
+        let lastShowDate = 'N/A';
+        let latestShow = null;
+        
+        const shiftsWithShows = personShifts.map(shift => {
+          const show = allShows.find(s => s.ShowID == shift.ShowID);
+          return { shift, show };
+        }).filter(ss => ss && ss.show && ss.show.ShowDate);
+        
+        shiftsWithShows.sort((a, b) => new Date(b.show.ShowDate) - new Date(a.show.ShowDate));
+        
+        if (shiftsWithShows.length > 0) {
+          latestShow = shiftsWithShows[0].show;
+          lastShowDate = latestShow.ShowDate;
+        }
+        
+        const firstName = person ? person.FirstName : 'Unknown';
+        const lastName = person ? person.LastName : 'Person';
+        
+        return {
+          PersonnelID: personnelId,
+          FullName: person ? `${firstName} ${lastName}`.trim() : 'Unknown Person',
+          FirstName: firstName,
+          LastName: lastName,
+          PrimaryEmail: person ? person.PrimaryEmail : '',
+          PrimaryPhone: person ? person.PrimaryPhone : '',
+          Birthday: person ? person.Birthday : '',
+          LastShowDate: lastShowDate,
+          ShowName: latestShow ? latestShow.ShowName : 'N/A',
+          DutyName: 'Bartender',
+          Status: person ? (person.Status || 'Active') : 'Unknown'
+        };
+      });
+      
+      Logger.log(`Found ${bartenderEntries.length} bartender entries`);
+    } catch (e) {
+      Logger.log(`Warning: Could not load BartenderShifts: ${e.toString()}`);
+    }
+    
+    const allCrewEntries = crewMembers.concat(bartenderEntries);
+    Logger.log(`Total crew + bartender entries: ${allCrewEntries.length}`);
+    return { success: true, data: allCrewEntries };
+    
+  } catch (error) {
+    Logger.log(`ERROR in getAllCrewMembers(): ${error.toString()}`);
+    return { success: false, data: null, error: error.toString() };
   }
 }
 
@@ -1874,54 +2175,175 @@ function getAllCrewDutyTypes() {
  * RETURNS: Object with totalPersonnel, activeStudents, upcomingShows, activeClasses
  */
 function getDashboardStats() {
+  try {
+    Logger.log('getDashboardStats() called - calculating enhanced stats from multiple sheets');
+
+    // --- PERSONNEL ---
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const totalPersonnel = Math.max(0, personnelSheet.getLastRow() - 1);
+    Logger.log(`Total personnel: ${totalPersonnel}`);
+
+    // --- SHOWS ---
+    const showsSheet = getSheet(SHEET_CONFIG.showInformation);
+    const allShows = sheetToObjects(showsSheet);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledShows = allShows.filter(s => s.Status === 'Scheduled');
+    const canceledShows  = allShows.filter(s => s.Status === 'Canceled');
+    const totalShows     = allShows.length;
+
+    // Next upcoming show (soonest future Scheduled show)
+    const futureScheduled = scheduledShows
+      .filter(s => s.ShowDate && new Date(s.ShowDate) >= today)
+      .sort((a, b) => new Date(a.ShowDate) - new Date(b.ShowDate));
+    const nextShow = futureScheduled.length > 0
+      ? { ShowDate: futureScheduled[0].ShowDate, ShowTime: futureScheduled[0].ShowTime, Venue: futureScheduled[0].Venue }
+      : null;
+    Logger.log(`Shows — total: ${totalShows}, scheduled: ${scheduledShows.length}, canceled: ${canceledShows.length}`);
+
+    // --- CLASSES ---
+    const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allClasses = sheetToObjects(classesSheet);
+
+    let upcomingClasses = 0, inProgressClasses = 0, completedClasses = 0, cancelledClasses = 0;
+    allClasses.forEach(c => {
+      const st = c.Status || 'Upcoming';
+      if (st === 'Upcoming')       upcomingClasses++;
+      else if (st === 'In Progress') inProgressClasses++;
+      else if (st === 'Completed')   completedClasses++;
+      else if (st === 'Cancelled')   cancelledClasses++;
+    });
+    const activeClasses = upcomingClasses + inProgressClasses;
+    const totalClasses  = allClasses.length;
+    Logger.log(`Classes — total: ${totalClasses}, active: ${activeClasses}`);
+
+    // --- ENROLLMENTS ---
+    const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+    const allEnrollments = sheetToObjects(enrollmentsSheet);
+    const activeEnrollmentRows = allEnrollments.filter(e => {
+      const st = e.CompletionStatus || e.Status || '';
+      return st !== 'Dropped' && st !== 'Withdrawn' && st !== 'Completed';
+    });
+    const activeStudentIds = new Set(activeEnrollmentRows.map(e => e.StudentID));
+    const activeStudents    = activeStudentIds.size;
+    const totalEnrollments  = activeEnrollmentRows.length;
+
+    // Class enrollment details for each active/upcoming class
+    let allLevels = [];
     try {
-        Logger.log('getDashboardStats() called - calculating from multiple sheets');
-        
-        // READ: Count total personnel from Personnel sheet
-        const personnelSheet = getSheet(SHEET_CONFIG.personnel);
-        const totalPersonnel = Math.max(0, personnelSheet.getLastRow() - 1);
-        Logger.log(`Total personnel count: ${totalPersonnel}`);
-        
-        // READ: Count upcoming shows from ShowInformation sheet
-        const showsSheet = getSheet(SHEET_CONFIG.showInformation);
-        const upcomingShows = Math.max(0, showsSheet.getLastRow() - 1);
-        Logger.log(`Upcoming shows count: ${upcomingShows}`);
-        
-        // READ: Count active classes from ClassOfferings sheet
-        const classesSheet = getSheet(SHEET_CONFIG.classOfferings);
-        const activeClasses = Math.max(0, classesSheet.getLastRow() - 1);
-        Logger.log(`Active classes count: ${activeClasses}`);
-        
-        // READ: Count unique active students from StudentEnrollments sheet
-        const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
-        const enrollments = sheetToObjects(enrollmentsSheet);
-        const activeStudentIds = new Set(
-          enrollments
-            .filter(e => e.Status === 'Enrolled')  // Only count currently enrolled
-            .map(e => e.StudentID)                 // Get unique student IDs
-        );
-        const activeStudents = activeStudentIds.size;
-        Logger.log(`Active students count: ${activeStudents} (from ${enrollments.length} total enrollments)`);
-        
-        const stats = {
-          totalPersonnel,
-          activeStudents,
-          upcomingShows,
-          activeClasses
+      const levelsSheet = getSheet(SHEET_CONFIG.classLevels);
+      allLevels = sheetToObjects(levelsSheet);
+    } catch(e) {}
+
+    const classEnrollmentData = allClasses
+      .filter(c => c.Status === 'Upcoming' || c.Status === 'In Progress')
+      .map(c => {
+        const enrolled = allEnrollments.filter(e => {
+          if (e.OfferingID != c.OfferingID) return false;
+          const st = e.CompletionStatus || e.Status || '';
+          return st !== 'Dropped' && st !== 'Withdrawn';
+        }).length;
+        const level     = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
+        const levelName = level ? level.LevelName : (c.ClassLevelID ? `Level ${c.ClassLevelID}` : 'Class');
+        return {
+          OfferingID:   c.OfferingID,
+          LevelName:    levelName,
+          Status:       c.Status || 'Upcoming',
+          MaxStudents:  Number(c.MaxStudents) || 12,
+          EnrolledCount: enrolled
         };
-        
-        Logger.log(`Dashboard stats calculated: ${JSON.stringify(stats)}`);
-        return stats;  } catch (error) {
-    Logger.log(`ERROR in getDashboardStats(): ${error.toString()}`);
-    // Return zero stats if there's an error
-    const errorStats = {
-      totalPersonnel: 0,
-      activeStudents: 0,
-      upcomingShows: 0,
-      activeClasses: 0
+      });
+
+    // --- STUDENT STATUS (from StudentInfo) ---
+    let studentsActive = 0, studentsInactive = 0, studentsGraduated = 0, totalStudents = 0;
+    try {
+      const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+      const allStudentInfo = sheetToObjects(studentInfoSheet);
+      totalStudents      = allStudentInfo.length;
+      studentsActive     = allStudentInfo.filter(s => s.Status === 'Active').length;
+      studentsInactive   = allStudentInfo.filter(s => s.Status === 'Inactive').length;
+      studentsGraduated  = allStudentInfo.filter(s => s.Status === 'Graduated').length;
+    } catch(e) {
+      Logger.log(`Warning: Could not load StudentInfo: ${e.toString()}`);
+      totalStudents  = activeStudents;
+      studentsActive = activeStudents;
+    }
+
+    // --- CAST MEMBERS ---
+    let totalCastMembers = 0;
+    try {
+      const castMemberInfoSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+      totalCastMembers = Math.max(0, castMemberInfoSheet.getLastRow() - 1);
+    } catch(e) {}
+
+    // --- CREW MEMBERS (unique people in CrewDuties) ---
+    let totalCrewMembers = 0;
+    try {
+      const crewDutiesSheet = getSheet(SHEET_CONFIG.crewDuties);
+      const allCrewDuties = sheetToObjects(crewDutiesSheet);
+      const uniqueCrewIds = new Set(
+        allCrewDuties.map(d => d.CastMemberID || d.CrewMemberID || d.PersonnelID).filter(id => id != null)
+      );
+      totalCrewMembers = uniqueCrewIds.size;
+    } catch(e) {}
+
+    // --- BARTENDERS ---
+    let totalBartenders = 0, activeBartenders = 0;
+    try {
+      const bartendersSheet = getSheet('Bartenders');
+      const allBartenders = sheetToObjects(bartendersSheet);
+      totalBartenders  = allBartenders.length;
+      activeBartenders = allBartenders.filter(b => {
+        const a = b.Active;
+        return a === true || a === 'TRUE' || a === 'Yes' || a === 'true';
+      }).length;
+    } catch(e) {}
+
+    const stats = {
+      totalPersonnel,
+      // Students
+      activeStudents,
+      totalStudents,
+      studentsActive,
+      studentsInactive,
+      studentsGraduated,
+      // Shows
+      scheduledShows: scheduledShows.length,
+      canceledShows:  canceledShows.length,
+      totalShows,
+      nextShow,
+      // Classes
+      activeClasses,
+      upcomingClasses,
+      inProgressClasses,
+      completedClasses,
+      cancelledClasses,
+      totalClasses,
+      // Enrollments
+      totalEnrollments,
+      classEnrollmentData,
+      // Roles
+      totalCastMembers,
+      totalCrewMembers,
+      totalBartenders,
+      activeBartenders
     };
-    Logger.log('Returning zero stats due to error');
-    return errorStats;
+
+    Logger.log(`Enhanced dashboard stats calculated: ${JSON.stringify(stats)}`);
+    return stats;
+
+  } catch (error) {
+    Logger.log(`ERROR in getDashboardStats(): ${error.toString()}`);
+    return {
+      totalPersonnel: 0, activeStudents: 0, totalStudents: 0,
+      studentsActive: 0, studentsInactive: 0, studentsGraduated: 0,
+      scheduledShows: 0, canceledShows: 0, totalShows: 0, nextShow: null,
+      activeClasses: 0, upcomingClasses: 0, inProgressClasses: 0,
+      completedClasses: 0, cancelledClasses: 0, totalClasses: 0,
+      totalEnrollments: 0, classEnrollmentData: [],
+      totalCastMembers: 0, totalCrewMembers: 0,
+      totalBartenders: 0, activeBartenders: 0
+    };
   }
 }
 
@@ -3454,6 +3876,53 @@ function createClassOffering(classData) {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+/**
+ * UPDATE OPERATION: Updates an existing class offering
+ * DATA SOURCE: ClassOfferings sheet
+ * @param {Object} classData - Object with OfferingID and fields to update
+ * @returns {Object} Success status and updated class data
+ */
+function updateClassOffering(classData) {
+  try {
+    Logger.log('=== updateClassOffering() called ===');
+    Logger.log(`Update data: ${JSON.stringify(classData)}`);
+
+    const sheet = getSheet(SHEET_CONFIG.classOfferings);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const allData = sheet.getDataRange().getValues();
+
+    // Find the row with the matching OfferingID (allData[0] is header row)
+    let targetRow = -1;
+    for (let i = 1; i < allData.length; i++) {
+      const rowObj = {};
+      headers.forEach((h, idx) => { rowObj[h] = allData[i][idx]; });
+      if (rowObj.OfferingID == classData.OfferingID) {
+        targetRow = i + 1; // 1-based row index for Sheets API
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      return { success: false, error: `Class offering with ID ${classData.OfferingID} not found` };
+    }
+
+    // Write back only the fields present in classData, preserving everything else
+    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'VenueOrRoom', 'MeetingDays', 'MeetingTime'];
+    headers.forEach((header, colIdx) => {
+      if (updatableFields.includes(header) && classData[header] !== undefined) {
+        sheet.getRange(targetRow, colIdx + 1).setValue(classData[header]);
+      }
+    });
+
+    Logger.log(`Updated class offering ID ${classData.OfferingID} at row ${targetRow}`);
+    return { success: true, data: classData };
+
+  } catch (error) {
+    Logger.log(`ERROR in updateClassOffering(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
   }
 }
 

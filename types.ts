@@ -71,6 +71,26 @@ export interface CrewDuties {
   CrewDutyTypeID: number;
 }
 
+export interface Bartender {
+  BartenderID: number;
+  PersonnelID: number;
+  Trained: boolean | string;
+  Status: string;
+  Active: boolean | string;
+}
+
+export interface BartenderWithDetails extends Bartender {
+  FirstName: string;
+  LastName: string;
+  FullName?: string;
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  Birthday?: string;
+  ShiftCount?: number;
+  LastShiftDate?: string;
+  LastShowName?: string;
+}
+
 export interface Inventory {
   ItemID: number;
   ItemName: string;
@@ -117,6 +137,25 @@ export interface CastMemberWithDetails extends ShowPerformances {
   Birthday?: string;
   // Show details - updated structure
   LastShowDate?: string;
+  Status: string;
+}
+
+export interface CrewMemberWithDetails extends CrewDuties {
+  // Person details - matches Personnel sheet structure
+  FullName?: string;
+  FirstName: string;
+  Lastname: string;   // matches Personnel sheet column
+  LastName?: string;  // alias used in UI components
+  PrimaryEmail: string;
+  PrimaryPhone: string;
+  PersonnelID?: number;
+  Birthday?: string;
+  // Show details
+  ShowName?: string;
+  ShowDate?: string;
+  LastShowDate?: string;
+  // Duty details
+  DutyName?: string;
   Status: string;
 }
 
@@ -181,11 +220,48 @@ export interface StudentProfileData {
 }
 
 // UI State Types
+export interface ClassEnrollmentEntry {
+  OfferingID: number;
+  LevelName: string;
+  Status: string;
+  MaxStudents: number;
+  EnrolledCount: number;
+}
+
+export interface NextShowInfo {
+  ShowDate: Date | string;
+  ShowTime: string;
+  Venue: string;
+}
+
 export interface DashboardStats {
   totalPersonnel: number;
+  // Students
   activeStudents: number;
-  upcomingShows: number;
+  totalStudents: number;
+  studentsActive: number;
+  studentsInactive: number;
+  studentsGraduated: number;
+  // Shows
+  scheduledShows: number;
+  canceledShows: number;
+  totalShows: number;
+  nextShow: NextShowInfo | null;
+  // Classes
   activeClasses: number;
+  upcomingClasses: number;
+  inProgressClasses: number;
+  completedClasses: number;
+  cancelledClasses: number;
+  totalClasses: number;
+  // Enrollments
+  totalEnrollments: number;
+  classEnrollmentData: ClassEnrollmentEntry[];
+  // Roles
+  totalCastMembers: number;
+  totalCrewMembers: number;
+  totalBartenders: number;
+  activeBartenders: number;
 }
 
 export interface CalendarEvent {
@@ -213,7 +289,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
