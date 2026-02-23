@@ -1,5 +1,5 @@
 /**
- * 38JTF Team Management Portal - Google Apps Script Backend
+ * 12JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -1279,6 +1279,130 @@ function removeBartender(bartenderId) {
     return { success: true, data: { deleted: true } };
   } catch (error) {
     Logger.log(`ERROR in removeBartender(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+// =============================================================================
+// TEACHER FUNCTIONS - READ, CREATE, DELETE OPERATIONS
+// DATA SOURCE: 'Teachers' sheet
+// COLUMNS: TeacherID (A) | PersonnelID (B) | [C unused] | Active (D)
+// =============================================================================
+
+/**
+ * READ OPERATION: Gets all teachers with full Personnel details and their class history.
+ * DATA FLOW: Teachers.PersonnelID → Personnel; ClassOfferings.TeacherPersonnelID → class list
+ */
+function getTeachersWithDetails() {
+  try {
+    Logger.log('getTeachersWithDetails() called');
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(teachersSheet);
+
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+
+    let allClasses = [];
+    let allLevels = [];
+    try {
+      allClasses = sheetToObjects(getSheet(SHEET_CONFIG.classOfferings));
+      allLevels = sheetToObjects(getSheet(SHEET_CONFIG.classLevels));
+    } catch (e) {
+      Logger.log('Warning: Could not load ClassOfferings/ClassLevels: ' + e.toString());
+    }
+
+    const result = allTeachers.map(teacher => {
+      const person = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+
+      // Match classes where TeacherPersonnelID == teacher.PersonnelID
+      const teacherClasses = allClasses
+        .filter(c => c.TeacherPersonnelID == teacher.PersonnelID)
+        .map(c => {
+          const level = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
+          return {
+            OfferingID: c.OfferingID,
+            LevelName: level ? level.LevelName : (c.ClassLevelID || 'Class'),
+            StartDate: c.StartDate || '',
+            EndDate: c.EndDate || '',
+            Status: c.Status || 'Unknown',
+            VenueOrRoom: c.VenueOrRoom || '',
+            MaxStudents: c.MaxStudents || ''
+          };
+        });
+
+      const activeClassCount = teacherClasses.filter(c =>
+        c.Status && (c.Status.toLowerCase() === 'active' || c.Status.toLowerCase() === 'in progress' || c.Status.toLowerCase() === 'scheduled')
+      ).length;
+
+      return {
+        TeacherID: teacher.TeacherID,
+        PersonnelID: teacher.PersonnelID,
+        Active: teacher.Active,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? (person.LastName || person.Lastname || '') : 'Person',
+        FullName: person ? `${person.FirstName} ${person.LastName || person.Lastname || ''}`.trim() : 'Unknown Person',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Classes: teacherClasses,
+        TotalClasses: teacherClasses.length,
+        ActiveClasses: activeClassCount
+      };
+    });
+
+    Logger.log('Retrieved ' + result.length + ' teachers with details');
+    return { success: true, data: result };
+  } catch (error) {
+    Logger.log('ERROR in getTeachersWithDetails(): ' + error.toString());
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * CREATE OPERATION: Adds a person from Personnel to the Teachers table.
+ * DATA FLOW: PersonnelID → new row in Teachers sheet
+ * @param {number} personnelId - The PersonnelID to add as a teacher
+ */
+function addPersonAsTeacher(personnelId) {
+  try {
+    Logger.log('addPersonAsTeacher() called for PersonnelID: ' + personnelId);
+    const sheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(sheet);
+
+    const existing = allTeachers.find(t => t.PersonnelID == personnelId);
+    if (existing) {
+      return { success: false, error: 'This person is already in the Teachers table.' };
+    }
+
+    const newId = getNextId(sheet, 0);
+    const newTeacher = {
+      TeacherID: newId,
+      PersonnelID: personnelId,
+      Active: true
+    };
+
+    addOrUpdateRow(sheet, newTeacher, 0);
+    Logger.log('Added teacher with ID: ' + newId + ' for PersonnelID: ' + personnelId);
+    return { success: true, data: newTeacher };
+  } catch (error) {
+    Logger.log('ERROR in addPersonAsTeacher(): ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a teacher from the Teachers table by TeacherID.
+ * NOTE: Does NOT delete class history — ClassOfferings records are preserved.
+ * @param {number} teacherId - The TeacherID to remove
+ */
+function removeTeacher(teacherId) {
+  try {
+    Logger.log('removeTeacher() called for TeacherID: ' + teacherId);
+    const sheet = getSheet(SHEET_CONFIG.teachers);
+    deleteRowsByCondition(sheet, 'TeacherID', teacherId);
+    Logger.log('Removed teacher with ID: ' + teacherId);
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    Logger.log('ERROR in removeTeacher(): ' + error.toString());
     return { success: false, error: error.toString() };
   }
 }

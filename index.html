@@ -55,12 +55,23 @@
     </script>
     <style>
         *, *::before, *::after { box-sizing: border-box; }
-        body {
+        html, body {
+            height: 100%;
+            width: 100%;
             margin: 0;
             padding: 0;
+            overflow: hidden;
+        }
+        body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+        #root {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         /* ── Scrollbar ───────────────────────────────────────────────── */
@@ -363,6 +374,21 @@
             // DELETE: Remove a bartender from the Bartenders table by BartenderID
             async removeBartender(bartenderId) {
                 return this.callServerFunction('removeBartender', bartenderId);
+            }
+
+            // READ: Get all teachers with full details (for Teachers management page)
+            async getTeachersWithDetails() {
+                return this.callServerFunction('getTeachersWithDetails');
+            }
+
+            // CREATE: Add a person from Personnel to the Teachers table
+            async addPersonAsTeacher(personnelId) {
+                return this.callServerFunction('addPersonAsTeacher', personnelId);
+            }
+
+            // DELETE: Remove a teacher from the Teachers table by TeacherID
+            async removeTeacher(teacherId) {
+                return this.callServerFunction('removeTeacher', teacherId);
             }
 
             // READ: Get all crew duty types
@@ -1499,7 +1525,6 @@
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedPerson, setSelectedPerson] = useState(null);
             const [modalMode, setModalMode] = useState('view');
-            const [isModalOpen, setIsModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
 
             useEffect(() => {
@@ -1574,35 +1599,33 @@
                 }
             };
 
+            const [isEditing, setIsEditing] = useState(false);
+            const [editFormData, setEditFormData] = useState({});
+            const [isSaving, setIsSaving] = useState(false);
+            const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
             const handlePersonClick = (person) => {
                 setSelectedPerson(person);
-                setModalMode('view');
-                setIsModalOpen(true);
+                setIsEditing(false);
+                setEditFormData(person);
             };
 
             const handleAddNew = () => {
                 setSelectedPerson(null);
                 setModalMode('create');
-                setIsModalOpen(true);
+                setIsCreateModalOpen(true);
             };
 
             const handleSavePerson = async (personData) => {
                 try {
                     let response;
                     if (modalMode === 'create') {
-                        // CREATE: Add new person to Personnel sheet with auto-generated PersonnelID
                         response = await gasService.createPersonnel(personData);
                     } else {
-                        // UPDATE: Modify existing person in Personnel sheet by PersonnelID
                         response = await gasService.updatePersonnel(personData);
                     }
-
                     if (response.success) {
-                        setMessage({ 
-                            type: 'success', 
-                            text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
-                        });
-                        // Reload personnel list to show changes
+                        setMessage({ type: 'success', text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully' });
                         loadPersonnel();
                     } else {
                         setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
@@ -1612,13 +1635,23 @@
                 }
             };
 
-            const handleCloseModal = () => {
-                setIsModalOpen(false);
-                setSelectedPerson(null);
-            };
-
-            const handleEditPerson = () => {
-                setModalMode('edit');
+            const handleSaveEdit = async () => {
+                setIsSaving(true);
+                try {
+                    const response = await gasService.updatePersonnel(editFormData);
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Personnel updated successfully' });
+                        setSelectedPerson(editFormData);
+                        setIsEditing(false);
+                        loadPersonnel();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to save' });
+                    }
+                } catch (error) {
+                    setMessage({ type: 'error', text: 'Error saving personnel' });
+                } finally {
+                    setIsSaving(false);
+                }
             };
 
             const handleDeletePerson = async () => {
@@ -1629,10 +1662,7 @@
                             const response = await gasService.deletePersonnel(selectedPerson.PersonnelID);
                             if (response.success) {
                                 setMessage({ type: 'success', text: 'Personnel deleted successfully' });
-                                // Reload personnel list to show changes
                                 loadPersonnel();
-                                // Close modal
-                                setIsModalOpen(false);
                                 setSelectedPerson(null);
                             } else {
                                 setMessage({ type: 'error', text: response.error || 'Failed to delete personnel' });
@@ -1644,55 +1674,152 @@
                 }
             };
 
-            return e('div', { className: 'p-6 max-w-screen-xl' },
-                e('div', { className: 'flex justify-between items-center mb-6' },
+            const fieldLabel = (label) => e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, label);
+            const fieldValue = (val) => e('p', { className: 'text-sm text-slate-800 font-medium' }, val || e('span', { className: 'text-slate-400 italic' }, 'Not provided'));
+
+            const detailPanel = selectedPerson ? (
+                e('div', { className: 'flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden' },
+                    // Panel header
+                    e('div', { className: 'flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0' },
+                        e('div', { className: 'flex items-center gap-3' },
+                            e('div', { className: 'w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center text-sky-600 font-bold text-sm flex-shrink-0' },
+                                `${(selectedPerson.FirstName || '?')[0]}${(selectedPerson.LastName || selectedPerson.Lastname || '?')[0]}`
+                            ),
+                            e('div', null,
+                                e('p', { className: 'text-sm font-bold text-slate-900 leading-tight' }, `${selectedPerson.FirstName} ${selectedPerson.LastName || selectedPerson.Lastname}`),
+                                e('p', { className: 'text-xs text-slate-400' }, selectedPerson.PrimaryEmail)
+                            )
+                        ),
+                        e('button', {
+                            onClick: () => setSelectedPerson(null),
+                            className: 'w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-lg leading-none'
+                        }, '×')
+                    ),
+                    // Panel body
+                    e('div', { className: 'flex-1 overflow-y-auto p-5 space-y-4' },
+                        isEditing ? (
+                            e('div', { className: 'grid grid-cols-1 gap-3' },
+                                ['FirstName','LastName','PrimaryEmail','PrimaryPhone','Instagram','Birthday'].map(field =>
+                                    e('div', { key: field },
+                                        e('label', { className: 'block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1' }, field.replace(/([A-Z])/g, ' $1').trim()),
+                                        e('input', {
+                                            type: field === 'PrimaryEmail' ? 'email' : field === 'Birthday' ? 'date' : 'text',
+                                            value: editFormData[field] || editFormData[field === 'LastName' ? 'Lastname' : field] || '',
+                                            onChange: (ev) => setEditFormData(prev => ({ ...prev, [field]: ev.target.value })),
+                                            className: 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:border-sky-400 transition-colors'
+                                        })
+                                    )
+                                )
+                            )
+                        ) : (
+                            e('div', { className: 'grid grid-cols-2 gap-x-6 gap-y-4' },
+                                e('div', null, fieldLabel('First Name'), fieldValue(selectedPerson.FirstName)),
+                                e('div', null, fieldLabel('Last Name'), fieldValue(selectedPerson.LastName || selectedPerson.Lastname)),
+                                e('div', { className: 'col-span-2' }, fieldLabel('Email'), fieldValue(selectedPerson.PrimaryEmail)),
+                                e('div', null, fieldLabel('Phone'), fieldValue(selectedPerson.PrimaryPhone)),
+                                e('div', null, fieldLabel('Instagram'), fieldValue(selectedPerson.Instagram)),
+                                e('div', null, fieldLabel('Birthday'), fieldValue(selectedPerson.Birthday))
+                            )
+                        )
+                    ),
+                    // Panel footer actions
+                    e('div', { className: 'flex items-center gap-2 px-5 py-4 border-t border-slate-100 flex-shrink-0' },
+                        isEditing ? (
+                            e(React.Fragment, null,
+                                e('button', {
+                                    onClick: handleSaveEdit,
+                                    disabled: isSaving,
+                                    className: 'btn-primary flex-1 py-2 text-sm font-semibold text-white rounded-xl'
+                                }, isSaving ? 'Saving…' : 'Save Changes'),
+                                e('button', {
+                                    onClick: () => setIsEditing(false),
+                                    className: 'px-4 py-2 text-sm font-medium text-slate-600 rounded-xl hover:bg-slate-100 transition-colors'
+                                }, 'Cancel')
+                            )
+                        ) : (
+                            e(React.Fragment, null,
+                                e('button', {
+                                    onClick: () => { setIsEditing(true); setEditFormData(selectedPerson); },
+                                    className: 'flex-1 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors'
+                                }, 'Edit'),
+                                e('button', {
+                                    onClick: handleDeletePerson,
+                                    className: 'px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors'
+                                }, 'Delete')
+                            )
+                        )
+                    )
+                )
+            ) : (
+                e('div', { className: 'flex flex-col items-center justify-center h-full bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center p-8' },
+                    e('div', { className: 'w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3' },
+                        e('svg', { className: 'w-6 h-6 text-slate-400', fill: 'none', stroke: 'currentColor', strokeWidth: '1.5', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z' })
+                        )
+                    ),
+                    e('p', { className: 'text-sm font-medium text-slate-500' }, 'Select a person to view details')
+                )
+            );
+
+            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
+                // Header
+                e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Personnel Directory'),
                         e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage all team members')
                     ),
-                    e('button', {
-                        onClick: handleAddNew,
-                        className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl'
-                    }, '+ Add New Person')
+                    e('button', { onClick: handleAddNew, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add New Person')
                 ),
 
-                message && e('div', { className: 'mb-4' },
-                    e(Message, {
-                        type: message.type,
-                        message: message.text,
-                        onClose: () => setMessage(null)
-                    })
+                message && e('div', { className: 'flex-shrink-0' },
+                    e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
-                e('div', { className: 'mb-6' },
+                // Search
+                e('div', { className: 'flex-shrink-0' },
                     e('input', {
                         type: 'text',
                         placeholder: 'Search by name or email\u2026',
                         value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
+                        onChange: (ev) => setSearchTerm(ev.target.value),
                         className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
                     })
                 ),
 
-                isLoading ? e(Loader, { text: 'Loading personnel...' }) :
-                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },
-                    filteredPersonnel.map((person) =>
-                        e(PersonCard, {
-                            key: person.PersonnelID,
-                            person: person,
-                            onClick: () => handlePersonClick(person)
-                        })
-                    )
+                // Split panel
+                e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                    // Left: scrollable card list
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
+                        isLoading ? e(Loader, { text: 'Loading personnel...' }) :
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2' },
+                            filteredPersonnel.map((person) =>
+                                e(PersonCard, {
+                                    key: person.PersonnelID,
+                                    person: person,
+                                    onClick: () => handlePersonClick(person),
+                                    style: selectedPerson && selectedPerson.PersonnelID === person.PersonnelID
+                                        ? { outline: '2px solid #0ea5e9', outlineOffset: '2px' }
+                                        : {}
+                                })
+                            )
+                        )
+                    ),
+                    // Right: detail panel (fixed width)
+                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, detailPanel)
                 ),
 
+                // Create modal (overlay only for adding new)
                 e(PersonnelModal, {
-                    isOpen: isModalOpen,
-                    mode: modalMode,
-                    person: selectedPerson,
-                    onClose: handleCloseModal,
-                    onSave: handleSavePerson,
-                    onEdit: handleEditPerson,
-                    onDelete: handleDeletePerson
+                    isOpen: isCreateModalOpen,
+                    mode: 'create',
+                    person: null,
+                    onClose: () => setIsCreateModalOpen(false),
+                    onSave: async (personData) => {
+                        await handleSavePerson(personData);
+                        setIsCreateModalOpen(false);
+                    },
+                    onEdit: () => {},
+                    onDelete: () => {}
                 })
             );
         }
@@ -1705,7 +1832,6 @@
             const [isLoading, setIsLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedCastMember, setSelectedCastMember] = useState(null);
-            const [isModalOpen, setIsModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
 
             // Add Cast Member modal state
@@ -1843,76 +1969,63 @@
 
             const handleCastMemberClick = (castMember) => {
                 setSelectedCastMember(castMember);
-                setIsModalOpen(true);
             };
 
-            const handleCloseModal = () => {
-                setIsModalOpen(false);
-                setSelectedCastMember(null);
-            };
+            const castDetailPanel = selectedCastMember ? (
+                e('div', { className: 'flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden' },
+                    e('div', { className: 'flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0' },
+                        e('div', { className: 'flex items-center gap-3' },
+                            e('div', { className: 'w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-sm flex-shrink-0' },
+                                `${(selectedCastMember.FirstName||'?')[0]}${(selectedCastMember.LastName||'?')[0]}`
+                            ),
+                            e('div', null,
+                                e('p', { className: 'text-sm font-bold text-slate-900 leading-tight' }, `${selectedCastMember.FirstName||''} ${selectedCastMember.LastName||''}`.trim()),
+                                e('span', { className: `text-xs px-2 py-0.5 rounded-full font-medium ${selectedCastMember.Status==='Active'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}` }, selectedCastMember.Status||'Unknown')
+                            )
+                        ),
+                        e('button', { onClick: () => setSelectedCastMember(null), className: 'w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-lg leading-none' }, '×')
+                    ),
+                    e('div', { className: 'flex-1 overflow-y-auto p-5' },
+                        e('div', { className: 'grid grid-cols-2 gap-x-6 gap-y-4' },
+                            e('div', { className: 'col-span-2' }, e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Email'), e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedCastMember.PrimaryEmail||'Not provided')),
+                            e('div', null, e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Phone'), e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedCastMember.PrimaryPhone||'N/A')),
+                            e('div', null, e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Birthday'), e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedCastMember.Birthday?new Date(selectedCastMember.Birthday).toLocaleDateString():'N/A')),
+                            e('div', { className: 'col-span-2' }, e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, 'Last Show Date'), e('p', { className: 'text-sm text-slate-800 font-medium' }, selectedCastMember.LastShowDate&&selectedCastMember.LastShowDate!=='N/A'?new Date(selectedCastMember.LastShowDate).toLocaleDateString():'N/A'))
+                        )
+                    ),
+                    e('div', { className: 'flex items-center gap-2 px-5 py-4 border-t border-slate-100 flex-shrink-0' },
+                        e('button', { onClick: () => { setRemoveTarget(selectedCastMember); setSelectedCastMember(null); }, className: 'flex-1 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-xl transition-colors' }, 'Remove from Cast'),
+                        e('button', { onClick: () => setSelectedCastMember(null), className: 'px-4 py-2 text-sm font-medium text-slate-600 rounded-xl hover:bg-slate-100 transition-colors' }, 'Close')
+                    )
+                )
+            ) : e('div', { className: 'flex flex-col items-center justify-center h-full bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center p-8' },
+                e('p', { className: 'text-sm font-medium text-slate-500' }, 'Select a cast member to view details')
+            );
 
-            return e('div', { className: 'p-6 max-w-screen-xl' },
-                e('div', { className: 'flex justify-between items-center mb-6' },
+            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
+                e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Cast Directory'),
                         e('p', { className: 'text-sm text-gray-500 mt-0.5' }, `${filteredCastMembers.length} cast assignments`)
                     ),
-                    e('button', {
-                        onClick: handleOpenAddModal,
-                        className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl'
-                    }, '+ Add Cast Member')
+                    e('button', { onClick: handleOpenAddModal, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add Cast Member')
                 ),
-
-                message && e('div', { className: 'mb-4' },
-                    e(Message, {
-                        type: message.type,
-                        message: message.text,
-                        onClose: () => setMessage(null)
-                    })
+                message && e('div', { className: 'flex-shrink-0' }, e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })),
+                e('div', { className: 'flex-shrink-0' },
+                    e('input', { type: 'text', placeholder: 'Search by name, email, or phone…', value: searchTerm, onChange: (ev) => setSearchTerm(ev.target.value), className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors' })
                 ),
-
-                e('div', { className: 'mb-6' },
-                    e('input', {
-                        type: 'text',
-                        placeholder: 'Search by name, email, or phone…',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full max-w-sm px-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    })
-                ),
-
-                isLoading ? e(Loader, { text: 'Loading cast members...' }) :
-                message && message.type === 'error' ? (
-                    e('div', { className: 'mb-4' },
-                        e(Message, {
-                            type: 'error',
-                            message: message.text,
-                            onClose: () => setMessage(null)
-                        }),
-                        e('button', {
-                            onClick: loadCastMembers,
-                            className: 'btn-primary mt-2 px-4 py-2 text-sm font-semibold text-white rounded-xl'
-                        }, 'Retry')
-                    )
-                ) : filteredCastMembers.length === 0 ? (
-                    e('div', { className: 'text-center text-gray-500 mt-8' },
-                        e('p', null, 'No cast members found.'),
-                        e('button', {
-                            onClick: loadCastMembers,
-                            className: 'btn-primary mt-2 px-4 py-2 text-sm font-semibold text-white rounded-xl'
-                        }, 'Reload')
-                    )
-                ) : (
-                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3' },
-                        filteredCastMembers.map((castMember) =>
-                            e(CastCard, {
-                                key: `${castMember.PerformanceID}-${castMember.CastMemberID}`,
-                                castMember: castMember,
-                                onClick: () => handleCastMemberClick(castMember),
-                                onRemove: handleRemoveClick
-                            })
+                e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
+                        isLoading ? e(Loader, { text: 'Loading cast members...' }) :
+                        filteredCastMembers.length === 0 ? e('div', { className: 'text-center text-gray-500 mt-8 pb-2' }, e('p', null, 'No cast members found.')) :
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2' },
+                            filteredCastMembers.map((castMember) =>
+                                e(CastCard, { key: `${castMember.PerformanceID}-${castMember.CastMemberID}`, castMember: castMember, onClick: () => handleCastMemberClick(castMember), onRemove: handleRemoveClick,
+                                    style: selectedCastMember&&selectedCastMember.CastMemberID===castMember.CastMemberID?{outline:'2px solid #a855f7',outlineOffset:'2px'}:{} })
+                            )
                         )
-                    )
+                    ),
+                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, castDetailPanel)
                 ),
 
                 // Add Cast Member Modal
@@ -2021,60 +2134,6 @@
                     )
                 ),
 
-                // Cast member detail modal
-                selectedCastMember && e('div', { 
-                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
-                    onClick: handleCloseModal
-                },
-                    e('div', { 
-                        className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto',
-                        onClick: (e) => e.stopPropagation()
-                    },
-                        e('div', { className: 'flex justify-between items-center mb-6' },
-                            e('h2', { className: 'text-xl font-semibold text-gray-900' }, 'Cast Member Details'),
-                            e('button', {
-                                onClick: handleCloseModal,
-                                className: 'text-gray-400 hover:text-gray-600 text-xl'
-                            }, '×')
-                        ),
-                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Name'),
-                                e('p', { className: 'text-gray-900' }, `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || ''}`.trim() || 'Unknown')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Last Show Date'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.LastShowDate && selectedCastMember.LastShowDate !== 'N/A' ? new Date(selectedCastMember.LastShowDate).toLocaleDateString() : 'N/A')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Birthday'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.Birthday ? new Date(selectedCastMember.Birthday).toLocaleDateString() : 'Not available')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
-                                e('span', { 
-                                    className: `inline-block px-2 py-1 text-xs rounded-full ${
-                                        selectedCastMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`
-                                }, selectedCastMember.Status || 'Unknown')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Email'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryEmail || 'Not available')
-                            ),
-                            e('div', null,
-                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Phone'),
-                                e('p', { className: 'text-gray-900' }, selectedCastMember.PrimaryPhone || 'Not available')
-                            )
-                        ),
-                        e('div', { className: 'flex justify-end' },
-                            e('button', {
-                                onClick: handleCloseModal,
-                                className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
-                            }, 'Close')
-                        )
-                    )
-                )
             );
         }
 
@@ -2088,7 +2147,6 @@
             const [showFilter, setShowFilter] = useState('all');
             const [viewMode, setViewMode] = useState('grid');
             const [selectedCrewMember, setSelectedCrewMember] = useState(null);
-            const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
             const [message, setMessage] = useState(null);
 
             useEffect(() => { loadCrewMembers(); }, []);
@@ -2176,9 +2234,64 @@
             };
             const getDisplayName = (m) => `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.trim() || 'Unknown';
 
-            return e('div', { className: 'p-6 max-w-screen-xl' },
+            const crewDetailPanel = selectedCrewMember ? (
+                e('div', { className: 'flex flex-col h-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden' },
+                    e('div', { className: 'flex items-center justify-between px-5 py-4 border-b border-slate-100 flex-shrink-0' },
+                        e('div', { className: 'flex items-center gap-3' },
+                            e('div', { className: 'w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-sm flex-shrink-0' },
+                                `${(selectedCrewMember.FirstName||'')[0]||''}${((selectedCrewMember.LastName||selectedCrewMember.Lastname)||'')[0]||''}`
+                            ),
+                            e('div', null,
+                                e('p', { className: 'text-sm font-bold text-slate-900 leading-tight' }, getDisplayName(selectedCrewMember)),
+                                e('span', { className: `text-xs px-2 py-0.5 rounded-full font-medium ${selectedCrewMember.Status==='Active'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-600'}` }, selectedCrewMember.Status||'Crew Member')
+                            )
+                        ),
+                        e('button', { onClick: () => setSelectedCrewMember(null), className: 'w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-lg leading-none' }, '×')
+                    ),
+                    e('div', { className: 'flex-1 overflow-y-auto p-5 space-y-4' },
+                        e('div', { className: 'bg-gray-50 rounded-lg p-4' },
+                            e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Contact'),
+                            e('div', { className: 'space-y-2 text-sm' },
+                                e('div', null, e('p', { className: 'text-gray-500' }, 'Email'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryEmail||'N/A')),
+                                e('div', null, e('p', { className: 'text-gray-500' }, 'Phone'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryPhone||'N/A')),
+                                selectedCrewMember.Birthday && e('div', null, e('p', { className: 'text-gray-500' }, 'Birthday'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.Birthday)))
+                            )
+                        ),
+                        e('div', { className: 'bg-teal-50 rounded-lg p-4' },
+                            e('h3', { className: 'text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3' }, 'Assignment'),
+                            e('div', { className: 'space-y-2 text-sm' },
+                                e('div', null, e('p', { className: 'text-gray-500' }, 'Duty'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.DutyName||'Unassigned')),
+                                e('div', null, e('p', { className: 'text-gray-500' }, 'Show'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.ShowName||'N/A')),
+                                e('div', null, e('p', { className: 'text-gray-500' }, 'Show Date'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.ShowDate||selectedCrewMember.LastShowDate)))
+                            )
+                        ),
+                        (() => {
+                            const allDuties = crewMembers.filter(m => m.PersonnelID === selectedCrewMember.PersonnelID);
+                            if (allDuties.length <= 1) return null;
+                            return e('div', null,
+                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2' }, `All Assignments (${allDuties.length})`),
+                                e('div', { className: 'space-y-1.5' },
+                                    allDuties.map((duty, idx) =>
+                                        e('div', { key: idx, className: 'flex items-center justify-between p-2.5 border rounded-lg text-sm hover:bg-gray-50' },
+                                            e('span', { className: 'font-medium text-gray-900' }, duty.DutyName||'Unassigned'),
+                                            e('span', { className: 'text-gray-500 text-xs' }, formatDate(duty.ShowDate||duty.LastShowDate))
+                                        )
+                                    )
+                                )
+                            );
+                        })()
+                    ),
+                    e('div', { className: 'flex items-center gap-2 px-5 py-4 border-t border-slate-100 flex-shrink-0' },
+                        e('button', { onClick: () => setSelectedCrewMember(null), className: 'flex-1 py-2 text-sm font-medium text-slate-600 rounded-xl hover:bg-slate-100 transition-colors' }, 'Close')
+                    )
+                )
+            ) : e('div', { className: 'flex flex-col items-center justify-center h-full bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center p-8' },
+                e('p', { className: 'text-sm font-medium text-slate-500' }, 'Select a crew member to view details')
+            );
+
+            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
                 // Header
-                e('div', { className: 'flex justify-between items-center mb-6' },
+                e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Crew Directory'),
                         e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'View crew members and show duty assignments')
@@ -2187,7 +2300,7 @@
                 ),
 
                 // Stats bar
-                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-6' },
+                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0' },
                     e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
                         e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Crew Members'),
                         e('p', { className: 'text-2xl font-bold text-teal-600 mt-1' }, uniqueCrewCount)
@@ -2202,12 +2315,12 @@
                     )
                 ),
 
-                message && e('div', { className: 'mb-4' },
+                message && e('div', { className: 'flex-shrink-0' },
                     e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
                 // Toolbar
-                e('div', { className: 'flex flex-col sm:flex-row gap-3 mb-6' },
+                e('div', { className: 'flex flex-col sm:flex-row gap-3 flex-shrink-0' },
                     e('div', { className: 'relative flex-1' },
                         e('input', {
                             type: 'text',
@@ -2250,6 +2363,9 @@
                     )
                 ),
 
+                // Split panel
+                e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
                 // Content
                 isLoading ? e(Loader, { text: 'Loading crew members...' }) :
                 filteredCrewMembers.length === 0 ?
@@ -2264,7 +2380,7 @@
                             e(CrewCard, {
                                 key: `${member.PersonnelID}-${member.DutyID || idx}`,
                                 crewMember: member,
-                                onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                onClick: () => { setSelectedCrewMember(member); },
                                 showColorClasses: getShowBadge(getDateKey(member))
                             })
                         )
@@ -2284,7 +2400,7 @@
                                         e(CrewCard, {
                                             key: `${member.PersonnelID}-${member.DutyID || idx}`,
                                             crewMember: member,
-                                            onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                            onClick: () => { setSelectedCrewMember(member); },
                                             showColorClasses: getShowBadge(getDateKey(member))
                                         })
                                     )
@@ -2317,83 +2433,16 @@
                                         e(CrewCard, {
                                             key: `${member.PersonnelID}-${member.DutyID || idx}`,
                                             crewMember: member,
-                                            onClick: () => { setSelectedCrewMember(member); setIsDetailModalOpen(true); },
+                                            onClick: () => { setSelectedCrewMember(member); },
                                             showColorClasses: getShowBadge(getDateKey(member))
                                         })
                                     )
                                 )
                             )
                         )
-                    ),
-
-                // Detail Modal
-                isDetailModalOpen && selectedCrewMember && e('div', {
-                    className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4',
-                    onClick: () => setIsDetailModalOpen(false)
-                },
-                    e('div', {
-                        className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 overflow-y-auto',
-                        style: { maxHeight: '90vh' },
-                        onClick: (ev) => ev.stopPropagation()
-                    },
-                        e('div', { className: 'flex justify-between items-start mb-6' },
-                            e('div', { className: 'flex items-center gap-3' },
-                                e('div', { className: 'w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center text-teal-700 font-bold text-lg' },
-                                    `${(selectedCrewMember.FirstName || '')[0] || ''}${((selectedCrewMember.LastName || selectedCrewMember.Lastname) || '')[0] || ''}`
-                                ),
-                                e('div', null,
-                                    e('h2', { className: 'text-xl font-semibold text-gray-900' }, getDisplayName(selectedCrewMember)),
-                                    e('span', {
-                                        className: `inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
-                                            selectedCrewMember.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                                        }`
-                                    }, selectedCrewMember.Status || 'Crew Member')
-                                )
-                            ),
-                            e('button', { onClick: () => setIsDetailModalOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
-                        ),
-                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
-                            e('div', { className: 'bg-gray-50 rounded-lg p-4' },
-                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Contact'),
-                                e('div', { className: 'space-y-2 text-sm' },
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Email'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryEmail || 'N/A')),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Phone'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.PrimaryPhone || 'N/A')),
-                                    selectedCrewMember.Birthday && e('div', null, e('p', { className: 'text-gray-500' }, 'Birthday'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.Birthday)))
-                                )
-                            ),
-                            e('div', { className: 'bg-teal-50 rounded-lg p-4' },
-                                e('h3', { className: 'text-xs font-semibold text-teal-600 uppercase tracking-wide mb-3' }, 'Latest Assignment'),
-                                e('div', { className: 'space-y-2 text-sm' },
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Duty'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.DutyName || 'Unassigned')),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Show'), e('p', { className: 'font-medium text-gray-900' }, selectedCrewMember.ShowName || 'N/A')),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Show Date'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedCrewMember.ShowDate || selectedCrewMember.LastShowDate)))
-                                )
-                            )
-                        ),
-                        (() => {
-                            const allDuties = crewMembers.filter(m => m.PersonnelID === selectedCrewMember.PersonnelID);
-                            if (allDuties.length <= 1) return null;
-                            return e('div', null,
-                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, `All Duty Assignments (${allDuties.length})`),
-                                e('div', { className: 'space-y-2' },
-                                    allDuties.map((duty, idx) =>
-                                        e('div', { key: idx, className: 'flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50' },
-                                            e('div', { className: 'flex items-center gap-2 min-w-0' },
-                                                e('span', { className: 'font-medium text-gray-900' }, duty.DutyName || 'Unassigned'),
-                                                duty.ShowName && e('span', {
-                                                    className: `px-2 py-0.5 text-xs rounded-full border ${getShowBadge(duty.ShowName)}`
-                                                }, duty.ShowName)
-                                            ),
-                                            e('span', { className: 'text-sm text-gray-500 flex-shrink-0 ml-2' }, formatDate(duty.ShowDate || duty.LastShowDate))
-                                        )
-                                    )
-                                )
-                            );
-                        })(),
-                        e('div', { className: 'mt-6 flex justify-end' },
-                            e('button', { onClick: () => setIsDetailModalOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
-                        )
                     )
+                ),
+                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, crewDetailPanel)
                 )
             );
         }
@@ -2405,7 +2454,6 @@
             const [isLoading, setIsLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState('');
             const [selectedBartender, setSelectedBartender] = useState(null);
-            const [isDetailOpen, setIsDetailOpen] = useState(false);
             const [message, setMessage] = useState(null);
             const [isAddOpen, setIsAddOpen] = useState(false);
             const [allPersonnel, setAllPersonnel] = useState([]);
@@ -2525,9 +2573,60 @@
             const getInitials = (b) =>
                 `${(b.FirstName || '')[0] || ''}${(b.LastName || '')[0] || ''}`.toUpperCase() || '??';
 
-            return e('div', { className: 'p-6 max-w-screen-xl' },
+            // Bartender detail panel (split-panel right column)
+            const bartenderDetailPanel = selectedBartender
+                ? e('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' } },
+                    e('div', { style: { padding: '16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 } },
+                        e('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' } },
+                            e('div', { style: { width: '48px', height: '48px', borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b45309', fontWeight: 700, fontSize: '16px', flexShrink: 0 } }, getInitials(selectedBartender)),
+                            e('div', null,
+                                e('h2', { style: { fontSize: '15px', fontWeight: 600, color: '#111827', margin: 0 } }, `${selectedBartender.FirstName} ${selectedBartender.LastName}`.trim()),
+                                e('div', { style: { display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' } },
+                                    boolVal(selectedBartender.Trained) && e('span', { style: { padding: '2px 8px', fontSize: '11px', borderRadius: '999px', background: '#e0e7ff', color: '#3730a3', fontWeight: 500 } }, 'Trained'),
+                                    e('span', { style: { padding: '2px 8px', fontSize: '11px', borderRadius: '999px', fontWeight: 500, background: boolVal(selectedBartender.Active) ? '#dcfce7' : '#f3f4f6', color: boolVal(selectedBartender.Active) ? '#166534' : '#4b5563' } },
+                                        boolVal(selectedBartender.Active) ? 'Active' : 'Inactive'
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', padding: '16px' } },
+                        e('div', { style: { background: '#f9fafb', borderRadius: '8px', padding: '12px', marginBottom: '12px' } },
+                            e('p', { style: { fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' } }, 'Contact'),
+                            e('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' } },
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Email'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedBartender.PrimaryEmail || 'N/A')),
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Phone'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedBartender.PrimaryPhone || 'N/A'))
+                            )
+                        ),
+                        e('div', { style: { background: '#fffbeb', borderRadius: '8px', padding: '12px' } },
+                            e('p', { style: { fontSize: '11px', fontWeight: 600, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' } }, 'Shift Summary'),
+                            e('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' } },
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Total Shifts'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedBartender.ShiftCount || 0)),
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Last Shift'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, formatDate(selectedBartender.LastShiftDate))),
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Last Show'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedBartender.LastShowName || 'N/A'))
+                            )
+                        )
+                    ),
+                    e('div', { style: { padding: '12px 16px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0 } },
+                        e('button', {
+                            onClick: () => { setRemoveTarget(selectedBartender); setSelectedBartender(null); },
+                            style: { flex: 1, padding: '8px 0', fontSize: '13px', fontWeight: 500, color: '#dc2626', background: '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer' }
+                        }, 'Remove Bartender'),
+                        e('button', {
+                            onClick: () => setSelectedBartender(null),
+                            style: { flex: 1, padding: '8px 0', fontSize: '13px', fontWeight: 500, color: '#374151', background: '#f3f4f6', border: 'none', borderRadius: '8px', cursor: 'pointer' }
+                        }, 'Close')
+                    )
+                )
+                : e('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: '12px', border: '2px dashed #e5e7eb', color: '#9ca3af', textAlign: 'center', padding: '24px' } },
+                    e('div', { style: { fontSize: '32px', marginBottom: '8px' } }, '🍺'),
+                    e('p', { style: { fontWeight: 500, marginBottom: '4px', margin: '0 0 4px' } }, 'Select a bartender'),
+                    e('p', { style: { fontSize: '13px', margin: 0 } }, 'Click any card to view details')
+                );
+
+            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
                 // Header
-                e('div', { className: 'flex justify-between items-center mb-6' },
+                e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Bartenders'),
                         e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage bartender roster and view shift history')
@@ -2539,7 +2638,7 @@
                 ),
 
                 // Stats
-                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 mb-6' },
+                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0' },
                     e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
                         e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Bartenders'),
                         e('p', { className: 'text-2xl font-bold text-amber-600 mt-1' }, bartenders.length)
@@ -2554,12 +2653,12 @@
                     )
                 ),
 
-                message && e('div', { className: 'mb-4' },
+                message && e('div', { className: 'flex-shrink-0' },
                     e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
                 ),
 
                 // Search
-                e('div', { className: 'mb-6' },
+                e('div', { className: 'flex-shrink-0' },
                     e('div', { className: 'relative max-w-sm' },
                         e('input', {
                             type: 'text',
@@ -2572,44 +2671,54 @@
                     )
                 ),
 
-                // Content
-                isLoading ? e('div', { className: 'flex justify-center py-12' },
-                    e('p', { className: 'text-gray-500' }, 'Loading bartenders...')
-                ) : filteredBartenders.length === 0 ? e('div', { className: 'text-center py-12 text-gray-500' },
-                    e('p', { className: 'text-lg font-medium mb-1' }, 'No bartenders found'),
-                    e('p', { className: 'text-sm' }, 'Try adjusting your search or add a bartender.')
-                ) : e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                    filteredBartenders.map(b =>
-                        e('div', {
-                            key: b.BartenderID,
-                            onClick: () => { setSelectedBartender(b); setIsDetailOpen(true); },
-                            className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer'
-                        },
-                            e('div', { className: 'flex items-center space-x-3 mb-3' },
-                                e('div', { className: 'w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-semibold' }, getInitials(b)),
-                                e('div', { className: 'flex-1 min-w-0' },
-                                    e('h3', { className: 'font-semibold text-gray-900 truncate' }, `${b.FirstName} ${b.LastName}`.trim() || 'Unknown'),
-                                    e('p', { className: 'text-sm text-gray-500 truncate' }, b.PrimaryEmail || 'No email')
+                // Split panel
+                e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                    // Left col - scrollable cards
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
+                        isLoading ? e('div', { className: 'flex justify-center py-12' },
+                            e('p', { className: 'text-gray-500' }, 'Loading bartenders...')
+                        ) : filteredBartenders.length === 0 ? e('div', { className: 'text-center py-12 text-gray-500' },
+                            e('p', { className: 'text-lg font-medium mb-1' }, 'No bartenders found'),
+                            e('p', { className: 'text-sm' }, 'Try adjusting your search or add a bartender.')
+                        ) : e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4' },
+                            filteredBartenders.map(b =>
+                                e('div', {
+                                    key: b.BartenderID,
+                                    onClick: () => { setSelectedBartender(b); },
+                                    className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                    style: selectedBartender && selectedBartender.BartenderID === b.BartenderID ? { outline: '2px solid #f59e0b' } : {}
+                                },
+                                    e('div', { className: 'flex items-center space-x-3 mb-3' },
+                                        e('div', { className: 'w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-semibold' }, getInitials(b)),
+                                        e('div', { className: 'flex-1 min-w-0' },
+                                            e('h3', { className: 'font-semibold text-gray-900 truncate' }, `${b.FirstName} ${b.LastName}`.trim() || 'Unknown'),
+                                            e('p', { className: 'text-sm text-gray-500 truncate' }, b.PrimaryEmail || 'No email')
+                                        )
+                                    ),
+                                    e('div', { className: 'space-y-1 text-sm text-gray-600 mb-3' },
+                                        e('p', null, e('strong', null, 'Phone: '), b.PrimaryPhone || 'N/A'),
+                                        e('p', null, e('strong', null, 'Shifts: '), b.ShiftCount || 0),
+                                        e('p', null, e('strong', null, 'Last Shift: '), formatDate(b.LastShiftDate))
+                                    ),
+                                    e('div', { className: 'flex flex-wrap gap-1.5 mb-3' },
+                                        boolVal(b.Trained) && e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium' }, 'Trained'),
+                                        boolVal(b.Active)
+                                            ? e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-medium' }, 'Active')
+                                            : e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium' }, 'Inactive')
+                                    ),
+                                    e('div', { className: 'pt-3 border-t border-gray-100' },
+                                        e('button', {
+                                            onClick: (ev) => { ev.stopPropagation(); setRemoveTarget(b); },
+                                            className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
+                                        }, 'Remove Bartender')
+                                    )
                                 )
-                            ),
-                            e('div', { className: 'space-y-1 text-sm text-gray-600 mb-3' },
-                                e('p', null, e('strong', null, 'Phone: '), b.PrimaryPhone || 'N/A'),
-                                e('p', null, e('strong', null, 'Shifts: '), b.ShiftCount || 0),
-                                e('p', null, e('strong', null, 'Last Shift: '), formatDate(b.LastShiftDate))
-                            ),
-                            e('div', { className: 'flex flex-wrap gap-1.5 mb-3' },
-                                boolVal(b.Trained) && e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium' }, 'Trained'),
-                                boolVal(b.Active)
-                                    ? e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-medium' }, 'Active')
-                                    : e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium' }, 'Inactive')
-                            ),
-                            e('div', { className: 'pt-3 border-t border-gray-100' },
-                                e('button', {
-                                    onClick: (ev) => { ev.stopPropagation(); setRemoveTarget(b); },
-                                    className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
-                                }, 'Remove Bartender')
                             )
                         )
+                    ),
+                    // Right col - detail panel
+                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+                        bartenderDetailPanel
                     )
                 ),
 
@@ -2687,47 +2796,351 @@
                     )
                 ),
 
-                // Detail Modal
-                isDetailOpen && selectedBartender && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setIsDetailOpen(false) },
-                    e('div', { className: 'bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto', onClick: (ev) => ev.stopPropagation() },
-                        e('div', { className: 'flex justify-between items-start mb-6' },
-                            e('div', { className: 'flex items-center gap-3' },
-                                e('div', { className: 'w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold text-lg' }, getInitials(selectedBartender)),
-                                e('div', null,
-                                    e('h2', { className: 'text-xl font-semibold text-gray-900' }, `${selectedBartender.FirstName} ${selectedBartender.LastName}`.trim()),
-                                    e('div', { className: 'flex gap-1.5 mt-1' },
-                                        boolVal(selectedBartender.Trained) && e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800 font-medium' }, 'Trained'),
-                                        e('span', { className: `px-2 py-0.5 text-xs rounded-full font-medium ${boolVal(selectedBartender.Active) ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}` },
-                                            boolVal(selectedBartender.Active) ? 'Active' : 'Inactive'
+            );
+        }
+
+        // Teachers Page Component
+        function TeachersPage() {
+            const [teachers, setTeachers] = React.useState([]);
+            const [filteredTeachers, setFilteredTeachers] = React.useState([]);
+            const [isLoading, setIsLoading] = React.useState(true);
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [selectedTeacher, setSelectedTeacher] = React.useState(null);
+            const [message, setMessage] = React.useState(null);
+            const [isAddOpen, setIsAddOpen] = React.useState(false);
+            const [allPersonnel, setAllPersonnel] = React.useState([]);
+            const [personnelSearch, setPersonnelSearch] = React.useState('');
+            const [selectedPersonnelId, setSelectedPersonnelId] = React.useState(null);
+            const [isAdding, setIsAdding] = React.useState(false);
+            const [removeTarget, setRemoveTarget] = React.useState(null);
+            const [isRemoving, setIsRemoving] = React.useState(false);
+
+            React.useEffect(() => { loadTeachers(); }, []);
+
+            React.useEffect(() => {
+                const term = searchTerm.toLowerCase();
+                setFilteredTeachers(term
+                    ? teachers.filter(t =>
+                        `${t.FirstName} ${t.LastName}`.toLowerCase().includes(term) ||
+                        (t.PrimaryEmail || '').toLowerCase().includes(term) ||
+                        (t.PrimaryPhone || '').toLowerCase().includes(term)
+                    )
+                    : teachers
+                );
+            }, [teachers, searchTerm]);
+
+            const loadTeachers = async () => {
+                setIsLoading(true);
+                try {
+                    const response = await gasService.getTeachersWithDetails();
+                    const data = response.data && Array.isArray(response.data) ? response.data
+                        : response.data && response.data.data ? response.data.data : [];
+                    if (response.success) {
+                        setTeachers(data);
+                        setMessage(null);
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to load teachers.' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error loading teachers.' });
+                } finally { setIsLoading(false); }
+            };
+
+            const handleOpenAdd = async () => {
+                setIsAddOpen(true);
+                setPersonnelSearch('');
+                setSelectedPersonnelId(null);
+                try {
+                    const r = await gasService.getAllPersonnel();
+                    const all = r.data && r.data.data ? r.data.data : Array.isArray(r.data) ? r.data : [];
+                    const teacherIds = new Set(teachers.map(t => String(t.PersonnelID)));
+                    setAllPersonnel(all.filter(p => !teacherIds.has(String(p.PersonnelID))));
+                } catch { setAllPersonnel([]); }
+            };
+
+            const handleAddSelected = async () => {
+                if (!selectedPersonnelId) return;
+                setIsAdding(true);
+                try {
+                    const r = await gasService.addPersonAsTeacher(selectedPersonnelId);
+                    if (r.success) {
+                        setIsAddOpen(false);
+                        setSelectedPersonnelId(null);
+                        setMessage({ type: 'success', text: 'Teacher added successfully!' });
+                        await loadTeachers();
+                    } else {
+                        setMessage({ type: 'error', text: r.error || 'Failed to add teacher.' });
+                        setIsAddOpen(false);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error adding teacher.' });
+                    setIsAddOpen(false);
+                } finally { setIsAdding(false); }
+            };
+
+            const handleConfirmRemove = async () => {
+                if (!removeTarget) return;
+                setIsRemoving(true);
+                try {
+                    const r = await gasService.removeTeacher(removeTarget.TeacherID);
+                    if (r.success) {
+                        setRemoveTarget(null);
+                        if (selectedTeacher && selectedTeacher.TeacherID === removeTarget.TeacherID) setSelectedTeacher(null);
+                        setMessage({ type: 'success', text: 'Teacher removed successfully.' });
+                        await loadTeachers();
+                    } else {
+                        setMessage({ type: 'error', text: r.error || 'Failed to remove teacher.' });
+                        setRemoveTarget(null);
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error removing teacher.' });
+                    setRemoveTarget(null);
+                } finally { setIsRemoving(false); }
+            };
+
+            const formatDate = (d) => {
+                if (!d || d === 'N/A') return 'N/A';
+                try { return new Date(d).toLocaleDateString(); } catch { return d; }
+            };
+
+            const getInitials = (t) =>
+                `${(t.FirstName || '')[0] || ''}${(t.LastName || '')[0] || ''}`.toUpperCase() || '??';
+
+            const activeCount = teachers.filter(t => String(t.Active).toLowerCase() === 'true' || t.Active === true).length;
+            const totalClasses = teachers.reduce((sum, t) => sum + (t.TotalClasses || 0), 0);
+
+            const availablePersonnel = allPersonnel.filter(p =>
+                !personnelSearch ||
+                `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+                (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase())
+            );
+
+            const getClassStatusColor = (status) => {
+                if (!status) return 'bg-gray-100 text-gray-600';
+                const s = status.toLowerCase();
+                if (s === 'active' || s === 'in progress') return 'bg-green-100 text-green-700';
+                if (s === 'scheduled' || s === 'upcoming') return 'bg-blue-100 text-blue-700';
+                if (s === 'completed') return 'bg-slate-100 text-slate-600';
+                if (s === 'cancelled' || s === 'canceled') return 'bg-red-100 text-red-600';
+                return 'bg-gray-100 text-gray-600';
+            };
+
+            // Detail panel
+            const teacherDetailPanel = selectedTeacher
+                ? e('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' } },
+                    e('div', { style: { padding: '16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 } },
+                        e('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' } },
+                            e('div', { style: { width: '48px', height: '48px', borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#166534', fontWeight: 700, fontSize: '16px', flexShrink: 0 } }, getInitials(selectedTeacher)),
+                            e('div', null,
+                                e('h2', { style: { fontSize: '15px', fontWeight: 600, color: '#111827', margin: 0 } }, `${selectedTeacher.FirstName} ${selectedTeacher.LastName}`.trim()),
+                                e('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
+                                    e('span', { style: { padding: '2px 8px', fontSize: '11px', borderRadius: '999px', fontWeight: 500, background: (String(selectedTeacher.Active).toLowerCase() === 'true' || selectedTeacher.Active === true) ? '#dcfce7' : '#f3f4f6', color: (String(selectedTeacher.Active).toLowerCase() === 'true' || selectedTeacher.Active === true) ? '#166534' : '#4b5563' } },
+                                        (String(selectedTeacher.Active).toLowerCase() === 'true' || selectedTeacher.Active === true) ? 'Active' : 'Inactive'
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' } },
+                        e('div', { style: { background: '#f9fafb', borderRadius: '8px', padding: '12px' } },
+                            e('p', { style: { fontSize: '11px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' } }, 'Contact'),
+                            e('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px' } },
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Email'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedTeacher.PrimaryEmail || 'N/A')),
+                                e('div', null, e('p', { style: { color: '#6b7280', margin: '0 0 2px' } }, 'Phone'), e('p', { style: { fontWeight: 500, color: '#111827', margin: 0 } }, selectedTeacher.PrimaryPhone || 'N/A'))
+                            )
+                        ),
+                        e('div', { style: { background: '#f0fdf4', borderRadius: '8px', padding: '12px' } },
+                            e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' } },
+                                e('p', { style: { fontSize: '11px', fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 } }, 'Classes'),
+                                e('span', { style: { fontSize: '11px', fontWeight: 600, background: '#dcfce7', color: '#166534', borderRadius: '999px', padding: '2px 8px' } }, `${selectedTeacher.TotalClasses || 0} total`)
+                            ),
+                            selectedTeacher.Classes && selectedTeacher.Classes.length > 0
+                                ? e('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+                                    selectedTeacher.Classes.map((cls, idx) =>
+                                        e('div', { key: idx, style: { background: '#fff', borderRadius: '6px', padding: '8px 10px', border: '1px solid #e5e7eb' } },
+                                            e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' } },
+                                                e('p', { style: { fontWeight: 600, fontSize: '13px', color: '#111827', margin: 0, flex: 1 } }, cls.LevelName || 'Class'),
+                                                e('span', { className: `text-xs px-1.5 py-0.5 rounded font-medium ${getClassStatusColor(cls.Status)}` }, cls.Status || 'Unknown')
+                                            ),
+                                            e('p', { style: { fontSize: '12px', color: '#6b7280', margin: '4px 0 0' } },
+                                                cls.StartDate ? `${formatDate(cls.StartDate)}${cls.EndDate ? ' → ' + formatDate(cls.EndDate) : ''}` : 'No dates'
+                                            ),
+                                            cls.VenueOrRoom && e('p', { style: { fontSize: '11px', color: '#9ca3af', margin: '2px 0 0' } }, `📍 ${cls.VenueOrRoom}`)
                                         )
                                     )
                                 )
-                            ),
-                            e('button', { onClick: () => setIsDetailOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
-                        ),
-                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
-                            e('div', { className: 'bg-gray-50 rounded-lg p-4' },
-                                e('h3', { className: 'text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3' }, 'Contact'),
-                                e('div', { className: 'space-y-2 text-sm' },
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Email'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.PrimaryEmail || 'N/A')),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Phone'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.PrimaryPhone || 'N/A'))
-                                )
-                            ),
-                            e('div', { className: 'bg-amber-50 rounded-lg p-4' },
-                                e('h3', { className: 'text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3' }, 'Shift Summary'),
-                                e('div', { className: 'space-y-2 text-sm' },
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Total Shifts'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.ShiftCount || 0)),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Last Shift'), e('p', { className: 'font-medium text-gray-900' }, formatDate(selectedBartender.LastShiftDate))),
-                                    e('div', null, e('p', { className: 'text-gray-500' }, 'Last Show'), e('p', { className: 'font-medium text-gray-900' }, selectedBartender.LastShowName || 'N/A'))
+                                : e('p', { style: { fontSize: '13px', color: '#9ca3af', textAlign: 'center', padding: '8px 0', margin: 0 } }, 'No classes assigned')
+                        )
+                    ),
+                    e('div', { style: { padding: '12px 16px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0 } },
+                        e('button', {
+                            onClick: () => { setRemoveTarget(selectedTeacher); setSelectedTeacher(null); },
+                            style: { flex: 1, padding: '8px 0', fontSize: '13px', fontWeight: 500, color: '#dc2626', background: '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer' }
+                        }, 'Remove Teacher'),
+                        e('button', {
+                            onClick: () => setSelectedTeacher(null),
+                            style: { flex: 1, padding: '8px 0', fontSize: '13px', fontWeight: 500, color: '#374151', background: '#f3f4f6', border: 'none', borderRadius: '8px', cursor: 'pointer' }
+                        }, 'Close')
+                    )
+                )
+                : e('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: '12px', border: '2px dashed #e5e7eb', color: '#9ca3af', textAlign: 'center', padding: '24px' } },
+                    e('div', { style: { fontSize: '32px', marginBottom: '8px' } }, '🎓'),
+                    e('p', { style: { fontWeight: 500, marginBottom: '4px', margin: '0 0 4px' } }, 'Select a teacher'),
+                    e('p', { style: { fontSize: '13px', margin: 0 } }, 'Click any card to view details')
+                );
+
+            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
+                // Header
+                e('div', { className: 'flex justify-between items-center flex-shrink-0' },
+                    e('div', null,
+                        e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Teachers'),
+                        e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'Manage teaching roster and class assignments')
+                    ),
+                    e('div', { className: 'flex items-center gap-3' },
+                        e('p', { className: 'text-sm text-gray-500 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm font-medium' }, `${filteredTeachers.length} teacher${filteredTeachers.length !== 1 ? 's' : ''}`),
+                        e('button', { onClick: handleOpenAdd, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add Teacher')
+                    )
+                ),
+
+                // Stats
+                !isLoading && teachers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0' },
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Teachers'),
+                        e('p', { className: 'text-2xl font-bold text-emerald-600 mt-1' }, teachers.length)
+                    ),
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Active'),
+                        e('p', { className: 'text-2xl font-bold text-green-600 mt-1' }, activeCount)
+                    ),
+                    e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
+                        e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Classes'),
+                        e('p', { className: 'text-2xl font-bold text-indigo-600 mt-1' }, totalClasses)
+                    )
+                ),
+
+                message && e('div', { className: 'flex-shrink-0' },
+                    e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) })
+                ),
+
+                // Search
+                e('div', { className: 'flex-shrink-0' },
+                    e('div', { className: 'relative max-w-sm' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search by name, email, or phone…',
+                            value: searchTerm,
+                            onChange: (ev) => setSearchTerm(ev.target.value),
+                            className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        }),
+                        e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                    )
+                ),
+
+                // Split panel
+                e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                    e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
+                        isLoading ? e('div', { className: 'flex justify-center py-12' },
+                            e('p', { className: 'text-gray-500' }, 'Loading teachers...')
+                        ) : filteredTeachers.length === 0 ? e('div', { className: 'text-center py-12 text-gray-500' },
+                            e('p', { className: 'text-lg font-medium mb-1' }, 'No teachers found'),
+                            e('p', { className: 'text-sm' }, 'Try adjusting your search or add a teacher.')
+                        ) : e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4' },
+                            filteredTeachers.map(t =>
+                                e('div', {
+                                    key: t.TeacherID,
+                                    onClick: () => setSelectedTeacher(t),
+                                    className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4 hover:shadow-md transition-shadow cursor-pointer',
+                                    style: selectedTeacher && selectedTeacher.TeacherID === t.TeacherID ? { outline: '2px solid #16a34a' } : {}
+                                },
+                                    e('div', { className: 'flex items-center space-x-3 mb-3' },
+                                        e('div', { className: 'w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-semibold flex-shrink-0' }, getInitials(t)),
+                                        e('div', { className: 'flex-1 min-w-0' },
+                                            e('h3', { className: 'font-semibold text-gray-900 truncate' }, `${t.FirstName} ${t.LastName}`.trim() || 'Unknown'),
+                                            e('p', { className: 'text-sm text-gray-500 truncate' }, t.PrimaryEmail || 'No email')
+                                        )
+                                    ),
+                                    e('div', { className: 'space-y-1 text-sm text-gray-600 mb-3' },
+                                        e('p', null, e('strong', null, 'Phone: '), t.PrimaryPhone || 'N/A'),
+                                        e('p', null, e('strong', null, 'Classes: '), t.TotalClasses || 0),
+                                        e('p', null, e('strong', null, 'Active Classes: '), t.ActiveClasses || 0)
+                                    ),
+                                    e('div', { className: 'flex flex-wrap gap-1.5 mb-3' },
+                                        (String(t.Active).toLowerCase() === 'true' || t.Active === true)
+                                            ? e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-medium' }, 'Active')
+                                            : e('span', { className: 'px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium' }, 'Inactive')
+                                    ),
+                                    e('div', { className: 'pt-3 border-t border-gray-100' },
+                                        e('button', {
+                                            onClick: (ev) => { ev.stopPropagation(); setRemoveTarget(t); },
+                                            className: 'w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors'
+                                        }, 'Remove Teacher')
+                                    )
                                 )
                             )
+                        )
+                    ),
+                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+                        teacherDetailPanel
+                    )
+                ),
+
+                // Add Modal
+                isAddOpen && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setIsAddOpen(false) },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col', onClick: (ev) => ev.stopPropagation() },
+                        e('div', { className: 'flex justify-between items-center mb-4' },
+                            e('h2', { className: 'text-lg font-semibold text-gray-900' }, 'Add Teacher from Personnel'),
+                            e('button', { onClick: () => setIsAddOpen(false), className: 'text-gray-400 hover:text-gray-600 text-xl' }, '×')
                         ),
-                        e('div', { className: 'flex justify-between items-center' },
+                        e('input', {
+                            type: 'text', placeholder: 'Search personnel...',
+                            value: personnelSearch, onChange: (ev) => setPersonnelSearch(ev.target.value),
+                            className: 'mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-sky-400'
+                        }),
+                        e('div', { className: 'overflow-y-auto flex-1' },
+                            availablePersonnel.length === 0
+                                ? e('p', { className: 'text-center text-gray-500 py-6' }, 'No available personnel found.')
+                                : availablePersonnel.map(person => {
+                                    const isSelected = selectedPersonnelId === person.PersonnelID;
+                                    return e('div', {
+                                        key: person.PersonnelID,
+                                        onClick: () => setSelectedPersonnelId(isSelected ? null : person.PersonnelID),
+                                        className: `flex items-center gap-3 p-3 mb-1 border rounded-lg transition-colors cursor-pointer ${isSelected ? 'border-green-400 bg-green-50' : 'border-gray-200 hover:bg-gray-50'}`
+                                    },
+                                        e('div', { className: `w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'border-green-500 bg-green-500' : 'border-gray-300'}` },
+                                            isSelected && e('div', { className: 'w-2 h-2 rounded-full bg-white' })
+                                        ),
+                                        e('div', { className: 'flex-1 min-w-0' },
+                                            e('p', { className: 'font-medium text-gray-900' }, `${person.FirstName} ${person.LastName || person.Lastname || ''}`.trim()),
+                                            e('p', { className: 'text-sm text-gray-500 truncate' }, person.PrimaryEmail || 'No email')
+                                        )
+                                    );
+                                })
+                        ),
+                        e('div', { className: 'mt-4 flex justify-between items-center' },
+                            e('button', { onClick: () => setIsAddOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
                             e('button', {
-                                onClick: () => { setIsDetailOpen(false); setRemoveTarget(selectedBartender); },
-                                className: 'px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium'
-                            }, 'Remove Bartender'),
-                            e('button', { onClick: () => setIsDetailOpen(false), className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
+                                onClick: handleAddSelected,
+                                disabled: isAdding || !selectedPersonnelId,
+                                className: 'px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors font-medium'
+                            }, isAdding ? 'Adding...' : 'Add Teacher')
+                        )
+                    )
+                ),
+
+                // Remove Confirmation Modal
+                removeTarget && e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4', onClick: () => setRemoveTarget(null) },
+                    e('div', { className: 'bg-white rounded-lg p-6 max-w-md w-full mx-4', onClick: (ev) => ev.stopPropagation() },
+                        e('h2', { className: 'text-lg font-semibold text-gray-900 mb-2' }, 'Remove Teacher'),
+                        e('p', { className: 'text-gray-600 mb-6' },
+                            'Are you sure you want to remove ',
+                            e('span', { className: 'font-medium text-gray-900' }, `${removeTarget.FirstName} ${removeTarget.LastName}`),
+                            ' from the Teachers table? Their class history will be preserved.'
+                        ),
+                        e('div', { className: 'flex justify-end gap-3' },
+                            e('button', { onClick: () => setRemoveTarget(null), disabled: isRemoving, className: 'px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Cancel'),
+                            e('button', { onClick: handleConfirmRemove, disabled: isRemoving, className: 'px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors' },
+                                isRemoving ? 'Removing...' : 'Remove'
+                            )
                         )
                     )
                 )
@@ -2744,6 +3157,7 @@
                 cast:              e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })),
                 crew:              e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })),
                 bartenders:        e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' })),
+                teachers:          e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z' })),
                 classes:           e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' })),
                 shows:             e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z' })),
                 inventory:         e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' })),
@@ -2757,6 +3171,7 @@
                 { id: 'cast',              label: 'Cast'        },
                 { id: 'crew',              label: 'Crew'        },
                 { id: 'bartenders',        label: 'Bartenders' },
+                { id: 'teachers',          label: 'Teachers'   },
                 { id: 'classes',           label: 'Classes'    },
                 { id: 'shows',             label: 'Shows'      },
                 { id: 'inventory',         label: 'Inventory'  },
@@ -7113,6 +7528,8 @@
                         return e(CrewDirectory);
                     case 'bartenders':
                         return e(BartendersPage);
+                    case 'teachers':
+                        return e(TeachersPage);
                     case 'classes':
                         return e(ClassRegistration);
                     case 'shows':
@@ -7126,12 +7543,20 @@
                 }
             };
 
-            return e('div', { className: 'flex h-screen bg-slate-100 overflow-hidden' },
+            return e('div', { className: 'flex w-full h-full bg-slate-100 overflow-hidden' },
                 e(Sidebar, { currentPage: currentPage, onNavigate: (page) => {
                     setShowStudentProfile(false);
                     setCurrentPage(page);
                 }}),
-                e('main', { key: showStudentProfile ? `profile-${selectedStudentId}` : currentPage, className: 'flex-1 overflow-auto page-enter' }, renderPage())
+                e('main', {
+                    key: showStudentProfile ? `profile-${selectedStudentId}` : currentPage,
+                    className: 'flex-1 overflow-hidden page-enter',
+                    style: { display: 'flex', flexDirection: 'column', alignItems: 'center' }
+                },
+                    e('div', { style: { width: '100%', maxWidth: '1400px', flex: '1', minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' } },
+                        renderPage()
+                    )
+                )
             );
         }
 
