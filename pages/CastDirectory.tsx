@@ -19,6 +19,7 @@ export const CastDirectory: React.FC = () => {
   const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
   const [personnelSearch, setPersonnelSearch] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
 
   // Remove confirmation state
   const [removeTarget, setRemoveTarget] = useState<CastMemberWithDetails | null>(null);
@@ -229,7 +230,7 @@ export const CastDirectory: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Add Cast Member from Personnel</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Add Cast Members from Personnel</h2>
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="text-gray-400 hover:text-gray-600 text-xl"
@@ -243,40 +244,68 @@ export const CastDirectory: React.FC = () => {
               placeholder="Search personnel..."
               value={personnelSearch}
               onChange={(e) => setPersonnelSearch(e.target.value)}
-              className="mb-3 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
+
+            {availablePersonnel.length > 0 && (
+              <div className="flex items-center justify-between mb-2 px-1">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={availablePersonnel.length > 0 && availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-purple-600"
+                  />
+                  Select all
+                </label>
+                {selectedPersonnelIds.length > 0 && (
+                  <span className="text-sm text-purple-700 font-medium">{selectedPersonnelIds.length} selected</span>
+                )}
+              </div>
+            )}
 
             <div className="overflow-y-auto flex-1">
               {availablePersonnel.length === 0 ? (
                 <p className="text-center text-gray-500 py-6">No available personnel found.</p>
               ) : (
-                availablePersonnel.map((person) => (
-                  <div
-                    key={person.PersonnelID}
-                    className="flex items-center justify-between p-3 mb-2 border border-gray-200 rounded-lg hover:bg-gray-50"
-                  >
-                    <div>
-                      <p className="font-medium text-gray-900">{`${person.FirstName} ${person.LastName}`.trim()}</p>
-                      <p className="text-sm text-gray-500">{person.PrimaryEmail || 'No email'}</p>
-                    </div>
-                    <button
-                      onClick={() => handleAddCastMember(person)}
-                      disabled={isAdding}
-                      className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                availablePersonnel.map((person) => {
+                  const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
+                  return (
+                    <label
+                      key={person.PersonnelID}
+                      className={`flex items-center gap-3 p-3 mb-1 border rounded-lg cursor-pointer select-none transition-colors ${
+                        isChecked ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
                     >
-                      {isAdding ? 'Adding...' : 'Add'}
-                    </button>
-                  </div>
-                ))
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => togglePersonnelSelect(person.PersonnelID)}
+                        className="w-4 h-4 accent-purple-600 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900">{`${person.FirstName} ${person.LastName}`.trim()}</p>
+                        <p className="text-sm text-gray-500 truncate">{person.PrimaryEmail || 'No email'}</p>
+                      </div>
+                    </label>
+                  );
+                })
               )}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-between items-center">
               <button
                 onClick={() => setIsAddModalOpen(false)}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel
+              </button>
+              <button
+                onClick={handleAddSelectedCastMembers}
+                disabled={isAdding || selectedPersonnelIds.length === 0}
+                className="px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors font-medium"
+              >
+                {isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`}
               </button>
             </div>
           </div>

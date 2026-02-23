@@ -1,5 +1,5 @@
 /**
- * 19JTF Team Management Portal - Google Apps Script Backend
+ * 25JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
