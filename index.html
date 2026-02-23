@@ -323,6 +323,11 @@
                 return this.callServerFunction('createClassOffering', classData);
             }
 
+            // UPDATE: Update an existing class offering
+            async updateClassOffering(classData) {
+                return this.callServerFunction('updateClassOffering', classData);
+            }
+
             // UPDATE: Update class attendance record
             async updateClassAttendance(attendanceData) {
                 return this.callServerFunction('updateClassAttendance', attendanceData);
@@ -2621,6 +2626,13 @@
             const [teachers, setTeachers] = useState([]); // List of PersonnelIDs who are teachers
             const [studentLevels, setStudentLevels] = useState({}); // Map of PersonnelID -> highest level
 
+            // Edit class state
+            const [showEditModal, setShowEditModal] = useState(false);
+            const [editFormData, setEditFormData] = useState({});
+            const [editTeachers, setEditTeachers] = useState([]);
+            const [editClassLevels, setEditClassLevels] = useState([]);
+            const [isSavingEdit, setIsSavingEdit] = useState(false);
+
             // Generate array of class dates based on start and end dates
             const generateClassDates = (startDate, endDate, meetingDays = 'Monday,Wednesday') => {
                 const dates = [];
@@ -2946,6 +2958,71 @@
                 }
             };
 
+            // Open edit modal and pre-fill form
+            const handleOpenEditModal = async () => {
+                setEditFormData({
+                    ClassLevelID: classData.ClassLevelID || '',
+                    TeacherPersonnelID: classData.TeacherPersonnelID || classData.TeacherID || '',
+                    StartDate: classData.StartDate ? new Date(classData.StartDate).toISOString().split('T')[0] : '',
+                    EndDate: classData.EndDate ? new Date(classData.EndDate).toISOString().split('T')[0] : '',
+                    MaxStudents: classData.MaxStudents || '12',
+                    Status: classData.Status || 'Upcoming',
+                    VenueOrRoom: classData.VenueOrRoom || '',
+                    MeetingDays: classData.MeetingDays || '',
+                    MeetingTime: classData.MeetingTime || ''
+                });
+                try {
+                    const [personnelResp, levelsResp] = await Promise.all([
+                        gasService.getAllPersonnel(),
+                        gasService.getAllClassLevels()
+                    ]);
+                    if (personnelResp.success) {
+                        const data = Array.isArray(personnelResp.data) ? personnelResp.data : (personnelResp.data?.data || []);
+                        setEditTeachers(data);
+                    }
+                    if (levelsResp.success) {
+                        const data = Array.isArray(levelsResp.data) ? levelsResp.data : (levelsResp.data?.data || []);
+                        setEditClassLevels(data);
+                    }
+                } catch (err) {
+                    console.error('Error loading edit form data:', err);
+                }
+                setShowEditModal(true);
+            };
+
+            const handleSaveClassEdits = async () => {
+                if (!editFormData.ClassLevelID || !editFormData.TeacherPersonnelID || !editFormData.StartDate || !editFormData.EndDate) {
+                    setMessage({ type: 'error', text: 'Level, teacher, start date, and end date are required.' });
+                    return;
+                }
+                setIsSavingEdit(true);
+                try {
+                    const response = await gasService.updateClassOffering({
+                        OfferingID: offeringId,
+                        ClassLevelID: Number(editFormData.ClassLevelID),
+                        TeacherPersonnelID: Number(editFormData.TeacherPersonnelID),
+                        StartDate: editFormData.StartDate,
+                        EndDate: editFormData.EndDate,
+                        MaxStudents: Number(editFormData.MaxStudents) || 12,
+                        Status: editFormData.Status,
+                        VenueOrRoom: editFormData.VenueOrRoom,
+                        MeetingDays: editFormData.MeetingDays,
+                        MeetingTime: editFormData.MeetingTime
+                    });
+                    if (response.success) {
+                        setMessage({ type: 'success', text: 'Class updated successfully!' });
+                        setShowEditModal(false);
+                        loadClassDetails();
+                    } else {
+                        setMessage({ type: 'error', text: response.error || 'Failed to update class.' });
+                    }
+                } catch (err) {
+                    setMessage({ type: 'error', text: 'Error saving class.' });
+                } finally {
+                    setIsSavingEdit(false);
+                }
+            };
+
             // Open modal and load available personnel if switching to "add" tab
             useEffect(() => {
                 if (showAddStudentModal && modalTab === 'add' && availableStudents.length === 0) {
@@ -2982,13 +3059,24 @@
                                 e('h1', { className: 'text-3xl font-bold text-gray-900' }, classData.LevelName || 'Class'),
                                 e('p', { className: 'text-gray-600 mt-1' }, `Taught by ${classData.TeacherName || 'TBA'}`)
                             ),
-                            e('span', {
-                                className: `px-3 py-1 rounded-full text-sm font-medium ${
-                                    classData.Status === 'Upcoming' ? 'bg-yellow-100 text-yellow-800' :
-                                    classData.Status === 'In Progress' ? 'bg-green-100 text-green-800' :
-                                    'bg-blue-100 text-blue-800'
-                                }`
-                            }, classData.Status)
+                            e('div', { className: 'flex items-center gap-2' },
+                                e('button', {
+                                    onClick: handleOpenEditModal,
+                                    className: 'px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5'
+                                },
+                                    e('svg', { className: 'w-4 h-4', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                        e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z' })
+                                    ),
+                                    'Edit Details'
+                                ),
+                                e('span', {
+                                    className: `px-3 py-1 rounded-full text-sm font-medium ${
+                                        classData.Status === 'Upcoming' ? 'bg-yellow-100 text-yellow-800' :
+                                        classData.Status === 'In Progress' ? 'bg-green-100 text-green-800' :
+                                        'bg-blue-100 text-blue-800'
+                                    }`
+                                }, classData.Status)
+                            )
                         ),
                         e('div', { className: 'grid grid-cols-3 gap-4 mt-4' },
                             e('div', null,
@@ -3463,7 +3551,165 @@
                             }, 'Close')
                         )
                     )
-                )
+                ),  // end enrollment modal
+
+                // Edit Class Details Modal
+                showEditModal && e('div', {
+                    className: 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4',
+                    onClick: () => setShowEditModal(false)
+                },
+                    e('div', {
+                        className: 'bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto',
+                        onClick: (ev) => ev.stopPropagation()
+                    },
+                        // Header
+                        e('div', { className: 'px-6 py-4 border-b border-gray-200 flex items-center justify-between' },
+                            e('h2', { className: 'text-2xl font-bold text-gray-900' }, 'Edit Class Details'),
+                            e('button', { onClick: () => setShowEditModal(false), className: 'text-gray-400 hover:text-gray-600 text-2xl font-bold' }, '×')
+                        ),
+                        // Body
+                        e('div', { className: 'px-6 py-5 space-y-5' },
+                            // Level + Teacher
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Class Level *'),
+                                    e('select', {
+                                        value: editFormData.ClassLevelID || '',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, ClassLevelID: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    },
+                                        e('option', { value: '' }, 'Select a level…'),
+                                        editClassLevels.map(l =>
+                                            e('option', { key: l.ClassLevelID, value: l.ClassLevelID }, l.LevelName)
+                                        )
+                                    )
+                                ),
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Teacher *'),
+                                    e('select', {
+                                        value: editFormData.TeacherPersonnelID || '',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, TeacherPersonnelID: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    },
+                                        e('option', { value: '' }, 'Select a teacher…'),
+                                        editTeachers.map(p =>
+                                            e('option', { key: p.PersonnelID, value: p.PersonnelID }, `${p.FirstName} ${p.LastName}`)
+                                        )
+                                    )
+                                )
+                            ),
+                            // Dates
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Start Date *'),
+                                    e('input', {
+                                        type: 'date',
+                                        value: editFormData.StartDate || '',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, StartDate: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                ),
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'End Date *'),
+                                    e('input', {
+                                        type: 'date',
+                                        value: editFormData.EndDate || '',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, EndDate: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            ),
+                            // Status + Max Students
+                            e('div', { className: 'grid grid-cols-2 gap-4' },
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Status'),
+                                    e('select', {
+                                        value: editFormData.Status || 'Upcoming',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, Status: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    },
+                                        e('option', { value: 'Upcoming' }, 'Upcoming'),
+                                        e('option', { value: 'In Progress' }, 'In Progress'),
+                                        e('option', { value: 'Completed' }, 'Completed'),
+                                        e('option', { value: 'Cancelled' }, 'Cancelled')
+                                    )
+                                ),
+                                e('div', null,
+                                    e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Max Students'),
+                                    e('input', {
+                                        type: 'number',
+                                        min: 1,
+                                        max: 100,
+                                        value: editFormData.MaxStudents || '12',
+                                        onChange: (ev) => setEditFormData(prev => ({ ...prev, MaxStudents: ev.target.value })),
+                                        className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    })
+                                )
+                            ),
+                            // Venue
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Venue / Room'),
+                                e('input', {
+                                    type: 'text',
+                                    placeholder: 'e.g. Studio A, Room 12…',
+                                    value: editFormData.VenueOrRoom || '',
+                                    onChange: (ev) => setEditFormData(prev => ({ ...prev, VenueOrRoom: ev.target.value })),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                })
+                            ),
+                            // Meeting Days
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Meeting Days'),
+                                e('div', { className: 'flex flex-wrap gap-2' },
+                                    ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(day => {
+                                        const days = (editFormData.MeetingDays || '').split(',').map(d => d.trim()).filter(Boolean);
+                                        const active = days.includes(day);
+                                        return e('button', {
+                                            key: day,
+                                            type: 'button',
+                                            onClick: () => {
+                                                const updated = active ? days.filter(d => d !== day) : [...days, day];
+                                                setEditFormData(prev => ({ ...prev, MeetingDays: updated.join(', ') }));
+                                            },
+                                            className: `px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                                                active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                            }`
+                                        }, day.slice(0, 3));
+                                    })
+                                )
+                            ),
+                            // Meeting Time
+                            e('div', null,
+                                e('label', { className: 'block text-sm font-medium text-gray-700 mb-1' }, 'Meeting Time'),
+                                e('input', {
+                                    type: 'time',
+                                    value: editFormData.MeetingTime || '',
+                                    onChange: (ev) => setEditFormData(prev => ({ ...prev, MeetingTime: ev.target.value })),
+                                    className: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                })
+                            )
+                        ),
+                        // Footer
+                        e('div', { className: 'px-6 py-4 border-t border-gray-200 flex justify-end gap-3' },
+                            e('button', {
+                                onClick: () => setShowEditModal(false),
+                                disabled: isSavingEdit,
+                                className: 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50'
+                            }, 'Cancel'),
+                            e('button', {
+                                onClick: handleSaveClassEdits,
+                                disabled: isSavingEdit,
+                                className: 'px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2'
+                            },
+                                isSavingEdit && e('svg', { className: 'animate-spin w-4 h-4', fill: 'none', viewBox: '0 0 24 24' },
+                                    e('circle', { className: 'opacity-25', cx: '12', cy: '12', r: '10', stroke: 'currentColor', strokeWidth: '4' }),
+                                    e('path', { className: 'opacity-75', fill: 'currentColor', d: 'M4 12a8 8 0 018-8v8H4z' })
+                                ),
+                                'Save Changes'
+                            )
+                        )
+                    )
+                )  // end edit modal
             );
         }
 
