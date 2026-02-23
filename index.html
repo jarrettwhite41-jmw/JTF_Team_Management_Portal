@@ -3299,19 +3299,21 @@
         // Education Hub — consolidates Classes + Teachers into one sidebar
         // entry with sub-tabs: Classes (offerings) and Teachers.
         // ─────────────────────────────────────────────────────────────────
-        function EducationHub({ initialTab }) {
-            const [activeTab, setActiveTab] = React.useState(initialTab || 'classes');
+        function EducationHub({ initialTab, onNavigateToStudent }) {
+            const [activeTab, setActiveTab] = React.useState(initialTab || 'students');
 
             const tabs = [
+                { id: 'students', label: 'Students', icon: '\uD83C\uDF92' },
                 { id: 'classes',  label: 'Classes',  icon: '\uD83D\uDCDA' },
                 { id: 'teachers', label: 'Teachers', icon: '\uD83C\uDF93' },
             ];
 
             const renderActiveTab = () => {
                 switch (activeTab) {
+                    case 'students': return e(StudentDirectory, { onNavigateToStudent });
                     case 'classes':  return e(ClassRegistration);
                     case 'teachers': return e(TeachersPage);
-                    default:         return e(ClassRegistration);
+                    default:         return e(StudentDirectory, { onNavigateToStudent });
                 }
             };
 
@@ -3401,12 +3403,11 @@
             };
 
             const navigationItems = [
-                { id: 'dashboard',         label: 'Dashboard'   },
-                { id: 'people',            label: 'People'      },
-                { id: 'student-directory', label: 'Students'    },
-                { id: 'education',         label: 'Education'   },
-                { id: 'productions',       label: 'Productions' },
-                { id: 'inventory',         label: 'Inventory'   },
+                { id: 'dashboard',   label: 'Dashboard'   },
+                { id: 'people',      label: 'People'      },
+                { id: 'education',   label: 'Education'   },
+                { id: 'productions', label: 'Productions' },
+                { id: 'inventory',   label: 'Inventory'   },
             ];
 
             return e('div', { className: 'bg-slate-900 h-full w-60 flex flex-col flex-shrink-0', style: { minWidth: '240px' } },
@@ -7755,17 +7756,15 @@
                     case 'crew':
                     case 'bartenders':
                         return e(PeopleHub);
-                    case 'student-directory':
-                        return e(StudentDirectory, {
-                            onNavigateToStudent: handleNavigateToStudentProfile
-                        });
                     case 'education':
-                        return e(EducationHub);
+                        return e(EducationHub, { onNavigateToStudent: handleNavigateToStudentProfile });
                     // Legacy routes — redirect into Education hub
+                    case 'student-directory':
+                        return e(EducationHub, { initialTab: 'students', onNavigateToStudent: handleNavigateToStudentProfile });
                     case 'classes':
-                        return e(EducationHub, { initialTab: 'classes' });
+                        return e(EducationHub, { initialTab: 'classes', onNavigateToStudent: handleNavigateToStudentProfile });
                     case 'teachers':
-                        return e(EducationHub, { initialTab: 'teachers' });
+                        return e(EducationHub, { initialTab: 'teachers', onNavigateToStudent: handleNavigateToStudentProfile });
                     case 'productions':
                         return e(ProductionsHub);
                     // Legacy routes — redirect to Productions hub
