@@ -607,6 +607,200 @@ function deletePersonnel(personnelId) {
 }
 
 // =============================================================================
+// PERSONNEL PROFILE - CROSS-ROLE AGGREGATE VIEW
+// Joins Personnel + CastMemberInfo + CrewDuties + Directors + ShowInformation
+//   + Bartenders + StudentInfo + Teachers into one rich profile object.
+// =============================================================================
+
+/**
+ * READ OPERATION: Returns a comprehensive profile for a single person.
+ * Checks every role table and aggregates show/crew/directing history.
+ * Crew staleness: flags crewOverdue=true if last crew-equivalent activity > 90 days ago.
+ *   "Crew-equivalent" = any CrewDuty entry OR any show they directed.
+ *
+ * @param {number|string} personnelId - The PersonnelID to look up
+ * @returns {Object} { success, data: { ...personnelFields, role flags, roleDetails, crewRecency } }
+ */
+function getPersonnelProfile(personnelId) {
+  try {
+    const id = parseInt(personnelId);
+
+    // ── 1. Load all sheets we'll need (load once, reuse) ──────────────────
+    const personnel       = sheetToObjects(getSheet(SHEET_CONFIG.personnel));
+    const castMemberInfo  = sheetToObjects(getSheet(SHEET_CONFIG.castMemberInfo));
+    const performances    = sheetToObjects(getSheet(SHEET_CONFIG.showPerformances));
+    const crewDuties      = sheetToObjects(getSheet(SHEET_CONFIG.crewDuties));
+    const crewDutyTypes   = sheetToObjects(getSheet(SHEET_CONFIG.crewDutyTypes));
+    const directors       = sheetToObjects(getSheet(SHEET_CONFIG.directors));
+    const shows           = sheetToObjects(getSheet(SHEET_CONFIG.showInformation));
+    const bartenders      = sheetToObjects(getSheet(SHEET_CONFIG.bartenders));
+    const studentInfoRows = sheetToObjects(getSheet(SHEET_CONFIG.studentInfo));
+    const classLevels     = sheetToObjects(getSheet(SHEET_CONFIG.classLevels));
+    const teachers        = sheetToObjects(getSheet(SHEET_CONFIG.teachers));
+
+    // ── 2. Core personnel record ──────────────────────────────────────────
+    const person = personnel.find(p => p.PersonnelID == id);
+    if (!person) return { success: false, error: 'Person not found' };
+
+    // ── 3. Cast role ──────────────────────────────────────────────────────
+    const castRecord = castMemberInfo.find(c => c.PersonnelID == id);
+    let castDetails = null;
+    let lastCastShowDate = null;
+
+    if (castRecord) {
+      const personPerfs = performances.filter(p => p.CastMemberID == castRecord.CastMemberID);
+      const castShowDates = personPerfs
+        .map(p => { const s = shows.find(sh => sh.ShowID == p.ShowID); return s ? new Date(s.ShowDate) : null; })
+        .filter(d => d && !isNaN(d.getTime()));
+      if (castShowDates.length > 0) {
+        lastCastShowDate = new Date(Math.max(...castShowDates.map(d => d.getTime())));
+      }
+      castDetails = {
+        CastMemberID: castRecord.CastMemberID,
+        Status: castRecord.Status || 'Active',
+        showCount: personPerfs.length,
+        lastShowDate: lastCastShowDate ? lastCastShowDate.toISOString() : null
+      };
+    }
+
+    // ── 4. Crew role (via CastMemberID in CrewDuties) ─────────────────────
+    let crewDetails = null;
+    let lastCrewDate = null;
+
+    if (castRecord) {
+      const personCrew = crewDuties.filter(cd => cd.CrewMemberID == castRecord.CastMemberID);
+      if (personCrew.length > 0) {
+        const crewShowDates = personCrew
+          .map(cd => { const s = shows.find(sh => sh.ShowID == cd.ShowID); return s ? new Date(s.ShowDate) : null; })
+          .filter(d => d && !isNaN(d.getTime()));
+        if (crewShowDates.length > 0) {
+          lastCrewDate = new Date(Math.max(...crewShowDates.map(d => d.getTime())));
+        }
+        // Most recent 5 crew duties for display
+        const sorted = personCrew.slice().sort((a, b) => {
+          const sa = shows.find(sh => sh.ShowID == a.ShowID);
+          const sb = shows.find(sh => sh.ShowID == b.ShowID);
+          return (sb && sa) ? new Date(sb.ShowDate) - new Date(sa.ShowDate) : 0;
+        });
+        crewDetails = {
+          totalCrewDuties: personCrew.length,
+          lastCrewDate: lastCrewDate ? lastCrewDate.toISOString() : null,
+          recentDuties: sorted.slice(0, 5).map(cd => {
+            const dt = crewDutyTypes.find(t => t.CrewDutyTypeID == cd.CrewDutyTypeID);
+            const s  = shows.find(sh => sh.ShowID == cd.ShowID);
+            return { DutyName: dt ? dt.DutyName : 'Crew', ShowDate: s ? s.ShowDate : null };
+          })
+        };
+      }
+    }
+
+    // ── 5. Director role ──────────────────────────────────────────────────
+    const directorRecord = directors.find(d => d.PersonnelID == id);
+    let directorDetails = null;
+    let lastDirectedDate = null;
+
+    if (directorRecord) {
+      // ShowInformation.DirectorID → Directors.DirectorID
+      const directedShows = shows.filter(s => s.DirectorID == directorRecord.DirectorID);
+      // Fallback: DirectorID stored as PersonnelID directly
+      const fallbackShows = directedShows.length === 0
+        ? shows.filter(s => s.DirectorID == id)
+        : [];
+      const allDirected = directedShows.length > 0 ? directedShows : fallbackShows;
+
+      const directedDates = allDirected
+        .map(s => new Date(s.ShowDate))
+        .filter(d => !isNaN(d.getTime()));
+      if (directedDates.length > 0) {
+        lastDirectedDate = new Date(Math.max(...directedDates.map(d => d.getTime())));
+      }
+      directorDetails = {
+        DirectorID: directorRecord.DirectorID,
+        showCount: allDirected.length,
+        lastDirectedDate: lastDirectedDate ? lastDirectedDate.toISOString() : null
+      };
+    }
+
+    // ── 6. Crew recency: max(lastCrewDate, lastDirectedDate) ───────────────
+    const crewEquivDates = [lastCrewDate, lastDirectedDate].filter(d => d !== null);
+    const lastCrewEquivDate = crewEquivDates.length > 0
+      ? new Date(Math.max(...crewEquivDates.map(d => d.getTime())))
+      : null;
+    const isCastOrDirector = !!castRecord || !!directorRecord;
+    const daysSinceLastCrew = lastCrewEquivDate
+      ? Math.floor((new Date() - lastCrewEquivDate) / (1000 * 60 * 60 * 24))
+      : null;
+    // Only flag overdue for people who are cast/director (expected to crew)
+    const crewOverdue = isCastOrDirector && daysSinceLastCrew !== null && daysSinceLastCrew > 90;
+    // Also flag if cast/director but has NEVER crewed (no record at all)
+    const crewNever = isCastOrDirector && lastCrewEquivDate === null;
+
+    // ── 7. Bartender role ─────────────────────────────────────────────────
+    const bartenderRecord = bartenders.find(b => b.PersonnelID == id);
+
+    // ── 8. Student role ───────────────────────────────────────────────────
+    const studentRecord = studentInfoRows.find(s => s.PersonnelID == id);
+    let studentDetails = null;
+    if (studentRecord) {
+      const levelRecord = classLevels.find(l => l.ClassLevelID == studentRecord.CurrentLevel);
+      studentDetails = {
+        StudentID: studentRecord.StudentID,
+        EnrollmentDate: studentRecord.EnrollmentDate,
+        StudentStatus: studentRecord.Status,
+        CurrentLevel: studentRecord.CurrentLevel,
+        CurrentLevelName: levelRecord ? levelRecord.LevelName : null,
+        Notes: studentRecord.Notes || null
+      };
+    }
+
+    // ── 9. Teacher role ───────────────────────────────────────────────────
+    const teacherRecord = teachers.find(t => t.PersonnelID == id);
+
+    // ── 10. Assemble response ─────────────────────────────────────────────
+    return {
+      success: true,
+      data: {
+        // Core person fields
+        PersonnelID: person.PersonnelID,
+        FirstName:   person.FirstName,
+        LastName:    person.LastName,
+        PrimaryEmail: person.PrimaryEmail,
+        PrimaryPhone: person.PrimaryPhone,
+        Instagram:   person.Instagram,
+        Birthday:    person.Birthday,
+        // Role flags
+        isCast:       !!castRecord,
+        isCrew:       !!(crewDetails && crewDetails.totalCrewDuties > 0),
+        isDirector:   !!directorRecord,
+        isBartender:  !!bartenderRecord,
+        isStudent:    !!studentRecord,
+        isTeacher:    !!teacherRecord,
+        // Role details (null if not in that role)
+        castDetails,
+        crewDetails,
+        directorDetails,
+        bartenderDetails: bartenderRecord
+          ? { BartenderID: bartenderRecord.BartenderID, Trained: bartenderRecord.Trained, Status: bartenderRecord.Status, Active: bartenderRecord.Active }
+          : null,
+        studentDetails,
+        teacherDetails: teacherRecord
+          ? { TeacherID: teacherRecord.TeacherID, Active: teacherRecord.Active }
+          : null,
+        // Crew recency (key metric)
+        lastCrewEquivDate: lastCrewEquivDate ? lastCrewEquivDate.toISOString() : null,
+        daysSinceLastCrew,
+        crewOverdue,
+        crewNever
+      }
+    };
+  } catch (error) {
+    Logger.log('ERROR in getPersonnelProfile(): ' + error.toString());
+    Logger.log(error.stack);
+    return { success: false, error: error.toString() };
+  }
+}
+
+// =============================================================================
 // SHOW FUNCTIONS - READ AND CREATE OPERATIONS
 // DATA SOURCE: 'ShowInformation' sheet
 // COLUMNS: ShowID | ShowDate | ShowTime | ShowTypeID | DirectorID | Venue | Status | AttendanceEstimate | ShowNotes

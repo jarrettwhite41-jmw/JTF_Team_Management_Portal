@@ -591,6 +591,13 @@
             async removeStudentFromClass(enrollmentId) {
                 return this.callServerFunction('removeStudentFromClass', enrollmentId);
             }
+
+            // READ: Get comprehensive cross-role profile for a single person
+            // Returns cast, crew, director, bartender, student, teacher details
+            // plus crew recency / staleness flags
+            async getPersonnelProfile(personnelId) {
+                return this.callServerFunction('getPersonnelProfile', personnelId);
+            }
         }
 
         const gasService = new GoogleAppsScriptService();
@@ -1091,7 +1098,9 @@
                 Instagram: '',
                 Birthday: ''
             });
-            const [isLoading, setIsLoading] = useState(false); // FIXED: Added missing isLoading state
+            const [isLoading, setIsLoading] = useState(false);
+            const [profile, setProfile] = useState(null);
+            const [profileLoading, setProfileLoading] = useState(false);
 
             useEffect(() => {
                 if (person) {
@@ -1106,7 +1115,18 @@
                         Birthday: ''
                     });
                 }
-            }, [person, isOpen]);
+                // Fetch full profile when opening in view mode
+                if (mode === 'view' && person && person.PersonnelID) {
+                    setProfile(null);
+                    setProfileLoading(true);
+                    gasService.getPersonnelProfile(person.PersonnelID)
+                        .then(res => {
+                            if (res && res.success) setProfile(res.data);
+                        })
+                        .catch(() => {})
+                        .finally(() => setProfileLoading(false));
+                }
+            }, [person, isOpen, mode]);
 
             const handleInputChange = (field, value) => {
                 setFormData(prev => ({ ...prev, [field]: value }));
@@ -1132,16 +1152,188 @@
             const title = mode === 'create' ? 'Add New Personnel' : 
                          mode === 'edit' ? 'Edit Personnel' : 'Personnel Details';
 
+            // ── Helpers for profile view ──────────────────────────────────
+            const fmt = (iso) => {
+                if (!iso) return null;
+                try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+                catch { return null; }
+            };
+            const daysAgo = (iso) => {
+                if (!iso) return null;
+                return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+            };
+            const truthy = (v) => v === true || v === 'true' || v === 'TRUE' || v === 1 || v === '1' || v === 'Yes';
+
+            // ── Rich profile view (view mode only) ───────────────────────
+            const ProfileView = () => {
+                const p = profile;
+                if (profileLoading || !p) {
+                    return e('div', { className: 'flex items-center justify-center py-16' },
+                        e('div', { className: 'text-center' },
+                            e('div', { className: 'w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-3' }),
+                            e('p', { className: 'text-sm text-slate-500' }, 'Loading profile...')
+                        )
+                    );
+                }
+
+                const initials = `${(p.FirstName||'').charAt(0)}${(p.LastName||'').charAt(0)}`.toUpperCase();
+                const roleBadges = [
+                    p.isCast       && { label: '🎭 Cast',      cls: 'bg-purple-100 text-purple-700' },
+                    p.isDirector   && { label: '🎬 Director',  cls: 'bg-indigo-100 text-indigo-700' },
+                    p.isStudent    && { label: '🎒 Student',   cls: 'bg-sky-100 text-sky-700' },
+                    p.isBartender  && { label: '🍸 Bartender', cls: 'bg-amber-100 text-amber-700' },
+                    p.isTeacher    && { label: '🎓 Teacher',   cls: 'bg-emerald-100 text-emerald-700' },
+                ].filter(Boolean);
+
+                // Crew recency
+                const days = p.daysSinceLastCrew;
+                const crewStatusEl = (() => {
+                    if (!p.isCast && !p.isDirector) return null;
+                    if (p.crewNever)
+                        return e('div', { className: 'flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700' },
+                            e('span', null, '⚠️'),
+                            e('span', null, 'No crew or directing activity on record')
+                        );
+                    if (p.crewOverdue)
+                        return e('div', { className: 'flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700' },
+                            e('span', null, '⚠️'),
+                            e('span', null, `${days} days since last crew / directing activity (${fmt(p.lastCrewEquivDate)})`)
+                        );
+                    return e('div', { className: 'flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700' },
+                        e('span', null, '✓'),
+                        e('span', null, `Last crew / directing: ${fmt(p.lastCrewEquivDate)} (${days} days ago)`)
+                    );
+                })();
+
+                const Section = ({ icon, title, children }) =>
+                    e('div', { className: 'border border-slate-100 rounded-xl overflow-hidden' },
+                        e('div', { className: 'flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100' },
+                            e('span', null, icon),
+                            e('span', { className: 'text-xs font-bold text-slate-600 uppercase tracking-wider' }, title)
+                        ),
+                        e('div', { className: 'p-4' }, children)
+                    );
+
+                const Field = ({ label, value }) => value != null && value !== ''
+                    ? e('div', null,
+                        e('p', { className: 'text-xs text-slate-400 uppercase tracking-wider mb-0.5' }, label),
+                        e('p', { className: 'text-sm font-medium text-slate-800' }, String(value))
+                      )
+                    : null;
+
+                return e('div', { className: 'p-6 space-y-5' },
+                    // ── Header ──────────────────────────────────────────
+                    e('div', { className: 'flex gap-4 items-start' },
+                        e('div', { className: 'w-14 h-14 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 text-lg font-bold flex-shrink-0' }, initials),
+                        e('div', { className: 'flex-1 min-w-0' },
+                            e('h3', { className: 'text-xl font-bold text-slate-900' }, `${p.FirstName} ${p.LastName}`),
+                            e('p', { className: 'text-sm text-slate-500 truncate' }, p.PrimaryEmail),
+                            p.PrimaryPhone && e('p', { className: 'text-sm text-slate-500' }, p.PrimaryPhone),
+                            e('div', { className: 'flex flex-wrap gap-1.5 mt-2' },
+                                roleBadges.length > 0
+                                    ? roleBadges.map(b => e('span', { key: b.label, className: `inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${b.cls}` }, b.label))
+                                    : e('span', { className: 'text-xs text-slate-400 italic' }, 'No roles assigned')
+                            )
+                        )
+                    ),
+
+                    // ── Contact extras ───────────────────────────────────
+                    (p.Instagram || p.Birthday) && e('div', { className: 'grid grid-cols-2 gap-3' },
+                        p.Instagram && e(Field, { label: 'Instagram', value: p.Instagram }),
+                        p.Birthday  && e(Field, { label: 'Birthday',  value: fmt(p.Birthday) })
+                    ),
+
+                    // ── Crew recency banner ──────────────────────────────
+                    crewStatusEl,
+
+                    // ── Cast section ─────────────────────────────────────
+                    p.isCast && e(Section, { icon: '🎭', title: 'Cast' },
+                        e('div', { className: 'grid grid-cols-3 gap-3' },
+                            e(Field, { label: 'Status',     value: p.castDetails?.Status }),
+                            e(Field, { label: 'Shows',      value: p.castDetails?.showCount }),
+                            e(Field, { label: 'Last Show',  value: fmt(p.castDetails?.lastShowDate) })
+                        )
+                    ),
+
+                    // ── Crew section ─────────────────────────────────────
+                    p.isCrew && e(Section, { icon: '⚙️', title: 'Crew' },
+                        e('div', { className: 'grid grid-cols-2 gap-3 mb-3' },
+                            e(Field, { label: 'Total Duties', value: p.crewDetails?.totalCrewDuties }),
+                            e(Field, { label: 'Last Crew Date', value: fmt(p.crewDetails?.lastCrewDate) })
+                        ),
+                        p.crewDetails?.recentDuties?.length > 0 && e('div', null,
+                            e('p', { className: 'text-xs text-slate-400 uppercase tracking-wider mb-1.5' }, 'Recent Duties'),
+                            e('div', { className: 'space-y-1' },
+                                p.crewDetails.recentDuties.map((d, i) =>
+                                    e('div', { key: i, className: 'flex justify-between text-sm text-slate-600' },
+                                        e('span', null, d.DutyName),
+                                        e('span', { className: 'text-slate-400' }, fmt(d.ShowDate))
+                                    )
+                                )
+                            )
+                        )
+                    ),
+
+                    // ── Director section ─────────────────────────────────
+                    p.isDirector && e(Section, { icon: '🎬', title: 'Directing' },
+                        e('div', { className: 'grid grid-cols-2 gap-3' },
+                            e(Field, { label: 'Shows Directed', value: p.directorDetails?.showCount }),
+                            e(Field, { label: 'Last Directed',  value: fmt(p.directorDetails?.lastDirectedDate) })
+                        )
+                    ),
+
+                    // ── Student section ──────────────────────────────────
+                    p.isStudent && e(Section, { icon: '🎒', title: 'Student' },
+                        e('div', { className: 'grid grid-cols-3 gap-3' },
+                            e(Field, { label: 'Status',        value: p.studentDetails?.StudentStatus }),
+                            e(Field, { label: 'Current Level', value: p.studentDetails?.CurrentLevelName || p.studentDetails?.CurrentLevel }),
+                            e(Field, { label: 'Enrolled',      value: fmt(p.studentDetails?.EnrollmentDate) })
+                        ),
+                        p.studentDetails?.Notes && e('p', { className: 'mt-2 text-sm text-slate-600 italic' }, p.studentDetails.Notes)
+                    ),
+
+                    // ── Bartender section ────────────────────────────────
+                    p.isBartender && e(Section, { icon: '🍸', title: 'Bartender' },
+                        e('div', { className: 'grid grid-cols-3 gap-3' },
+                            e(Field, { label: 'Trained', value: truthy(p.bartenderDetails?.Trained) ? 'Yes' : 'No' }),
+                            e(Field, { label: 'Status',  value: p.bartenderDetails?.Status }),
+                            e(Field, { label: 'Active',  value: truthy(p.bartenderDetails?.Active) ? 'Yes' : 'No' })
+                        )
+                    ),
+
+                    // ── Teacher section ──────────────────────────────────
+                    p.isTeacher && e(Section, { icon: '🎓', title: 'Teacher' },
+                        e(Field, { label: 'Active', value: truthy(p.teacherDetails?.Active) ? 'Yes' : 'No' })
+                    )
+                );
+            };
+
             return e('div', { className: 'fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4' },
                 e('div', { className: 'modal-panel bg-white rounded-2xl shadow-modal max-w-2xl w-full mx-auto max-h-[90vh] overflow-y-auto' },
                     e('div', { className: 'flex justify-between items-center px-6 py-5 border-b border-gray-100' },
-                        e('h2', { className: 'text-lg font-bold text-gray-900' }, title),
+                        e('div', { className: 'flex items-center gap-3' },
+                            e('h2', { className: 'text-lg font-bold text-gray-900' }, title),
+                            // Edit + Delete buttons in header when viewing
+                            mode === 'view' && person && e('div', { className: 'flex gap-2 ml-2' },
+                                e('button', { type: 'button', onClick: onEdit,   className: 'btn-primary px-3 py-1.5 text-xs font-semibold text-white rounded-lg' }, 'Edit'),
+                                e('button', { type: 'button', onClick: onDelete, className: 'btn-danger  px-3 py-1.5 text-xs font-semibold text-white rounded-lg' }, 'Delete')
+                            )
+                        ),
                         e('button', {
                             onClick: onClose,
                             className: 'w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-xl leading-none font-light'
                         }, '×')
                     ),
 
+                    // View mode → rich profile panel
+                    mode === 'view' ? e('div', null,
+                        e(ProfileView, null),
+                        e('div', { className: 'px-6 pb-5 flex justify-end border-t border-gray-100 pt-4' },
+                            e('button', { type: 'button', onClick: onClose, className: 'px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors' }, 'Close')
+                        )
+                    ) :
+
+                    // Edit / Create mode → existing form
                     isLoading ? e('div', { className: 'p-8' }, e(Loader)) : 
                     e('form', { onSubmit: handleSubmit, className: 'p-6' },
                         e('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6' },
@@ -1235,25 +1427,8 @@
                                 type: 'button',
                                 onClick: onClose,
                                 className: 'px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors'
-                            }, mode === 'view' ? 'Close' : 'Cancel'),
-                            
-                            // Edit and Delete buttons for view mode
-                            mode === 'view' && person && [
-                                e('button', {
-                                    key: 'edit',
-                                    type: 'button',
-                                    onClick: onEdit,
-                                    className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-lg'
-                                }, 'Edit'),
-                                e('button', {
-                                    key: 'delete',
-                                    type: 'button',
-                                    onClick: onDelete,
-                                    className: 'btn-danger px-4 py-2 text-sm font-semibold text-white rounded-lg'
-                                }, 'Delete')
-                            ],
-                            
-                            isEditable && e('button', {
+                            }, 'Cancel'),
+                            e('button', {
                                 type: 'submit',
                                 disabled: isLoading,
                                 className: 'btn-primary px-5 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-50'
