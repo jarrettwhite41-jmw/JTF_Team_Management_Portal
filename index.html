@@ -3681,7 +3681,7 @@
                     )
                 ),
                 // Active tab content — key forces clean remount on tab switch
-                e('div', { key: activeTab, style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
+                e('div', { key: activeTab, style: { flex: '1 1 0', minHeight: 0, overflowY: 'auto' } },
                     renderActiveTab()
                 )
             );
