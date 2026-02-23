@@ -1,6 +1,6 @@
 # JTF Team Management Portal — Developer Reference
 
-> **Last updated:** February 23, 2026  
+> **Last updated:** February 23, 2026 (added Skill Tree, Rehearsal, role tables; UI consolidation plan)  
 > Use this document to guide all future feature work, bug fixes, and AI-assisted coding sessions.
 
 ---
@@ -78,7 +78,29 @@ Every other role table extends Personnel via `PersonnelID`.
 | `StudentID` | PK |
 | `PersonnelID` | FK → Personnel |
 
+#### `Directors`
+| Column | Notes |
+|---|---|
+| `DirectorID` | PK |
+| `PersonnelID` | FK → Personnel |
+| `Active` | Filter: `Active = 1` for active directors |
+
+#### `Bartenders` — Bartender role records
+| Column | Notes |
+|---|---|
+| `BartenderID` | PK |
+| `PersonnelID` | FK → Personnel |
+| `Active` | Active/inactive status |
+| `Trained` | boolean — completed bar training |
+| `ShiftCount` | Derived/stored total shift count |
+
 #### `Alumni` — Legacy records (read-only reference)
+| Column | Notes |
+|---|---|
+| `AlumniID` | PK |
+| `PersonnelID` | FK → Personnel |
+
+> Used for historical lookups only — do not write to this table from the app.
 
 ---
 
@@ -164,11 +186,83 @@ Every other role table extends Personnel via `PersonnelID`.
 | `EnrollmentID` | FK → StudentEnrollments |
 | Narrative fields | |
 
-#### `Skills` / `SkillCategories` / `StudentCompetencies` / `CastProficiencies`
-- `SkillCategories`: High-level buckets (Fundamentals, Physicality, etc.)
-- `Skills`: Specific traits → FK → SkillCategories
-- `StudentCompetencies`: Student skill ratings → FK → StudentEnrollments + Skills
-- `CastProficiencies`: Permanent cast skill record → FK → CastMemberInfo + Skills
+#### `ClassSessionLogs` — Per-session group/curriculum notes
+| Column | Notes |
+|---|---|
+| `SessionLogID` | PK |
+| `OfferingID` | FK → ClassOfferings |
+| `SessionDate` | YYYY-MM-DD |
+| `CurriculumNotes` | string — what was taught |
+| `GroupNotes` | string — how the group performed overall |
+
+#### `StudentProgressNotes` — Individual narrative feedback
+| Column | Notes |
+|---|---|
+| `NoteID` | PK |
+| `EnrollmentID` | FK → StudentEnrollments |
+| `SessionDate` | YYYY-MM-DD |
+| `Note` | string — free-form feedback on the individual student |
+
+---
+
+### Skill Tree Tables
+
+The skill tree tracks both **student growth** (per enrollment) and a **permanent cast proficiency record** (for casting decisions).
+
+#### `SkillCategories` — High-level skill buckets
+| Column | Notes |
+|---|---|
+| `CategoryID` | PK |
+| `CategoryName` | e.g., `'Fundamentals'`, `'Physicality'`, `'Character'`, `'Scene Work'` |
+| `Description` | optional long description |
+
+#### `Skills` — Individual skill traits
+| Column | Notes |
+|---|---|
+| `SkillID` | PK |
+| `CategoryID` | FK → SkillCategories |
+| `SkillName` | e.g., `'Yes And'`, `'Active Listening'`, `'Physicality'` |
+| `Description` | optional |
+
+#### `StudentCompetencies` — Skill ratings per student per enrollment
+| Column | Notes |
+|---|---|
+| `CompetencyID` | PK |
+| `EnrollmentID` | FK → StudentEnrollments |
+| `SkillID` | FK → Skills |
+| `Rating` | number (e.g., 1–5) or label (e.g., `'Developing'`, `'Proficient'`) |
+| `Notes` | optional narrative |
+| `DateRecorded` | YYYY-MM-DD |
+
+> Use this to show a student's skill progression across multiple classes.
+
+#### `CastProficiencies` — Permanent cast skill record
+| Column | Notes |
+|---|---|
+| `ProficiencyID` | PK |
+| `CastMemberID` | FK → CastMemberInfo |
+| `SkillID` | FK → Skills |
+| `Rating` | number or label |
+| `Notes` | optional narrative |
+| `LastUpdated` | YYYY-MM-DD |
+
+> This is the **"permanent record"** used for casting decisions. Updated manually or when a student graduates/joins cast.
+
+**Skill Join Pattern:**
+```js
+// Get all skills for a cast member, grouped by category
+const proficiencies = allProficiencies.filter(p => p.CastMemberID == castMember.CastMemberID);
+const enriched = proficiencies.map(p => {
+  const skill = allSkills.find(s => s.SkillID == p.SkillID);
+  const category = allCategories.find(c => c.CategoryID == skill?.CategoryID);
+  return { ...p, SkillName: skill?.SkillName, CategoryName: category?.CategoryName };
+});
+
+// Get a student's competency history across enrollments
+const history = allCompetencies
+  .filter(c => allEnrollments.find(e => e.EnrollmentID == c.EnrollmentID && e.StudentID == studentId))
+  .map(c => ({ ...c, SkillName: allSkills.find(s => s.SkillID == c.SkillID)?.SkillName }));
+```
 
 ---
 
@@ -193,6 +287,27 @@ Every other role table extends Personnel via `PersonnelID`.
 
 ---
 
+### Rehearsal Tables
+
+#### `Rehearsals` — Rehearsal schedules
+| Column | Notes |
+|---|---|
+| `RehearsalID` | PK |
+| `ShowID` | FK → ShowInformation (optional — some rehearsals are general) |
+| `RehearsalDate` | YYYY-MM-DD |
+| `Location` | string |
+| `Notes` | string |
+
+#### `RehearsalAttendance` — Who attended which rehearsal
+| Column | Notes |
+|---|---|
+| `AttendanceID` | PK |
+| `RehearsalID` | FK → Rehearsals |
+| `CastMemberID` | FK → CastMemberInfo |
+| `Attended` | boolean |
+
+---
+
 ### Lookup/Reference Tables
 
 | Table | Purpose |
@@ -203,6 +318,8 @@ Every other role table extends Personnel via `PersonnelID`.
 | `MasterGameList` | Canonical improv game catalog |
 | `StorageLocations` | Physical storage spots |
 | `InventoryCategories` | Item type groupings |
+| `SkillCategories` | High-level skill buckets |
+| `Skills` | Individual skill traits |
 
 ---
 
@@ -297,6 +414,28 @@ else { setMessage({ type: 'error', text: result.error }); }
 ## Dropdown Filter Rules (from schema)
 - **Teachers list**: SELECT Personnel WHERE PersonnelID in Teachers AND Active = 1
 - **Directors list**: SELECT Personnel WHERE PersonnelID in Directors AND Active = 1
+
+---
+
+## UI Consolidation Plan (feature/app-consolidation)
+
+### Proposed Sidebar (7 items → from current 11)
+
+| New Tab | Replaces | Sub-tabs / Views |
+|---|---|---|
+| Dashboard | Dashboard | Actionable widgets: upcoming shows, active classes, low inventory |
+| **People** | Personnel · Cast · Crew · Bartenders · Teachers | Sub-tabs per role; shared split-panel pattern |
+| Students | Students | Full profile page (keep separate — different nav pattern) |
+| **Education** | Classes · Teachers (detail) | Sub-tabs: Classes · Teachers · Skill Tree |
+| **Productions** | Shows · Scheduling | Toggle: List view ↔ Calendar view |
+| Inventory | Inventory | Unchanged |
+
+### Skill Tracking Feature (future)
+Data is now fully modeled. Implementation path:
+1. **Student Profile** → add a "Skills" section reading `StudentCompetencies` grouped by `SkillCategories`
+2. **Cast Detail Panel** → add a "Proficiencies" section reading `CastProficiencies` grouped by `SkillCategories`
+3. **Class Management View** → add a "Rate Skills" action per student per session using `StudentCompetencies`
+4. Backend functions needed: `getSkillsWithCategories`, `getStudentCompetencies(studentId)`, `getCastProficiencies(castMemberId)`, `upsertCompetency(enrollmentId, skillId, rating)`, `upsertCastProficiency(castMemberId, skillId, rating)`
 
 ---
 

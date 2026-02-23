@@ -55,6 +55,21 @@ const SHEET_CONFIG = {
   rehearsals: 'Rehearsals',                 // Rehearsal schedules
   rehearsalAttendance: 'RehearsalAttendance', // Who attended which rehearsals
   
+  // Role extension tables (1:1 with Personnel)
+  directors: 'Directors',                   // Director role records
+  bartenders: 'Bartenders',                 // Bartender role records
+  alumni: 'Alumni',                         // Alumni legacy records
+
+  // Education - session & progress tracking
+  classSessionLogs: 'ClassSessionLogs',     // Per-session group/curriculum notes
+  studentProgressNotes: 'StudentProgressNotes', // Individual narrative feedback per enrollment
+
+  // Skill Tree tables
+  skillCategories: 'SkillCategories',       // High-level skill buckets (Fundamentals, Physicality, etc.)
+  skills: 'Skills',                         // Specific skill traits → FK SkillCategories
+  studentCompetencies: 'StudentCompetencies', // Skill ratings per student per enrollment
+  castProficiencies: 'CastProficiencies',   // Permanent skill record per cast member
+
   // Lookup/Reference tables
   showTypes: 'ShowTypes',                   // Types of shows (Mainstage, Harold, etc.)
   classLevels: 'ClassLevels',               // Class levels (101, 201, Advanced, etc.)
