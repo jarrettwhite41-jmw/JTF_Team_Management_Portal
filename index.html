@@ -1125,7 +1125,7 @@
         function PersonnelModal({ isOpen, mode, person, onClose, onSave, onEdit, onDelete }) {
             const [formData, setFormData] = useState({
                 FirstName: '',
-                Lastname: '',
+                LastName: '',
                 PrimaryEmail: '',
                 PrimaryPhone: '',
                 Instagram: '',
@@ -1141,7 +1141,7 @@
                 } else {
                     setFormData({
                         FirstName: '',
-                        Lastname: '',
+                        LastName: '',
                         PrimaryEmail: '',
                         PrimaryPhone: '',
                         Instagram: '',
@@ -1391,7 +1391,7 @@
                                 e('input', {
                                     type: 'text',
                                     value: formData.LastName || '',
-                                    onChange: (e) => handleInputChange('Lastname', e.target.value),
+                                    onChange: (e) => handleInputChange('LastName', e.target.value),
                                     className: 'w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-sky-400 transition-colors',
                                     required: true
                                 }) :
