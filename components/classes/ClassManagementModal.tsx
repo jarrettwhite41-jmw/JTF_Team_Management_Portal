@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentCard } from './StudentCard';
 import { Loader } from '../common/Loader';
 import { Message } from '../common/Message';
+import { ClassEditModal } from './ClassEditModal';
 
 interface ClassManagementModalProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'roster' | 'enrolled' | 'add'>('roster');
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     if (isOpen && classOffering) {
@@ -214,12 +216,24 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
               {classOffering.TeacherName} • {classOffering.Status}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-1.5"
+              title="Edit class details"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Details
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Message */}
@@ -397,6 +411,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Edit Class Details Modal (nested overlay) */}
+      <ClassEditModal
+        isOpen={showEditModal}
+        classOffering={classOffering}
+        onClose={() => setShowEditModal(false)}
+        onSaved={() => {
+          setShowEditModal(false);
+          onRefresh();
+        }}
+      />
     </div>
   );
 };

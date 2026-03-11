@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CastCard } from '../components/cast/CastCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { CastMemberWithDetails } from '../types';
+import { CastMemberWithDetails, Personnel } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 export const CastDirectory: React.FC = () => {
@@ -13,6 +13,17 @@ export const CastDirectory: React.FC = () => {
   const [selectedCastMember, setSelectedCastMember] = useState<CastMemberWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Add Cast Member modal state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
+  const [personnelSearch, setPersonnelSearch] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
+  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
+
+  // Remove confirmation state
+  const [removeTarget, setRemoveTarget] = useState<CastMemberWithDetails | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     loadCastMembers();
@@ -31,7 +42,6 @@ export const CastDirectory: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await gasService.getAllCastMembers();
-      // The actual data is nested in response.data.data
       if (response.success && response.data && Array.isArray((response.data as any).data)) {
         setCastMembers((response.data as any).data);
         setMessage(null);
@@ -42,6 +52,77 @@ export const CastDirectory: React.FC = () => {
       setMessage({ type: 'error', text: 'Error loading cast member data' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleOpenAddModal = async () => {
+    setPersonnelSearch('');
+    setIsAddModalOpen(true);
+    if (allPersonnel.length === 0) {
+      try {
+        const response = await gasService.getAllPersonnel();
+        if (response.success && Array.isArray(response.data)) {
+          setAllPersonnel(response.data as Personnel[]);
+        }
+      } catch {
+        // silently fail - user will see empty list
+      }
+    }
+  };
+
+  // Personnel not already in cast (by PersonnelID)
+  const castPersonnelIds = new Set(castMembers.map(c => c.PersonnelID).filter(Boolean));
+  const availablePersonnel = allPersonnel.filter(p => {
+    const notInCast = !castPersonnelIds.has(p.PersonnelID);
+    const matchesSearch = personnelSearch === '' ||
+      `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+      (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
+    return notInCast && matchesSearch;
+  });
+
+  const handleAddCastMember = async (personnel: Personnel) => {
+    setIsAdding(true);
+    try {
+      const response = await gasService.addPersonAsCastMember(personnel.PersonnelID);
+      if (response.success) {
+        setMessage({ type: 'success', text: `${personnel.FirstName} ${personnel.LastName} added to cast.` });
+        setIsAddModalOpen(false);
+        await loadCastMembers();
+      } else {
+        setMessage({ type: 'error', text: (response as any).error || 'Failed to add cast member.' });
+        setIsAddModalOpen(false);
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Error adding cast member.' });
+      setIsAddModalOpen(false);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleRemoveClick = (castMemberId: number) => {
+    const target = castMembers.find(c => c.CastMemberID === castMemberId);
+    if (target) setRemoveTarget(target);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!removeTarget) return;
+    setIsRemoving(true);
+    try {
+      const response = await gasService.removeCastMember(removeTarget.CastMemberID);
+      if (response.success) {
+        setMessage({ type: 'success', text: `${removeTarget.FirstName} ${removeTarget.LastName} removed from cast.` });
+        setRemoveTarget(null);
+        await loadCastMembers();
+      } else {
+        setMessage({ type: 'error', text: (response as any).error || 'Failed to remove cast member.' });
+        setRemoveTarget(null);
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Error removing cast member.' });
+      setRemoveTarget(null);
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -68,7 +149,15 @@ export const CastDirectory: React.FC = () => {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Cast Directory</h1>
-        <p className="text-sm text-gray-600">{filteredCastMembers.length} cast assignments</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-gray-600">{filteredCastMembers.length} cast assignments</p>
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            + Add Cast Member
+          </button>
+        </div>
       </div>
 
       {message && (
@@ -124,18 +213,150 @@ export const CastDirectory: React.FC = () => {
               key={`${castMember.PerformanceID}-${castMember.CastMemberID}`}
               castMember={castMember}
               onClick={() => handleCastMemberClick(castMember)}
+              onRemove={handleRemoveClick}
             />
           ))}
         </div>
       )}
 
+      {/* Add Cast Member Modal */}
+      {isAddModalOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setIsAddModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Add Cast Members from Personnel</h2>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <input
+              type="text"
+              placeholder="Search personnel..."
+              value={personnelSearch}
+              onChange={(e) => setPersonnelSearch(e.target.value)}
+              className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+
+            {availablePersonnel.length > 0 && (
+              <div className="flex items-center justify-between mb-2 px-1">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={availablePersonnel.length > 0 && availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-purple-600"
+                  />
+                  Select all
+                </label>
+                {selectedPersonnelIds.length > 0 && (
+                  <span className="text-sm text-purple-700 font-medium">{selectedPersonnelIds.length} selected</span>
+                )}
+              </div>
+            )}
+
+            <div className="overflow-y-auto flex-1">
+              {availablePersonnel.length === 0 ? (
+                <p className="text-center text-gray-500 py-6">No available personnel found.</p>
+              ) : (
+                availablePersonnel.map((person) => {
+                  const isChecked = selectedPersonnelIds.includes(person.PersonnelID);
+                  return (
+                    <label
+                      key={person.PersonnelID}
+                      className={`flex items-center gap-3 p-3 mb-1 border rounded-lg cursor-pointer select-none transition-colors ${
+                        isChecked ? 'border-purple-400 bg-purple-50' : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => togglePersonnelSelect(person.PersonnelID)}
+                        className="w-4 h-4 accent-purple-600 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900">{`${person.FirstName} ${person.LastName}`.trim()}</p>
+                        <p className="text-sm text-gray-500 truncate">{person.PrimaryEmail || 'No email'}</p>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-between items-center">
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddSelectedCastMembers}
+                disabled={isAdding || selectedPersonnelIds.length === 0}
+                className="px-4 py-2 text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors font-medium"
+              >
+                {isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length > 0 ? selectedPersonnelIds.length + ' ' : ''}Selected`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Confirmation Modal */}
+      {removeTarget && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setRemoveTarget(null)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Remove Cast Member</h2>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to remove{' '}
+              <span className="font-medium text-gray-900">
+                {removeTarget.FirstName} {removeTarget.LastName}
+              </span>{' '}
+              from the cast directory? This will delete their entry from the CastMemberInfo table.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setRemoveTarget(null)}
+                disabled={isRemoving}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRemove}
+                disabled={isRemoving}
+                className="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {isRemoving ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cast Member Detail Modal */}
       {selectedCastMember && isModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           onClick={handleCloseModal}
         >
-          <div 
+          <div
             className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -148,7 +369,7 @@ export const CastDirectory: React.FC = () => {
                 ×
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -179,7 +400,7 @@ export const CastDirectory: React.FC = () => {
                 <p className="text-gray-900">{selectedCastMember.PrimaryPhone || 'Not available'}</p>
               </div>
             </div>
-            
+
             <div className="flex justify-end">
               <button
                 onClick={handleCloseModal}

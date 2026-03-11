@@ -4,9 +4,10 @@ import { CastMemberWithDetails } from '../../types';
 interface CastCardProps {
   castMember: CastMemberWithDetails;
   onClick: () => void;
+  onRemove?: (castMemberId: number) => void;
 }
 
-export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
+export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick, onRemove }) => {
   const getInitials = (firstName: string, lastname: string) => {
     const first = (firstName || '').trim();
     const last = (lastname || '').trim();
@@ -56,6 +57,19 @@ export const CastCard: React.FC<CastCardProps> = ({ castMember, onClick }) => {
           </span>
         )}
       </div>
+      {onRemove && (
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(castMember.CastMemberID);
+            }}
+            className="w-full px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+          >
+            Remove from Cast
+          </button>
+        </div>
+      )}
     </div>
   );
 };
