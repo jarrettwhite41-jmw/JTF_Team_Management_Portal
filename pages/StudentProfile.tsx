@@ -258,8 +258,8 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
                           {enrollment.TeacherName && (
                             <p>Teacher: {enrollment.TeacherName}</p>
                           )}
-                          {enrollment.VenueOrRoom && (
-                            <p>Location: {enrollment.VenueOrRoom}</p>
+                          {(enrollment.RoomName || enrollment.VenueOrRoom) && (
+                            <p>Location: {enrollment.RoomName || enrollment.VenueOrRoom}</p>
                           )}
                         </div>
                       </div>

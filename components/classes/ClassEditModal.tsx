@@ -23,6 +23,11 @@ interface PersonnelOption {
   LastName: string;
 }
 
+interface Room {
+  RoomID: number;
+  RoomName: string;
+}
+
 const STATUS_OPTIONS = ['Upcoming', 'In Progress', 'Completed', 'Cancelled'];
 const MEETING_DAY_OPTIONS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -33,9 +38,9 @@ const defaultForm = {
   EndDate: '',
   MaxStudents: '12',
   Status: 'Upcoming',
-  VenueOrRoom: '',
+  RoomID: '',
   MeetingDays: '',
-  MeetingTime: '',
+  MeetingTime: '19:30',
 };
 
 export const ClassEditModal: React.FC<ClassEditModalProps> = ({
@@ -49,6 +54,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
   const [form, setForm] = useState({ ...defaultForm });
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [personnel, setPersonnel] = useState<PersonnelOption[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -74,7 +80,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
           : '',
         MaxStudents: String(classOffering.MaxStudents ?? '12'),
         Status: classOffering.Status ?? 'Upcoming',
-        VenueOrRoom: classOffering.VenueOrRoom ?? classOffering.Location ?? '',
+        RoomID: String(classOffering.RoomID ?? ''),
         MeetingDays: classOffering.MeetingDays ?? '',
         MeetingTime: classOffering.MeetingTime ?? '',
       });
@@ -87,12 +93,14 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
   const loadDropdownData = async () => {
     setIsLoading(true);
     try {
-      const [levelsRes, personnelRes] = await Promise.all([
+      const [levelsRes, personnelRes, roomsRes] = await Promise.all([
         gasService.getAllClassLevels(),
         gasService.getAllPersonnel(),
+        gasService.getAllRooms(),
       ]);
       if (levelsRes.success && levelsRes.data) setClassLevels(levelsRes.data as ClassLevel[]);
       if (personnelRes.success && personnelRes.data) setPersonnel(personnelRes.data as PersonnelOption[]);
+      if (roomsRes.success && roomsRes.data) setRooms(roomsRes.data as Room[]);
     } catch {
       setMessage({ type: 'error', text: 'Failed to load form options' });
     } finally {
@@ -101,7 +109,16 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    if (name === 'StartDate' && value) {
+      // Auto-set end date to 42 days (6 weeks) after start so the 7th weekly session lands on the right day
+      const start = new Date(value + 'T00:00:00');
+      start.setDate(start.getDate() + 42);
+      const endDate = start.toISOString().split('T')[0];
+      setForm(prev => ({ ...prev, StartDate: value, EndDate: endDate }));
+    } else {
+      setForm(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleMeetingDayToggle = (day: string) => {
@@ -132,7 +149,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
       EndDate: form.EndDate,
       MaxStudents: Number(form.MaxStudents) || 12,
       Status: form.Status,
-      VenueOrRoom: form.VenueOrRoom,
+      RoomID: Number(form.RoomID) || null,
       MeetingDays: form.MeetingDays,
       MeetingTime: form.MeetingTime,
     };
@@ -288,17 +305,22 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
                 </div>
               </div>
 
-              {/* Location */}
+              {/* Room */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Venue / Room</label>
-                <input
-                  type="text"
-                  name="VenueOrRoom"
-                  value={form.VenueOrRoom}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Room</label>
+                <select
+                  name="RoomID"
+                  value={form.RoomID}
                   onChange={handleChange}
-                  placeholder="e.g. Studio A, Room 12…"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                >
+                  <option value="">Select a room…</option>
+                  {rooms.map(r => (
+                    <option key={r.RoomID} value={String(r.RoomID)}>
+                      {r.RoomName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Meeting Days */}

@@ -1,5 +1,5 @@
 /**
- * 38JTF Team Management Portal - Google Apps Script Backend
+ * 12JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -55,6 +55,21 @@ const SHEET_CONFIG = {
   rehearsals: 'Rehearsals',                 // Rehearsal schedules
   rehearsalAttendance: 'RehearsalAttendance', // Who attended which rehearsals
   
+  // Role extension tables (1:1 with Personnel)
+  directors: 'Directors',                   // Director role records
+  bartenders: 'Bartenders',                 // Bartender role records
+  alumni: 'Alumni',                         // Alumni legacy records
+
+  // Education - session & progress tracking
+  classSessionLogs: 'ClassSessionLogs',     // Per-session group/curriculum notes
+  studentProgressNotes: 'StudentProgressNotes', // Individual narrative feedback per enrollment
+
+  // Skill Tree tables
+  skillCategories: 'SkillCategories',       // High-level skill buckets (Fundamentals, Physicality, etc.)
+  skills: 'Skills',                         // Specific skill traits → FK SkillCategories
+  studentCompetencies: 'StudentCompetencies', // Skill ratings per student per enrollment
+  castProficiencies: 'CastProficiencies',   // Permanent skill record per cast member
+
   // Lookup/Reference tables
   showTypes: 'ShowTypes',                   // Types of shows (Mainstage, Harold, etc.)
   classLevels: 'ClassLevels',               // Class levels (101, 201, Advanced, etc.)
@@ -588,6 +603,200 @@ function deletePersonnel(personnelId) {
   } catch (error) {
     Logger.log(`ERROR in deletePersonnel(): ${error.toString()}`);
     return { success: false, data: null, error: error.toString() };
+  }
+}
+
+// =============================================================================
+// PERSONNEL PROFILE - CROSS-ROLE AGGREGATE VIEW
+// Joins Personnel + CastMemberInfo + CrewDuties + Directors + ShowInformation
+//   + Bartenders + StudentInfo + Teachers into one rich profile object.
+// =============================================================================
+
+/**
+ * READ OPERATION: Returns a comprehensive profile for a single person.
+ * Checks every role table and aggregates show/crew/directing history.
+ * Crew staleness: flags crewOverdue=true if last crew-equivalent activity > 90 days ago.
+ *   "Crew-equivalent" = any CrewDuty entry OR any show they directed.
+ *
+ * @param {number|string} personnelId - The PersonnelID to look up
+ * @returns {Object} { success, data: { ...personnelFields, role flags, roleDetails, crewRecency } }
+ */
+function getPersonnelProfile(personnelId) {
+  try {
+    const id = parseInt(personnelId);
+
+    // ── 1. Load all sheets we'll need (load once, reuse) ──────────────────
+    const personnel       = sheetToObjects(getSheet(SHEET_CONFIG.personnel));
+    const castMemberInfo  = sheetToObjects(getSheet(SHEET_CONFIG.castMemberInfo));
+    const performances    = sheetToObjects(getSheet(SHEET_CONFIG.showPerformances));
+    const crewDuties      = sheetToObjects(getSheet(SHEET_CONFIG.crewDuties));
+    const crewDutyTypes   = sheetToObjects(getSheet(SHEET_CONFIG.crewDutyTypes));
+    const directors       = sheetToObjects(getSheet(SHEET_CONFIG.directors));
+    const shows           = sheetToObjects(getSheet(SHEET_CONFIG.showInformation));
+    const bartenders      = sheetToObjects(getSheet(SHEET_CONFIG.bartenders));
+    const studentInfoRows = sheetToObjects(getSheet(SHEET_CONFIG.studentInfo));
+    const classLevels     = sheetToObjects(getSheet(SHEET_CONFIG.classLevels));
+    const teachers        = sheetToObjects(getSheet(SHEET_CONFIG.teachers));
+
+    // ── 2. Core personnel record ──────────────────────────────────────────
+    const person = personnel.find(p => p.PersonnelID == id);
+    if (!person) return { success: false, error: 'Person not found' };
+
+    // ── 3. Cast role ──────────────────────────────────────────────────────
+    const castRecord = castMemberInfo.find(c => c.PersonnelID == id);
+    let castDetails = null;
+    let lastCastShowDate = null;
+
+    if (castRecord) {
+      const personPerfs = performances.filter(p => p.CastMemberID == castRecord.CastMemberID);
+      const castShowDates = personPerfs
+        .map(p => { const s = shows.find(sh => sh.ShowID == p.ShowID); return s ? new Date(s.ShowDate) : null; })
+        .filter(d => d && !isNaN(d.getTime()));
+      if (castShowDates.length > 0) {
+        lastCastShowDate = new Date(Math.max(...castShowDates.map(d => d.getTime())));
+      }
+      castDetails = {
+        CastMemberID: castRecord.CastMemberID,
+        Status: castRecord.Status || 'Active',
+        showCount: personPerfs.length,
+        lastShowDate: lastCastShowDate ? lastCastShowDate.toISOString() : null
+      };
+    }
+
+    // ── 4. Crew role (via CastMemberID in CrewDuties) ─────────────────────
+    let crewDetails = null;
+    let lastCrewDate = null;
+
+    if (castRecord) {
+      const personCrew = crewDuties.filter(cd => cd.CrewMemberID == castRecord.CastMemberID);
+      if (personCrew.length > 0) {
+        const crewShowDates = personCrew
+          .map(cd => { const s = shows.find(sh => sh.ShowID == cd.ShowID); return s ? new Date(s.ShowDate) : null; })
+          .filter(d => d && !isNaN(d.getTime()));
+        if (crewShowDates.length > 0) {
+          lastCrewDate = new Date(Math.max(...crewShowDates.map(d => d.getTime())));
+        }
+        // Most recent 5 crew duties for display
+        const sorted = personCrew.slice().sort((a, b) => {
+          const sa = shows.find(sh => sh.ShowID == a.ShowID);
+          const sb = shows.find(sh => sh.ShowID == b.ShowID);
+          return (sb && sa) ? new Date(sb.ShowDate) - new Date(sa.ShowDate) : 0;
+        });
+        crewDetails = {
+          totalCrewDuties: personCrew.length,
+          lastCrewDate: lastCrewDate ? lastCrewDate.toISOString() : null,
+          recentDuties: sorted.slice(0, 5).map(cd => {
+            const dt = crewDutyTypes.find(t => t.CrewDutyTypeID == cd.CrewDutyTypeID);
+            const s  = shows.find(sh => sh.ShowID == cd.ShowID);
+            return { DutyName: dt ? dt.DutyName : 'Crew', ShowDate: s ? s.ShowDate : null };
+          })
+        };
+      }
+    }
+
+    // ── 5. Director role ──────────────────────────────────────────────────
+    const directorRecord = directors.find(d => d.PersonnelID == id);
+    let directorDetails = null;
+    let lastDirectedDate = null;
+
+    if (directorRecord) {
+      // ShowInformation.DirectorID → Directors.DirectorID
+      const directedShows = shows.filter(s => s.DirectorID == directorRecord.DirectorID);
+      // Fallback: DirectorID stored as PersonnelID directly
+      const fallbackShows = directedShows.length === 0
+        ? shows.filter(s => s.DirectorID == id)
+        : [];
+      const allDirected = directedShows.length > 0 ? directedShows : fallbackShows;
+
+      const directedDates = allDirected
+        .map(s => new Date(s.ShowDate))
+        .filter(d => !isNaN(d.getTime()));
+      if (directedDates.length > 0) {
+        lastDirectedDate = new Date(Math.max(...directedDates.map(d => d.getTime())));
+      }
+      directorDetails = {
+        DirectorID: directorRecord.DirectorID,
+        showCount: allDirected.length,
+        lastDirectedDate: lastDirectedDate ? lastDirectedDate.toISOString() : null
+      };
+    }
+
+    // ── 6. Crew recency: max(lastCrewDate, lastDirectedDate) ───────────────
+    const crewEquivDates = [lastCrewDate, lastDirectedDate].filter(d => d !== null);
+    const lastCrewEquivDate = crewEquivDates.length > 0
+      ? new Date(Math.max(...crewEquivDates.map(d => d.getTime())))
+      : null;
+    const isCastOrDirector = !!castRecord || !!directorRecord;
+    const daysSinceLastCrew = lastCrewEquivDate
+      ? Math.floor((new Date() - lastCrewEquivDate) / (1000 * 60 * 60 * 24))
+      : null;
+    // Only flag overdue for people who are cast/director (expected to crew)
+    const crewOverdue = isCastOrDirector && daysSinceLastCrew !== null && daysSinceLastCrew > 90;
+    // Also flag if cast/director but has NEVER crewed (no record at all)
+    const crewNever = isCastOrDirector && lastCrewEquivDate === null;
+
+    // ── 7. Bartender role ─────────────────────────────────────────────────
+    const bartenderRecord = bartenders.find(b => b.PersonnelID == id);
+
+    // ── 8. Student role ───────────────────────────────────────────────────
+    const studentRecord = studentInfoRows.find(s => s.PersonnelID == id);
+    let studentDetails = null;
+    if (studentRecord) {
+      const levelRecord = classLevels.find(l => l.ClassLevelID == studentRecord.CurrentLevel);
+      studentDetails = {
+        StudentID: studentRecord.StudentID,
+        EnrollmentDate: studentRecord.EnrollmentDate,
+        StudentStatus: studentRecord.Status,
+        CurrentLevel: studentRecord.CurrentLevel,
+        CurrentLevelName: levelRecord ? levelRecord.LevelName : null,
+        Notes: studentRecord.Notes || null
+      };
+    }
+
+    // ── 9. Teacher role ───────────────────────────────────────────────────
+    const teacherRecord = teachers.find(t => t.PersonnelID == id);
+
+    // ── 10. Assemble response ─────────────────────────────────────────────
+    return {
+      success: true,
+      data: {
+        // Core person fields
+        PersonnelID: person.PersonnelID,
+        FirstName:   person.FirstName,
+        LastName:    person.LastName,
+        PrimaryEmail: person.PrimaryEmail,
+        PrimaryPhone: person.PrimaryPhone,
+        Instagram:   person.Instagram,
+        Birthday:    person.Birthday,
+        // Role flags
+        isCast:       !!castRecord,
+        isCrew:       !!(crewDetails && crewDetails.totalCrewDuties > 0),
+        isDirector:   !!directorRecord,
+        isBartender:  !!bartenderRecord,
+        isStudent:    !!studentRecord,
+        isTeacher:    !!teacherRecord,
+        // Role details (null if not in that role)
+        castDetails,
+        crewDetails,
+        directorDetails,
+        bartenderDetails: bartenderRecord
+          ? { BartenderID: bartenderRecord.BartenderID, Trained: bartenderRecord.Trained, Status: bartenderRecord.Status, Active: bartenderRecord.Active }
+          : null,
+        studentDetails,
+        teacherDetails: teacherRecord
+          ? { TeacherID: teacherRecord.TeacherID, Active: teacherRecord.Active }
+          : null,
+        // Crew recency (key metric)
+        lastCrewEquivDate: lastCrewEquivDate ? lastCrewEquivDate.toISOString() : null,
+        daysSinceLastCrew,
+        crewOverdue,
+        crewNever
+      }
+    };
+  } catch (error) {
+    Logger.log('ERROR in getPersonnelProfile(): ' + error.toString());
+    Logger.log(error.stack);
+    return { success: false, error: error.toString() };
   }
 }
 
@@ -1283,6 +1492,162 @@ function removeBartender(bartenderId) {
   }
 }
 
+// =============================================================================
+// TEACHER FUNCTIONS - READ, CREATE, DELETE OPERATIONS
+// DATA SOURCE: 'Teachers' sheet
+// COLUMNS: TeacherID (A) | PersonnelID (B) | [C unused] | Active (D)
+// =============================================================================
+
+/**
+ * HELPER: Derives a class status from StartDate/EndDate relative to today.
+ * Respects a stored 'Cancelled' status; otherwise always computes from dates.
+ * @param {string} startDate - YYYY-MM-DD or Date
+ * @param {string} endDate   - YYYY-MM-DD or Date (optional)
+ * @param {string} storedStatus - Raw value from the Status column
+ * @returns {string} 'In Progress' | 'Upcoming' | 'Completed' | 'Cancelled' | 'Unknown'
+ */
+function computeClassStatus_(startDate, endDate, storedStatus) {
+  const stored = (storedStatus || '').toLowerCase();
+  if (stored === 'cancelled' || stored === 'canceled') return 'Cancelled';
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = startDate ? new Date(startDate) : null;
+  const end   = endDate   ? new Date(endDate)   : null;
+
+  if (start && end) {
+    if (end < today)   return 'Completed';
+    if (start <= today) return 'In Progress';
+    return 'Upcoming';
+  }
+  if (start) {
+    return start <= today ? 'In Progress' : 'Upcoming';
+  }
+  // No dates — fall back to stored value
+  return storedStatus || 'Unknown';
+}
+
+/**
+ * READ OPERATION: Gets all teachers with full Personnel details and their class history.
+ * DATA FLOW: Teachers → Personnel; ClassOfferings.TeacherID → class list
+ */
+function getTeachersWithDetails() {
+  try {
+    Logger.log('getTeachersWithDetails() called');
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(teachersSheet);
+
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+    const allPersonnel = sheetToObjects(personnelSheet);
+
+    let allClasses = [];
+    let allLevels = [];
+    try {
+      allClasses = sheetToObjects(getSheet(SHEET_CONFIG.classOfferings));
+      allLevels = sheetToObjects(getSheet(SHEET_CONFIG.classLevels));
+    } catch (e) {
+      Logger.log('Warning: Could not load ClassOfferings/ClassLevels: ' + e.toString());
+    }
+
+    const result = allTeachers.map(teacher => {
+      const person = allPersonnel.find(p => p.PersonnelID == teacher.PersonnelID);
+
+      // Match classes where TeacherID == teacher.TeacherID (ClassOfferings FK → Teachers PK)
+      const teacherClasses = allClasses
+        .filter(c => c.TeacherID == teacher.TeacherID)
+        .map(c => {
+          const level = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
+          const computedStatus = computeClassStatus_(c.StartDate, c.EndDate, c.Status);
+          return {
+            OfferingID: c.OfferingID,
+            LevelName: level ? level.LevelName : (c.ClassLevelID || 'Class'),
+            StartDate: c.StartDate || '',
+            EndDate: c.EndDate || '',
+            Status: computedStatus,
+            RoomID: c.RoomID || '',
+            MaxStudents: c.MaxStudents || ''
+          };
+        });
+
+      // 'In Progress' and 'Upcoming' both count as active (not yet completed/cancelled)
+      const activeClassCount = teacherClasses.filter(c =>
+        c.Status === 'In Progress' || c.Status === 'Upcoming'
+      ).length;
+
+      return {
+        TeacherID: teacher.TeacherID,
+        PersonnelID: teacher.PersonnelID,
+        Active: teacher.Active,
+        FirstName: person ? person.FirstName : 'Unknown',
+        LastName: person ? (person.LastName || person.Lastname || '') : 'Person',
+        FullName: person ? `${person.FirstName} ${person.LastName || person.Lastname || ''}`.trim() : 'Unknown Person',
+        PrimaryEmail: person ? person.PrimaryEmail : '',
+        PrimaryPhone: person ? person.PrimaryPhone : '',
+        Classes: teacherClasses,
+        TotalClasses: teacherClasses.length,
+        ActiveClasses: activeClassCount
+      };
+    });
+
+    Logger.log('Retrieved ' + result.length + ' teachers with details');
+    return { success: true, data: result };
+  } catch (error) {
+    Logger.log('ERROR in getTeachersWithDetails(): ' + error.toString());
+    return { success: false, data: [], error: error.toString() };
+  }
+}
+
+/**
+ * CREATE OPERATION: Adds a person from Personnel to the Teachers table.
+ * DATA FLOW: PersonnelID → new row in Teachers sheet
+ * @param {number} personnelId - The PersonnelID to add as a teacher
+ */
+function addPersonAsTeacher(personnelId) {
+  try {
+    Logger.log('addPersonAsTeacher() called for PersonnelID: ' + personnelId);
+    const sheet = getSheet(SHEET_CONFIG.teachers);
+    const allTeachers = sheetToObjects(sheet);
+
+    const existing = allTeachers.find(t => t.PersonnelID == personnelId);
+    if (existing) {
+      return { success: false, error: 'This person is already in the Teachers table.' };
+    }
+
+    const newId = getNextId(sheet, 0);
+    const newTeacher = {
+      TeacherID: newId,
+      PersonnelID: personnelId,
+      Active: true
+    };
+
+    addOrUpdateRow(sheet, newTeacher, 0);
+    Logger.log('Added teacher with ID: ' + newId + ' for PersonnelID: ' + personnelId);
+    return { success: true, data: newTeacher };
+  } catch (error) {
+    Logger.log('ERROR in addPersonAsTeacher(): ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * DELETE OPERATION: Removes a teacher from the Teachers table by TeacherID.
+ * NOTE: Does NOT delete class history — ClassOfferings records are preserved.
+ * @param {number} teacherId - The TeacherID to remove
+ */
+function removeTeacher(teacherId) {
+  try {
+    Logger.log('removeTeacher() called for TeacherID: ' + teacherId);
+    const sheet = getSheet(SHEET_CONFIG.teachers);
+    deleteRowsByCondition(sheet, 'TeacherID', teacherId);
+    Logger.log('Removed teacher with ID: ' + teacherId);
+    return { success: true, data: { deleted: true } };
+  } catch (error) {
+    Logger.log('ERROR in removeTeacher(): ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
 /**
  * HELPER FUNCTION: Deletes rows that match a condition
  * @param {Sheet} sheet - The sheet to delete from
@@ -1316,7 +1681,7 @@ function deleteRowsByCondition(sheet, columnName, value) {
 // =============================================================================
 // CLASS FUNCTIONS - READ OPERATIONS
 // DATA SOURCE: 'ClassOfferings' sheet  
-// COLUMNS: OfferingID | ClassLevelID | StartDate | EndDate | TeacherPersonnelID | VenueOrRoom | MaxStudents | Status
+// COLUMNS: OfferingID | ClassLevelID | StartDate | EndDate | TeacherPersonnelID | RoomID | MaxStudents | Status
 // =============================================================================
 
 /**
@@ -1329,11 +1694,17 @@ function getAllClasses() {
     Logger.log('getAllClasses() called - fetching from ClassOfferings sheet');
     const sheet = getSheet(SHEET_CONFIG.classOfferings);
     const classes = sheetToObjects(sheet);
-    
-    Logger.log(`Retrieved ${classes.length} class offering records`);
-    Logger.log(`Sample class: ${classes.length > 0 ? JSON.stringify(classes[0]) : 'No classes found'}`);
-    
-    return classes;
+
+    // Enrich each class with a date-derived Status so callers don't rely on a stale sheet column
+    const enriched = classes.map(c => ({
+      ...c,
+      Status: computeClassStatus_(c.StartDate, c.EndDate, c.Status)
+    }));
+
+    Logger.log(`Retrieved ${enriched.length} class offering records`);
+    Logger.log(`Sample class: ${enriched.length > 0 ? JSON.stringify(enriched[0]) : 'No classes found'}`);
+
+    return enriched;
   } catch (error) {
     Logger.log(`ERROR in getAllClasses(): ${error.toString()}`);
     throw new Error('Failed to retrieve classes data');
@@ -2450,7 +2821,7 @@ function getSheetHeaders(sheetName) {
     ],
     [SHEET_CONFIG.classOfferings]: [
       'OfferingID', 'ClassLevelID', 'StartDate', 'EndDate', 
-      'TeacherPersonnelID', 'VenueOrRoom', 'MaxStudents', 'Status'
+      'TeacherPersonnelID', 'RoomID', 'MaxStudents', 'Status'
     ],
     [SHEET_CONFIG.masterGameList]: [
       'GameID', 'GameName', 'GameDescription', 'PlayerCountMin', 'PlayerCountMax'
@@ -2747,6 +3118,14 @@ function getStudentProfileData(studentId) {
     } catch (e) {
       Logger.log('ClassLevels sheet not found');
     }
+
+    let allRooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      allRooms = sheetToObjects(roomsSheet);
+    } catch (e) {
+      Logger.log('Rooms sheet not found in getStudentProfile');
+    }
     
     // Get teachers for teacher names
     const allTeachers = allPersonnel;  // Teachers are in Personnel table
@@ -2759,7 +3138,8 @@ function getStudentProfileData(studentId) {
       let teacherName = '';
       let startDate = '';
       let endDate = '';
-      let venueOrRoom = '';
+      let roomId = '';
+      let roomName = '';
       
       if (classOffering) {
         // Get level name
@@ -2772,7 +3152,9 @@ function getStudentProfileData(studentId) {
         
         startDate = classOffering.StartDate;
         endDate = classOffering.EndDate;
-        venueOrRoom = classOffering.VenueOrRoom;
+        roomId = classOffering.RoomID;
+        const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+        roomName = room ? room.RoomName : '';
       }
       
       return {
@@ -2786,7 +3168,8 @@ function getStudentProfileData(studentId) {
         TeacherName: teacherName,
         StartDate: startDate,
         EndDate: endDate,
-        VenueOrRoom: venueOrRoom
+        RoomID: roomId,
+        RoomName: roomName
       };
     });
     
@@ -3595,7 +3978,7 @@ function getEnrollmentsWithDetails(studentId = null) {
           enriched.TeacherName = teacher ? `${teacher.FirstName} ${teacher.LastName}` : '';
           enriched.StartDate = classOffering.StartDate;
           enriched.EndDate = classOffering.EndDate;
-          enriched.VenueOrRoom = classOffering.VenueOrRoom;
+          enriched.RoomID = classOffering.RoomID;
         }
         
         return enriched;
@@ -3910,7 +4293,7 @@ function updateClassOffering(classData) {
     }
 
     // Write back only the fields present in classData, preserving everything else
-    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'VenueOrRoom', 'MeetingDays', 'MeetingTime'];
+    const updatableFields = ['TeacherID', 'ClassLevelID', 'StartDate', 'EndDate', 'MaxStudents', 'Status', 'RoomID', 'MeetingDays', 'MeetingTime'];
     headers.forEach((header, colIdx) => {
       if (updatableFields.includes(header) && classData[header] !== undefined) {
         sheet.getRange(targetRow, colIdx + 1).setValue(classData[header]);
@@ -3965,6 +4348,15 @@ function getAllClassOfferings() {
       allLevels = sheetToObjects(levelsSheet);
     } catch (e) {
       Logger.log('ClassLevels sheet not found');
+    }
+
+    // Get Rooms for room names
+    let allRooms = [];
+    try {
+      const roomsSheet = getSheet('Rooms');
+      allRooms = sheetToObjects(roomsSheet);
+    } catch (e) {
+      Logger.log('Rooms sheet not found');
     }
     
     Logger.log(`Processing ${allClasses.length} class offerings`);
@@ -4028,27 +4420,20 @@ function getAllClassOfferings() {
       // Get level name
       const level = allLevels.find(l => l.ClassLevelID == classOffering.ClassLevelID);
       const levelName = level ? level.LevelName : `Level ${classOffering.ClassLevelID}`;
+
+      // Resolve room name
+      const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+      const roomName = room ? room.RoomName : '';
       
-      // Calculate status based on dates if not explicitly set
-      let status = classOffering.Status || 'Upcoming';
-      if (!classOffering.Status) {
-        const today = new Date();
-        const startDate = new Date(classOffering.StartDate);
-        const endDate = new Date(classOffering.EndDate);
-        
-        if (today > endDate) {
-          status = 'Completed';
-        } else if (today >= startDate && today <= endDate) {
-          status = 'In Progress';
-        } else {
-          status = 'Upcoming';
-        }
-      }
-      
+      // Always derive status from dates so stale sheet values are never trusted.
+      // computeClassStatus_ respects a stored 'Cancelled' flag but recomputes everything else.
+      const status = computeClassStatus_(classOffering.StartDate, classOffering.EndDate, classOffering.Status);
+
       return {
         ...classOffering,
         TeacherName: teacherName,
         LevelName: levelName,
+        RoomName: roomName,
         EnrolledCount: enrolledCount,
         MaxStudents: classOffering.MaxStudents || 12,
         Status: status
@@ -4122,6 +4507,17 @@ function getClassOfferingDetails(offeringId) {
       Logger.log('ClassLevels sheet not found');
       levelName = `Level ${classOffering.ClassLevelID}`;
     }
+
+    // Resolve room name
+    let roomName = '';
+    try {
+      const roomsSheet = getSheet('Rooms');
+      const allRooms = sheetToObjects(roomsSheet);
+      const room = allRooms.find(r => r.RoomID == classOffering.RoomID);
+      roomName = room ? room.RoomName : '';
+    } catch (e) {
+      Logger.log('Rooms sheet not found in getClassOfferingDetails');
+    }
     
     // Get enrolled students
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
@@ -4182,7 +4578,8 @@ function getClassOfferingDetails(offeringId) {
         classOffering: {
           ...classOffering,
           TeacherName: teacherInfo ? `${teacherInfo.FirstName} ${teacherInfo.LastName}` : 'TBA',
-          LevelName: levelName
+          LevelName: levelName,
+          RoomName: roomName
         },
         enrolledStudents: enrolledStudents,
         attendanceRecords: attendanceRecords
@@ -4383,5 +4780,292 @@ function getActiveTeachers() {
       success: false,
       error: error.toString()
     };
+  }
+}
+
+// ===================================================================
+// CLASS SESSION LOGS & STUDENT PROGRESS NOTES
+// ===================================================================
+
+/**
+ * Get all session logs for a class offering, sorted by date.
+ */
+function getClassSessionLogs(offeringId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const rows = sheetToObjects(sheet);
+    const logs = rows
+      .filter(r => r.OfferingID == offeringId)
+      .sort((a, b) => new Date(a.ClassDate) - new Date(b.ClassDate));
+    return { success: true, data: logs };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a session log for a given OfferingID + SessionDate combo.
+ * If a log already exists for that date it is updated; otherwise a new row is appended.
+ */
+function saveSessionLog(logData) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows = sheetToObjects(sheet);
+
+    // Find existing row for this offering + date
+    const existingIdx = rows.findIndex(
+      r => r.OfferingID == logData.OfferingID &&
+           String(r.ClassDate).split('T')[0] === String(logData.ClassDate).split('T')[0]
+    );
+
+    if (existingIdx >= 0) {
+      // Update existing row (sheet row = header + 1-based + 1 = existingIdx + 2)
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'TeacherID')         sheet.getRange(rowNum, colIdx + 1).setValue(logData.TeacherID || '');
+        if (h === 'CurriculumCovered') sheet.getRange(rowNum, colIdx + 1).setValue(logData.CurriculumCovered || '');
+        if (h === 'GeneralClassNotes') sheet.getRange(rowNum, colIdx + 1).setValue(logData.GeneralClassNotes || '');
+      });
+      const updated = sheetToObjects(getSheet(SHEET_CONFIG.classSessionLogs))
+        .find(r => r.OfferingID == logData.OfferingID &&
+                   String(r.ClassDate).split('T')[0] === String(logData.ClassDate).split('T')[0]);
+      return { success: true, data: updated };
+    } else {
+      // Append new row
+      const idSheet = getSheet(SHEET_CONFIG.classSessionLogs);
+      const newId = getNextId(idSheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'SessionLogID')      return newId;
+        if (h === 'OfferingID')        return logData.OfferingID;
+        if (h === 'ClassDate')         return logData.ClassDate;
+        if (h === 'TeacherID')         return logData.TeacherID || '';
+        if (h === 'CurriculumCovered') return logData.CurriculumCovered || '';
+        if (h === 'GeneralClassNotes') return logData.GeneralClassNotes || '';
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { SessionLogID: newId, ...logData } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Get all student progress notes for all enrollments in a class offering.
+ * Joins with StudentEnrollments + Personnel to return student names.
+ */
+function getStudentProgressNotes(offeringId) {
+  try {
+    const notesSheet      = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const enrollSheet     = getSheet(SHEET_CONFIG.studentEnrollments);
+    const studentSheet    = getSheet(SHEET_CONFIG.studentInfo);
+    const personnelSheet  = getSheet(SHEET_CONFIG.personnel);
+
+    const notes      = sheetToObjects(notesSheet);
+    const enrollments = sheetToObjects(enrollSheet).filter(e => e.OfferingID == offeringId);
+    const students   = sheetToObjects(studentSheet);
+    const personnel  = sheetToObjects(personnelSheet);
+
+    const enriched = enrollments.map(enr => {
+      const student   = students.find(s => s.StudentID == enr.StudentID);
+      const person    = personnel.find(p => p.PersonnelID == (student ? student.PersonnelID : null));
+      const myNotes   = notes
+        .filter(n => n.EnrollmentID == enr.EnrollmentID)
+        .sort((a, b) => new Date(a.NoteDate) - new Date(b.NoteDate));
+      return {
+        EnrollmentID: enr.EnrollmentID,
+        StudentID:    enr.StudentID,
+        PersonnelID:  student ? student.PersonnelID : null,
+        FirstName:    person ? person.FirstName : '',
+        LastName:     person ? (person.LastName || person.Lastname || '') : '',
+        notes:        myNotes
+      };
+    });
+
+    return { success: true, data: enriched };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a student progress note.
+ * If noteData.NoteID is provided, update that row; otherwise append a new row.
+ */
+function saveProgressNote(noteData) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+    if (noteData.NoteID) {
+      // Update existing
+      const rows = sheetToObjects(sheet);
+      const existingIdx = rows.findIndex(r => r.NoteID == noteData.NoteID);
+      if (existingIdx < 0) return { success: false, error: 'Note not found' };
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'NoteDate')          sheet.getRange(rowNum, colIdx + 1).setValue(noteData.NoteDate || '');
+        if (h === 'FeedbackText')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.FeedbackText || '');
+        if (h === 'AuthorPersonnelID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.AuthorPersonnelID || '');
+        if (h === 'InternalOnly')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.InternalOnly || false);
+      });
+      return { success: true, data: { ...noteData } };
+    } else {
+      // Append new row
+      const newId = getNextId(sheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'NoteID')          return newId;
+        if (h === 'EnrollmentID')    return noteData.EnrollmentID;
+        if (h === 'AuthorPersonnelID') return noteData.AuthorPersonnelID || '';
+        if (h === 'NoteDate')        return noteData.NoteDate || '';
+        if (h === 'FeedbackText')    return noteData.FeedbackText || '';
+        if (h === 'InternalOnly')    return noteData.InternalOnly || false;
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { NoteID: newId, ...noteData } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a student progress note by NoteID.
+ */
+function deleteProgressNote(noteId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.NoteID == noteId);
+    if (idx < 0) return { success: false, error: 'Note not found' };
+    sheet.deleteRow(idx + 2); // +1 for header, +1 for 1-based index
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a session log by SessionLogID.
+ */
+function deleteSessionLog(sessionLogId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.classSessionLogs);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.SessionLogID == sessionLogId);
+    if (idx < 0) return { success: false, error: 'Session log not found' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ─── Skill Categories ───────────────────────────────────────────────────────
+
+/**
+ * Returns all rows from SkillCategories (CategoryID, CategoryName, Description).
+ */
+function getSkillCategories() {
+  try {
+    const rows = sheetToObjects(getSheet(SHEET_CONFIG.skillCategories));
+    return { success: true, data: rows };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// ─── Student Competencies ────────────────────────────────────────────────────
+
+/**
+ * Get all StudentCompetency rows for every enrollment in a given offering.
+ * Returns a plain object keyed by EnrollmentID (as string):
+ *   { "42": [{ CompetencyID, EnrollmentID, SkillCategory, Rating, TeacherComments }, ...], ... }
+ */
+function getStudentCompetencies(offeringId) {
+  try {
+    const compSheet   = getSheet(SHEET_CONFIG.studentCompetencies);
+    const enrollSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+
+    const enrollmentIds = sheetToObjects(enrollSheet)
+      .filter(e => e.OfferingID == offeringId)
+      .map(e => String(e.EnrollmentID));
+
+    const grouped = {};
+    enrollmentIds.forEach(id => { grouped[id] = []; });
+
+    sheetToObjects(compSheet)
+      .filter(c => enrollmentIds.includes(String(c.EnrollmentID)))
+      .forEach(c => {
+        const key = String(c.EnrollmentID);
+        grouped[key].push(c);
+      });
+
+    return { success: true, data: grouped };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Create or update a StudentCompetency row.
+ * Upserts by CompetencyID (if provided) or by EnrollmentID + SkillCategory.
+ */
+function upsertStudentCompetency(data) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentCompetencies);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows = sheetToObjects(sheet);
+
+    let existingIdx = -1;
+    if (data.CompetencyID) {
+      existingIdx = rows.findIndex(r => r.CompetencyID == data.CompetencyID);
+    } else {
+      existingIdx = rows.findIndex(
+        r => r.EnrollmentID == data.EnrollmentID && r.SkillCategory == data.SkillCategory
+      );
+    }
+
+    if (existingIdx >= 0) {
+      const rowNum = existingIdx + 2;
+      headers.forEach((h, colIdx) => {
+        if (h === 'Rating')          sheet.getRange(rowNum, colIdx + 1).setValue(data.Rating !== undefined ? data.Rating : '');
+        if (h === 'TeacherComments') sheet.getRange(rowNum, colIdx + 1).setValue(data.TeacherComments || '');
+      });
+      return { success: true, data: { ...rows[existingIdx], ...data } };
+    } else {
+      const newId = getNextId(sheet, 0);
+      const newRow = headers.map(h => {
+        if (h === 'CompetencyID')    return newId;
+        if (h === 'EnrollmentID')    return data.EnrollmentID;
+        if (h === 'SkillCategory')   return data.SkillCategory || '';
+        if (h === 'Rating')          return data.Rating !== undefined ? data.Rating : '';
+        if (h === 'TeacherComments') return data.TeacherComments || '';
+        return '';
+      });
+      sheet.appendRow(newRow);
+      return { success: true, data: { CompetencyID: newId, ...data } };
+    }
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Delete a StudentCompetency row by CompetencyID.
+ */
+function deleteStudentCompetency(competencyId) {
+  try {
+    const sheet = getSheet(SHEET_CONFIG.studentCompetencies);
+    const rows = sheetToObjects(sheet);
+    const idx = rows.findIndex(r => r.CompetencyID == competencyId);
+    if (idx < 0) return { success: false, error: 'Competency not found' };
+    sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
   }
 }

@@ -58,7 +58,8 @@ const mockClasses: ClassOfferings[] = [
     StartDate: "2024-11-01",
     EndDate: "2024-12-20",
     TeacherPersonnelID: 2,
-    VenueOrRoom: "Studio A",
+    RoomID: 1,
+    RoomName: 'Studio A',
     MaxStudents: 12,
     Status: "Open"
   }
@@ -72,6 +73,12 @@ const mockShowTypes: ShowTypes[] = [
 const mockClassLevels: ClassLevels[] = [
   { ClassLevelID: 1, LevelName: "Beginner", Description: "Introduction to Improv" },
   { ClassLevelID: 2, LevelName: "Intermediate", Description: "Building Improv Skills" }
+];
+
+const mockRooms = [
+  { RoomID: 1, RoomName: 'Studio A' },
+  { RoomID: 2, RoomName: 'Studio B' },
+  { RoomID: 3, RoomName: 'Main Stage' },
 ];
 
 const mockInventory: Inventory[] = [
@@ -275,6 +282,9 @@ class GoogleAppsScriptService {
             case 'removeBartender':
               data = { deleted: true };
               break;
+            case 'getAllRooms':
+              data = mockRooms;
+              break;
             default:
               data = [];
           }
@@ -434,6 +444,10 @@ class GoogleAppsScriptService {
 
   async getAllCrewDutyTypes(): Promise<ApiResponse<CrewDutyTypes[]>> {
     return this.callServerFunction<CrewDutyTypes[]>('getAllCrewDutyTypes');
+  }
+
+  async getAllRooms(): Promise<ApiResponse<{ RoomID: number; RoomName: string }[]>> {
+    return this.callServerFunction<{ RoomID: number; RoomName: string }[]>('getAllRooms');
   }
 
   // Dashboard methods
