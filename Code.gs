@@ -1,5 +1,5 @@
 /**
- * 12JTF Team Management Portal - Google Apps Script Backend
+ * 17JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -5064,6 +5064,149 @@ function deleteStudentCompetency(competencyId) {
     const idx = rows.findIndex(r => r.CompetencyID == competencyId);
     if (idx < 0) return { success: false, error: 'Competency not found' };
     sheet.deleteRow(idx + 2);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+// =============================================================================
+// ADMIN PORTAL — Read & Override Functions
+// =============================================================================
+
+/**
+ * Admin: Get all progress notes for a specific student across all their enrollments.
+ * Results ordered most-recent first. Enriched with author name.
+ */
+function getStudentNotesForStudent(studentId) {
+  try {
+    const notesSheet     = getSheet(SHEET_CONFIG.studentProgressNotes);
+    const enrollSheet    = getSheet(SHEET_CONFIG.studentEnrollments);
+    const personnelSheet = getSheet(SHEET_CONFIG.personnel);
+
+    const enrollIds = sheetToObjects(enrollSheet)
+      .filter(e => e.StudentID == studentId)
+      .map(e => String(e.EnrollmentID));
+
+    const personnel = sheetToObjects(personnelSheet);
+
+    const notes = sheetToObjects(notesSheet)
+      .filter(n => enrollIds.includes(String(n.EnrollmentID)))
+      .map(n => {
+        const author = n.AuthorPersonnelID
+          ? personnel.find(p => p.PersonnelID == n.AuthorPersonnelID)
+          : null;
+        return {
+          NoteID:       n.NoteID,
+          EnrollmentID: n.EnrollmentID,
+          NoteDate:     n.NoteDate,
+          FeedbackText: n.FeedbackText,
+          AuthorName:   author
+            ? `${author.FirstName} ${author.LastName || author.Lastname || ''}`.trim()
+            : ''
+        };
+      })
+      .sort((a, b) => new Date(b.NoteDate) - new Date(a.NoteDate));
+
+    return { success: true, data: notes };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Admin: Get skill ratings for a specific enrollment, enriched with skill and category names.
+ * StudentCompetencies.SkillCategory stores a Skills.SkillID value.
+ */
+function getSkillRatingsForEnrollment(enrollmentId) {
+  try {
+    const compSheet  = getSheet(SHEET_CONFIG.studentCompetencies);
+    const skillSheet = getSheet(SHEET_CONFIG.skills);
+    const catSheet   = getSheet(SHEET_CONFIG.skillCategories);
+
+    const competencies = sheetToObjects(compSheet).filter(c => c.EnrollmentID == enrollmentId);
+    const skills       = sheetToObjects(skillSheet);
+    const categories   = sheetToObjects(catSheet);
+
+    const enriched = competencies.map(c => {
+      const skill    = skills.find(s => s.SkillID == c.SkillCategory);
+      const category = skill ? categories.find(cat => cat.CategoryID == skill.CategoryID) : null;
+      return {
+        CompetencyID:    c.CompetencyID,
+        EnrollmentID:    c.EnrollmentID,
+        SkillID:         c.SkillCategory,
+        SkillName:       skill    ? skill.SkillName        : `Skill ${c.SkillCategory}`,
+        CategoryID:      category ? category.CategoryID    : null,
+        CategoryName:    category ? category.CategoryName  : 'General',
+        Rating:          c.Rating,
+        TeacherComments: c.TeacherComments
+      };
+    });
+
+    return { success: true, data: enriched };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Admin: Get all skills with their parent categories (for reference display).
+ */
+function getSkillsWithCategories() {
+  try {
+    const skills     = sheetToObjects(getSheet(SHEET_CONFIG.skills));
+    const categories = sheetToObjects(getSheet(SHEET_CONFIG.skillCategories));
+
+    const enriched = skills.map(s => {
+      const cat = categories.find(c => c.CategoryID == s.CategoryID);
+      return {
+        SkillID:          s.SkillID,
+        SkillName:        s.SkillName,
+        CategoryID:       s.CategoryID,
+        CategoryName:     cat ? cat.CategoryName     : 'General',
+        PrimaryCourse:    cat ? cat.PrimaryCourse    : '',
+        DevelopmentFocus: cat ? cat.DevelopmentFocus : ''
+      };
+    });
+
+    return { success: true, data: enriched };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Admin: Override a student's status (Active / Inactive / Graduated).
+ */
+function updateStudentStatus(studentId, status) {
+  try {
+    const sheet   = getSheet(SHEET_CONFIG.studentInfo);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows    = sheetToObjects(sheet);
+    const idx     = rows.findIndex(r => r.StudentID == studentId);
+    if (idx < 0) return { success: false, error: 'Student not found' };
+    const col = headers.indexOf('Status');
+    if (col < 0) return { success: false, error: 'Status column not found in StudentInfo' };
+    sheet.getRange(idx + 2, col + 1).setValue(status);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Admin: Override a student's current level (ClassLevelID stored in StudentInfo.CurrentLevel).
+ */
+function updateStudentLevel(studentId, levelId) {
+  try {
+    const sheet   = getSheet(SHEET_CONFIG.studentInfo);
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const rows    = sheetToObjects(sheet);
+    const idx     = rows.findIndex(r => r.StudentID == studentId);
+    if (idx < 0) return { success: false, error: 'Student not found' };
+    const col = headers.indexOf('CurrentLevel');
+    if (col < 0) return { success: false, error: 'CurrentLevel column not found in StudentInfo' };
+    sheet.getRange(idx + 2, col + 1).setValue(levelId || '');
     return { success: true };
   } catch (error) {
     return { success: false, error: error.toString() };

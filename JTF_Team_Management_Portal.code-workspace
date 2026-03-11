@@ -1,11 +1,8 @@
+﻿{
+"folders": [
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "../JTF_Instructor_Portal"
-		}
-	],
-	"settings": {}
+"path": "."
+}
+],
+"settings": {}
 }

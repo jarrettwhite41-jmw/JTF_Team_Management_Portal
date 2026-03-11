@@ -285,6 +285,19 @@ class GoogleAppsScriptService {
             case 'getAllRooms':
               data = mockRooms;
               break;
+            case 'getStudentNotesForStudent':
+              data = [];
+              break;
+            case 'getSkillRatingsForEnrollment':
+              data = [];
+              break;
+            case 'getSkillsWithCategories':
+              data = [];
+              break;
+            case 'updateStudentStatus':
+            case 'updateStudentLevel':
+              data = { success: true };
+              break;
             default:
               data = [];
           }
@@ -518,6 +531,28 @@ class GoogleAppsScriptService {
 
   async updateClassOffering(classData: any): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateClassOffering', classData);
+  }
+
+  // Admin read — instructor-entered data
+  async getStudentNotesForStudent(studentId: number): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getStudentNotesForStudent', studentId);
+  }
+
+  async getSkillRatingsForEnrollment(enrollmentId: number): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getSkillRatingsForEnrollment', enrollmentId);
+  }
+
+  async getSkillsWithCategories(): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getSkillsWithCategories');
+  }
+
+  // Admin write — status and level overrides
+  async updateStudentStatus(studentId: number, status: string): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateStudentStatus', studentId, status);
+  }
+
+  async updateStudentLevel(studentId: number, levelId: number): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateStudentLevel', studentId, levelId);
   }
 }
 
