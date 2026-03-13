@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -995,6 +995,56 @@
                                 )
                             )
                         )
+                    )
+                ),
+
+                // Progress Notes
+                student.RecentNotes && student.RecentNotes.length > 0 && e('div', { className: 'mt-6 bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                    e('div', { className: 'flex items-center justify-between mb-4' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Progress Notes'),
+                        e('span', { className: 'text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full' },
+                            `${student.RecentNotes.length} note${student.RecentNotes.length !== 1 ? 's' : ''}`
+                        )
+                    ),
+                    e('div', { className: 'space-y-3' },
+                        student.RecentNotes.map((n, i) =>
+                            e('div', { key: n.NoteID || i, className: 'p-4 bg-gray-50 rounded-lg border border-gray-100' },
+                                e('p', { className: 'text-sm text-gray-800' }, n.Note),
+                                e('p', { className: 'text-xs text-gray-400 mt-1' },
+                                    (n.NoteDate ? new Date(n.NoteDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '') +
+                                    (n.CreatedBy ? ` · ${n.CreatedBy}` : '')
+                                )
+                            )
+                        )
+                    )
+                ),
+
+                // Skill Ratings
+                student.Competencies && student.Competencies.some(c => c.Rating > 0) && e('div', { className: 'mt-6 bg-white rounded-xl shadow-card border border-gray-100 p-6' },
+                    e('div', { className: 'flex items-center justify-between mb-4' },
+                        e('h2', { className: 'text-xl font-bold text-gray-900' }, 'Skill Ratings'),
+                        e('span', { className: 'text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full' },
+                            `${student.Competencies.filter(c => c.Rating > 0).length} of ${student.Competencies.length} rated`
+                        )
+                    ),
+                    e('div', { className: 'flex flex-wrap gap-2' },
+                        student.Competencies.map((cat, i) => {
+                            const ratingLabels = { 1:'Beg', 2:'Dev', 3:'Prof', 4:'Adv', 5:'Mast' };
+                            return e('div', {
+                                key: cat.CategoryID || i,
+                                title: cat.TeacherComments || cat.CategoryName,
+                                className: `flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs border ${
+                                    cat.Rating
+                                        ? 'bg-blue-50 border-blue-200 text-blue-800'
+                                        : 'bg-gray-50 border-gray-200 text-gray-400'
+                                }`
+                            },
+                                e('span', null, cat.CategoryName),
+                                e('span', { className: `font-bold ml-0.5 ${cat.Rating ? '' : 'text-gray-300'}` },
+                                    cat.Rating ? `${cat.Rating} (${ratingLabels[cat.Rating] || cat.Rating})` : '—'
+                                )
+                            );
+                        })
                     )
                 )
             );

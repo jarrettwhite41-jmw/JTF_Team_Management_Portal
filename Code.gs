@@ -3251,6 +3251,50 @@ function getStudentProfileData(studentId) {
     }
     
     // Build complete profile
+    const enrollmentIds = new Set(enrichedEnrollments.map(e => String(e.EnrollmentID)));
+
+    // Notes — all progress notes across all enrollments, newest first
+    let studentNotes = [];
+    try {
+      const notesSheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+      studentNotes = sheetToObjects(notesSheet)
+        .filter(n => enrollmentIds.has(String(n.EnrollmentID)))
+        .sort((a, b) => new Date(b.NoteDate) - new Date(a.NoteDate));
+    } catch (e) {
+      Logger.log('Could not load progress notes: ' + e.toString());
+    }
+
+    // Competencies — aggregate across all enrollments, keep latest per category
+    let competencies = [];
+    try {
+      const compSheet = getSheet(SHEET_CONFIG.studentCompetencies);
+      const catSheet  = getSheet(SHEET_CONFIG.skillCategories);
+      const allComps  = sheetToObjects(compSheet).filter(c => enrollmentIds.has(String(c.EnrollmentID)));
+      const allCats   = sheetToObjects(catSheet);
+
+      const compByCategory = {};
+      allComps.forEach(c => {
+        const catId = String(c.SkillCategory);
+        const existing = compByCategory[catId];
+        if (!existing || Number(c.EnrollmentID) >= Number(existing.EnrollmentID)) {
+          compByCategory[catId] = c;
+        }
+      });
+
+      competencies = allCats.map(cat => {
+        const catId = String(cat.CategoryID);
+        const comp  = compByCategory[catId];
+        return {
+          CategoryID:      cat.CategoryID,
+          CategoryName:    cat.CategoryName,
+          Rating:          comp ? (Number(comp.Rating) || 0) : 0,
+          TeacherComments: comp ? (comp.TeacherComments || '') : '',
+        };
+      });
+    } catch (e) {
+      Logger.log('Could not load competencies: ' + e.toString());
+    }
+
     const profile = {
       // StudentInfo fields
       StudentID: studentInfo.StudentID,
@@ -3271,7 +3315,9 @@ function getStudentProfileData(studentId) {
       // Enrollment and progression data
       Enrollments: enrichedEnrollments,
       Progression: classProgression,  // Built from StudentEnrollments (unique levels)
-      HistoricalProgression: historicalProgression  // From ClassLevelProgression table if exists
+      HistoricalProgression: historicalProgression,  // From ClassLevelProgression table if exists
+      RecentNotes: studentNotes,
+      Competencies: competencies,
     };
     
     Logger.log(`Student profile loaded for ${person.FirstName} ${person.Lastname} (StudentID: ${studentId})`);
