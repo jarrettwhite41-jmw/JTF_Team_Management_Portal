@@ -21,35 +21,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
   ];
 
   return (
-    <div className="bg-white shadow-sm border-r h-full w-64 flex flex-col">
-      <div className="p-6 border-b">
-        <h1 className="text-xl font-bold text-gray-900">JTF Portal</h1>
-        <p className="text-sm text-gray-600">Team Management</p>
+    <div className="jtf-sidebar h-full w-64 flex flex-col flex-shrink-0 shadow-xl">
+
+      {/* Brand Header */}
+      <div className="px-5 pt-6 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <span className="jtf-logo-text">Just The Funny</span>
+        <p className="jtf-logo-sub">Team Portal</p>
+        <div className="mt-3 h-px" style={{ background: 'linear-gradient(to right, #dc2626, #eab308, transparent)' }} />
       </div>
-      
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
+
+      {/* Navigation */}
+      <nav className="flex-1 p-3 pt-4 overflow-y-auto">
+        <p className="jtf-nav-label">Navigation</p>
+        <ul className="space-y-0.5">
           {navigationItems.map((item) => (
             <li key={item.id}>
               <button
                 onClick={() => onNavigate(item.id)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  currentPage === item.id
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                  currentPage === item.id ? 'jtf-nav-active' : 'jtf-nav-item'
                 }`}
               >
-                <span className="text-lg">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
+                <span className="text-lg leading-none">{item.icon}</span>
+                <span className="text-sm font-medium">{item.label}</span>
+                {currentPage === item.id && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />
+                )}
               </button>
             </li>
           ))}
         </ul>
       </nav>
-      
-      <div className="p-4 border-t">
-        <p className="text-xs text-gray-500">© 2024 JTF Team Portal</p>
+
+      {/* Footer */}
+      <div className="px-4 py-3 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <p className="text-xs" style={{ color: '#4b5563' }}>© {new Date().getFullYear()} Just The Funny</p>
       </div>
+
     </div>
   );
 };

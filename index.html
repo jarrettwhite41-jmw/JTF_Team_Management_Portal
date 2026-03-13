@@ -20,28 +20,28 @@
                     },
                     colors: {
                         primary: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            200: '#bae6fd',
-                            300: '#7dd3fc',
-                            400: '#38bdf8',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#0c4a6e'
+                            50:  '#fff1f1',
+                            100: '#ffe4e4',
+                            200: '#fecaca',
+                            300: '#fca5a5',
+                            400: '#f87171',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                            800: '#991b1b',
+                            900: '#7f1d1d'
                         },
                         secondary: {
-                            50: '#fdf4ff',
-                            100: '#fae8ff',
-                            200: '#f5d0fe',
-                            300: '#f0abfc',
-                            400: '#e879f9',
-                            500: '#d946ef',
-                            600: '#c026d3',
-                            700: '#a21caf',
-                            800: '#86198f',
-                            900: '#701a75'
+                            50:  '#fefce8',
+                            100: '#fef9c3',
+                            200: '#fef08a',
+                            300: '#fde047',
+                            400: '#facc15',
+                            500: '#eab308',
+                            600: '#ca8a04',
+                            700: '#a16207',
+                            800: '#854d0e',
+                            900: '#713f12'
                         }
                     },
                     boxShadow: {
@@ -77,13 +77,13 @@
         /* ── Scrollbar ───────────────────────────────────────────────── */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-thumb { background: #991b1b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #7f1d1d; }
 
         /* ── Loading spinner ─────────────────────────────────────────── */
         .loading-spinner {
-            border: 3px solid #e2e8f0;
-            border-top: 3px solid #0ea5e9;
+            border: 3px solid #3f1010;
+            border-top: 3px solid #ef4444;
             border-radius: 50%;
             width: 36px;
             height: 36px;
@@ -122,7 +122,7 @@
 
         /* ── Focus ring ──────────────────────────────────────────────── */
         input:focus, select:focus, textarea:focus, button:focus-visible {
-            outline: 2px solid #0ea5e9;
+            outline: 2px solid #ef4444;
             outline-offset: 2px;
         }
         input, select, textarea { outline: none; }
@@ -136,20 +136,20 @@
             width: 3px;
             border-radius: 3px 0 0 3px;
         }
-        .stat-card.accent-blue::before   { background: #0ea5e9; }
-        .stat-card.accent-green::before  { background: #22c55e; }
-        .stat-card.accent-purple::before { background: #a855f7; }
-        .stat-card.accent-orange::before { background: #f97316; }
+        .stat-card.accent-blue::before   { background: #dc2626; }
+        .stat-card.accent-green::before  { background: #eab308; }
+        .stat-card.accent-purple::before { background: #dc2626; }
+        .stat-card.accent-orange::before { background: #eab308; }
 
         /* ── Primary button ──────────────────────────────────────────── */
         .btn-primary {
-            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            box-shadow: 0 1px 3px rgba(2, 132, 199, 0.4);
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            box-shadow: 0 1px 3px rgba(185, 28, 28, 0.4);
             transition: filter 0.12s ease, box-shadow 0.12s ease, transform 0.1s ease;
         }
         .btn-primary:hover {
             filter: brightness(1.06);
-            box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+            box-shadow: 0 4px 12px rgba(185, 28, 28, 0.4);
             transform: translateY(-1px);
         }
         .btn-primary:active { transform: translateY(0); filter: brightness(0.97); }
@@ -163,6 +163,50 @@
         }
         .btn-danger:hover { filter: brightness(1.06); box-shadow: 0 4px 12px rgba(220,38,38,0.35); transform: translateY(-1px); }
         .btn-danger:active { transform: translateY(0); }
+        /* ── JTF Brand Styles ────────────────────────────────── */
+        .jtf-sidebar {
+            background: linear-gradient(180deg, #1a0808 0%, #111111 40%, #0d0d0d 100%);
+        }
+        .jtf-logo-text {
+            display: block;
+            font-size: 1.05rem;
+            font-weight: 900;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #ef4444;
+            text-shadow: 1px 1px 0 #6b0000, 0 0 18px rgba(239,68,68,0.2);
+            line-height: 1.2;
+        }
+        .jtf-logo-sub {
+            display: block;
+            font-size: 0.58rem;
+            font-weight: 700;
+            letter-spacing: 0.22em;
+            text-transform: uppercase;
+            color: #eab308;
+            margin-top: 3px;
+        }
+        .jtf-nav-label {
+            font-size: 0.6rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #4b5563;
+            padding: 0 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .jtf-nav-active {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: white;
+            box-shadow: 0 2px 8px rgba(185,28,28,0.4);
+        }
+        .jtf-nav-item {
+            color: #9ca3af;
+        }
+        .jtf-nav-item:hover {
+            background: rgba(255,255,255,0.06);
+            color: #f3f4f6;
+        }
     </style>
 </head>
 <body>

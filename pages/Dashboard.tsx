@@ -52,10 +52,10 @@ interface EnrollmentBarProps {
 const EnrollmentBar: React.FC<EnrollmentBarProps> = ({ levelName, enrolled, max, status }) => {
   const safeMax = max > 0 ? max : 1;
   const pct = Math.min(100, Math.round(enrolled / safeMax * 100));
-  const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-yellow-500' : 'bg-primary-500';
+  const barColor = pct >= 90 ? 'bg-red-700' : pct >= 70 ? 'bg-yellow-500' : 'bg-primary-500';
   const badgeClass = status === 'In Progress'
-    ? 'bg-blue-100 text-blue-700'
-    : 'bg-emerald-100 text-emerald-700';
+    ? 'bg-red-100 text-red-700'
+    : 'bg-yellow-100 text-yellow-800';
   return (
     <div className="mb-3 last:mb-0">
       <div className="flex justify-between items-center mb-1">
@@ -75,11 +75,11 @@ const EnrollmentBar: React.FC<EnrollmentBarProps> = ({ levelName, enrolled, max,
 interface MetricTileProps {
   value: number;
   label: string;
-  color: 'blue' | 'green' | 'purple' | 'orange';
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'gold';
 }
 const MetricTile: React.FC<MetricTileProps> = ({ value, label, color }) => {
-  const bgMap = { blue: 'bg-blue-50 border-blue-100', green: 'bg-green-50 border-green-100', purple: 'bg-purple-50 border-purple-100', orange: 'bg-orange-50 border-orange-100' };
-  const textMap = { blue: 'text-blue-700', green: 'text-green-700', purple: 'text-purple-700', orange: 'text-orange-700' };
+  const bgMap   = { blue: 'bg-blue-50 border-blue-100', green: 'bg-green-50 border-green-100', purple: 'bg-purple-50 border-purple-100', orange: 'bg-orange-50 border-orange-100', red: 'bg-red-50 border-red-200', gold: 'bg-yellow-50 border-yellow-200' };
+  const textMap = { blue: 'text-blue-700', green: 'text-green-700', purple: 'text-purple-700', orange: 'text-orange-700', red: 'text-red-700', gold: 'text-yellow-700' };
   return (
     <div className={`text-center p-3 rounded-lg border ${bgMap[color]}`}>
       <p className={`text-2xl font-bold ${textMap[color]}`}>{value}</p>
@@ -142,12 +142,12 @@ export const Dashboard: React.FC = () => {
 
       {/* ROW 1: KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <StatCard title="Total Personnel"  value={stats.totalPersonnel}                              icon="👥" color="blue"   />
-        <StatCard title="Active Students"  value={stats.studentsActive ?? stats.activeStudents}      icon="🎓" color="green"  />
-        <StatCard title="Scheduled Shows"  value={stats.scheduledShows}                             icon="🎪" color="purple" />
-        <StatCard title="Active Classes"   value={stats.activeClasses}                              icon="📚" color="orange" />
-        <StatCard title="Cast Members"     value={stats.totalCastMembers}                           icon="🎭" color="blue"   />
-        <StatCard title="Bartenders"       value={stats.activeBartenders ?? stats.totalBartenders}  icon="🍺" color="green"  />
+        <StatCard title="Total Personnel"  value={stats.totalPersonnel}                              icon="👥" color="red"  />
+        <StatCard title="Active Students"  value={stats.studentsActive ?? stats.activeStudents}      icon="🎓" color="gold" />
+        <StatCard title="Scheduled Shows"  value={stats.scheduledShows}                             icon="🎪" color="red"  />
+        <StatCard title="Active Classes"   value={stats.activeClasses}                              icon="📚" color="gold" />
+        <StatCard title="Cast Members"     value={stats.totalCastMembers}                           icon="🎭" color="red"  />
+        <StatCard title="Bartenders"       value={stats.activeBartenders ?? stats.totalBartenders}  icon="🍺" color="gold" />
       </div>
 
       {/* ROW 2: Status Distribution Panels */}
@@ -157,8 +157,8 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Show Status</h2>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalShows} Total</p>
           <SegmentedBar segments={[
-            { label: 'Scheduled', count: stats.scheduledShows, color: 'bg-purple-500' },
-            { label: 'Canceled',  count: stats.canceledShows,  color: 'bg-red-400'   },
+            { label: 'Scheduled', count: stats.scheduledShows, color: 'bg-red-500'    },
+            { label: 'Canceled',  count: stats.canceledShows,  color: 'bg-gray-500'   },
           ]} />
         </div>
 
@@ -166,9 +166,9 @@ export const Dashboard: React.FC = () => {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Student Status</h2>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalStudents} Total</p>
           <SegmentedBar segments={[
-            { label: 'Active',    count: stats.studentsActive,    color: 'bg-green-500' },
-            { label: 'Inactive',  count: stats.studentsInactive,  color: 'bg-gray-400'  },
-            { label: 'Graduated', count: stats.studentsGraduated, color: 'bg-blue-400'  },
+            { label: 'Active',    count: stats.studentsActive,    color: 'bg-red-500'    },
+            { label: 'Inactive',  count: stats.studentsInactive,  color: 'bg-gray-400'   },
+            { label: 'Graduated', count: stats.studentsGraduated, color: 'bg-yellow-500' },
           ]} />
         </div>
 
@@ -177,9 +177,9 @@ export const Dashboard: React.FC = () => {
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalClasses} Total</p>
           <SegmentedBar segments={[
             { label: 'Upcoming',    count: stats.upcomingClasses,    color: 'bg-yellow-400' },
-            { label: 'In Progress', count: stats.inProgressClasses,  color: 'bg-blue-500'   },
-            { label: 'Completed',   count: stats.completedClasses,   color: 'bg-green-400'  },
-            { label: 'Cancelled',   count: stats.cancelledClasses,   color: 'bg-red-300'    },
+            { label: 'In Progress', count: stats.inProgressClasses,  color: 'bg-red-500'    },
+            { label: 'Completed',   count: stats.completedClasses,   color: 'bg-zinc-400'   },
+            { label: 'Cancelled',   count: stats.cancelledClasses,   color: 'bg-gray-600'   },
           ]} />
         </div>
       </div>
@@ -231,10 +231,10 @@ export const Dashboard: React.FC = () => {
           <div className="bg-white rounded-lg shadow-sm border p-5">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Personnel Breakdown</h2>
             <div className="grid grid-cols-2 gap-3">
-              <MetricTile value={stats.studentsActive ?? stats.activeStudents} label="Active Students" color="green"  />
-              <MetricTile value={stats.studentsGraduated}                      label="Graduated"        color="blue"   />
-              <MetricTile value={stats.totalCastMembers}                       label="Cast Members"     color="purple" />
-              <MetricTile value={stats.totalCrewMembers}                       label="Crew Members"     color="orange" />
+              <MetricTile value={stats.studentsActive ?? stats.activeStudents} label="Active Students" color="red"  />
+              <MetricTile value={stats.studentsGraduated}                      label="Graduated"        color="gold" />
+              <MetricTile value={stats.totalCastMembers}                       label="Cast Members"     color="red"  />
+              <MetricTile value={stats.totalCrewMembers}                       label="Crew Members"     color="gold" />
             </div>
           </div>
 
