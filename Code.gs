@@ -2578,8 +2578,8 @@ function getDashboardStats() {
 
     let upcomingClasses = 0, inProgressClasses = 0, completedClasses = 0, cancelledClasses = 0;
     allClasses.forEach(c => {
-      const st = c.Status || 'Upcoming';
-      if (st === 'Upcoming')       upcomingClasses++;
+      const st = computeClassStatus_(c.StartDate, c.EndDate, c.Status);
+      if (st === 'Upcoming')        upcomingClasses++;
       else if (st === 'In Progress') inProgressClasses++;
       else if (st === 'Completed')   completedClasses++;
       else if (st === 'Cancelled')   cancelledClasses++;
@@ -2607,19 +2607,20 @@ function getDashboardStats() {
     } catch(e) {}
 
     const classEnrollmentData = allClasses
-      .filter(c => c.Status === 'Upcoming' || c.Status === 'In Progress')
+      .filter(c => { const st = computeClassStatus_(c.StartDate, c.EndDate, c.Status); return st === 'Upcoming' || st === 'In Progress'; })
       .map(c => {
+        const st = computeClassStatus_(c.StartDate, c.EndDate, c.Status);
         const enrolled = allEnrollments.filter(e => {
           if (e.OfferingID != c.OfferingID) return false;
-          const st = e.CompletionStatus || e.Status || '';
-          return st !== 'Dropped' && st !== 'Withdrawn';
+          const est = e.CompletionStatus || e.Status || '';
+          return est !== 'Dropped' && est !== 'Withdrawn';
         }).length;
         const level     = allLevels.find(l => l.ClassLevelID == c.ClassLevelID);
         const levelName = level ? level.LevelName : (c.ClassLevelID ? `Level ${c.ClassLevelID}` : 'Class');
         return {
           OfferingID:   c.OfferingID,
           LevelName:    levelName,
-          Status:       c.Status || 'Upcoming',
+          Status:       st,
           MaxStudents:  Number(c.MaxStudents) || 12,
           EnrolledCount: enrolled
         };
