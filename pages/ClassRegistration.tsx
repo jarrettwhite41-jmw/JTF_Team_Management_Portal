@@ -112,10 +112,10 @@ export const ClassRegistration: React.FC = () => {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Class Management</h1>
             <p className="text-gray-600 mt-1">Manage class offerings, rosters, and attendance</p>
@@ -141,8 +141,8 @@ export const ClassRegistration: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 space-y-4">
-        <div className="flex gap-2">
+      <div className="mb-4 sm:mb-6 space-y-4">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${

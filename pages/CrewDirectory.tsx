@@ -139,9 +139,9 @@ export const CrewDirectory: React.FC = () => {
     `${m.FirstName || ''} ${m.LastName || m.Lastname || ''}`.trim() || 'Unknown';
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Crew Directory</h1>
           <p className="text-sm text-gray-500 mt-1">View crew members and show duty assignments</p>

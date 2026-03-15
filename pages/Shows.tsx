@@ -59,8 +59,8 @@ export const Shows: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Shows</h1>
         <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
           Add New Show

@@ -124,7 +124,7 @@ export const Dashboard: React.FC = () => {
 
   if (!stats) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
         <p className="text-gray-600">Unable to load dashboard data.</p>
       </div>
@@ -132,10 +132,10 @@ export const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         {loadedAt && <p className="text-xs text-gray-400">Updated at {loadedAt}</p>}
       </div>

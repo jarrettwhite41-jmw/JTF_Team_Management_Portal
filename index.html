@@ -61,17 +61,26 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
+            /* Prevent tap highlight on mobile */
+            -webkit-tap-highlight-color: transparent;
         }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            /* Improve font rendering on mobile */
+            text-size-adjust: 100%;
+            -webkit-text-size-adjust: 100%;
         }
         #root {
             position: fixed;
             inset: 0;
             display: flex;
             flex-direction: column;
+        }
+        /* Make all buttons and interactive elements have comfortable tap targets on mobile */
+        button, [role="button"] {
+            touch-action: manipulation;
         }
 
         /* ── Scrollbar ───────────────────────────────────────────────── */
@@ -206,6 +215,14 @@
         .jtf-nav-item:hover {
             background: rgba(255,255,255,0.06);
             color: #f3f4f6;
+        }
+
+        /* ── Mobile header bar ───────────────────────────────────────── */
+        .jtf-mobile-header {
+            background: #1a0808;
+        }
+        .jtf-mobile-header .jtf-logo-text {
+            font-size: 0.9rem;
         }
     </style>
 </head>

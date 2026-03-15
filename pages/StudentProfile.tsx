@@ -118,7 +118,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
   if (isLoading) return <Loader text="Loading student profile..." />;
 
   if (!profile) return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       <button onClick={onBack} className="text-primary-600 hover:text-primary-800 mb-4 font-medium">
         ← Back to Students
       </button>
@@ -139,7 +139,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
   });
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
 
       {/* ── Header ── */}
       <div>

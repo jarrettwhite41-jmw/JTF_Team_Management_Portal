@@ -16,6 +16,7 @@ import { PageType } from './types';
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const renderPage = () => {
     switch (currentPage) {
@@ -59,8 +60,31 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-zinc-50">
-      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-      <main className="flex-1 overflow-auto">
+      {/* Mobile top header bar */}
+      <header className="jtf-mobile-header md:hidden fixed top-0 left-0 right-0 z-30 h-14 flex items-center px-4 shadow-lg">
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+          aria-label="Open navigation menu"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <div className="ml-3">
+          <span className="jtf-logo-text">Just The Funny</span>
+          <p className="jtf-logo-sub">Team Portal</p>
+        </div>
+      </header>
+
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+      />
+
+      <main className="flex-1 overflow-auto pt-14 md:pt-0">
         {renderPage()}
       </main>
     </div>

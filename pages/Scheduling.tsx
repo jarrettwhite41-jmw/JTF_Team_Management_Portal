@@ -114,8 +114,8 @@ export const Scheduling: React.FC = () => {
   const today = new Date();
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Schedule</h1>
+    <div className="p-4 sm:p-6">
+      <h1 className="text-2xl font-bold text-gray-900 mb-4 sm:mb-6">Schedule</h1>
 
       {message && (
         <div className="mb-4">

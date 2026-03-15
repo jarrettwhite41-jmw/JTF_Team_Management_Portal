@@ -60,8 +60,8 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 sm:p-6">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Student Directory</h1>
           <p className="text-sm text-gray-600 mt-1">{filteredStudents.length} students</p>
@@ -78,7 +78,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
         </div>
       )}
 
-      <div className="mb-6 flex gap-4">
+      <div className="mb-4 sm:mb-6 flex flex-wrap gap-3">
         <input
           type="text"
           placeholder="Search by name or email..."

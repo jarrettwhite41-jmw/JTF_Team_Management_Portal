@@ -159,9 +159,9 @@ export const BartendersPage: React.FC = () => {
     `${(b.FirstName || '')[0] || ''}${(b.LastName || '')[0] || ''}`.toUpperCase() || '??';
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Bartenders</h1>
           <p className="text-sm text-gray-500 mt-1">Manage bartender roster and view shift history</p>
