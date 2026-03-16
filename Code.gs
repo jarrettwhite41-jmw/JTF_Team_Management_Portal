@@ -1,5 +1,5 @@
 /**
- * 17JTF Team Management Portal - Google Apps Script Backend
+ * 87JTF Team Management Portal - Google Apps Script Backend
  * Updated: 2025-10-12 20:23:05 UTC by jarrettwhite41-jmw
  * 
  * This file contains all server-side functions that interact directly with Google Sheets.
@@ -261,7 +261,8 @@ function getSheet(sheetName) {
 function doGet() {
   Logger.log('doGet() called - serving index.html to user: jarrettwhite41-jmw');
   return HtmlService.createHtmlOutputFromFile('index')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
 }
 
 // =============================================================================

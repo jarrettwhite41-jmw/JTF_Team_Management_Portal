@@ -224,6 +224,100 @@
         .jtf-mobile-header .jtf-logo-text {
             font-size: 0.9rem;
         }
+
+        /* ── Mobile responsive sidebar & header ──────────────────────── */
+        .mobile-header {
+            display: none;
+        }
+        .sidebar-panel {
+            position: relative;
+            height: 100%;
+            flex-shrink: 0;
+        }
+        .sidebar-backdrop {
+            display: none;
+        }
+        .sidebar-close-btn {
+            display: none;
+        }
+        .detail-panel-right {
+            width: 320px;
+            flex-shrink: 0;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .detail-panel-backdrop {
+            display: none;
+        }
+        .main-content {
+            padding-top: 0;
+        }
+        @media (max-width: 767px) {
+            .mobile-header {
+                display: flex;
+                position: fixed;
+                top: 0; left: 0; right: 0;
+                z-index: 30;
+                height: 56px;
+                align-items: center;
+                padding: 0 16px;
+                background: #0f172a;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            }
+            .sidebar-panel {
+                position: fixed;
+                top: 0; left: 0; bottom: 0;
+                z-index: 50;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            .sidebar-panel.is-open {
+                transform: translateX(0);
+            }
+            .sidebar-backdrop {
+                position: fixed;
+                inset: 0;
+                z-index: 40;
+                background: rgba(0,0,0,0.6);
+            }
+            .sidebar-backdrop.is-open {
+                display: block;
+            }
+            .sidebar-close-btn {
+                display: flex;
+            }
+            .detail-panel-right {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                width: auto;
+                height: 75vh;
+                z-index: 60;
+                border-radius: 16px 16px 0 0;
+                background: white;
+                transform: translateY(100%);
+                transition: transform 0.3s ease;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+            }
+            .detail-panel-right.is-open {
+                transform: translateY(0);
+            }
+            .detail-panel-backdrop.is-open {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 59;
+            }
+            .main-content {
+                padding-top: 56px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2270,7 +2364,8 @@
                         )
                     ),
                     // Right: detail panel (fixed width)
-                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, detailPanel)
+                    e('div', { className: `detail-panel-backdrop${selectedPerson ? ' is-open' : ''}`, onClick: () => setSelectedPerson(null) }),
+                    e('div', { className: `detail-panel-right${selectedPerson ? ' is-open' : ''}` }, detailPanel)
                 ),
 
                 // Create modal (overlay only for adding new)
@@ -2509,7 +2604,8 @@
                             )
                         )
                     ),
-                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, castDetailPanel)
+                    e('div', { className: `detail-panel-backdrop${selectedCastMember ? ' is-open' : ''}`, onClick: () => setSelectedCastMember(null) }),
+                    e('div', { className: `detail-panel-right${selectedCastMember ? ' is-open' : ''}` }, castDetailPanel)
                 ),
 
                 // Add Cast Member Modal
@@ -2633,6 +2729,7 @@
             const [sortBy, setSortBy] = useState('az');
             const [selectedCrewMember, setSelectedCrewMember] = useState(null);
             const [message, setMessage] = useState(null);
+            const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
             useEffect(() => { loadCrewMembers(); }, []);
 
@@ -2783,7 +2880,7 @@
                 e('p', { className: 'text-sm font-medium text-slate-500' }, 'Select a crew member to view details')
             );
 
-            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
+            return e('div', { className: 'flex flex-col p-3 md:p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
                 // Header
                 e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
@@ -2794,7 +2891,7 @@
                 ),
 
                 // Stats bar
-                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0' },
+                !isLoading && crewMembers.length > 0 && e('div', { className: 'grid grid-cols-3 gap-3 flex-shrink-0' },
                     e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
                         e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Crew Members'),
                         e('p', { className: 'text-2xl font-bold text-teal-600 mt-1' }, uniqueCrewCount)
@@ -2814,55 +2911,76 @@
                 ),
 
                 // Toolbar
-                e('div', { className: 'flex flex-col sm:flex-row gap-3 flex-shrink-0' },
-                    e('div', { className: 'relative flex-1' },
-                        e('input', {
-                            type: 'text',
-                            placeholder: 'Search by name, email, duty, or show…',
-                            value: searchTerm,
-                            onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                        }),
-                        e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
-                    ),
-                    e('select', {
-                        value: dutyFilter,
-                        onChange: (ev) => setDutyFilter(ev.target.value),
-                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    },
-                        e('option', { value: 'all' }, 'All Duties'),
-                        ...uniqueDutyTypes.map(duty => e('option', { key: duty, value: duty }, duty))
-                    ),
-                    e('select', {
-                        value: showFilter,
-                        onChange: (ev) => setShowFilter(ev.target.value),
-                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    },
-                        e('option', { value: 'all' }, 'All Shows'),
-                        ...uniqueShows.map(show => e('option', { key: show, value: show }, show))
-                    ),
-                    e('select', {
-                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
-                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    },
-                        e('option', { value: 'az' }, 'Name A \u2192 Z'),
-                        e('option', { value: 'za' }, 'Name Z \u2192 A'),
-                        e('option', { value: 'duty' }, 'By Duty'),
-                        e('option', { value: 'showdate' }, 'Show Date (Newest)')
-                    ),
-                    e('div', { className: 'flex rounded-xl border border-gray-200 overflow-hidden shadow-sm' },
+                e('div', { className: 'flex flex-col gap-2 flex-shrink-0' },
+                    // Always-visible row: search + filter toggle
+                    e('div', { className: 'flex gap-2' },
+                        e('div', { className: 'relative flex-1' },
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Search by name, email, duty, or show…',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                            }),
+                            e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                        ),
                         e('button', {
-                            onClick: () => setViewMode('grid'),
-                            className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
-                        }, 'Grid'),
-                        e('button', {
-                            onClick: () => setViewMode('grouped'),
-                            className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'grouped' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
-                        }, 'By Duty'),
-                        e('button', {
-                            onClick: () => setViewMode('byShow'),
-                            className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'byShow' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
-                        }, 'By Show')
+                            onClick: () => setIsFiltersOpen(o => !o),
+                            className: `flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-xl border shadow-sm transition-colors flex-shrink-0 ${
+                                (dutyFilter !== 'all' || showFilter !== 'all' || sortBy !== 'az' || viewMode !== 'grid')
+                                    ? 'bg-sky-50 border-sky-300 text-sky-700'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`
+                        },
+                            e('svg', { xmlns: 'http://www.w3.org/2000/svg', className: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 2 },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z' })
+                            ),
+                            'Filters',
+                            (dutyFilter !== 'all' || showFilter !== 'all' || sortBy !== 'az' || viewMode !== 'grid')
+                                && e('span', { className: 'w-2 h-2 rounded-full bg-sky-500 flex-shrink-0' })
+                        )
+                    ),
+                    // Collapsible filter panel
+                    isFiltersOpen && e('div', { className: 'flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200' },
+                        e('select', {
+                            value: dutyFilter,
+                            onChange: (ev) => setDutyFilter(ev.target.value),
+                            className: 'flex-1 min-w-[120px] px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        },
+                            e('option', { value: 'all' }, 'All Duties'),
+                            ...uniqueDutyTypes.map(duty => e('option', { key: duty, value: duty }, duty))
+                        ),
+                        e('select', {
+                            value: showFilter,
+                            onChange: (ev) => setShowFilter(ev.target.value),
+                            className: 'flex-1 min-w-[120px] px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        },
+                            e('option', { value: 'all' }, 'All Shows'),
+                            ...uniqueShows.map(show => e('option', { key: show, value: show }, show))
+                        ),
+                        e('select', {
+                            value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                            className: 'flex-1 min-w-[120px] px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        },
+                            e('option', { value: 'az' }, 'Name A \u2192 Z'),
+                            e('option', { value: 'za' }, 'Name Z \u2192 A'),
+                            e('option', { value: 'duty' }, 'By Duty'),
+                            e('option', { value: 'showdate' }, 'Show Date (Newest)')
+                        ),
+                        e('div', { className: 'flex rounded-xl border border-gray-200 overflow-hidden shadow-sm' },
+                            e('button', {
+                                onClick: () => setViewMode('grid'),
+                                className: `px-3 py-2 text-sm transition-colors ${viewMode === 'grid' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            }, 'Grid'),
+                            e('button', {
+                                onClick: () => setViewMode('grouped'),
+                                className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'grouped' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            }, 'By Duty'),
+                            e('button', {
+                                onClick: () => setViewMode('byShow'),
+                                className: `px-3 py-2 text-sm transition-colors border-l border-gray-200 ${viewMode === 'byShow' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`
+                            }, 'By Show')
+                        )
                     )
                 ),
 
@@ -2945,7 +3063,8 @@
                         )
                     )
                 ),
-                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }, crewDetailPanel)
+                    e('div', { className: `detail-panel-backdrop${selectedCrewMember ? ' is-open' : ''}`, onClick: () => setSelectedCrewMember(null) }),
+                    e('div', { className: `detail-panel-right${selectedCrewMember ? ' is-open' : ''}` }, crewDetailPanel)
                 )
             );
         }
@@ -2967,6 +3086,7 @@
             const [removeTarget, setRemoveTarget] = useState(null);
             const [isRemoving, setIsRemoving] = useState(false);
             const [sortBy, setSortBy] = useState('az');
+            const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
             useEffect(() => { loadBartenders(); }, []);
 
@@ -3142,7 +3262,7 @@
                     e('p', { style: { fontSize: '13px', margin: 0 } }, 'Click any card to view details')
                 );
 
-            return e('div', { className: 'flex flex-col p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
+            return e('div', { className: 'flex flex-col p-3 md:p-6 gap-4', style: { height: '100%', overflow: 'hidden', boxSizing: 'border-box' } },
                 // Header
                 e('div', { className: 'flex justify-between items-center flex-shrink-0' },
                     e('div', null,
@@ -3156,7 +3276,7 @@
                 ),
 
                 // Stats
-                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-3 flex-shrink-0' },
+                !isLoading && bartenders.length > 0 && e('div', { className: 'grid grid-cols-3 gap-3 flex-shrink-0' },
                     e('div', { className: 'bg-white rounded-xl shadow-card border border-gray-100 p-4' },
                         e('p', { className: 'text-xs font-semibold text-gray-400 uppercase tracking-wider' }, 'Total Bartenders'),
                         e('p', { className: 'text-2xl font-bold text-amber-600 mt-1' }, bartenders.length)
@@ -3176,26 +3296,46 @@
                 ),
 
                 // Search + Sort
-                e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
-                    e('div', { className: 'relative flex-1 min-w-[180px] max-w-sm' },
-                        e('input', {
-                            type: 'text',
-                            placeholder: 'Search by name, email, or phone…',
-                            value: searchTerm,
-                            onChange: (ev) => setSearchTerm(ev.target.value),
-                            className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                        }),
-                        e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                e('div', { className: 'flex flex-col gap-2 flex-shrink-0' },
+                    // Always-visible row: search + filter toggle
+                    e('div', { className: 'flex gap-2' },
+                        e('div', { className: 'relative flex-1' },
+                            e('input', {
+                                type: 'text',
+                                placeholder: 'Search by name, email, or phone…',
+                                value: searchTerm,
+                                onChange: (ev) => setSearchTerm(ev.target.value),
+                                className: 'w-full pl-10 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                            }),
+                            e('span', { style: { position: 'absolute', left: '12px', top: '10px', color: '#9ca3af' } }, '🔍')
+                        ),
+                        e('button', {
+                            onClick: () => setIsFiltersOpen(o => !o),
+                            className: `flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-xl border shadow-sm transition-colors flex-shrink-0 ${
+                                sortBy !== 'az'
+                                    ? 'bg-sky-50 border-sky-300 text-sky-700'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`
+                        },
+                            e('svg', { xmlns: 'http://www.w3.org/2000/svg', className: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', strokeWidth: 2 },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z' })
+                            ),
+                            'Sort',
+                            sortBy !== 'az' && e('span', { className: 'w-2 h-2 rounded-full bg-sky-500 flex-shrink-0' })
+                        )
                     ),
-                    e('select', {
-                        value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
-                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    },
-                        e('option', { value: 'az' }, 'Name A → Z'),
-                        e('option', { value: 'za' }, 'Name Z → A'),
-                        e('option', { value: 'shifts' }, 'Most Shifts'),
-                        e('option', { value: 'active' }, 'Active First'),
-                        e('option', { value: 'trained' }, 'Trained First')
+                    // Collapsible sort panel
+                    isFiltersOpen && e('div', { className: 'flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200' },
+                        e('select', {
+                            value: sortBy, onChange: (ev) => setSortBy(ev.target.value),
+                            className: 'flex-1 min-w-[140px] px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        },
+                            e('option', { value: 'az' }, 'Name A → Z'),
+                            e('option', { value: 'za' }, 'Name Z → A'),
+                            e('option', { value: 'shifts' }, 'Most Shifts'),
+                            e('option', { value: 'active' }, 'Active First'),
+                            e('option', { value: 'trained' }, 'Trained First')
+                        )
                     )
                 ),
 
@@ -3245,7 +3385,8 @@
                         )
                     ),
                     // Right col - detail panel
-                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+                    e('div', { className: `detail-panel-backdrop${selectedBartender ? ' is-open' : ''}`, onClick: () => setSelectedBartender(null) }),
+                    e('div', { className: `detail-panel-right${selectedBartender ? ' is-open' : ''}` },
                         bartenderDetailPanel
                     )
                 ),
@@ -3628,7 +3769,8 @@
                             )
                         )
                     ),
-                    e('div', { style: { width: '320px', flexShrink: 0, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' } },
+                    e('div', { className: `detail-panel-backdrop${selectedTeacher ? ' is-open' : ''}`, onClick: () => setSelectedTeacher(null) }),
+                    e('div', { className: `detail-panel-right${selectedTeacher ? ' is-open' : ''}` },
                         teacherDetailPanel
                     )
                 ),
@@ -3845,7 +3987,8 @@
         }
 
         // Sidebar Component
-        function Sidebar({ currentPage, onNavigate }) {
+        function Sidebar({ currentPage, onNavigate, isOpen, onClose }) {
+            // CSS classes handle all mobile/desktop switching via media queries
             // SVG icon map — simple, consistent stroke icons
             const icons = {
                 dashboard:         e('svg', { className: 'w-4 h-4', fill: 'none', strokeWidth: '2', stroke: 'currentColor', viewBox: '0 0 24 24' }, e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' })),
@@ -3864,10 +4007,35 @@
                 { id: 'inventory',   label: 'Inventory'   },
             ];
 
-            return e('div', { className: 'bg-slate-900 h-full w-60 flex flex-col flex-shrink-0', style: { minWidth: '240px' } },
+            const handleNavClick = (id) => { onNavigate(id); if (onClose) onClose(); };
+
+            return e(React.Fragment, null,
+                // ── Mobile backdrop ────────────────────────────────────
+                e('div', {
+                    onClick: onClose,
+                    style: {
+                        position: 'fixed', inset: 0, zIndex: 40,
+                        background: 'rgba(0,0,0,0.6)',
+                        display: isOpen ? 'block' : 'none'
+                    }
+                }),
+
+                // ── Sidebar panel ──────────────────────────────────────
+                e('div', {
+                    className: 'bg-slate-900 flex flex-col flex-shrink-0',
+                    style: {
+                        width: '240px', minWidth: '240px',
+                        position: window.innerWidth < 768 ? 'fixed' : 'relative',
+                        inset: window.innerWidth < 768 ? '0 auto 0 0' : 'auto',
+                        zIndex: 50,
+                        height: '100%',
+                        transform: window.innerWidth < 768 ? (isOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
+                        transition: 'transform 0.3s ease'
+                    }
+                },
 
                 // ── Brand ──────────────────────────────────────────────
-                e('div', { className: 'px-5 py-5 border-b border-slate-700/60' },
+                e('div', { className: 'px-5 py-5 border-b border-slate-700/60', style: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' } },
                     e('div', { className: 'flex items-center gap-2.5 mb-0.5' },
                         e('div', { className: 'w-7 h-7 rounded-lg bg-sky-500 flex items-center justify-center flex-shrink-0' },
                             e('svg', { className: 'w-4 h-4 text-white', fill: 'none', stroke: 'currentColor', strokeWidth: '2.5', viewBox: '0 0 24 24' },
@@ -3877,6 +4045,16 @@
                         e('div', null,
                             e('h1', { className: 'text-sm font-bold text-white leading-tight tracking-wide' }, 'JTF PORTAL'),
                             e('p', { className: 'text-xs text-slate-400 leading-tight' }, 'Team Management')
+                        )
+                    ),
+                    // Close button (mobile only)
+                    e('button', {
+                        onClick: onClose,
+                        style: { display: window.innerWidth < 768 ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', padding: '4px', borderRadius: '6px', color: '#94a3b8', background: 'transparent', border: 'none', cursor: 'pointer', marginTop: '2px' },
+                        'aria-label': 'Close menu'
+                    },
+                        e('svg', { width: 20, height: 20, fill: 'none', stroke: 'currentColor', strokeWidth: 2, viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M6 18L18 6M6 6l12 12' })
                         )
                     )
                 ),
@@ -3889,7 +4067,7 @@
                             const isActive = currentPage === item.id;
                             return e('li', { key: item.id },
                                 e('button', {
-                                    onClick: () => onNavigate(item.id),
+                                    onClick: () => handleNavClick(item.id),
                                     className: `nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-sm font-medium ${
                                         isActive
                                             ? 'bg-sky-500 text-white shadow-sm'
@@ -3911,7 +4089,7 @@
                     e('p', { className: 'text-xs text-slate-500' }, '© 2026 JTF Team Portal'),
                     e('p', { className: 'text-xs text-slate-600 mt-0.5' }, 'v1.0.1')
                 )
-            );
+            ));
         }
 
         // Class Management View Component
@@ -8562,6 +8740,7 @@
             const [currentPage, setCurrentPage] = useState('dashboard');
             const [selectedStudentId, setSelectedStudentId] = useState(null);
             const [showStudentProfile, setShowStudentProfile] = useState(false);
+            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
             const handleNavigateToStudentProfile = (studentId) => {
                 setSelectedStudentId(studentId);
@@ -8617,13 +8796,37 @@
             };
 
             return e('div', { className: 'flex w-full h-full bg-slate-100 overflow-hidden' },
-                e(Sidebar, { currentPage: currentPage, onNavigate: (page) => {
-                    setShowStudentProfile(false);
-                    setCurrentPage(page);
-                }}),
+
+                // ── Mobile top header — CSS hides on desktop, shows on mobile ──
+                e('header', { className: 'mobile-header' },
+                    e('button', {
+                        onClick: () => setIsMobileMenuOpen(true),
+                        style: { background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', color: '#94a3b8', display: 'flex', alignItems: 'center' },
+                        'aria-label': 'Open menu'
+                    },
+                        e('svg', { width: 24, height: 24, fill: 'none', stroke: 'currentColor', strokeWidth: 2, viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', d: 'M4 6h16M4 12h16M4 18h16' })
+                        )
+                    ),
+                    e('div', { style: { marginLeft: '12px' } },
+                        e('p', { style: { fontSize: '0.85rem', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.06em', textTransform: 'uppercase', lineHeight: 1.2 } }, 'JTF PORTAL'),
+                        e('p', { style: { fontSize: '0.65rem', color: '#94a3b8', lineHeight: 1.2 } }, 'Team Management')
+                    )
+                ),
+
+                e(Sidebar, {
+                    currentPage: currentPage,
+                    isOpen: isMobileMenuOpen,
+                    onClose: () => setIsMobileMenuOpen(false),
+                    onNavigate: (page) => {
+                        setShowStudentProfile(false);
+                        setCurrentPage(page);
+                    }
+                }),
+
                 e('main', {
                     key: showStudentProfile ? `profile-${selectedStudentId}` : currentPage,
-                    className: 'flex-1 overflow-hidden page-enter',
+                    className: 'main-content flex-1 overflow-hidden page-enter',
                     style: { display: 'flex', flexDirection: 'column', alignItems: 'center' }
                 },
                     e('div', { style: { width: '100%', maxWidth: '1400px', flex: '1', minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' } },
