@@ -31,20 +31,24 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successCount, setSuccessCount] = useState(0);
+
+  const emptyForm = {
+    FirstName: '',
+    LastName: '',
+    PrimaryEmail: '',
+    PrimaryPhone: '',
+    Instagram: '',
+    Birthday: ''
+  };
 
   useEffect(() => {
     setErrorMessage(null);
+    setSuccessCount(0);
     if (person) {
       setFormData(person);
     } else {
-      setFormData({
-        FirstName: '',
-        LastName: '',
-        PrimaryEmail: '',
-        PrimaryPhone: '',
-        Instagram: '',
-        Birthday: ''
-      });
+      setFormData(emptyForm);
     }
   }, [person, isOpen]);
 
@@ -55,7 +59,6 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
     setErrorMessage(null);
     try {
       if (mode === 'create') {
@@ -64,6 +67,21 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
         await onSave(formData as Personnel);
       }
       onClose();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'An error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveAndAddAnother = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      await onSave(formData as Omit<Personnel, 'PersonnelID'>);
+      setSuccessCount(prev => prev + 1);
+      setFormData(emptyForm);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'An error occurred. Please try again.');
     } finally {
@@ -94,6 +112,11 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
           <Loader />
         ) : (
           <form onSubmit={handleSubmit}>
+            {successCount > 0 && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                {successCount} person{successCount > 1 ? 's' : ''} added. Fill in the form below to add another.
+              </div>
+            )}
             {errorMessage && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {errorMessage}
@@ -232,13 +255,25 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
               )}
               
               {isEditable && (
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
-                >
-                  {mode === 'create' ? 'Create' : 'Save Changes'}
-                </button>
+                <>
+                  {mode === 'create' && (
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={handleSaveAndAddAnother}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      Save & Add Another
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  >
+                    {mode === 'create' ? 'Save & Close' : 'Save Changes'}
+                  </button>
+                </>
               )}
             </div>
           </form>
