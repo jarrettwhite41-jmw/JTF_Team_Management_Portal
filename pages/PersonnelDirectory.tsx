@@ -112,12 +112,12 @@ export const PersonnelDirectory: React.FC = () => {
           type: 'success', 
           text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
         });
-        loadPersonnel();
+        await loadPersonnel();
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
+        throw new Error(response.error || 'Failed to save personnel');
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error saving personnel' });
+      throw error;
     }
   };
 

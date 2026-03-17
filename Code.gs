@@ -553,7 +553,19 @@ function createPersonnel(personnelData) {
   try {
     Logger.log(`createPersonnel() called with data: ${JSON.stringify(personnelData)}`);
     const sheet = getSheet(SHEET_CONFIG.personnel);
-    
+
+    // Check for duplicate email
+    if (personnelData.PrimaryEmail) {
+      const existing = sheetToObjects(sheet);
+      const emailLower = personnelData.PrimaryEmail.trim().toLowerCase();
+      const duplicate = existing.find(function(p) {
+        return p.PrimaryEmail && p.PrimaryEmail.trim().toLowerCase() === emailLower;
+      });
+      if (duplicate) {
+        throw new Error('A person with the email "' + personnelData.PrimaryEmail + '" already exists (' + duplicate.FirstName + ' ' + duplicate.LastName + ').');
+      }
+    }
+
     // Auto-generate PersonnelID
     const newId = getNextId(sheet, 0);
     personnelData.PersonnelID = newId;
@@ -565,7 +577,7 @@ function createPersonnel(personnelData) {
     return result;
   } catch (error) {
     Logger.log(`ERROR in createPersonnel(): ${error.toString()}`);
-    throw new Error('Failed to create personnel');
+    throw error;
   }
 }
 
@@ -578,13 +590,26 @@ function updatePersonnel(personnelData) {
   try {
     Logger.log(`updatePersonnel() called for PersonnelID: ${personnelData.PersonnelID}`);
     const sheet = getSheet(SHEET_CONFIG.personnel);
+
+    // Check for duplicate email (exclude this person's own record)
+    if (personnelData.PrimaryEmail) {
+      const existing = sheetToObjects(sheet);
+      const emailLower = personnelData.PrimaryEmail.trim().toLowerCase();
+      const duplicate = existing.find(function(p) {
+        return p.PersonnelID != personnelData.PersonnelID &&
+               p.PrimaryEmail && p.PrimaryEmail.trim().toLowerCase() === emailLower;
+      });
+      if (duplicate) {
+        throw new Error('A person with the email "' + personnelData.PrimaryEmail + '" already exists (' + duplicate.FirstName + ' ' + duplicate.LastName + ').');
+      }
+    }
+
     const result = addOrUpdateRow(sheet, personnelData, 0);
-    
     Logger.log(`Updated personnel record: ${personnelData.PersonnelID}`);
     return { success: true, data: result };
   } catch (error) {
     Logger.log(`ERROR in updatePersonnel(): ${error.toString()}`);
-    return { success: false, data: null, error: error.toString() };
+    throw error;
   }
 }
 
