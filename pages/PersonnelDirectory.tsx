@@ -96,8 +96,7 @@ export const PersonnelDirectory: React.FC = () => {
       return !isSelf && p.PrimaryEmail?.trim().toLowerCase() === emailToCheck;
     });
     if (duplicate) {
-      setMessage({ type: 'error', text: `A person with the email "${emailToCheck}" already exists (${duplicate.FirstName} ${duplicate.LastName}).` });
-      return;
+      throw new Error(`A person with the email "${emailToCheck}" already exists (${duplicate.FirstName} ${duplicate.LastName}).`);
     }
 
     try {

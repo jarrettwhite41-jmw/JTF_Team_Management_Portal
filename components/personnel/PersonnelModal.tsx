@@ -30,8 +30,10 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
     Birthday: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setErrorMessage(null);
     if (person) {
       setFormData(person);
     } else {
@@ -54,6 +56,7 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
     e.preventDefault();
     setIsLoading(true);
     
+    setErrorMessage(null);
     try {
       if (mode === 'create') {
         await onSave(formData as Omit<Personnel, 'PersonnelID'>);
@@ -62,7 +65,7 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
       }
       onClose();
     } catch (error) {
-      console.error('Error saving personnel:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'An error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +94,11 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
           <Loader />
         ) : (
           <form onSubmit={handleSubmit}>
+            {errorMessage && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {errorMessage}
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
