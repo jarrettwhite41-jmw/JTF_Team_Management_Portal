@@ -90,6 +90,16 @@ export const PersonnelDirectory: React.FC = () => {
   };
 
   const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
+    const emailToCheck = (personData as Personnel).PrimaryEmail?.trim().toLowerCase();
+    const duplicate = personnel.find(p => {
+      const isSelf = modalMode === 'edit' && (personData as Personnel).PersonnelID === p.PersonnelID;
+      return !isSelf && p.PrimaryEmail?.trim().toLowerCase() === emailToCheck;
+    });
+    if (duplicate) {
+      setMessage({ type: 'error', text: `A person with the email "${emailToCheck}" already exists (${duplicate.FirstName} ${duplicate.LastName}).` });
+      return;
+    }
+
     try {
       let response;
       if (modalMode === 'create') {
