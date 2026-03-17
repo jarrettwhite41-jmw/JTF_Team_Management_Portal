@@ -803,6 +803,13 @@
 
         // Message Component
         function Message({ type, message, onClose }) {
+            useEffect(() => {
+                if (type === 'success' && onClose) {
+                    const t = setTimeout(onClose, 4000);
+                    return () => clearTimeout(t);
+                }
+            }, [type, onClose]);
+
             const styles = {
                 success: { wrap: 'bg-emerald-50 border border-emerald-200 text-emerald-800', dot: 'bg-emerald-500', icon: '✓' },
                 error:   { wrap: 'bg-red-50 border border-red-200 text-red-800',         dot: 'bg-red-500',     icon: '✕' },
@@ -1401,6 +1408,14 @@
                 }
             }, [person, isOpen, mode]);
 
+            // Escape key closes modal
+            useEffect(() => {
+                if (!isOpen) return;
+                const handler = (ev) => { if (ev.key === 'Escape') onClose(); };
+                document.addEventListener('keydown', handler);
+                return () => document.removeEventListener('keydown', handler);
+            }, [isOpen, onClose]);
+
             const handleInputChange = (field, value) => {
                 setFormData(prev => ({ ...prev, [field]: value }));
             };
@@ -1746,13 +1761,16 @@
         function Dashboard() {
             const [stats, setStats] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
+            const [isRefreshing, setIsRefreshing] = useState(false);
             const [loadedAt, setLoadedAt] = useState(null);
 
             useEffect(() => {
                 loadDashboardData();
             }, []);
 
-            const loadDashboardData = async () => {
+            const loadDashboardData = async (manual = false) => {
+                if (manual) setIsRefreshing(true);
+                else setIsLoading(true);
                 try {
                     const response = await gasService.getDashboardStats();
                     if (response.success && response.data) {
@@ -1763,10 +1781,11 @@
                     console.error('Error loading dashboard data:', error);
                 } finally {
                     setIsLoading(false);
+                    setIsRefreshing(false);
                 }
             };
 
-            if (isLoading) {
+            if (isLoading && !stats) {
                 return e(Loader, { text: 'Loading dashboard...' });
             }
 
@@ -1868,7 +1887,15 @@
                         e('h1', { className: 'text-2xl font-bold text-gray-900' }, 'Dashboard'),
                         e('p', { className: 'text-sm text-gray-500 mt-0.5' }, 'JTF Team overview')
                     ),
-                    loadedAt && e('p', { className: 'text-xs text-gray-400 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm' }, `Updated ${loadedAt}`)
+                    loadedAt && e('div', { className: 'flex items-center gap-2' },
+                        e('p', { className: 'text-xs text-gray-400 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm' }, `Updated ${loadedAt}`),
+                        e('button', {
+                            onClick: () => loadDashboardData(true),
+                            disabled: isRefreshing,
+                            title: 'Refresh dashboard',
+                            className: `w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-100 shadow-sm transition-colors ${isRefreshing ? 'text-sky-400 cursor-not-allowed' : 'text-gray-400 hover:text-sky-600 hover:border-sky-200'}`
+                        }, e('span', { style: { display: 'inline-block', transition: 'transform 0.3s', transform: isRefreshing ? 'rotate(360deg)' : 'none' } }, '↻'))
+                    )
                 ),
 
                 // ── ROW 1: KPI Cards (6 up) ──────────────────────────────────
@@ -1994,10 +2021,12 @@
         // FULL CRUD OPERATIONS: Create, Read, Update, Delete personnel records
         // DATA SOURCE: Personnel sheet (PersonnelID, FirstName, Lastname, PrimaryEmail, etc.)
         function PersonnelDirectory() {
+            const ITEMS_PER_PAGE = 25;
             const [personnel, setPersonnel] = useState([]);
             const [filteredPersonnel, setFilteredPersonnel] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState('');
+            const [currentPage, setCurrentPage] = useState(1);
             const [selectedPerson, setSelectedPerson] = useState(null);
             const [modalMode, setModalMode] = useState('view');
             const [message, setMessage] = useState(null);
@@ -2017,6 +2046,7 @@
                 if (sortBy === 'az') filtered = [...filtered].sort((a, b) => name(a).localeCompare(name(b)));
                 else if (sortBy === 'za') filtered = [...filtered].sort((a, b) => name(b).localeCompare(name(a)));
                 setFilteredPersonnel(filtered);
+                setCurrentPage(1);
             }, [personnel, searchTerm, sortBy]);
 
             const loadPersonnel = async () => {
@@ -2170,6 +2200,26 @@
                         }
                     }
                 }
+            };
+
+            const handleExportCSV = () => {
+                const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Instagram', 'Birthday'];
+                const rows = personnel.map(p => [
+                    p.FirstName || '',
+                    p.LastName || p.Lastname || '',
+                    p.PrimaryEmail || '',
+                    p.PrimaryPhone || '',
+                    p.Instagram || '',
+                    p.Birthday || ''
+                ].map(val => `"${String(val).replace(/"/g, '""')}"`));
+                const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `personnel_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
             };
 
             const fieldLabel = (label) => e('p', { className: 'text-xs font-semibold text-slate-400 uppercase tracking-wider mb-0.5' }, label);
@@ -2393,6 +2443,10 @@
                     ),
                     e('div', { className: 'flex items-center gap-3' },
                         e('p', { className: 'text-sm text-gray-500 bg-white border border-gray-100 px-3 py-1.5 rounded-lg shadow-sm font-medium' }, `${filteredPersonnel.length} member${filteredPersonnel.length !== 1 ? 's' : ''}`),
+                        personnel.length > 0 && e('button', {
+                            onClick: handleExportCSV,
+                            className: 'px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm'
+                        }, '↓ Export CSV'),
                         e('button', { onClick: handleAddNew, className: 'btn-primary px-4 py-2 text-sm font-semibold text-white rounded-xl' }, '+ Add New Person')
                     )
                 ),
@@ -2444,19 +2498,37 @@
                 e('div', { className: 'flex gap-4', style: { flex: '1 1 0', minHeight: 0, overflow: 'hidden' } },
                     // Left: scrollable card list
                     e('div', { style: { flex: '1 1 0', overflowY: 'auto', minHeight: 0 } },
-                        isLoading ? e(Loader, { text: 'Loading personnel...' }) :
-                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2' },
-                            filteredPersonnel.map((person) =>
-                                e(PersonCard, {
-                                    key: person.PersonnelID,
-                                    person: person,
-                                    onClick: () => handlePersonClick(person),
-                                    style: selectedPerson && selectedPerson.PersonnelID === person.PersonnelID
-                                        ? { outline: '2px solid #0ea5e9', outlineOffset: '2px' }
-                                        : {}
-                                })
-                            )
-                        )
+                        isLoading ? e(Loader, { text: 'Loading personnel...' }) : (() => {
+                            const totalPages = Math.ceil(filteredPersonnel.length / ITEMS_PER_PAGE);
+                            const pageItems = filteredPersonnel.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                            return e(React.Fragment, null,
+                                e('div', { className: 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-2' },
+                                    pageItems.map((person) =>
+                                        e(PersonCard, {
+                                            key: person.PersonnelID,
+                                            person: person,
+                                            onClick: () => handlePersonClick(person),
+                                            style: selectedPerson && selectedPerson.PersonnelID === person.PersonnelID
+                                                ? { outline: '2px solid #0ea5e9', outlineOffset: '2px' }
+                                                : {}
+                                        })
+                                    )
+                                ),
+                                totalPages > 1 && e('div', { className: 'flex items-center justify-center gap-3 py-4' },
+                                    e('button', {
+                                        onClick: () => setCurrentPage(p => Math.max(1, p - 1)),
+                                        disabled: currentPage === 1,
+                                        className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                                    }, '← Prev'),
+                                    e('span', { className: 'text-sm text-gray-500' }, `Page ${currentPage} of ${totalPages}`),
+                                    e('button', {
+                                        onClick: () => setCurrentPage(p => Math.min(totalPages, p + 1)),
+                                        disabled: currentPage === totalPages,
+                                        className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                                    }, 'Next →')
+                                )
+                            );
+                        })()
                     ),
                     // Right: detail panel (fixed width)
                     e('div', { className: `detail-panel-backdrop${selectedPerson ? ' is-open' : ''}`, onClick: () => setSelectedPerson(null) }),
@@ -2501,6 +2573,21 @@
             const [isRemoving, setIsRemoving] = useState(false);
             const [sortBy, setSortBy] = useState('az');
             const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+            // Escape key closes any open modal
+            useEffect(() => {
+                const anyOpen = isAddModalOpen || !!removeTarget || !!selectedCastMember;
+                if (!anyOpen) return;
+                const handler = (ev) => {
+                    if (ev.key === 'Escape') {
+                        setRemoveTarget(null);
+                        setIsAddModalOpen(false);
+                        setSelectedCastMember(null);
+                    }
+                };
+                document.addEventListener('keydown', handler);
+                return () => document.removeEventListener('keydown', handler);
+            }, [isAddModalOpen, removeTarget, selectedCastMember]);
 
             useEffect(() => {
                 loadCastMembers();
@@ -3203,6 +3290,21 @@
             const [isRemoving, setIsRemoving] = useState(false);
             const [sortBy, setSortBy] = useState('az');
             const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+            // Escape key closes any open modal
+            useEffect(() => {
+                const anyOpen = isAddOpen || !!removeTarget || !!selectedBartender;
+                if (!anyOpen) return;
+                const handler = (ev) => {
+                    if (ev.key === 'Escape') {
+                        setRemoveTarget(null);
+                        setIsAddOpen(false);
+                        setSelectedBartender(null);
+                    }
+                };
+                document.addEventListener('keydown', handler);
+                return () => document.removeEventListener('keydown', handler);
+            }, [isAddOpen, removeTarget, selectedBartender]);
 
             useEffect(() => { loadBartenders(); }, []);
 
@@ -6328,7 +6430,15 @@
             const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
             const [selectedShow, setSelectedShow] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
-            
+
+            // Escape key closes show create/edit modal
+            useEffect(() => {
+                if (!showModal) return;
+                const handler = (ev) => { if (ev.key === 'Escape') handleCloseModal(); };
+                document.addEventListener('keydown', handler);
+                return () => document.removeEventListener('keydown', handler);
+            }, [showModal]);
+
             // Enhanced filtering state
             const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'upcoming', 'active', 'completed'
             const [typeFilter, setTypeFilter] = useState('all');
@@ -7177,21 +7287,33 @@
                 // Shows content
                 isLoading ? e(Loader, { text: 'Loading shows...' }) :
                 filteredShows.length === 0 ? (
-                    e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
-                        e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' })
-                        ),
-                        e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No shows found'),
-                        e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Get started by creating your first show'),
-                        e('div', { className: 'mt-6' },
+                    shows.length > 0 ? (
+                        e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
+                            e('p', { className: 'text-4xl mb-3' }, '🔍'),
+                            e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No shows match your filters'),
+                            e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Try adjusting your search, status, type, or date filters'),
                             e('button', {
-                                onClick: () => handleOpenModal('create'),
-                                className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
-                            },
-                                e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                                    e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
-                                ),
-                                'Create New Show'
+                                onClick: () => { setSearchTerm(''); setStatusFilter('all'); setTypeFilter('all'); setDateFilter('all'); },
+                                className: 'mt-4 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors'
+                            }, '× Clear Filters')
+                        )
+                    ) : (
+                        e('div', { className: 'text-center py-12 bg-white rounded-lg shadow-sm' },
+                            e('svg', { className: 'mx-auto h-12 w-12 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z' })
+                            ),
+                            e('h3', { className: 'mt-2 text-sm font-medium text-gray-900' }, 'No shows yet'),
+                            e('p', { className: 'mt-1 text-sm text-gray-500' }, 'Get started by creating your first show'),
+                            e('div', { className: 'mt-6' },
+                                e('button', {
+                                    onClick: () => handleOpenModal('create'),
+                                    className: 'inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700'
+                                },
+                                    e('svg', { className: '-ml-1 mr-2 h-5 w-5', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                                        e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M12 4v16m8-8H4' })
+                                    ),
+                                    'Create New Show'
+                                )
                             )
                         )
                     )
@@ -7881,6 +8003,7 @@
         }
 
         function Inventory() {
+            const ITEMS_PER_PAGE = 25;
             const [inventory, setInventory] = useState([]);
             const [filteredInventory, setFilteredInventory] = useState([]);
             const [categories, setCategories] = useState([]);
@@ -7891,7 +8014,16 @@
             const [modalMode, setModalMode] = useState('create'); // 'create', 'edit', or 'transaction'
             const [selectedItem, setSelectedItem] = useState(null);
             const [searchTerm, setSearchTerm] = useState('');
-            
+            const [currentPage, setCurrentPage] = useState(1);
+
+            // Escape key closes inventory modal
+            useEffect(() => {
+                if (!showModal) return;
+                const handler = (ev) => { if (ev.key === 'Escape') { setShowModal(false); setSelectedItem(null); } };
+                document.addEventListener('keydown', handler);
+                return () => document.removeEventListener('keydown', handler);
+            }, [showModal]);
+
             // Enhanced filtering state
             const [categoryFilter, setCategoryFilter] = useState('all');
             const [locationFilter, setLocationFilter] = useState('all');
@@ -7943,6 +8075,7 @@
                 // Apply filtering when any filter changes
                 const filtered = getFilteredInventory();
                 setFilteredInventory(filtered);
+                setCurrentPage(1);
             }, [inventory, searchTerm, categoryFilter, locationFilter, stockFilter, sortConfig]);
 
             const loadInventory = async () => {
@@ -8424,23 +8557,38 @@
                 ),
 
                 // Content area
-                e('div', { style: { flex: '1 1 0', minHeight: 0, overflowY: 'auto' } },
+                e('div', { style: { flex: '1 1 0', minHeight: 0, overflowY: 'auto' } }, (() => {
+                const totalPages = Math.ceil(filteredInventory.length / ITEMS_PER_PAGE);
+                const pageInventory = filteredInventory.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                return e(React.Fragment, null,
                 isLoading ? e(Loader, { text: 'Loading inventory...' }) :
                 filteredInventory.length === 0 ? (
-                    e('div', { className: 'text-center py-12 bg-white rounded-xl border border-gray-100' },
-                        e('p', { className: 'text-4xl mb-3' }, '\uD83D\uDCE6'),
-                        e('h3', { className: 'text-sm font-medium text-gray-900 mb-1' }, 'No items found'),
-                        e('p', { className: 'text-sm text-gray-500 mb-6' }, 'Get started by adding your first inventory item'),
-                        e('button', {
-                            onClick: () => handleOpenModal('create'),
-                            className: 'btn-primary px-4 py-2 text-sm font-medium text-white rounded-xl'
-                        }, '+ Add New Item')
+                    inventory.length > 0 ? (
+                        e('div', { className: 'text-center py-12 bg-white rounded-xl border border-gray-100' },
+                            e('p', { className: 'text-4xl mb-3' }, '🔍'),
+                            e('h3', { className: 'text-sm font-medium text-gray-900 mb-1' }, 'No items match your filters'),
+                            e('p', { className: 'text-sm text-gray-500 mb-6' }, 'Try adjusting your search or filters to find what you\'re looking for'),
+                            e('button', {
+                                onClick: () => { setSearchTerm(''); setCategoryFilter('all'); setLocationFilter('all'); setStockFilter('all'); },
+                                className: 'px-4 py-2 text-sm font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-xl hover:bg-sky-100 transition-colors'
+                            }, '× Clear Filters')
+                        )
+                    ) : (
+                        e('div', { className: 'text-center py-12 bg-white rounded-xl border border-gray-100' },
+                            e('p', { className: 'text-4xl mb-3' }, '📦'),
+                            e('h3', { className: 'text-sm font-medium text-gray-900 mb-1' }, 'No inventory items yet'),
+                            e('p', { className: 'text-sm text-gray-500 mb-6' }, 'Get started by adding your first inventory item'),
+                            e('button', {
+                                onClick: () => handleOpenModal('create'),
+                                className: 'btn-primary px-4 py-2 text-sm font-medium text-white rounded-xl'
+                            }, '+ Add New Item')
+                        )
                     )
                 ) : (
                     e('div', null,
                         // Mobile card layout
                         e('div', { className: 'md:hidden space-y-3 pb-4' },
-                            filteredInventory.map(item => {
+                            pageInventory.map(item => {
                                 const status = getStockStatus(item);
                                 const statusClass = status === 'out' ? 'bg-red-100 text-red-800' :
                                     status === 'low' ? 'bg-yellow-100 text-yellow-800' :
@@ -8499,7 +8647,7 @@
                                     )
                                 ),
                                 e('tbody', { className: 'bg-white divide-y divide-gray-200' },
-                                    filteredInventory.map(item =>
+                                    pageInventory.map(item =>
                                         e('tr', { key: `${item.ItemID}-${item.LocationID}`, className: 'hover:bg-gray-50' },
                                             e('td', { className: 'px-6 py-4 whitespace-nowrap' },
                                                 e('div', { className: 'text-sm font-medium text-gray-900' }, item.ItemName || '-'),
@@ -8532,7 +8680,22 @@
                             )
                         )
                     )
+                ),
+                totalPages > 1 && e('div', { className: 'flex items-center justify-center gap-3 py-4' },
+                    e('button', {
+                        onClick: () => setCurrentPage(p => Math.max(1, p - 1)),
+                        disabled: currentPage === 1,
+                        className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                    }, '← Prev'),
+                    e('span', { className: 'text-sm text-gray-500' }, `Page ${currentPage} of ${totalPages}`),
+                    e('button', {
+                        onClick: () => setCurrentPage(p => Math.min(totalPages, p + 1)),
+                        disabled: currentPage === totalPages,
+                        className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                    }, 'Next →')
                 )
+                ); // end React.Fragment
+                })() // end IIFE
                 ),
 
                 // Modal - Updated for new schema with three modes
@@ -8744,9 +8907,12 @@
 
         // StudentDirectory Component
         function StudentDirectory({ onNavigateToStudent }) {
+            const ITEMS_PER_PAGE = 25;
             const [students, setStudents] = useState([]);
             const [isLoading, setIsLoading] = useState(true);
             const [searchTerm, setSearchTerm] = useState('');
+            const [sortBy, setSortBy] = useState('az');
+            const [currentPage, setCurrentPage] = useState(1);
             const [message, setMessage] = useState(null);
 
             useEffect(() => {
@@ -8778,10 +8944,16 @@
                 }
             };
 
-            const filteredStudents = students.filter(student =>
+            const name = s => `${s.FirstName || ''} ${s.LastName || ''}`.toLowerCase();
+            let filteredStudents = students.filter(student =>
                 `${student.FirstName} ${student.LastName || student.LastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
             );
+            if (sortBy === 'az') filteredStudents = [...filteredStudents].sort((a, b) => name(a).localeCompare(name(b)));
+            else if (sortBy === 'za') filteredStudents = [...filteredStudents].sort((a, b) => name(b).localeCompare(name(a)));
+
+            // Reset to page 1 when search or sort changes
+            useEffect(() => { setCurrentPage(1); }, [searchTerm, sortBy]);
 
             return e('div', { className: 'p-3 md:p-6' },
                 e('div', { className: 'flex justify-between items-start flex-wrap gap-2 mb-4' },
@@ -8796,16 +8968,26 @@
 
                 message && e(Message, { type: message.type, message: message.text, onClose: () => setMessage(null) }),
 
-                e('div', { className: 'mb-4 relative' },
-                    e('input', {
-                        type: 'text',
-                        placeholder: 'Search by name or email…',
-                        value: searchTerm,
-                        onChange: (e) => setSearchTerm(e.target.value),
-                        className: 'w-full px-4 py-2.5 pl-9 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
-                    }),
-                    e('svg', { className: 'absolute left-2.5 top-2.5 h-4 w-4 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
-                        e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                e('div', { className: 'flex gap-2 mb-4' },
+                    e('div', { className: 'relative flex-1' },
+                        e('input', {
+                            type: 'text',
+                            placeholder: 'Search by name or email…',
+                            value: searchTerm,
+                            onChange: (e) => setSearchTerm(e.target.value),
+                            className: 'w-full px-4 py-2.5 pl-9 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                        }),
+                        e('svg', { className: 'absolute left-2.5 top-2.5 h-4 w-4 text-gray-400', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                            e('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: 2, d: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' })
+                        )
+                    ),
+                    e('select', {
+                        value: sortBy,
+                        onChange: (ev) => setSortBy(ev.target.value),
+                        className: 'px-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white shadow-sm focus:border-sky-400 transition-colors'
+                    },
+                        e('option', { value: 'az' }, 'A → Z'),
+                        e('option', { value: 'za' }, 'Z → A')
                     )
                 ),
 
@@ -8818,9 +9000,12 @@
                             className: 'btn-primary mt-3 px-4 py-2 text-sm font-semibold text-white rounded-xl'
                         }, 'Reload')
                     )
-                ) : (
-                    e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
-                        filteredStudents.map(student => {
+                ) : (() => {
+                    const totalPages = Math.ceil(filteredStudents.length / ITEMS_PER_PAGE);
+                    const pageStudents = filteredStudents.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+                    return e(React.Fragment, null,
+                        e('div', { className: 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' },
+                            pageStudents.map(student => {
                             // Determine what to show in the circle
                             const getCurrentOrRecentLevel = () => {
                                 // Debug log for first student
@@ -8899,8 +9084,22 @@
                                 }, 'View Profile')
                             );
                         })
-                    )
-                )
+                        ),
+                        totalPages > 1 && e('div', { className: 'flex items-center justify-center gap-3 py-4 mt-2' },
+                            e('button', {
+                                onClick: () => setCurrentPage(p => Math.max(1, p - 1)),
+                                disabled: currentPage === 1,
+                                className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                            }, '← Prev'),
+                            e('span', { className: 'text-sm text-gray-500' }, `Page ${currentPage} of ${totalPages}`),
+                            e('button', {
+                                onClick: () => setCurrentPage(p => Math.min(totalPages, p + 1)),
+                                disabled: currentPage === totalPages,
+                                className: 'px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white disabled:opacity-40 hover:bg-gray-50 transition-colors'
+                            }, 'Next →')
+                        )
+                    );
+                })()
             );
         }
 
