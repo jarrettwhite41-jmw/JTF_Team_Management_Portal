@@ -5094,7 +5094,7 @@ function saveProgressNote(noteData) {
       headers.forEach((h, colIdx) => {
         if (h === 'NoteDate')          sheet.getRange(rowNum, colIdx + 1).setValue(noteData.NoteDate || '');
         if (h === 'FeedbackText')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.FeedbackText || '');
-        if (h === 'AuthorPersonnelID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.AuthorPersonnelID || '');
+        if (h === 'TeacherID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.TeacherID || '');
         if (h === 'InternalOnly')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.InternalOnly || false);
       });
       return { success: true, data: { ...noteData } };
@@ -5104,7 +5104,7 @@ function saveProgressNote(noteData) {
       const newRow = headers.map(h => {
         if (h === 'NoteID')          return newId;
         if (h === 'EnrollmentID')    return noteData.EnrollmentID;
-        if (h === 'AuthorPersonnelID') return noteData.AuthorPersonnelID || '';
+        if (h === 'TeacherID') return noteData.TeacherID || '';
         if (h === 'NoteDate')        return noteData.NoteDate || '';
         if (h === 'FeedbackText')    return noteData.FeedbackText || '';
         if (h === 'InternalOnly')    return noteData.InternalOnly || false;
@@ -5275,13 +5275,18 @@ function getStudentNotesForStudent(studentId) {
       .map(e => String(e.EnrollmentID));
 
     const personnel = sheetToObjects(personnelSheet);
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const teachers = sheetToObjects(teachersSheet);
 
     const notes = sheetToObjects(notesSheet)
       .filter(n => enrollIds.includes(String(n.EnrollmentID)))
       .map(n => {
-        const author = n.AuthorPersonnelID
-          ? personnel.find(p => p.PersonnelID == n.AuthorPersonnelID)
-          : null;
+        let author = null;
+        if (n.TeacherID) {
+          const teacher = teachers.find(t => t.TeacherID == n.TeacherID);
+          if (teacher) author = personnel.find(p => p.PersonnelID == teacher.PersonnelID);
+          else author = personnel.find(p => p.PersonnelID == n.TeacherID);
+        }
         return {
           NoteID:       n.NoteID,
           EnrollmentID: n.EnrollmentID,
