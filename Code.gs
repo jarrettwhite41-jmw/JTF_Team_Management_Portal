@@ -3397,8 +3397,28 @@ function getStudentProfileData(studentId) {
     let studentNotes = [];
     try {
       const notesSheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+      const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      const teachers = sheetToObjects(teachersSheet);
+
       studentNotes = sheetToObjects(notesSheet)
         .filter(n => enrollmentIds.has(String(n.EnrollmentID)))
+        .map(n => {
+          let authorName = '';
+          if (n.TeacherID) {
+            const tempTeacher = teachers.find(t => String(t.TeacherID) === String(n.TeacherID));
+            const personObj = tempTeacher 
+                 ? allPersonnel.find(p => String(p.PersonnelID) === String(tempTeacher.PersonnelID)) 
+                 : allPersonnel.find(p => String(p.PersonnelID) === String(n.TeacherID));
+            if (personObj) {
+              authorName = `${personObj.FirstName} ${personObj.LastName || personObj.Lastname || ''}`.trim();
+            }
+          }
+          return {
+            ...n,
+            Note: n.FeedbackText || n.Note || '',
+            CreatedBy: authorName || n.CreatedBy || ''
+          };
+        })
         .sort((a, b) => new Date(b.NoteDate) - new Date(a.NoteDate));
     } catch (e) {
       Logger.log('Could not load progress notes: ' + e.toString());
