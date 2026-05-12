@@ -266,6 +266,82 @@ function doGet() {
 }
 
 // =============================================================================
+// CACHING & CONCURRENCY UTILITIES
+// =============================================================================
+
+/**
+ * Cache TTL in seconds (5 minutes).
+ * Keeps page loads fast for concurrent users while staying reasonably fresh.
+ */
+const CACHE_TTL_SECONDS = 300;
+
+/**
+ * Maps each sheet name to the cache keys that depend on it.
+ * When a write touches a sheet, all listed keys are invalidated.
+ */
+const SHEET_CACHE_DEPS = {};
+SHEET_CACHE_DEPS[SHEET_CONFIG.personnel]              = ['getAllPersonnel', 'getDashboardStats'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.showInformation]        = ['getAllShows', 'getDashboardStats'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.classOfferings]         = ['getAllClasses', 'getDashboardStats'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.studentEnrollments]     = ['getDashboardStats'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.studentInfo]            = ['getDashboardStats'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.inventoryItems]         = ['getAllInventory'];
+SHEET_CACHE_DEPS[SHEET_CONFIG.inventoryTransactions]  = ['getAllInventory'];
+
+/** Read a value from the shared script cache. Returns null on miss/error. */
+function getFromCache(key) {
+  try {
+    const raw = CacheService.getScriptCache().get('jtf_' + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    Logger.log('Cache read error (non‑fatal): ' + e);
+    return null;
+  }
+}
+
+/** Store a value in the shared script cache. Silently skips entries > 90 KB. */
+function putInCache(key, data) {
+  try {
+    const serialized = JSON.stringify(data);
+    if (serialized.length <= 90000) {
+      CacheService.getScriptCache().put('jtf_' + key, serialized, CACHE_TTL_SECONDS);
+    }
+  } catch (e) {
+    Logger.log('Cache write error (non‑fatal): ' + e);
+  }
+}
+
+/** Invalidate all cache keys that depend on the given sheet name. */
+function invalidateCacheForSheet(sheetName) {
+  try {
+    const keys = SHEET_CACHE_DEPS[sheetName];
+    if (keys && keys.length > 0) {
+      CacheService.getScriptCache().removeAll(keys.map(function(k) { return 'jtf_' + k; }));
+      Logger.log('Cache invalidated for: ' + keys.join(', ') + ' (sheet: ' + sheetName + ')');
+    }
+  } catch (e) {
+    Logger.log('Cache invalidation error (non‑fatal): ' + e);
+  }
+}
+
+/**
+ * Acquires a script-wide exclusive lock and runs fn().
+ * Prevents concurrent writes from racing on IDs or overwriting each other.
+ * Throws a user-friendly error if the lock can't be acquired within 10 s.
+ */
+function withWriteLock(fn) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    throw new Error('The system is currently busy with another update. Please try again in a moment.');
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// =============================================================================
 // UTILITY FUNCTIONS - Core data access helpers
 // =============================================================================
 
@@ -504,6 +580,13 @@ function debugPersonnelSheet() {
 function getAllPersonnel() {
   try {
     Logger.log('=== getAllPersonnel() called ===');
+
+    const cached = getFromCache('getAllPersonnel');
+    if (cached) {
+      Logger.log('getAllPersonnel() returning cached data (' + cached.length + ' records)');
+      return cached;
+    }
+
     Logger.log('Fetching from Personnel sheet');
     
     // Step 1: Test basic spreadsheet connection
@@ -534,6 +617,7 @@ function getAllPersonnel() {
     
     Logger.log('=== getAllPersonnel() returning ===');
     Logger.log(`Returning: ${JSON.stringify(personnel)}`);
+    putInCache('getAllPersonnel', personnel);
     return personnel; // <--- RETURN THE ARRAY DIRECTLY
     
   } catch (error) {
@@ -553,7 +637,19 @@ function createPersonnel(personnelData) {
   try {
     Logger.log(`createPersonnel() called with data: ${JSON.stringify(personnelData)}`);
     const sheet = getSheet(SHEET_CONFIG.personnel);
-    
+
+    // Check for duplicate email
+    if (personnelData.PrimaryEmail) {
+      const existing = sheetToObjects(sheet);
+      const emailLower = personnelData.PrimaryEmail.trim().toLowerCase();
+      const duplicate = existing.find(function(p) {
+        return p.PrimaryEmail && p.PrimaryEmail.trim().toLowerCase() === emailLower;
+      });
+      if (duplicate) {
+        throw new Error('A person with the email "' + personnelData.PrimaryEmail + '" already exists (' + duplicate.FirstName + ' ' + duplicate.LastName + ').');
+      }
+    }
+
     // Auto-generate PersonnelID
     const newId = getNextId(sheet, 0);
     personnelData.PersonnelID = newId;
@@ -565,7 +661,7 @@ function createPersonnel(personnelData) {
     return result;
   } catch (error) {
     Logger.log(`ERROR in createPersonnel(): ${error.toString()}`);
-    throw new Error('Failed to create personnel');
+    throw error;
   }
 }
 
@@ -578,13 +674,26 @@ function updatePersonnel(personnelData) {
   try {
     Logger.log(`updatePersonnel() called for PersonnelID: ${personnelData.PersonnelID}`);
     const sheet = getSheet(SHEET_CONFIG.personnel);
+
+    // Check for duplicate email (exclude this person's own record)
+    if (personnelData.PrimaryEmail) {
+      const existing = sheetToObjects(sheet);
+      const emailLower = personnelData.PrimaryEmail.trim().toLowerCase();
+      const duplicate = existing.find(function(p) {
+        return p.PersonnelID != personnelData.PersonnelID &&
+               p.PrimaryEmail && p.PrimaryEmail.trim().toLowerCase() === emailLower;
+      });
+      if (duplicate) {
+        throw new Error('A person with the email "' + personnelData.PrimaryEmail + '" already exists (' + duplicate.FirstName + ' ' + duplicate.LastName + ').');
+      }
+    }
+
     const result = addOrUpdateRow(sheet, personnelData, 0);
-    
     Logger.log(`Updated personnel record: ${personnelData.PersonnelID}`);
     return { success: true, data: result };
   } catch (error) {
     Logger.log(`ERROR in updatePersonnel(): ${error.toString()}`);
-    return { success: false, data: null, error: error.toString() };
+    throw error;
   }
 }
 
@@ -851,7 +960,13 @@ function getAllShows() {
 function getShowsWithDetails() {
   try {
     Logger.log('getShowsWithDetails() called - fetching enhanced show data');
-    
+
+    const cached = getFromCache('getAllShows');
+    if (cached) {
+      Logger.log('getShowsWithDetails() returning cached data (' + cached.length + ' records)');
+      return { success: true, data: cached };
+    }
+
     // Get base show data
     const showSheet = getSheet(SHEET_CONFIG.showInformation);
     const shows = sheetToObjects(showSheet);
@@ -1041,6 +1156,7 @@ function getShowsWithDetails() {
     Logger.log(`Enhanced ${enhancedShows.length} shows with details`);
     Logger.log(`Sample enhanced show: ${enhancedShows.length > 0 ? JSON.stringify(enhancedShows[0]) : 'No shows found'}`);
     
+    putInCache('getAllShows', enhancedShows);
     return { success: true, data: enhancedShows };
   } catch (error) {
     Logger.log(`ERROR in getShowsWithDetails(): ${error.toString()}`);
@@ -1693,6 +1809,13 @@ function deleteRowsByCondition(sheet, columnName, value) {
 function getAllClasses() {
   try {
     Logger.log('getAllClasses() called - fetching from ClassOfferings sheet');
+
+    const cached = getFromCache('getAllClasses');
+    if (cached) {
+      Logger.log('getAllClasses() returning cached data (' + cached.length + ' records)');
+      return cached;
+    }
+
     const sheet = getSheet(SHEET_CONFIG.classOfferings);
     const classes = sheetToObjects(sheet);
 
@@ -1705,6 +1828,7 @@ function getAllClasses() {
     Logger.log(`Retrieved ${enriched.length} class offering records`);
     Logger.log(`Sample class: ${enriched.length > 0 ? JSON.stringify(enriched[0]) : 'No classes found'}`);
 
+    putInCache('getAllClasses', enriched);
     return enriched;
   } catch (error) {
     Logger.log(`ERROR in getAllClasses(): ${error.toString()}`);
@@ -2550,6 +2674,12 @@ function getDashboardStats() {
   try {
     Logger.log('getDashboardStats() called - calculating enhanced stats from multiple sheets');
 
+    const cached = getFromCache('getDashboardStats');
+    if (cached) {
+      Logger.log('getDashboardStats() returning cached stats');
+      return cached;
+    }
+
     // --- PERSONNEL ---
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);
     const totalPersonnel = Math.max(0, personnelSheet.getLastRow() - 1);
@@ -2703,6 +2833,7 @@ function getDashboardStats() {
     };
 
     Logger.log(`Enhanced dashboard stats calculated: ${JSON.stringify(stats)}`);
+    putInCache('getDashboardStats', stats);
     return stats;
 
   } catch (error) {
@@ -2732,6 +2863,7 @@ function getDashboardStats() {
  * @param {number} idColumn - Column index of the ID field (usually 0)
  */
 function addOrUpdateRow(sheet, data, idColumn = 0) {
+  return withWriteLock(function() {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const rowData = headers.map(header => data[header] || '');
   
@@ -2748,6 +2880,7 @@ function addOrUpdateRow(sheet, data, idColumn = 0) {
     if (rowIndex > 0) {
       sheet.getRange(rowIndex + 1, 1, 1, rowData.length).setValues([rowData]);
       Logger.log(`UPDATED row ${rowIndex + 1} in sheet ${sheet.getName()}`);
+      invalidateCacheForSheet(sheet.getName());
       return data;
     }
   }
@@ -2759,7 +2892,9 @@ function addOrUpdateRow(sheet, data, idColumn = 0) {
   
   sheet.appendRow(rowData);
   Logger.log(`CREATED new row in sheet ${sheet.getName()} with ID: ${newId}`);
+  invalidateCacheForSheet(sheet.getName());
   return data;
+  }); // end withWriteLock
 }
 
 /**
@@ -2770,6 +2905,7 @@ function addOrUpdateRow(sheet, data, idColumn = 0) {
  * @param {number} idColumn - Column index of the ID field (usually 0)
  */
 function deleteRow(sheet, id, idColumn = 0) {
+  return withWriteLock(function() {
   const data = sheet.getDataRange().getValues();
   const rowIndex = data.findIndex((row, index) => 
     index > 0 && row[idColumn] == id
@@ -2780,11 +2916,13 @@ function deleteRow(sheet, id, idColumn = 0) {
   if (rowIndex > 0) {
     sheet.deleteRow(rowIndex + 1);
     Logger.log(`DELETED row ${rowIndex + 1} from sheet ${sheet.getName()}`);
+    invalidateCacheForSheet(sheet.getName());
     return true;
   }
   
   Logger.log(`DELETE FAILED: ID ${id} not found in sheet ${sheet.getName()}`);
   return false;
+  }); // end withWriteLock
 }
 
 /**
@@ -3259,8 +3397,28 @@ function getStudentProfileData(studentId) {
     let studentNotes = [];
     try {
       const notesSheet = getSheet(SHEET_CONFIG.studentProgressNotes);
+      const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      const teachers = sheetToObjects(teachersSheet);
+
       studentNotes = sheetToObjects(notesSheet)
         .filter(n => enrollmentIds.has(String(n.EnrollmentID)))
+        .map(n => {
+          let authorName = '';
+          if (n.TeacherID) {
+            const tempTeacher = teachers.find(t => String(t.TeacherID) === String(n.TeacherID));
+            const personObj = tempTeacher 
+                 ? allPersonnel.find(p => String(p.PersonnelID) === String(tempTeacher.PersonnelID)) 
+                 : allPersonnel.find(p => String(p.PersonnelID) === String(n.TeacherID));
+            if (personObj) {
+              authorName = `${personObj.FirstName} ${personObj.LastName || personObj.Lastname || ''}`.trim();
+            }
+          }
+          return {
+            ...n,
+            Note: n.FeedbackText || n.Note || '',
+            CreatedBy: authorName || n.CreatedBy || ''
+          };
+        })
         .sort((a, b) => new Date(b.NoteDate) - new Date(a.NoteDate));
     } catch (e) {
       Logger.log('Could not load progress notes: ' + e.toString());
@@ -4956,7 +5114,7 @@ function saveProgressNote(noteData) {
       headers.forEach((h, colIdx) => {
         if (h === 'NoteDate')          sheet.getRange(rowNum, colIdx + 1).setValue(noteData.NoteDate || '');
         if (h === 'FeedbackText')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.FeedbackText || '');
-        if (h === 'AuthorPersonnelID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.AuthorPersonnelID || '');
+        if (h === 'TeacherID') sheet.getRange(rowNum, colIdx + 1).setValue(noteData.TeacherID || '');
         if (h === 'InternalOnly')      sheet.getRange(rowNum, colIdx + 1).setValue(noteData.InternalOnly || false);
       });
       return { success: true, data: { ...noteData } };
@@ -4966,7 +5124,7 @@ function saveProgressNote(noteData) {
       const newRow = headers.map(h => {
         if (h === 'NoteID')          return newId;
         if (h === 'EnrollmentID')    return noteData.EnrollmentID;
-        if (h === 'AuthorPersonnelID') return noteData.AuthorPersonnelID || '';
+        if (h === 'TeacherID') return noteData.TeacherID || '';
         if (h === 'NoteDate')        return noteData.NoteDate || '';
         if (h === 'FeedbackText')    return noteData.FeedbackText || '';
         if (h === 'InternalOnly')    return noteData.InternalOnly || false;
@@ -5137,13 +5295,18 @@ function getStudentNotesForStudent(studentId) {
       .map(e => String(e.EnrollmentID));
 
     const personnel = sheetToObjects(personnelSheet);
+    const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+    const teachers = sheetToObjects(teachersSheet);
 
     const notes = sheetToObjects(notesSheet)
       .filter(n => enrollIds.includes(String(n.EnrollmentID)))
       .map(n => {
-        const author = n.AuthorPersonnelID
-          ? personnel.find(p => p.PersonnelID == n.AuthorPersonnelID)
-          : null;
+        let author = null;
+        if (n.TeacherID) {
+          const teacher = teachers.find(t => t.TeacherID == n.TeacherID);
+          if (teacher) author = personnel.find(p => p.PersonnelID == teacher.PersonnelID);
+          else author = personnel.find(p => p.PersonnelID == n.TeacherID);
+        }
         return {
           NoteID:       n.NoteID,
           EnrollmentID: n.EnrollmentID,

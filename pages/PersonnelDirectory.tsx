@@ -90,6 +90,15 @@ export const PersonnelDirectory: React.FC = () => {
   };
 
   const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
+    const emailToCheck = (personData as Personnel).PrimaryEmail?.trim().toLowerCase();
+    const duplicate = personnel.find(p => {
+      const isSelf = modalMode === 'edit' && (personData as Personnel).PersonnelID === p.PersonnelID;
+      return !isSelf && p.PrimaryEmail?.trim().toLowerCase() === emailToCheck;
+    });
+    if (duplicate) {
+      throw new Error(`A person with the email "${emailToCheck}" already exists (${duplicate.FirstName} ${duplicate.LastName}).`);
+    }
+
     try {
       let response;
       if (modalMode === 'create') {
@@ -103,12 +112,12 @@ export const PersonnelDirectory: React.FC = () => {
           type: 'success', 
           text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
         });
-        loadPersonnel();
+        await loadPersonnel();
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to save personnel' });
+        throw new Error(response.error || 'Failed to save personnel');
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error saving personnel' });
+      throw error;
     }
   };
 
