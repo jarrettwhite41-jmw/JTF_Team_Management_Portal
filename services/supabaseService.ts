@@ -89,11 +89,12 @@ class SupabaseService {
     }
   }
 
-  async getAllTeachers(): Promise<ApiResponse<Personnel[]>> {
+  async getAllTeachers(): Promise<ApiResponse<any[]>> {
     try {
       const { data, error } = await this.client
         .from('teachers')
         .select(`
+          teacher_id,
           personnel_id,
           personnel(
             personnel_id,
@@ -105,13 +106,17 @@ class SupabaseService {
             birthday
           )
         `)
-        .order('personnel_id', { ascending: true });
+        .order('teacher_id', { ascending: true });
 
       if (error) throw error;
 
-      const transformed = (data || [])
-        .map((row: any) => this.toPersonnel(row.personnel))
-        .filter((row: Personnel | undefined) => Boolean(row?.PersonnelID));
+      const transformed = (data || []).map((row: any) => ({
+        TeacherID: row.teacher_id,
+        PersonnelID: row.personnel_id,
+        FirstName: row.personnel?.first_name || '',
+        LastName: row.personnel?.last_name || '',
+        PrimaryEmail: row.personnel?.primary_email || '',
+      }));
 
       return { success: true, data: transformed };
     } catch (error) {
@@ -480,7 +485,7 @@ class SupabaseService {
             class_level_id: classOffering.ClassLevelID,
             start_date: classOffering.StartDate,
             end_date: classOffering.EndDate,
-            teacher_id: classOffering.TeacherPersonnelID,
+            teacher_id: classOffering.TeacherID ?? classOffering.TeacherPersonnelID,
             room_id: classOffering.RoomID,
             max_students: classOffering.MaxStudents,
             status: classOffering.Status,
@@ -506,7 +511,8 @@ class SupabaseService {
       if (classOffering.ClassLevelID !== undefined) updates.class_level_id = classOffering.ClassLevelID;
       if (classOffering.StartDate !== undefined) updates.start_date = classOffering.StartDate;
       if (classOffering.EndDate !== undefined) updates.end_date = classOffering.EndDate;
-      if (classOffering.TeacherPersonnelID !== undefined) updates.teacher_id = classOffering.TeacherPersonnelID;
+      if ((classOffering as any).TeacherID !== undefined) updates.teacher_id = (classOffering as any).TeacherID;
+      else if (classOffering.TeacherPersonnelID !== undefined) updates.teacher_id = classOffering.TeacherPersonnelID;
       if ((classOffering as any).RoomID !== undefined) updates.room_id = (classOffering as any).RoomID;
       if (classOffering.MaxStudents !== undefined) updates.max_students = classOffering.MaxStudents;
       if (classOffering.Status !== undefined) updates.status = classOffering.Status;

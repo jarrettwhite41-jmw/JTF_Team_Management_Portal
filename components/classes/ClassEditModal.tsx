@@ -144,6 +144,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
     const payload = {
       ...(isEditing ? { OfferingID: classOffering.OfferingID } : {}),
       ClassLevelID: Number(form.ClassLevelID),
+      TeacherID: Number(form.TeacherPersonnelID),
       TeacherPersonnelID: Number(form.TeacherPersonnelID),
       StartDate: form.StartDate,
       EndDate: form.EndDate,
@@ -238,7 +239,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
                   >
                     <option value="">Select a teacher…</option>
                     {teachers.map(p => (
-                      <option key={p.PersonnelID} value={p.PersonnelID}>
+                      <option key={(p as any).TeacherID} value={(p as any).TeacherID}>
                         {p.FirstName} {p.LastName}
                       </option>
                     ))}
