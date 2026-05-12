@@ -1,0 +1,2 @@
+-- student_competencies
+-- no rows

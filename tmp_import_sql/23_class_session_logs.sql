@@ -1,0 +1,2 @@
+-- class_session_logs
+-- no rows

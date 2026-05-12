@@ -1,0 +1,1174 @@
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import {
+  Personnel,
+  ShowInformation,
+  ClassOfferings,
+  ShowPerformances,
+  StudentEnrollments,
+  CrewDuties,
+  Inventory,
+  ShowTypes,
+  ClassLevels,
+  CrewDutyTypes,
+  DashboardStats,
+  ApiResponse,
+  CastMemberWithDetails,
+  CrewMemberWithDetails,
+  BartenderWithDetails,
+  ShowWithDetails,
+  StudentInfo,
+  ClassLevelProgression,
+  Bartender,
+} from '../types';
+
+// Initialize Supabase client
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+let supabase: SupabaseClient | null = null;
+
+const getSupabaseClient = () => {
+  if (!supabase) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('Supabase credentials not configured in environment variables');
+      throw new Error('Missing Supabase configuration');
+    }
+    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return supabase;
+};
+
+class SupabaseService {
+  private client: SupabaseClient;
+
+  private toPersonnel(row: any): Personnel {
+    return {
+      PersonnelID: row.personnel_id,
+      FirstName: row.first_name || '',
+      LastName: row.last_name || '',
+      PrimaryEmail: row.primary_email || '',
+      PrimaryPhone: row.primary_phone || '',
+      Instagram: row.instagram || '',
+      Birthday: row.birthday || '',
+    };
+  }
+
+  constructor() {
+    this.client = getSupabaseClient();
+  }
+
+  // ========================================================================
+  // PERSONNEL
+  // ========================================================================
+
+  async getAllPersonnel(): Promise<ApiResponse<Personnel[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('personnel')
+        .select('*')
+        .order('last_name', { ascending: true });
+
+      if (error) throw error;
+      return { success: true, data: (data || []).map((row) => this.toPersonnel(row)) };
+    } catch (error) {
+      console.error('Error fetching personnel:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getPersonnelById(personnelId: number): Promise<ApiResponse<Personnel>> {
+    try {
+      const { data, error } = await this.client
+        .from('personnel')
+        .select('*')
+        .eq('personnel_id', personnelId)
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toPersonnel(data) };
+    } catch (error) {
+      console.error('Error fetching personnel:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async createPersonnel(personnel: Omit<Personnel, 'PersonnelID'>): Promise<ApiResponse<Personnel>> {
+    try {
+      const { data, error } = await this.client
+        .from('personnel')
+        .insert([
+          {
+            first_name: personnel.FirstName,
+            last_name: personnel.LastName,
+            primary_email: personnel.PrimaryEmail,
+            primary_phone: personnel.PrimaryPhone,
+            instagram: personnel.Instagram,
+            birthday: personnel.Birthday,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toPersonnel(data) };
+    } catch (error) {
+      console.error('Error creating personnel:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updatePersonnel(personnelOrId: number | Personnel, personnelMaybe?: Partial<Personnel>): Promise<ApiResponse<Personnel>> {
+    try {
+      const personnelId = typeof personnelOrId === 'number' ? personnelOrId : personnelOrId.PersonnelID;
+      const personnel = (typeof personnelOrId === 'number' ? personnelMaybe : personnelOrId) || {};
+      const updates: Record<string, any> = {};
+      if (personnel.FirstName) updates.first_name = personnel.FirstName;
+      if (personnel.LastName) updates.last_name = personnel.LastName;
+      if (personnel.PrimaryEmail) updates.primary_email = personnel.PrimaryEmail;
+      if (personnel.PrimaryPhone) updates.primary_phone = personnel.PrimaryPhone;
+      if (personnel.Instagram) updates.instagram = personnel.Instagram;
+      if (personnel.Birthday) updates.birthday = personnel.Birthday;
+
+      const { data, error } = await this.client
+        .from('personnel')
+        .update(updates)
+        .eq('personnel_id', personnelId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toPersonnel(data) };
+    } catch (error) {
+      console.error('Error updating personnel:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async deletePersonnel(personnelId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('personnel')
+        .delete()
+        .eq('personnel_id', personnelId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting personnel:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // SHOWS
+  // ========================================================================
+
+  async getAllShows(): Promise<ApiResponse<ShowInformation[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_information')
+        .select('*')
+        .order('show_date', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform snake_case to camelCase
+      const transformed = data?.map(show => ({
+        ShowID: show.show_id,
+        ShowDate: show.show_date,
+        ShowTime: show.show_time,
+        ShowTypeID: show.show_type_id,
+        DirectorID: show.director_id,
+        Venue: show.venue,
+        Status: show.status,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching shows:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getShowsWithDetails(): Promise<ApiResponse<ShowWithDetails[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_information')
+        .select(
+          `
+          *,
+          show_types(show_type_name),
+          directors(personnel_id),
+          show_performances(*, personnel(*)),
+          crew_duties(*, personnel(*))
+        `
+        )
+        .order('show_date', { ascending: false });
+
+      if (error) throw error;
+
+      const transformed = data?.map((show: any) => ({
+        ShowID: show.show_id,
+        ShowDate: show.show_date,
+        ShowTime: show.show_time,
+        ShowTypeID: show.show_type_id,
+        DirectorID: show.director_id,
+        Venue: show.venue,
+        Status: show.status,
+        ShowTypeName: show.show_types?.show_type_name || '',
+        DirectorName: '',
+        CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
+        CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching shows with details:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async createShow(show: Omit<ShowInformation, 'ShowID'>): Promise<ApiResponse<ShowInformation>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_information')
+        .insert([
+          {
+            show_date: show.ShowDate,
+            show_time: show.ShowTime,
+            show_type_id: show.ShowTypeID,
+            director_id: show.DirectorID,
+            venue: show.Venue,
+            status: show.Status,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error creating show:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateShow(showId: number, show: Partial<ShowInformation>): Promise<ApiResponse<ShowInformation>> {
+    try {
+      const updates: Record<string, any> = {};
+      if (show.ShowDate) updates.show_date = show.ShowDate;
+      if (show.ShowTime) updates.show_time = show.ShowTime;
+      if (show.ShowTypeID) updates.show_type_id = show.ShowTypeID;
+      if (show.DirectorID) updates.director_id = show.DirectorID;
+      if (show.Venue) updates.venue = show.Venue;
+      if (show.Status) updates.status = show.Status;
+
+      const { data, error } = await this.client
+        .from('show_information')
+        .update(updates)
+        .eq('show_id', showId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error updating show:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // CAST MEMBERS
+  // ========================================================================
+
+  async addPersonAsCastMember(personnelId: number): Promise<ApiResponse<CastMemberWithDetails>> {
+    try {
+      const { data: firstShow } = await this.client
+        .from('show_information')
+        .select('show_id')
+        .order('show_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (firstShow?.show_id) {
+        await this.client
+          .from('show_performances')
+          .insert([{ show_id: firstShow.show_id, personnel_id: personnelId, role: 'Cast Member' }]);
+      }
+
+      const { data: personnel, error: personnelError } = await this.client
+        .from('personnel')
+        .select('*')
+        .eq('personnel_id', personnelId)
+        .single();
+
+      if (personnelError) throw personnelError;
+
+      return {
+        success: true,
+        data: {
+          CastMemberID: personnel.personnel_id,
+          PerformanceID: personnel.personnel_id,
+          ShowID: firstShow?.show_id || 0,
+          CastMemberIDOld: personnel.personnel_id,
+          Role: 'Cast Member',
+          PersonnelID: personnel.personnel_id,
+          FirstName: personnel.first_name,
+          Lastname: personnel.last_name,
+          LastName: personnel.last_name,
+          PrimaryEmail: personnel.primary_email || '',
+          PrimaryPhone: personnel.primary_phone || '',
+          Birthday: personnel.birthday || '',
+          Status: 'Active',
+        } as any,
+      };
+    } catch (error) {
+      console.error('Error adding cast member:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async removeCastMember(performanceId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error, count } = await this.client
+        .from('show_performances')
+        .delete()
+        .eq('performance_id', performanceId)
+        .select('performance_id', { count: 'exact' });
+
+      if (error) throw error;
+
+      if (!count) {
+        const byPersonnel = await this.client
+          .from('show_performances')
+          .delete()
+          .eq('personnel_id', performanceId);
+        if (byPersonnel.error) throw byPersonnel.error;
+      }
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing cast member:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // CLASSES
+  // ========================================================================
+
+  async getAllClasses(): Promise<ApiResponse<ClassOfferings[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .select(`
+          *,
+          class_levels(level_name),
+          teachers(personnel_id),
+          rooms(room_name)
+        `)
+        .order('start_date', { ascending: false });
+
+      if (error) throw error;
+
+      const transformed = data?.map((cls: any) => ({
+        OfferingID: cls.offering_id,
+        ClassLevelID: cls.class_level_id,
+        StartDate: cls.start_date,
+        EndDate: cls.end_date,
+        TeacherPersonnelID: cls.teachers?.personnel_id,
+        RoomID: cls.room_id,
+        RoomName: cls.rooms?.room_name || '',
+        MaxStudents: cls.max_students,
+        Status: cls.status,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching classes:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllClassOfferings(): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .select(`
+          *,
+          class_levels(level_name),
+          teachers(personnel_id, personnel(first_name, last_name)),
+          rooms(room_name),
+          student_enrollments(enrollment_id)
+        `)
+        .order('start_date', { ascending: false });
+
+      if (error) throw error;
+
+      const rows = (data || []).map((cls: any) => ({
+        OfferingID: cls.offering_id,
+        ClassLevelID: cls.class_level_id,
+        LevelName: cls.class_levels?.level_name || '',
+        TeacherPersonnelID: cls.teachers?.personnel_id || null,
+        TeacherName: cls.teachers?.personnel
+          ? `${cls.teachers.personnel.first_name || ''} ${cls.teachers.personnel.last_name || ''}`.trim()
+          : '',
+        StartDate: cls.start_date,
+        EndDate: cls.end_date,
+        MaxStudents: cls.max_students || 0,
+        EnrolledCount: Array.isArray(cls.student_enrollments) ? cls.student_enrollments.length : 0,
+        Status: cls.status,
+        Location: cls.rooms?.room_name || '',
+        MeetingDays: cls.notes || '',
+      }));
+
+      return { success: true, data: rows };
+    } catch (error) {
+      console.error('Error fetching class offerings:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async createClassOffering(classOffering: Omit<ClassOfferings, 'OfferingID'>): Promise<ApiResponse<ClassOfferings>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .insert([
+          {
+            class_level_id: classOffering.ClassLevelID,
+            start_date: classOffering.StartDate,
+            end_date: classOffering.EndDate,
+            teacher_id: classOffering.TeacherPersonnelID,
+            room_id: classOffering.RoomID,
+            max_students: classOffering.MaxStudents,
+            status: classOffering.Status,
+            notes: (classOffering as any).MeetingDays || null,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error creating class:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateClassOffering(offeringOrPayload: number | any, classOfferingMaybe?: Partial<ClassOfferings>): Promise<ApiResponse<ClassOfferings>> {
+    try {
+      const offeringId = typeof offeringOrPayload === 'number' ? offeringOrPayload : Number(offeringOrPayload.OfferingID);
+      const classOffering = (typeof offeringOrPayload === 'number' ? classOfferingMaybe : offeringOrPayload) || {};
+      const updates: Record<string, any> = {};
+      if (classOffering.ClassLevelID !== undefined) updates.class_level_id = classOffering.ClassLevelID;
+      if (classOffering.StartDate !== undefined) updates.start_date = classOffering.StartDate;
+      if (classOffering.EndDate !== undefined) updates.end_date = classOffering.EndDate;
+      if (classOffering.TeacherPersonnelID !== undefined) updates.teacher_id = classOffering.TeacherPersonnelID;
+      if ((classOffering as any).RoomID !== undefined) updates.room_id = (classOffering as any).RoomID;
+      if (classOffering.MaxStudents !== undefined) updates.max_students = classOffering.MaxStudents;
+      if (classOffering.Status !== undefined) updates.status = classOffering.Status;
+      if ((classOffering as any).MeetingDays !== undefined) updates.notes = (classOffering as any).MeetingDays;
+
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .update(updates)
+        .eq('offering_id', offeringId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error updating class:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // LOOKUP TABLES / REFERENCE DATA
+  // ========================================================================
+
+  async getAllShowTypes(): Promise<ApiResponse<ShowTypes[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_types')
+        .select('*')
+        .order('show_type_name');
+
+      if (error) throw error;
+
+      const transformed = data?.map(type => ({
+        ShowTypeID: type.show_type_id,
+        ShowTypeName: type.show_type_name,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching show types:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllClassLevels(): Promise<ApiResponse<ClassLevels[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_levels')
+        .select('*')
+        .order('class_level_id');
+
+      if (error) throw error;
+
+      const transformed = data?.map(level => ({
+        ClassLevelID: level.class_level_id,
+        LevelName: level.level_name,
+        Description: level.description,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching class levels:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllCrewDutyTypes(): Promise<ApiResponse<CrewDutyTypes[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('crew_duty_types')
+        .select('*')
+        .order('duty_name');
+
+      if (error) throw error;
+
+      const transformed = data?.map(type => ({
+        CrewDutyTypeID: type.crew_duty_type_id,
+        DutyName: type.duty_name,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching crew duty types:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllRooms() {
+    try {
+      const { data, error } = await this.client
+        .from('rooms')
+        .select('*')
+        .order('room_name');
+
+      if (error) throw error;
+
+      const transformed = data?.map(room => ({
+        RoomID: room.room_id,
+        RoomName: room.room_name,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching rooms:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // INVENTORY
+  // ========================================================================
+
+  async getAllInventory(): Promise<ApiResponse<Inventory[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('inventory_items')
+        .select(`
+          *,
+          inventory_categories(category_name),
+          storage_locations(location_name)
+        `)
+        .order('item_name');
+
+      if (error) throw error;
+
+      const transformed = data?.map(item => ({
+        ItemID: item.item_id,
+        ItemName: item.item_name,
+        Category: item.inventory_categories?.category_name || '',
+        Quantity: item.current_quantity,
+        Location: item.storage_locations?.location_name || '',
+        Notes: item.notes,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async createInventoryItem(item: Omit<Inventory, 'ItemID'>): Promise<ApiResponse<Inventory>> {
+    try {
+      const { data: category } = await this.client
+        .from('inventory_categories')
+        .select('category_id')
+        .eq('category_name', item.Category)
+        .maybeSingle();
+      const { data: location } = await this.client
+        .from('storage_locations')
+        .select('location_id')
+        .eq('location_name', item.Location)
+        .maybeSingle();
+
+      const insert = await this.client
+        .from('inventory_items')
+        .insert([{
+          item_name: item.ItemName,
+          category_id: category?.category_id || 1,
+          current_quantity: item.Quantity || 0,
+          min_quantity: 0,
+          location_id: location?.location_id || null,
+          notes: item.Notes || null,
+        }])
+        .select('*, inventory_categories(category_name), storage_locations(location_name)')
+        .single();
+
+      if (insert.error) throw insert.error;
+
+      return {
+        success: true,
+        data: {
+          ItemID: insert.data.item_id,
+          ItemName: insert.data.item_name,
+          Category: insert.data.inventory_categories?.category_name || '',
+          Quantity: insert.data.current_quantity || 0,
+          Location: insert.data.storage_locations?.location_name || '',
+          Notes: insert.data.notes || '',
+        },
+      };
+    } catch (error) {
+      console.error('Error creating inventory item:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateInventoryItem(item: Inventory): Promise<ApiResponse<Inventory>> {
+    try {
+      const { data: category } = await this.client
+        .from('inventory_categories')
+        .select('category_id')
+        .eq('category_name', item.Category)
+        .maybeSingle();
+      const { data: location } = await this.client
+        .from('storage_locations')
+        .select('location_id')
+        .eq('location_name', item.Location)
+        .maybeSingle();
+
+      const update = await this.client
+        .from('inventory_items')
+        .update({
+          item_name: item.ItemName,
+          category_id: category?.category_id || 1,
+          current_quantity: item.Quantity || 0,
+          location_id: location?.location_id || null,
+          notes: item.Notes || null,
+        })
+        .eq('item_id', item.ItemID)
+        .select('*, inventory_categories(category_name), storage_locations(location_name)')
+        .single();
+
+      if (update.error) throw update.error;
+
+      return {
+        success: true,
+        data: {
+          ItemID: update.data.item_id,
+          ItemName: update.data.item_name,
+          Category: update.data.inventory_categories?.category_name || '',
+          Quantity: update.data.current_quantity || 0,
+          Location: update.data.storage_locations?.location_name || '',
+          Notes: update.data.notes || '',
+        },
+      };
+    } catch (error) {
+      console.error('Error updating inventory item:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async deleteInventoryItem(itemId: number): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await this.client.from('inventory_items').delete().eq('item_id', itemId);
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error deleting inventory item:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // CREW MEMBERS
+  // ========================================================================
+
+  async getAllCrewMembers(): Promise<ApiResponse<CrewMemberWithDetails[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('crew_duties')
+        .select(`
+          *,
+          personnel(*),
+          crew_duty_types(duty_name),
+          show_information(show_date, venue)
+        `)
+        .order('duty_id');
+
+      if (error) throw error;
+
+      const transformed = data?.map((crew: any) => ({
+        DutyID: crew.duty_id,
+        ShowID: crew.show_id,
+        CrewMemberID: crew.personnel_id,
+        CrewDutyTypeID: crew.crew_duty_type_id,
+        FirstName: crew.personnel?.first_name || '',
+        LastName: crew.personnel?.last_name || '',
+        Lastname: crew.personnel?.last_name || '',
+        PrimaryEmail: crew.personnel?.primary_email || '',
+        PrimaryPhone: crew.personnel?.primary_phone || '',
+        PersonnelID: crew.personnel_id,
+        Birthday: crew.personnel?.birthday || '',
+        DutyName: crew.crew_duty_types?.duty_name || '',
+        ShowName: crew.show_information?.venue || '',
+        ShowDate: crew.show_information?.show_date || '',
+        LastShowDate: crew.show_information?.show_date || '',
+        Status: 'Active',
+      })) || [];
+
+      return { success: true, data: { data: transformed } as any };
+    } catch (error) {
+      console.error('Error fetching crew members:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllCastMembers(): Promise<ApiResponse<any>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_performances')
+        .select(`
+          performance_id,
+          show_id,
+          personnel_id,
+          role,
+          personnel(*)
+        `)
+        .order('performance_id', { ascending: false });
+
+      if (error) throw error;
+
+      const uniqueByPersonnel = new Map<number, any>();
+      (data || []).forEach((row: any) => {
+        if (!row.personnel_id || uniqueByPersonnel.has(row.personnel_id)) return;
+        uniqueByPersonnel.set(row.personnel_id, {
+          PerformanceID: row.performance_id,
+          ShowID: row.show_id,
+          CastMemberID: row.personnel_id,
+          Role: row.role || 'Cast Member',
+          FirstName: row.personnel?.first_name || '',
+          Lastname: row.personnel?.last_name || '',
+          LastName: row.personnel?.last_name || '',
+          PrimaryEmail: row.personnel?.primary_email || '',
+          PrimaryPhone: row.personnel?.primary_phone || '',
+          PersonnelID: row.personnel_id,
+          Birthday: row.personnel?.birthday || '',
+          LastShowDate: '',
+          Status: 'Active',
+        });
+      });
+
+      return { success: true, data: { data: Array.from(uniqueByPersonnel.values()) } };
+    } catch (error) {
+      console.error('Error fetching cast members:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async addPersonAsCrewMember(personnelId: number, showId: number, dutyTypeId: number): Promise<ApiResponse<CrewMemberWithDetails>> {
+    try {
+      const { data, error } = await this.client
+        .from('crew_duties')
+        .insert([
+          {
+            personnel_id: personnelId,
+            show_id: showId,
+            crew_duty_type_id: dutyTypeId,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return { success: true, data: { CrewMemberID: data.duty_id, PersonnelID: personnelId } as CrewMemberWithDetails };
+    } catch (error) {
+      console.error('Error adding crew member:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async removeCrewMember(dutyId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('crew_duties')
+        .delete()
+        .eq('duty_id', dutyId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing crew member:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // BARTENDERS
+  // ========================================================================
+
+  async getBartendersWithDetails(): Promise<ApiResponse<BartenderWithDetails[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('bartenders')
+        .select(`
+          *,
+          personnel(*)
+        `)
+        .order('bartender_id');
+
+      if (error) throw error;
+
+      const transformed = data?.map(bartender => ({
+        BartenderID: bartender.bartender_id,
+        PersonnelID: bartender.personnel_id,
+        FirstName: bartender.personnel?.first_name || '',
+        LastName: bartender.personnel?.last_name || '',
+        FullName: `${bartender.personnel?.first_name || ''} ${bartender.personnel?.last_name || ''}`,
+        PrimaryEmail: bartender.personnel?.primary_email || '',
+        PrimaryPhone: bartender.personnel?.primary_phone || '',
+        Birthday: bartender.personnel?.birthday || '',
+        Trained: bartender.trained,
+        Status: bartender.status,
+        Active: bartender.active,
+      })) || [];
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching bartenders:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async addPersonAsBartender(personnelId: number, trained: boolean = false, status: string = 'Active'): Promise<ApiResponse<BartenderWithDetails>> {
+    try {
+      const { data, error } = await this.client
+        .from('bartenders')
+        .insert([
+          {
+            personnel_id: personnelId,
+            trained,
+            status,
+            active: true,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          BartenderID: data.bartender_id,
+          PersonnelID: personnelId,
+          Trained: trained,
+          Status: status,
+          Active: true,
+        } as BartenderWithDetails,
+      };
+    } catch (error) {
+      console.error('Error adding bartender:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async removeBartender(bartenderId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('bartenders')
+        .delete()
+        .eq('bartender_id', bartenderId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing bartender:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // STUDENTS & ENROLLMENT
+  // ========================================================================
+
+  async updateStudentStatus(studentId: number, status: string): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_info')
+        .update({ status })
+        .eq('student_id', studentId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating student status:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateStudentLevel(studentId: number, levelId: number): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_info')
+        .update({ current_level_id: levelId })
+        .eq('student_id', studentId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating student level:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // DASHBOARD
+  // ========================================================================
+
+  async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
+    try {
+      const [personnel, students, shows, classes, castRows, crewRows, bartenderRows, enrollRows] = await Promise.all([
+        this.client.from('personnel').select('count', { count: 'exact' }),
+        this.client.from('student_info').select('count', { count: 'exact' }),
+        this.client.from('show_information').select('count', { count: 'exact' }),
+        this.client.from('class_offerings').select('count', { count: 'exact' }),
+        this.client.from('show_performances').select('personnel_id'),
+        this.client.from('crew_duties').select('personnel_id'),
+        this.client.from('bartenders').select('active'),
+        this.client.from('student_enrollments').select('enrollment_id, status'),
+      ]);
+
+      const totalShows = shows.count || 0;
+      const totalClasses = classes.count || 0;
+      const totalStudents = students.count || 0;
+      const totalPersonnel = personnel.count || 0;
+      const totalCastMembers = new Set((castRows.data || []).map((r: any) => r.personnel_id)).size;
+      const totalCrewMembers = new Set((crewRows.data || []).map((r: any) => r.personnel_id)).size;
+      const totalBartenders = (bartenderRows.data || []).length;
+      const activeBartenders = (bartenderRows.data || []).filter((b: any) => b.active).length;
+      const totalEnrollments = (enrollRows.data || []).length;
+
+      return {
+        success: true,
+        data: {
+          totalPersonnel,
+          activeStudents: totalStudents,
+          totalStudents,
+          studentsActive: totalStudents,
+          studentsInactive: 0,
+          studentsGraduated: 0,
+          scheduledShows: totalShows,
+          canceledShows: 0,
+          totalShows,
+          nextShow: null,
+          activeClasses: totalClasses,
+          upcomingClasses: totalClasses,
+          inProgressClasses: 0,
+          completedClasses: 0,
+          cancelledClasses: 0,
+          totalClasses,
+          totalEnrollments,
+          classEnrollmentData: [],
+          totalCastMembers,
+          totalCrewMembers,
+          totalBartenders,
+          activeBartenders,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  // ========================================================================
+  // NOTES & PROGRESS
+  // ========================================================================
+
+  async getStudentNotesForStudent(studentId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const enr = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id')
+        .eq('student_id', studentId);
+      if (enr.error) throw enr.error;
+      const enrollmentIds = (enr.data || []).map((r: any) => r.enrollment_id);
+      if (enrollmentIds.length === 0) return { success: true, data: [] };
+
+      const { data, error } = await this.client
+        .from('student_progress_notes')
+        .select('*')
+        .in('enrollment_id', enrollmentIds)
+        .order('note_date', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Error fetching student notes:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getSkillRatingsForEnrollment(enrollmentId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('student_competencies')
+        .select(`
+          *,
+          skills(skill_name, skill_category_id),
+          skill_categories!skills_skill_category_id_fkey(category_name)
+        `)
+        .eq('enrollment_id', enrollmentId);
+
+      if (error) throw error;
+      const transformed = (data || []).map((row: any) => ({
+        ...row,
+        SkillName: row.skills?.skill_name,
+        CategoryName: row.skill_categories?.category_name,
+      }));
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching skill ratings:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getSkillsWithCategories(): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('skills')
+        .select(`
+          *,
+          skill_categories(*)
+        `)
+        .order('skill_name');
+
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (error) {
+      console.error('Error fetching skills:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllStudentsWithDetails(): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('student_info')
+        .select(`
+          student_id,
+          personnel_id,
+          enrollment_date,
+          status,
+          current_level_id,
+          personnel(*),
+          class_levels(level_name),
+          student_enrollments(enrollment_id)
+        `)
+        .order('student_id', { ascending: true });
+
+      if (error) throw error;
+
+      const rows = (data || []).map((s: any) => ({
+        StudentID: s.student_id,
+        PersonnelID: s.personnel_id,
+        FirstName: s.personnel?.first_name || '',
+        LastName: s.personnel?.last_name || '',
+        PrimaryEmail: s.personnel?.primary_email || '',
+        PrimaryPhone: s.personnel?.primary_phone || '',
+        Instagram: s.personnel?.instagram || '',
+        Birthday: s.personnel?.birthday || '',
+        EnrollmentDate: s.enrollment_date,
+        StudentStatus: s.status || 'Active',
+        CurrentLevel: s.current_level_id,
+        CurrentLevelName: s.class_levels?.level_name || '',
+        ClassesCompleted: 0,
+        ActiveEnrollments: Array.isArray(s.student_enrollments) ? s.student_enrollments.length : 0,
+      }));
+
+      return { success: true, data: rows };
+    } catch (error) {
+      console.error('Error fetching students with details:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getStudentProfileData(studentId: number): Promise<ApiResponse<any>> {
+    try {
+      const studentRes = await this.client
+        .from('student_info')
+        .select(`
+          *,
+          personnel(*),
+          student_enrollments(*)
+        `)
+        .eq('student_id', studentId)
+        .single();
+
+      if (studentRes.error) throw studentRes.error;
+      const s = studentRes.data;
+
+      const enrollments = (s.student_enrollments || []).map((e: any) => ({
+        EnrollmentID: e.enrollment_id,
+        OfferingID: e.offering_id,
+        StudentID: e.student_id,
+        EnrollmentDate: e.enrollment_date,
+        Status: e.status,
+      }));
+
+      return {
+        success: true,
+        data: {
+          PersonnelID: s.personnel_id,
+          FirstName: s.personnel?.first_name || '',
+          LastName: s.personnel?.last_name || '',
+          PrimaryEmail: s.personnel?.primary_email || '',
+          PrimaryPhone: s.personnel?.primary_phone || '',
+          Instagram: s.personnel?.instagram || '',
+          Birthday: s.personnel?.birthday || '',
+          StudentID: s.student_id,
+          EnrollmentDate: s.enrollment_date,
+          StudentStatus: s.status || 'Active',
+          CurrentLevel: s.current_level_id,
+          Enrollments: enrollments,
+          Progression: [],
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching student profile data:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+}
+
+export const supabaseService = new SupabaseService();

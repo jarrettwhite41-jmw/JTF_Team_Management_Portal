@@ -16,6 +16,7 @@ import {
   BartenderWithDetails,
   ShowWithDetails
 } from '../types';
+import { supabaseService } from './supabaseService';
 
 // Mock data for development
 const mockPersonnel: Personnel[] = [
@@ -556,4 +557,4 @@ class GoogleAppsScriptService {
   }
 }
 
-export const gasService = new GoogleAppsScriptService();
+export const gasService: any = supabaseService;

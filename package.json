@@ -1,19 +1,30 @@
 {
   "name": "jtf-team-management-portal",
-  "version": "1.0.0",
-  "description": "Team Management Portal for JTF Improv/Theater Group",
+  "version": "2.0.0",
+  "description": "Team Management Portal for JTF Improv/Theater Group - Vercel + Supabase",
   "main": "index.js",
   "scripts": {
-    "push": "clasp push",
-    "deploy": "clasp deploy",
-    "open": "clasp open",
-    "setup": "clasp create --type webapp --title \"JTF Team Management Portal\"",
-    "init": "npm run setup && npm run push"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview",
+    "type-check": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@supabase/supabase-js": "^2.43.0",
+    "@supabase/auth-helpers-react": "^0.4.4",
+    "lucide-react": "^0.312.0"
+  },
   "devDependencies": {
-    "@google/clasp": "^2.4.2",
-    "@types/google-apps-script": "^1.0.83"
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.7",
+    "@vitejs/plugin-react": "^4.2.1",
+    "tsx": "^4.7.0"
   },
   "author": "JTF Team",
   "license": "MIT"

@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Environment variables - NEVER COMMIT
+.env.local
+.env.*.local
+
+# Build outputs
+/dist
+/build
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+.cache/
+.parcel-cache
+
+# Old Google Apps Script files (no longer needed)
+.clasp.json
+clasp/
+
+# Flutter files (if not needed)
+flutter_windows_*/
+.dart_tool/
+.flutter-plugins
+
+# Vercel
+.vercel/
+
+# Generated docs
+dist-docs/
