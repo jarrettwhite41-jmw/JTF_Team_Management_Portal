@@ -100,7 +100,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
   };
 
   const fmtDate = (d?: Date | string) => {
-    if (!d) return '—';
+    if (!d) return '-';
     try {
       return new Date(d as string).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -131,7 +131,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
     return (
       <div className="p-4 sm:p-6">
         <button onClick={onBack} className="text-primary-600 hover:text-primary-800 mb-4 font-medium">
-          ? Back to Students
+          {'<- Back to Students'}
         </button>
         <p className="text-gray-500">Student not found.</p>
       </div>
@@ -156,7 +156,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
           onClick={onBack}
           className="text-primary-600 hover:text-primary-800 font-medium text-sm mb-3 flex items-center gap-1"
         >
-          ? Back to Students
+          {'<- Back to Students'}
         </button>
         <div className="flex items-start justify-between">
           <div>
@@ -179,7 +179,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
             <h2 className="text-sm font-semibold text-gray-700 mb-3">Contact Information</h2>
             <div className="space-y-2 text-sm">
               <div><span className="text-gray-500">Email: </span><span className="text-gray-900">{profile.PrimaryEmail}</span></div>
-              <div><span className="text-gray-500">Phone: </span><span className="text-gray-900">{profile.PrimaryPhone || '—'}</span></div>
+              <div><span className="text-gray-500">Phone: </span><span className="text-gray-900">{profile.PrimaryPhone || '-'}</span></div>
               {profile.Instagram && (
                 <div><span className="text-gray-500">Instagram: </span><span className="text-gray-900">{profile.Instagram}</span></div>
               )}
@@ -264,9 +264,9 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
                       {(e as any).ClassLevelName || (e as any).ClassName || `Class ${(e as any).OfferingID}`}
                     </div>
                     <div className="text-gray-500 text-xs mt-0.5">
-                      {(e as any).TeacherName && `${(e as any).TeacherName} · `}
+                      {(e as any).TeacherName && `${(e as any).TeacherName} - `}
                       {fmtDate((e as any).StartDate)} - {fmtDate((e as any).EndDate)}
-                      {((e as any).VenueOrRoom || (e as any).RoomName) && ` · ${(e as any).VenueOrRoom || (e as any).RoomName}`}
+                      {((e as any).VenueOrRoom || (e as any).RoomName) && ` - ${(e as any).VenueOrRoom || (e as any).RoomName}`}
                     </div>
                   </div>
                 ))}
@@ -299,7 +299,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
           <div className="bg-white rounded-xl shadow-sm border p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-gray-700">Progress Notes</h2>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Instructor entries · read only</span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Instructor entries - read only</span>
             </div>
             {notesLoading ? (
               <p className="text-sm text-gray-400">Loading notes...</p>
@@ -321,7 +321,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
             <div className="bg-white rounded-xl shadow-sm border p-5">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-sm font-semibold text-gray-700">Skill Ratings</h2>
-                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Instructor entries · active enrollment · read only</span>
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Instructor entries - active enrollment - read only</span>
               </div>
               {skillsLoading ? (
                 <p className="text-sm text-gray-400 mt-3">Loading ratings...</p>
