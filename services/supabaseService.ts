@@ -345,7 +345,7 @@ class SupabaseService {
       };
     } catch (error) {
       console.error('Error adding cast member:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -360,7 +360,7 @@ class SupabaseService {
       return { success: true, data: { deleted: true } };
     } catch (error) {
       console.error('Error removing cast member:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
