@@ -284,23 +284,17 @@ class SupabaseService {
   }
 
   // ========================================================================
-  // CAST MEMBERS
+  // CAST MEMBERS  (source of truth: cast_member_info)
   // ========================================================================
 
   async addPersonAsCastMember(personnelId: number): Promise<ApiResponse<CastMemberWithDetails>> {
     try {
-      const { data: firstShow } = await this.client
-        .from('show_information')
-        .select('show_id')
-        .order('show_date', { ascending: false })
-        .limit(1)
+      // Prevent duplicates
+      const { data: existing } = await this.client
+        .from('cast_member_info')
+        .select('"CastMemberID"')
+        .eq('PersonnelID', personnelId)
         .maybeSingle();
-
-      if (firstShow?.show_id) {
-        await this.client
-          .from('show_performances')
-          .insert([{ show_id: firstShow.show_id, personnel_id: personnelId, role: 'Cast Member' }]);
-      }
 
       const { data: personnel, error: personnelError } = await this.client
         .from('personnel')
@@ -310,18 +304,31 @@ class SupabaseService {
 
       if (personnelError) throw personnelError;
 
+      let castMemberId: number;
+      if (existing) {
+        castMemberId = existing['CastMemberID'];
+      } else {
+        const { data: newRow, error: insertError } = await this.client
+          .from('cast_member_info')
+          .insert([{ PersonnelID: personnelId }])
+          .select()
+          .single();
+        if (insertError) throw insertError;
+        castMemberId = newRow['CastMemberID'];
+      }
+
       return {
         success: true,
         data: {
-          CastMemberID: personnel.personnel_id,
-          PerformanceID: personnel.personnel_id,
-          ShowID: firstShow?.show_id || 0,
-          CastMemberIDOld: personnel.personnel_id,
+          CastMemberID: castMemberId,
+          PerformanceID: castMemberId,
+          ShowID: 0,
           Role: 'Cast Member',
-          PersonnelID: personnel.personnel_id,
-          FirstName: personnel.first_name,
-          Lastname: personnel.last_name,
-          LastName: personnel.last_name,
+          PersonnelID: personnelId,
+          FirstName: personnel.first_name || '',
+          Lastname: personnel.last_name || '',
+          LastName: personnel.last_name || '',
+          FullName: `${personnel.first_name || ''} ${personnel.last_name || ''}`.trim(),
           PrimaryEmail: personnel.primary_email || '',
           PrimaryPhone: personnel.primary_phone || '',
           Birthday: personnel.birthday || '',
@@ -334,23 +341,14 @@ class SupabaseService {
     }
   }
 
-  async removeCastMember(performanceId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+  async removeCastMember(castMemberId: number): Promise<ApiResponse<{ deleted: boolean }>> {
     try {
-      const { error, count } = await this.client
-        .from('show_performances')
+      const { error } = await this.client
+        .from('cast_member_info')
         .delete()
-        .eq('performance_id', performanceId)
-        .select('performance_id', { count: 'exact' });
+        .eq('CastMemberID', castMemberId);
 
       if (error) throw error;
-
-      if (!count) {
-        const byPersonnel = await this.client
-          .from('show_performances')
-          .delete()
-          .eq('personnel_id', performanceId);
-        if (byPersonnel.error) throw byPersonnel.error;
-      }
       return { success: true, data: { deleted: true } };
     } catch (error) {
       console.error('Error removing cast member:', error);
@@ -760,39 +758,50 @@ class SupabaseService {
   async getAllCastMembers(): Promise<ApiResponse<any>> {
     try {
       const { data, error } = await this.client
-        .from('show_performances')
+        .from('cast_member_info')
         .select(`
-          performance_id,
-          show_id,
-          personnel_id,
-          role,
-          personnel(*)
+          "CastMemberID",
+          "PersonnelID",
+          "YearJoined",
+          "OutOfTown",
+          "Limited/Inactive",
+          "ImageURL",
+          personnel!CastMemberInfo_PersonnelID_fkey(
+            personnel_id, first_name, last_name, primary_email, primary_phone, birthday
+          )
         `)
-        .order('performance_id', { ascending: false });
+        .order('"CastMemberID"', { ascending: true });
 
       if (error) throw error;
 
-      const uniqueByPersonnel = new Map<number, any>();
-      (data || []).forEach((row: any) => {
-        if (!row.personnel_id || uniqueByPersonnel.has(row.personnel_id)) return;
-        uniqueByPersonnel.set(row.personnel_id, {
-          PerformanceID: row.performance_id,
-          ShowID: row.show_id,
-          CastMemberID: row.personnel_id,
-          Role: row.role || 'Cast Member',
-          FirstName: row.personnel?.first_name || '',
-          Lastname: row.personnel?.last_name || '',
-          LastName: row.personnel?.last_name || '',
-          PrimaryEmail: row.personnel?.primary_email || '',
-          PrimaryPhone: row.personnel?.primary_phone || '',
-          PersonnelID: row.personnel_id,
-          Birthday: row.personnel?.birthday || '',
+      const transformed = (data || []).map((row: any) => {
+        const p = row.personnel || {};
+        let status = 'Active';
+        if (row['Limited/Inactive']) status = 'Limited/Inactive';
+        if (row['OutOfTown']) status = 'Out of Town';
+        return {
+          CastMemberID: row['CastMemberID'],
+          PerformanceID: row['CastMemberID'],
+          ShowID: 0,
+          Role: 'Cast Member',
+          PersonnelID: row['PersonnelID'],
+          FirstName: p.first_name || '',
+          Lastname: p.last_name || '',
+          LastName: p.last_name || '',
+          FullName: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+          PrimaryEmail: p.primary_email || '',
+          PrimaryPhone: p.primary_phone || '',
+          Birthday: p.birthday || '',
+          YearJoined: row['YearJoined'],
+          OutOfTown: row['OutOfTown'],
+          LimitedInactive: row['Limited/Inactive'],
+          ImageURL: row['ImageURL'],
           LastShowDate: '',
-          Status: 'Active',
-        });
+          Status: status,
+        };
       });
 
-      return { success: true, data: { data: Array.from(uniqueByPersonnel.values()) } };
+      return { success: true, data: { data: transformed } };
     } catch (error) {
       console.error('Error fetching cast members:', error);
       return { success: false, error: error.toString() };
