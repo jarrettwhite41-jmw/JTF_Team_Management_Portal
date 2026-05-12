@@ -557,4 +557,10 @@ class GoogleAppsScriptService {
   }
 }
 
-export const gasService: any = supabaseService;
+const hasSupabaseConfig = Boolean(
+  import.meta.env?.VITE_SUPABASE_URL && import.meta.env?.VITE_SUPABASE_ANON_KEY
+);
+
+export const gasService: any = hasSupabaseConfig
+  ? supabaseService
+  : new GoogleAppsScriptService();

@@ -53,6 +53,14 @@ class SupabaseService {
     };
   }
 
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String((error as { message: unknown }).message);
+    }
+    return String(error);
+  }
+
   constructor() {
     try {
       this.client = getSupabaseClient();
@@ -77,7 +85,7 @@ class SupabaseService {
       return { success: true, data: (data || []).map((row) => this.toPersonnel(row)) };
     } catch (error) {
       console.error('Error fetching personnel:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -93,7 +101,7 @@ class SupabaseService {
       return { success: true, data: this.toPersonnel(data) };
     } catch (error) {
       console.error('Error fetching personnel:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -106,9 +114,9 @@ class SupabaseService {
             first_name: personnel.FirstName,
             last_name: personnel.LastName,
             primary_email: personnel.PrimaryEmail,
-            primary_phone: personnel.PrimaryPhone,
-            instagram: personnel.Instagram,
-            birthday: personnel.Birthday,
+            primary_phone: personnel.PrimaryPhone || null,
+            instagram: personnel.Instagram || null,
+            birthday: personnel.Birthday || null,
           },
         ])
         .select()
@@ -118,7 +126,7 @@ class SupabaseService {
       return { success: true, data: this.toPersonnel(data) };
     } catch (error) {
       console.error('Error creating personnel:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -127,12 +135,12 @@ class SupabaseService {
       const personnelId = typeof personnelOrId === 'number' ? personnelOrId : personnelOrId.PersonnelID;
       const personnel = (typeof personnelOrId === 'number' ? personnelMaybe : personnelOrId) || {};
       const updates: Record<string, any> = {};
-      if (personnel.FirstName) updates.first_name = personnel.FirstName;
-      if (personnel.LastName) updates.last_name = personnel.LastName;
-      if (personnel.PrimaryEmail) updates.primary_email = personnel.PrimaryEmail;
-      if (personnel.PrimaryPhone) updates.primary_phone = personnel.PrimaryPhone;
-      if (personnel.Instagram) updates.instagram = personnel.Instagram;
-      if (personnel.Birthday) updates.birthday = personnel.Birthday;
+      if (personnel.FirstName !== undefined) updates.first_name = personnel.FirstName;
+      if (personnel.LastName !== undefined) updates.last_name = personnel.LastName;
+      if (personnel.PrimaryEmail !== undefined) updates.primary_email = personnel.PrimaryEmail;
+      if (personnel.PrimaryPhone !== undefined) updates.primary_phone = personnel.PrimaryPhone || null;
+      if (personnel.Instagram !== undefined) updates.instagram = personnel.Instagram || null;
+      if (personnel.Birthday !== undefined) updates.birthday = personnel.Birthday || null;
 
       const { data, error } = await this.client
         .from('personnel')
@@ -145,7 +153,7 @@ class SupabaseService {
       return { success: true, data: this.toPersonnel(data) };
     } catch (error) {
       console.error('Error updating personnel:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -160,7 +168,7 @@ class SupabaseService {
       return { success: true, data: { deleted: true } };
     } catch (error) {
       console.error('Error deleting personnel:', error);
-      return { success: false, error: error.toString() };
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 
@@ -976,7 +984,7 @@ class SupabaseService {
         this.client.from('student_info').select('count', { count: 'exact' }),
         this.client.from('show_information').select('count', { count: 'exact' }),
         this.client.from('class_offerings').select('count', { count: 'exact' }),
-        this.client.from('show_performances').select('personnel_id'),
+        this.client.from('cast_member_info').select('CastMemberID', { count: 'exact' }),
         this.client.from('crew_duties').select('personnel_id'),
         this.client.from('bartenders').select('active'),
         this.client.from('student_enrollments').select('enrollment_id, status'),
@@ -986,7 +994,7 @@ class SupabaseService {
       const totalClasses = classes.count || 0;
       const totalStudents = students.count || 0;
       const totalPersonnel = personnel.count || 0;
-      const totalCastMembers = new Set((castRows.data || []).map((r: any) => r.personnel_id)).size;
+      const totalCastMembers = castRows.count || (castRows.data || []).length;
       const totalCrewMembers = new Set((crewRows.data || []).map((r: any) => r.personnel_id)).size;
       const totalBartenders = (bartenderRows.data || []).length;
       const activeBartenders = (bartenderRows.data || []).filter((b: any) => b.active).length;
@@ -1143,8 +1151,7 @@ class SupabaseService {
         .from('student_info')
         .select(`
           *,
-          personnel(*),
-          student_enrollments(*)
+          personnel(*)
         `)
         .eq('student_id', studentId)
         .single();
@@ -1152,13 +1159,84 @@ class SupabaseService {
       if (studentRes.error) throw studentRes.error;
       const s = studentRes.data;
 
-      const enrollments = (s.student_enrollments || []).map((e: any) => ({
-        EnrollmentID: e.enrollment_id,
-        OfferingID: e.offering_id,
-        StudentID: e.student_id,
-        EnrollmentDate: e.enrollment_date,
-        Status: e.status,
-      }));
+      const enrollmentsRes = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id, offering_id, student_id, enrollment_date, status')
+        .eq('student_id', studentId)
+        .order('enrollment_date', { ascending: false });
+
+      if (enrollmentsRes.error) throw enrollmentsRes.error;
+
+      const offeringIds = Array.from(
+        new Set((enrollmentsRes.data || []).map((row: any) => row.offering_id).filter(Boolean))
+      );
+
+      let offeringsMap = new Map<number, any>();
+      if (offeringIds.length > 0) {
+        const offeringsRes = await this.client
+          .from('class_offerings')
+          .select(`
+            offering_id,
+            start_date,
+            end_date,
+            class_levels(level_name),
+            teachers(personnel_id, personnel(first_name, last_name)),
+            rooms(room_name)
+          `)
+          .in('offering_id', offeringIds);
+
+        if (offeringsRes.error) throw offeringsRes.error;
+
+        offeringsMap = new Map(
+          (offeringsRes.data || []).map((offering: any) => [offering.offering_id, offering])
+        );
+      }
+
+      const progressionRes = await this.client
+        .from('class_level_progression')
+        .select(`
+          progression_id,
+          student_id,
+          class_level_id,
+          completion_date,
+          status,
+          class_levels(level_name, description)
+        `)
+        .eq('student_id', studentId)
+        .order('completion_date', { ascending: false });
+
+      const enrollments = (enrollmentsRes.data || []).map((e: any) => {
+        const offering = offeringsMap.get(e.offering_id);
+        const teacherName = offering?.teachers?.personnel
+          ? `${offering.teachers.personnel.first_name || ''} ${offering.teachers.personnel.last_name || ''}`.trim()
+          : '';
+
+        return {
+          EnrollmentID: e.enrollment_id,
+          OfferingID: e.offering_id,
+          StudentID: e.student_id,
+          StudentPersonnelID: s.personnel_id,
+          EnrollmentDate: e.enrollment_date,
+          Status: e.status,
+          ClassLevelName: offering?.class_levels?.level_name || '',
+          TeacherName: teacherName,
+          StartDate: offering?.start_date || '',
+          EndDate: offering?.end_date || '',
+          VenueOrRoom: offering?.rooms?.room_name || '',
+        };
+      });
+
+      const progression = progressionRes.error
+        ? []
+        : (progressionRes.data || []).map((row: any) => ({
+            ProgressionID: row.progression_id,
+            StudentID: row.student_id,
+            ClassLevelID: row.class_level_id,
+            CompletionDate: row.completion_date,
+            Status: row.status,
+            LevelName: row.class_levels?.level_name || '',
+            Description: row.class_levels?.description || '',
+          }));
 
       return {
         success: true,
@@ -1175,7 +1253,7 @@ class SupabaseService {
           StudentStatus: s.status || 'Active',
           CurrentLevel: s.current_level_id,
           Enrollments: enrollments,
-          Progression: [],
+          Progression: progression,
         },
       };
     } catch (error) {
