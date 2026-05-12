@@ -57,6 +57,7 @@ export const CastDirectory: React.FC = () => {
 
   const handleOpenAddModal = async () => {
     setPersonnelSearch('');
+    setSelectedPersonnelIds([]);
     setIsAddModalOpen(true);
     if (allPersonnel.length === 0) {
       try {
@@ -79,6 +80,57 @@ export const CastDirectory: React.FC = () => {
       (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
     return notInCast && matchesSearch;
   });
+
+  const togglePersonnelSelect = (personnelId: number) => {
+    setSelectedPersonnelIds(prev =>
+      prev.includes(personnelId)
+        ? prev.filter(id => id !== personnelId)
+        : [...prev, personnelId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))) {
+      setSelectedPersonnelIds([]);
+    } else {
+      setSelectedPersonnelIds(availablePersonnel.map(p => p.PersonnelID));
+    }
+  };
+
+  const handleAddSelectedCastMembers = async () => {
+    if (selectedPersonnelIds.length === 0) return;
+    setIsAdding(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const personnelId of selectedPersonnelIds) {
+      try {
+        const response = await gasService.addPersonAsCastMember(personnelId);
+        if (response.success) successCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    setIsAdding(false);
+    setIsAddModalOpen(false);
+    setSelectedPersonnelIds([]);
+    await loadCastMembers();
+
+    if (successCount > 0) {
+      setMessage({
+        type: 'success',
+        text: `${successCount} cast member${successCount !== 1 ? 's' : ''} added successfully.`,
+      });
+    }
+    if (failCount > 0) {
+      setMessage({
+        type: 'error',
+        text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added.`,
+      });
+    }
+  };
 
   const handleAddCastMember = async (personnel: Personnel) => {
     setIsAdding(true);
