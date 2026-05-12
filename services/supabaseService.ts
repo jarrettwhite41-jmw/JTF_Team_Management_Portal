@@ -54,7 +54,12 @@ class SupabaseService {
   }
 
   constructor() {
-    this.client = getSupabaseClient();
+    try {
+      this.client = getSupabaseClient();
+    } catch (error) {
+      console.error('Supabase client initialization failed:', error);
+      this.client = null as any;
+    }
   }
 
   // ========================================================================
