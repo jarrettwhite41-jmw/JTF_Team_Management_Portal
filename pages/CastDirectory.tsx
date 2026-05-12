@@ -3,7 +3,7 @@ import { CastCard } from '../components/cast/CastCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { CastMemberWithDetails, Personnel } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 export const CastDirectory: React.FC = () => {
   const [castMembers, setCastMembers] = useState<CastMemberWithDetails[]>([]);

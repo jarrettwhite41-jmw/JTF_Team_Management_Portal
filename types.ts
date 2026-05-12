@@ -131,11 +131,17 @@ export interface CastMemberWithDetails extends ShowPerformances {
   FullName?: string;
   FirstName: string;
   Lastname: string;  // Note: "Lastname" to match Personnel sheet column name
+  LastName?: string;
   PrimaryEmail: string;
   PrimaryPhone: string;
   PersonnelID?: number;
   Birthday?: string;
-  // Show details - updated structure
+  // Cast-specific fields from cast_member_info
+  YearJoined?: number;
+  OutOfTown?: number;
+  LimitedInactive?: number;
+  ImageURL?: string;
+  // Show details
   LastShowDate?: string;
   Status: string;
 }
