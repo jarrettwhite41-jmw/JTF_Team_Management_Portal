@@ -19,6 +19,23 @@ export const PersonnelDirectory: React.FC = () => {
   const [personToDelete, setPersonToDelete] = useState<Personnel | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === 'object' && 'message' in error) {
+      return String((error as { message: unknown }).message);
+    }
+    return fallback;
+  };
+
+  const normalizePersonnelPayload = (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => ({
+    ...personData,
+    PrimaryPhone: (personData as Personnel).PrimaryPhone?.trim() || '',
+    Instagram: (personData as Personnel).Instagram?.trim() || '',
+    Birthday: (personData as Personnel).Birthday
+      ? String((personData as Personnel).Birthday).trim()
+      : '',
+  });
+
   useEffect(() => {
     loadPersonnel();
   }, []);
@@ -90,9 +107,10 @@ export const PersonnelDirectory: React.FC = () => {
   };
 
   const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
-    const emailToCheck = (personData as Personnel).PrimaryEmail?.trim().toLowerCase();
+    const normalized = normalizePersonnelPayload(personData);
+    const emailToCheck = (normalized as Personnel).PrimaryEmail?.trim().toLowerCase();
     const duplicate = personnel.find(p => {
-      const isSelf = modalMode === 'edit' && (personData as Personnel).PersonnelID === p.PersonnelID;
+      const isSelf = modalMode === 'edit' && (normalized as Personnel).PersonnelID === p.PersonnelID;
       return !isSelf && p.PrimaryEmail?.trim().toLowerCase() === emailToCheck;
     });
     if (duplicate) {
@@ -102,9 +120,9 @@ export const PersonnelDirectory: React.FC = () => {
     try {
       let response;
       if (modalMode === 'create') {
-        response = await gasService.createPersonnel(personData as Omit<Personnel, 'PersonnelID'>);
+        response = await gasService.createPersonnel(normalized as Omit<Personnel, 'PersonnelID'>);
       } else {
-        response = await gasService.updatePersonnel(personData as Personnel);
+        response = await gasService.updatePersonnel(normalized as Personnel);
       }
 
       if (response.success) {
@@ -114,10 +132,10 @@ export const PersonnelDirectory: React.FC = () => {
         });
         await loadPersonnel();
       } else {
-        throw new Error(response.error || 'Failed to save personnel');
+        throw new Error(getErrorMessage(response.error, 'Failed to save personnel'));
       }
     } catch (error) {
-      throw error;
+      throw new Error(getErrorMessage(error, 'Failed to save personnel'));
     }
   };
 
