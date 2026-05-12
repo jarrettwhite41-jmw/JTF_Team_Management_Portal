@@ -53,7 +53,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
 
   const [form, setForm] = useState({ ...defaultForm });
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
-  const [personnel, setPersonnel] = useState<PersonnelOption[]>([]);
+  const [teachers, setTeachers] = useState<PersonnelOption[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -93,13 +93,13 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
   const loadDropdownData = async () => {
     setIsLoading(true);
     try {
-      const [levelsRes, personnelRes, roomsRes] = await Promise.all([
+      const [levelsRes, teachersRes, roomsRes] = await Promise.all([
         gasService.getAllClassLevels(),
-        gasService.getAllPersonnel(),
+        gasService.getAllTeachers(),
         gasService.getAllRooms(),
       ]);
       if (levelsRes.success && levelsRes.data) setClassLevels(levelsRes.data as ClassLevel[]);
-      if (personnelRes.success && personnelRes.data) setPersonnel(personnelRes.data as PersonnelOption[]);
+      if (teachersRes.success && teachersRes.data) setTeachers(teachersRes.data as PersonnelOption[]);
       if (roomsRes.success && roomsRes.data) setRooms(roomsRes.data as Room[]);
     } catch {
       setMessage({ type: 'error', text: 'Failed to load form options' });
@@ -237,7 +237,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="">Select a teacher…</option>
-                    {personnel.map(p => (
+                    {teachers.map(p => (
                       <option key={p.PersonnelID} value={p.PersonnelID}>
                         {p.FirstName} {p.LastName}
                       </option>

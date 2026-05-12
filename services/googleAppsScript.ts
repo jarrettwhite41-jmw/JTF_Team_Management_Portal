@@ -206,6 +206,9 @@ class GoogleAppsScriptService {
             case 'getAllPersonnel':
               data = mockPersonnel;
               break;
+            case 'getAllTeachers':
+              data = mockPersonnel;
+              break;
             case 'getAllShows':
               data = mockShows;
               break;
@@ -314,6 +317,10 @@ class GoogleAppsScriptService {
   // Personnel methods
   async getAllPersonnel(): Promise<ApiResponse<Personnel[]>> {
     return this.callServerFunction<Personnel[]>('getAllPersonnel');
+  }
+
+  async getAllTeachers(): Promise<ApiResponse<Personnel[]>> {
+    return this.callServerFunction<Personnel[]>('getAllTeachers');
   }
 
   async createPersonnel(personnel: Omit<Personnel, 'PersonnelID'>): Promise<ApiResponse<Personnel>> {

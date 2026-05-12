@@ -89,6 +89,37 @@ class SupabaseService {
     }
   }
 
+  async getAllTeachers(): Promise<ApiResponse<Personnel[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('teachers')
+        .select(`
+          personnel_id,
+          personnel(
+            personnel_id,
+            first_name,
+            last_name,
+            primary_email,
+            primary_phone,
+            instagram,
+            birthday
+          )
+        `)
+        .order('personnel_id', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed = (data || [])
+        .map((row: any) => this.toPersonnel(row.personnel))
+        .filter((row: Personnel | undefined) => Boolean(row?.PersonnelID));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching teachers:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getPersonnelById(personnelId: number): Promise<ApiResponse<Personnel>> {
     try {
       const { data, error } = await this.client
