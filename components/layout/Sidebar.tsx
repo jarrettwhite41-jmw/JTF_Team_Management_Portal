@@ -41,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       {/* Sidebar panel */}
       <div
         className={[
-          'jtf-sidebar flex flex-col shadow-xl',
+          'bg-slate-900 flex flex-col shadow-xl',
           'fixed inset-y-0 left-0 z-50 w-64',
           'transition-transform duration-300 ease-in-out',
           'md:relative md:inset-auto md:z-auto md:h-full md:flex-shrink-0 md:translate-x-0',
@@ -53,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
           <div>
             <span className="jtf-logo-text">Just The Funny</span>
             <p className="jtf-logo-sub">Team Portal</p>
-            <div className="mt-3 h-px" style={{ background: 'linear-gradient(to right, #dc2626, #eab308, transparent)' }} />
+            <div className="mt-3 h-px" style={{ background: 'linear-gradient(to right, #ef4444, #eab308, transparent)' }} />
           </div>
           {/* Close button — mobile only */}
           <button
@@ -76,14 +76,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                 <button
                   onClick={() => handleNavigate(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
-                    currentPage === item.id ? 'jtf-nav-active' : 'jtf-nav-item'
+                    currentPage === item.id
+                      ? 'bg-sky-500 text-white shadow-sm'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
                   }`}
                 >
                   <span className="text-lg leading-none">{item.icon}</span>
                   <span className="text-sm font-medium">{item.label}</span>
-                  {currentPage === item.id && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#eab308' }} />
-                  )}
                 </button>
               </li>
             ))}
