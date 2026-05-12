@@ -59,9 +59,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-zinc-50">
+    <div className="flex w-full h-full bg-slate-100 overflow-hidden">
       {/* Mobile top header bar */}
-      <header className="jtf-mobile-header md:hidden fixed top-0 left-0 right-0 z-30 h-14 flex items-center px-4 shadow-lg">
+      <header className="bg-slate-900 md:hidden fixed top-0 left-0 right-0 z-30 h-14 flex items-center px-4 shadow-lg">
         <button
           onClick={() => setIsMobileMenuOpen(true)}
           className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
