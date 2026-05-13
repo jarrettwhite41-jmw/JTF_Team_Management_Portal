@@ -118,6 +118,26 @@ export interface CrewDutyTypes {
   DutyName: string;
 }
 
+export interface MasterGame {
+  GameID: number;
+  GameName: string;
+  Description?: string;
+  Category?: string;
+  DifficultyLevel?: number | null;
+}
+
+export interface ShowGame {
+  GamesPlayedID?: number;
+  ShowID: number;
+  GameID?: number | null;
+  GameName?: string;
+  OrderInShow?: number | null;
+  Notes?: string | null;
+  CustomGameName?: string | null;
+  GameVariationNotes?: string | null;
+  FlagForMasterList?: boolean;
+}
+
 // Extended Types for UI
 export interface PersonnelWithDetails extends Personnel {
   isStudent?: boolean;

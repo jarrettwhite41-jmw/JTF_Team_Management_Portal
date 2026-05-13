@@ -16,6 +16,8 @@ import {
   CrewMemberWithDetails,
   BartenderWithDetails,
   ShowWithDetails,
+  MasterGame,
+  ShowGame,
   StudentInfo,
   ClassLevelProgression,
   Bartender,
@@ -926,6 +928,135 @@ class SupabaseService {
     } catch (error) {
       console.error('Error fetching rooms:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllGames(): Promise<ApiResponse<MasterGame[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .select('*')
+        .order('game_name', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed = (data || []).map((game: any) => ({
+        GameID: game.game_id,
+        GameName: game.game_name,
+        Description: game.description || '',
+        Category: game.category || '',
+        DifficultyLevel: game.difficulty_level ?? null,
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getShowGames(showId: number): Promise<ApiResponse<ShowGame[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('games_played')
+        .select('games_played_id, show_id, game_id, order_in_show, notes, master_game_list(game_name)')
+        .eq('show_id', showId)
+        .order('order_in_show', { ascending: true, nullsFirst: false })
+        .order('games_played_id', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed = (data || []).map((game: any) => ({
+        GamesPlayedID: game.games_played_id,
+        ShowID: game.show_id,
+        GameID: game.game_id,
+        GameName: game.master_game_list?.game_name || '',
+        OrderInShow: game.order_in_show ?? null,
+        Notes: game.notes || '',
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching show games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateShowGames(showId: number, games: Array<{ gameId?: number | null; customName?: string | null; variation?: string | null; flag?: boolean }>): Promise<ApiResponse<any>> {
+    try {
+      const customGames = games.filter(game => game.customName && game.customName.trim().length > 0);
+
+      for (const game of customGames) {
+        const customName = game.customName!.trim();
+        const { data: existing, error: lookupError } = await this.client
+          .from('master_game_list')
+          .select('game_id, game_name')
+          .ilike('game_name', customName)
+          .maybeSingle();
+
+        if (lookupError) throw lookupError;
+
+        if (!existing && game.flag) {
+          const { error: insertGameError } = await this.client
+            .from('master_game_list')
+            .insert([{
+              game_name: customName,
+              description: game.variation || null,
+              category: 'Custom',
+              difficulty_level: null,
+            }]);
+
+          if (insertGameError) throw insertGameError;
+        }
+      }
+
+      const namesToResolve = customGames
+        .map(game => game.customName?.trim())
+        .filter((name): name is string => Boolean(name));
+
+      const { data: resolvedGames, error: resolveError } = namesToResolve.length > 0
+        ? await this.client
+            .from('master_game_list')
+            .select('game_id, game_name')
+            .in('game_name', namesToResolve)
+        : { data: [], error: null };
+
+      if (resolveError) throw resolveError;
+
+      const resolvedGameMap = new Map((resolvedGames || []).map((game: any) => [String(game.game_name).toLowerCase(), game.game_id]));
+
+      const { error: deleteError } = await this.client
+        .from('games_played')
+        .delete()
+        .eq('show_id', showId);
+
+      if (deleteError) throw deleteError;
+
+      const insertRows = games
+        .map((game, index) => {
+          const resolvedGameId = game.gameId || (game.customName ? resolvedGameMap.get(game.customName.trim().toLowerCase()) : null);
+          if (!resolvedGameId) return null;
+          return {
+            show_id: showId,
+            game_id: resolvedGameId,
+            order_in_show: index + 1,
+            notes: game.variation || null,
+          };
+        })
+        .filter(Boolean);
+
+      if (insertRows.length > 0) {
+        const { error: insertError } = await this.client
+          .from('games_played')
+          .insert(insertRows as any[]);
+
+        if (insertError) throw insertError;
+      }
+
+      return { success: true, data: { updated: true } };
+    } catch (error) {
+      console.error('Error updating show games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 

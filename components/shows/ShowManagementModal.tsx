@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from '../common/Message';
 import { ShowEditModal } from './ShowEditModal';
 import { gasService } from '../../services/googleAppsScript';
-import { ShowWithDetails, ShowPerformances, CrewDutyTypes } from '../../types';
+import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame } from '../../types';
 
 interface ShowManagementModalProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ interface ShowManagementModalProps {
   onSaved: () => void;
 }
 
-type Tab = 'details' | 'cast' | 'crew';
+type Tab = 'details' | 'cast' | 'crew' | 'games';
 
 type CastOption = {
   CastMemberID: number;
@@ -37,6 +37,14 @@ type CrewAssignment = {
   DutyName: string;
 };
 
+type EditableShowGame = {
+  localId: string;
+  gameId?: number | null;
+  customName: string;
+  variation: string;
+  flag: boolean;
+};
+
 export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen, show, onClose, onSaved }) => {
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [isLoading, setIsLoading] = useState(true);
@@ -50,8 +58,26 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
   const [castSearch, setCastSearch] = useState('');
   const [crewSearch, setCrewSearch] = useState('');
+  const [masterGames, setMasterGames] = useState<MasterGame[]>([]);
+  const [showGames, setShowGames] = useState<EditableShowGame[]>([]);
+  const [gameSearch, setGameSearch] = useState('');
 
   const sortByName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
+  const isCompletedShow = useMemo(() => {
+    const rawDate = String(show.ShowDate || '').slice(0, 10);
+    const showDate = new Date(`${rawDate}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return !Number.isNaN(showDate.getTime()) && showDate.getTime() < today.getTime();
+  }, [show.ShowDate]);
+
+  const createEmptyGame = (): EditableShowGame => ({
+    localId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    gameId: null,
+    customName: '',
+    variation: '',
+    flag: false,
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,6 +94,13 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         gasService.getShowCrew(show.ShowID),
         gasService.getAllCrewDutyTypes(),
       ]);
+
+      const [gamesResponse, showGamesResponse] = isCompletedShow
+        ? await Promise.all([
+            gasService.getAllGames(),
+            gasService.getShowGames(show.ShowID),
+          ])
+        : [{ success: true, data: [] }, { success: true, data: [] }];
 
       const castRows = Array.isArray(castResponse.data) ? castResponse.data : (castResponse.data as any)?.data || [];
       const performanceRows = Array.isArray(performancesResponse.data) ? performancesResponse.data : (performancesResponse.data as any)?.data || [];
@@ -121,6 +154,27 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
 
       if (dutyTypesResponse.success) {
         setCrewDutyTypes(dutyTypeRows || []);
+      }
+
+      if (gamesResponse.success) {
+        const rows = Array.isArray(gamesResponse.data) ? gamesResponse.data : (gamesResponse.data as any)?.data || [];
+        const sortedGames = [...rows].sort((a: MasterGame, b: MasterGame) => sortByName(a.GameName, b.GameName));
+        setMasterGames(sortedGames);
+      }
+
+      if (showGamesResponse.success) {
+        const rows = Array.isArray(showGamesResponse.data) ? showGamesResponse.data : (showGamesResponse.data as any)?.data || [];
+        setShowGames(rows.length > 0
+          ? rows.map((game: ShowGame) => ({
+              localId: String(game.GamesPlayedID || `${game.ShowID}-${game.GameID || 'custom'}`),
+              gameId: game.GameID ?? null,
+              customName: game.CustomGameName || '',
+              variation: game.GameVariationNotes || game.Notes || '',
+              flag: Boolean(game.FlagForMasterList),
+            }))
+          : [createEmptyGame()]);
+      } else if (isCompletedShow) {
+        setShowGames([createEmptyGame()]);
       }
     } finally {
       setIsLoading(false);
@@ -189,6 +243,48 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     }
   };
 
+  const handleGameChange = (localId: string, updates: Partial<EditableShowGame>) => {
+    setShowGames(prev => prev.map(game => game.localId === localId ? { ...game, ...updates } : game));
+  };
+
+  const handleAddGameRow = () => {
+    setShowGames(prev => [...prev, createEmptyGame()]);
+  };
+
+  const handleRemoveGameRow = (localId: string) => {
+    setShowGames(prev => {
+      const remaining = prev.filter(game => game.localId !== localId);
+      return remaining.length > 0 ? remaining : [createEmptyGame()];
+    });
+  };
+
+  const handleSaveGames = async () => {
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      const payload = showGames
+        .map(game => ({
+          gameId: game.gameId || null,
+          customName: game.customName.trim() || null,
+          variation: game.variation.trim() || null,
+          flag: game.flag,
+        }))
+        .filter(game => game.gameId || game.customName);
+
+      const response = await gasService.updateShowGames(show.ShowID, payload);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save games played');
+      }
+
+      setMessage({ type: 'success', text: 'Games played saved successfully' });
+      await loadData();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error saving games played' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getAssignedPersonnelIds = () => {
     const assigned = new Set<number>();
     crewAssignments.forEach((personnelId) => assigned.add(personnelId));
@@ -217,6 +313,16 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return availableCast.filter(member => 
       !crewPersonnelIds.has(member.PersonnelID) &&
       (!query || member.FullName.toLowerCase().includes(query) || member.PrimaryEmail.toLowerCase().includes(query))
+    );
+  };
+
+  const getFilteredMasterGames = (selectedGameId?: number | null) => {
+    const query = gameSearch.trim().toLowerCase();
+    return masterGames.filter(game =>
+      game.GameID === selectedGameId ||
+      !query ||
+      game.GameName.toLowerCase().includes(query) ||
+      (game.Category || '').toLowerCase().includes(query)
     );
   };
 
@@ -252,6 +358,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
             <button onClick={() => setActiveTab('details')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Details</button>
             <button onClick={() => setActiveTab('cast')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'cast' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Cast ({castCounts.selected})</button>
             <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({currentCrew.length})</button>
+            {isCompletedShow && <button onClick={() => setActiveTab('games')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'games' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Games ({showGames.filter(game => game.gameId || game.customName.trim()).length})</button>}
           </div>
         </div>
 
@@ -305,6 +412,85 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="mt-6 flex justify-end gap-2 border-t border-gray-200 pt-4">
                 <button onClick={handleSaveCrew} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
                   Save Crew Assignments
+                </button>
+              </div>
+            </>
+          ) : activeTab === 'games' ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search Master Game List</label>
+                <input
+                  type="text"
+                  value={gameSearch}
+                  onChange={(e) => setGameSearch(e.target.value)}
+                  placeholder="Type a game name or category..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
+              <div className="space-y-4">
+                {showGames.map((game, index) => {
+                  const filteredGames = getFilteredMasterGames(game.gameId);
+                  return (
+                    <div key={game.localId} className="rounded-lg border border-gray-200 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-gray-900">Game {index + 1}</h4>
+                        <button type="button" onClick={() => handleRemoveGameRow(game.localId)} className="text-sm text-red-600 hover:text-red-700">Remove</button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Master Game</label>
+                          <select
+                            value={game.gameId || ''}
+                            onChange={(e) => handleGameChange(game.localId, { gameId: e.target.value ? Number(e.target.value) : null })}
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          >
+                            <option value="">Select a game</option>
+                            {filteredGames.map(masterGame => (
+                              <option key={masterGame.GameID} value={masterGame.GameID}>{masterGame.GameName}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Custom Game Name</label>
+                          <input
+                            type="text"
+                            value={game.customName}
+                            onChange={(e) => handleGameChange(game.localId, { customName: e.target.value, gameId: e.target.value ? null : game.gameId })}
+                            placeholder="Add a custom game if not in the list"
+                            className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Variation / Notes</label>
+                        <input
+                          type="text"
+                          value={game.variation}
+                          onChange={(e) => handleGameChange(game.localId, { variation: e.target.value })}
+                          placeholder="Optional notes, variation, or setup details"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={game.flag}
+                          onChange={(e) => handleGameChange(game.localId, { flag: e.target.checked })}
+                          disabled={!game.customName.trim()}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        Add custom game to master list
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex justify-between gap-2 border-t border-gray-200 pt-4">
+                <button type="button" onClick={handleAddGameRow} className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50">
+                  Add Another Game
+                </button>
+                <button onClick={handleSaveGames} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
+                  Save Games Played
                 </button>
               </div>
             </>

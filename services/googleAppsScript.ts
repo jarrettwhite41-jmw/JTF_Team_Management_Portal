@@ -14,7 +14,9 @@ import {
   CastMemberWithDetails,
   CrewMemberWithDetails,
   BartenderWithDetails,
-  ShowWithDetails
+  ShowWithDetails,
+  MasterGame,
+  ShowGame
 } from '../types';
 import { supabaseService } from './supabaseService';
 
@@ -80,6 +82,17 @@ const mockRooms = [
   { RoomID: 1, RoomName: 'Studio A' },
   { RoomID: 2, RoomName: 'Studio B' },
   { RoomID: 3, RoomName: 'Main Stage' },
+];
+
+const mockMasterGames: MasterGame[] = [
+  { GameID: 1, GameName: 'Freeze Tag', Description: 'Scene replacement game', Category: 'Short Form', DifficultyLevel: 2 },
+  { GameID: 2, GameName: 'Party Quirks', Description: 'Guessing game', Category: 'Short Form', DifficultyLevel: 2 },
+  { GameID: 3, GameName: 'Scenes From a Hat', Description: 'Quick prompt scenes', Category: 'Short Form', DifficultyLevel: 1 },
+];
+
+const mockShowGames: ShowGame[] = [
+  { GamesPlayedID: 1, ShowID: 1, GameID: 1, GameName: 'Freeze Tag', OrderInShow: 1, Notes: 'Opened strong' },
+  { GamesPlayedID: 2, ShowID: 1, GameID: 3, GameName: 'Scenes From a Hat', OrderInShow: 2, Notes: 'Great audience suggestions' },
 ];
 
 const mockInventory: Inventory[] = [
@@ -327,6 +340,15 @@ class GoogleAppsScriptService {
             case 'getAllRooms':
               data = mockRooms;
               break;
+            case 'getAllGames':
+              data = mockMasterGames;
+              break;
+            case 'getShowGames':
+              data = mockShowGames.filter(game => game.ShowID === Number(args[0]));
+              break;
+            case 'updateShowGames':
+              data = { success: true, message: 'Games updated successfully' };
+              break;
             case 'getStudentNotesForStudent':
               data = [];
               break;
@@ -515,6 +537,18 @@ class GoogleAppsScriptService {
 
   async getAllRooms(): Promise<ApiResponse<{ RoomID: number; RoomName: string }[]>> {
     return this.callServerFunction<{ RoomID: number; RoomName: string }[]>('getAllRooms');
+  }
+
+  async getAllGames(): Promise<ApiResponse<MasterGame[]>> {
+    return this.callServerFunction<MasterGame[]>('getAllGames');
+  }
+
+  async getShowGames(showId: number): Promise<ApiResponse<ShowGame[]>> {
+    return this.callServerFunction<ShowGame[]>('getShowGames', showId);
+  }
+
+  async updateShowGames(showId: number, games: Array<{ gameId?: number | null; customName?: string | null; variation?: string | null; flag?: boolean }>): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateShowGames', showId, games);
   }
 
   // Dashboard methods
