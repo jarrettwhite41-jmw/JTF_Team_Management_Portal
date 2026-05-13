@@ -47,7 +47,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [currentCrew, setCurrentCrew] = useState<CrewAssignment[]>([]);
   const [personnelOptions, setPersonnelOptions] = useState<PersonnelOption[]>([]);
   const [crewDutyTypes, setCrewDutyTypes] = useState<CrewDutyTypes[]>([]);
-  const [crewForm, setCrewForm] = useState({ PersonnelID: '', CrewDutyTypeID: '' });
+  const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
 
   useEffect(() => {
     if (!isOpen) return;
@@ -84,6 +84,11 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
 
       if (crewResponse.success) {
+        const crewMap = new Map<number, number>();
+        crewRows.forEach((row: any) => {
+          crewMap.set(row.CrewDutyTypeID, row.PersonnelID);
+        });
+        setCrewAssignments(crewMap);
         setCurrentCrew(crewRows.map((row: any) => ({
           DutyID: row.DutyID,
           ShowID: row.ShowID,
@@ -123,68 +128,54 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     });
   };
 
-  const handleSaveCast = async () => {
+  const handleCrewAssignmentChange = (dutyTypeId: number, personnelId: string) => {
+    setCrewAssignments(prev => {
+      const next = new Map(prev);
+      if (personnelId) {
+        next.set(dutyTypeId, Number(personnelId));
+      } else {
+        next.delete(dutyTypeId);
+      }
+      return next;
+    });
+  };
+
+  const handleSaveCrew = async () => {
     setIsLoading(true);
     setMessage(null);
     try {
-      const selected = availableCast
-        .filter(member => selectedCastIds.has(member.PersonnelID))
-        .map(member => ({ ShowID: show.ShowID, CastMemberID: member.CastMemberID, PersonnelID: member.PersonnelID, Role: 'Cast Member' } as ShowPerformances & { PersonnelID: number }));
-
-      const response = await gasService.updateShowCast(show.ShowID, selected);
-      if (response.success) {
-        setMessage({ type: 'success', text: 'Show cast updated successfully' });
-        onSaved();
-        await loadData();
-      } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to update cast' });
+      const assignmentsToRemove = currentCrew.filter(crew => !crewAssignments.has(crew.CrewDutyTypeID));
+      for (const assignment of assignmentsToRemove) {
+        await gasService.removeCrewMember(assignment.DutyID);
       }
+
+      const assignmentsToAdd = Array.from(crewAssignments.entries())
+        .filter(([dutyTypeId]) => !currentCrew.find(crew => crew.CrewDutyTypeID === dutyTypeId));
+      for (const [dutyTypeId, personnelId] of assignmentsToAdd) {
+        await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
+      }
+
+      setMessage({ type: 'success', text: 'Crew assignments saved successfully' });
+      onSaved();
+      await loadData();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error updating cast' });
+      setMessage({ type: 'error', text: 'Error saving crew assignments' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddCrewMember = async () => {
-    if (!crewForm.PersonnelID || !crewForm.CrewDutyTypeID) return;
-    setIsLoading(true);
-    setMessage(null);
-    try {
-      const response = await gasService.addPersonAsCrewMember(Number(crewForm.PersonnelID), show.ShowID, Number(crewForm.CrewDutyTypeID));
-      if (response.success) {
-        setMessage({ type: 'success', text: 'Crew member added successfully' });
-        setCrewForm({ PersonnelID: '', CrewDutyTypeID: '' });
-        onSaved();
-        await loadData();
-      } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to add crew member' });
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error adding crew member' });
-    } finally {
-      setIsLoading(false);
-    }
+  const getAssignedPersonnelIds = () => {
+    const assigned = new Set<number>();
+    crewAssignments.forEach((personnelId) => assigned.add(personnelId));
+    return assigned;
   };
 
-  const handleRemoveCrewMember = async (dutyId: number) => {
-    if (!confirm('Remove this crew assignment?')) return;
-    setIsLoading(true);
-    try {
-      const response = await gasService.removeCrewMember(dutyId);
-      if (response.success) {
-        setMessage({ type: 'success', text: 'Crew member removed successfully' });
-        onSaved();
-        await loadData();
-      } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to remove crew member' });
-      }
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error removing crew member' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
+    const assignedIds = getAssignedPersonnelIds();
+    const currentAssignment = crewAssignments.get(dutyTypeId);
+    return personnelOptions.filter(p => !assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment);
+  };;
 
   if (!isOpen) return null;
 
@@ -233,67 +224,92 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{show.CastMembers && show.CastMembers.length > 0 ? show.CastMembers.map((member: any, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FirstName} {member.LastName}</span>) : 'No cast assigned'}</div></div>
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{show.CrewMembers && show.CrewMembers.length > 0 ? show.CrewMembers.map((member: any, index) => <span key={index} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FirstName} {member.LastName}</span>) : 'No crew assigned'}</div></div>
             </div>
-          ) : activeTab === 'cast' ? (
+          ) : activeTab === 'crew' ? (
             <>
-              <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-3">
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={availableCast.length > 0 && availableCast.every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(availableCast.map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                  Select all cast ({availableCast.length})
-                </label>
-                <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {availableCast.map(member => (
-                  <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.PersonnelID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="checkbox" checked={selectedCastIds.has(member.PersonnelID)} onChange={() => toggleCast(member.PersonnelID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                    <div className="min-w-0"><div className="font-medium text-gray-900">{member.FullName}</div><div className="text-xs text-gray-500">{member.PrimaryEmail}</div></div>
-                  </label>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Personnel</label>
-                  <select value={crewForm.PersonnelID} onChange={(e) => setCrewForm(prev => ({ ...prev, PersonnelID: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                    <option value="">Select person</option>
-                    {personnelOptions.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Crew Duty</label>
-                  <select value={crewForm.CrewDutyTypeID} onChange={(e) => setCrewForm(prev => ({ ...prev, CrewDutyTypeID: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                    <option value="">Select duty</option>
-                    {crewDutyTypes.map(type => <option key={type.CrewDutyTypeID} value={type.CrewDutyTypeID}>{type.DutyName}</option>)}
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button onClick={handleAddCrewMember} disabled={isLoading || !crewForm.PersonnelID || !crewForm.CrewDutyTypeID} className="w-full rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 disabled:opacity-50">Add Crew Member</button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {currentCrew.length > 0 ? currentCrew.map(member => (
-                  <div key={member.DutyID} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3">
-                    <div>
-                      <div className="font-medium text-gray-900">{member.FullName}</div>
-                      <div className="text-xs text-gray-500">{member.DutyName}</div>
+              <div className="space-y-3">
+                {crewDutyTypes.map(dutyType => {
+                  const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
+                  const assignedPerson = personnelOptions.find(p => p.PersonnelID === assignedPersonnelId);
+                  const availablePersonnel = getAvailablePersonnelForDuty(dutyType.CrewDutyTypeID);
+                  return (
+                    <div key={dutyType.CrewDutyTypeID} className="flex items-end gap-3 rounded-lg border border-gray-200 p-4">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">{dutyType.DutyName}</label>
+                        <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                          <option value="">Unassigned</option>
+                          {availablePersonnel.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
+                        </select>
+                      </div>
+                      {assignedPerson && (
+                        <div className="text-xs text-gray-500 text-right pb-2 min-w-[100px]">
+                          {assignedPerson.PrimaryEmail}
+                        </div>
+                      )}
                     </div>
-                    <button onClick={() => handleRemoveCrewMember(member.DutyID)} className="text-xs px-2 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50">Remove</button>
-                  </div>
-                )) : <p className="text-gray-500 text-sm">No crew assigned.</p>}
+                  );
+                })}
+              </div>
+              <div className="mt-6 flex justify-end gap-2 border-t border-gray-200 pt-4">
+                <button onClick={handleSaveCrew} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
+                  Save Crew Assignments
+                </button>
               </div>
             </>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
-          <div>{activeTab === 'cast' && <button onClick={handleSaveCast} disabled={isLoading} className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 transition-colors disabled:opacity-50">Save Cast</button>}</div>
-          <button onClick={onClose} className="rounded-lg bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300 transition-colors">Close</button>
-        </div>
+          ) : activeTab === 'cast' ? (
+          <>
+            <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={availableCast.length > 0 && availableCast.every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(availableCast.map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                Select all cast ({availableCast.length})
+              </label>
+              <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {availableCast.map(member => (
+                <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.PersonnelID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                  <input type="checkbox" checked={selectedCastIds.has(member.PersonnelID)} onChange={() => toggleCast(member.PersonnelID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  <div className="min-w-0"><div className="font-medium text-gray-900">{member.FullName}</div><div className="text-xs text-gray-500">{member.PrimaryEmail}</div></div>
+                </label>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end border-t border-gray-200 pt-4">
+              <button onClick={async () => {
+                setIsLoading(true);
+                setMessage(null);
+                try {
+                  const selected = availableCast
+                    .filter(member => selectedCastIds.has(member.PersonnelID))
+                    .map(member => ({ ShowID: show.ShowID, CastMemberID: member.CastMemberID, PersonnelID: member.PersonnelID, Role: 'Cast Member' } as ShowPerformances & { PersonnelID: number }));
+                  const response = await gasService.updateShowCast(show.ShowID, selected);
+                  if (response.success) {
+                    setMessage({ type: 'success', text: 'Show cast updated successfully' });
+                    onSaved();
+                    await loadData();
+                  } else {
+                    setMessage({ type: 'error', text: response.error || 'Failed to update cast' });
+                  }
+                } catch (error) {
+                  setMessage({ type: 'error', text: 'Error updating cast' });
+                } finally {
+                  setIsLoading(false);
+                }
+              }} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
+                Save Cast
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-gray-500 text-center py-8">No active tab selected.</p>
+        )}
       </div>
 
-      <ShowEditModal isOpen={showEditOpen} show={show} onClose={() => setShowEditOpen(false)} onSaved={() => { setShowEditOpen(false); onSaved(); }} />
+      <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
+        <div></div>
+        <button onClick={onClose} className="rounded-lg bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300 transition-colors">Close</button>
+      </div>
     </div>
-  );
-};
+
+    <ShowEditModal isOpen={showEditOpen} show={show} onClose={() => setShowEditOpen(false)} onSaved={() => { setShowEditOpen(false); onSaved(); }} />
+  </div>
+);
+}
