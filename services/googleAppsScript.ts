@@ -226,6 +226,12 @@ class GoogleAppsScriptService {
             case 'getAllShowTypes':
               data = mockShowTypes;
               break;
+            case 'getAllDirectors':
+              data = [
+                { DirectorID: 1, PersonnelID: 1, FirstName: 'John', LastName: 'Doe', PrimaryEmail: 'john.doe@email.com' },
+                { DirectorID: 2, PersonnelID: 2, FirstName: 'Jane', LastName: 'Smith', PrimaryEmail: 'jane.smith@email.com' },
+              ];
+              break;
             case 'getAllClassLevels':
               data = mockClassLevels;
               break;
@@ -252,6 +258,28 @@ class GoogleAppsScriptService {
               break;
             case 'removeCastMember':
               data = { deleted: true };
+              break;
+            case 'getAllCastMembers':
+              data = {
+                data: mockPersonnel.slice(0, 3).map((person, index) => ({
+                  CastMemberID: index + 1,
+                  PersonnelID: person.PersonnelID,
+                  FirstName: person.FirstName,
+                  LastName: person.LastName,
+                  FullName: `${person.FirstName} ${person.LastName}`,
+                  PrimaryEmail: person.PrimaryEmail,
+                  PrimaryPhone: person.PrimaryPhone,
+                })),
+              };
+              break;
+            case 'getShowPerformances':
+              data = [
+                { PerformanceID: 1, ShowID: args[0], CastMemberID: 1, Role: 'Cast Member' },
+                { PerformanceID: 2, ShowID: args[0], CastMemberID: 2, Role: 'Cast Member' },
+              ];
+              break;
+            case 'updateShowCast':
+              data = true;
               break;
             case 'createClassOffering':
               data = { ...args[0], OfferingID: Date.now() };
@@ -354,6 +382,10 @@ class GoogleAppsScriptService {
 
   async createShow(show: Omit<ShowInformation, 'ShowID'>): Promise<ApiResponse<ShowInformation>> {
     return this.callServerFunction<ShowInformation>('createShow', show);
+  }
+
+  async getAllDirectors(): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getAllDirectors');
   }
 
   async updateShow(show: ShowInformation): Promise<ApiResponse<ShowInformation>> {

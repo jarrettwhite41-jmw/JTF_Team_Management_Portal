@@ -247,7 +247,7 @@ class SupabaseService {
           `
           *,
           show_types(show_type_name),
-          directors(personnel_id),
+          directors(personnel_id, personnel(first_name, last_name)),
           show_performances(*, personnel(*)),
           crew_duties(*, personnel(*))
         `
@@ -265,7 +265,9 @@ class SupabaseService {
         Venue: show.venue,
         Status: show.status,
         ShowTypeName: show.show_types?.show_type_name || '',
-        DirectorName: '',
+        DirectorName: show.directors?.personnel
+          ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
+          : '',
         CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
         CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
       })) || [];
@@ -299,6 +301,100 @@ class SupabaseService {
     } catch (error) {
       console.error('Error creating show:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllDirectors(): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('directors')
+        .select(`
+          director_id,
+          personnel_id,
+          personnel(first_name, last_name, primary_email)
+        `)
+        .order('director_id', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed = (data || []).map((director: any) => ({
+        DirectorID: director.director_id,
+        PersonnelID: director.personnel_id,
+        FirstName: director.personnel?.first_name || '',
+        LastName: director.personnel?.last_name || '',
+        PrimaryEmail: director.personnel?.primary_email || '',
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching directors:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getShowPerformances(showId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_performances')
+        .select('show_id, cast_member_id, role')
+        .eq('show_id', showId)
+        .order('cast_member_id', { ascending: true });
+
+      if (error) throw error;
+
+      const castMembers = await this.getAllCastMembers();
+      const castMap = new Map((castMembers.success ? castMembers.data || [] : []).map((member: any) => [member.CastMemberID, member]));
+
+      const transformed = (data || []).map((row: any) => {
+        const castMember = castMap.get(row.cast_member_id);
+        return {
+          PerformanceID: `${row.show_id}-${row.cast_member_id}`,
+          ShowID: row.show_id,
+          CastMemberID: row.cast_member_id,
+          Role: row.role || 'Cast Member',
+          PersonnelID: castMember?.PersonnelID || null,
+          FirstName: castMember?.FirstName || '',
+          LastName: castMember?.LastName || '',
+          PrimaryEmail: castMember?.PrimaryEmail || '',
+          PrimaryPhone: castMember?.PrimaryPhone || '',
+          FullName: castMember?.FullName || `${castMember?.FirstName || ''} ${castMember?.LastName || ''}`.trim(),
+        };
+      });
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching show performances:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateShowCast(showId: number, castMembers: ShowPerformances[]): Promise<ApiResponse<boolean>> {
+    try {
+      const { error: deleteError } = await this.client
+        .from('show_performances')
+        .delete()
+        .eq('show_id', showId);
+
+      if (deleteError) throw deleteError;
+
+      if (castMembers.length > 0) {
+        const insertRows = castMembers.map(member => ({
+          show_id: showId,
+          cast_member_id: member.CastMemberID,
+          role: member.Role || 'Cast Member',
+        }));
+
+        const { error: insertError } = await this.client
+          .from('show_performances')
+          .insert(insertRows);
+
+        if (insertError) throw insertError;
+      }
+
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error updating show cast:', error);
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 

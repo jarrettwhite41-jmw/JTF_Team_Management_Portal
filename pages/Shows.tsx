@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShowCard } from '../components/shows/ShowCard';
+import { ShowEditModal } from '../components/shows/ShowEditModal';
+import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { ShowWithDetails } from '../types';
@@ -9,6 +11,9 @@ export const Shows: React.FC = () => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showEditorOpen, setShowEditorOpen] = useState(false);
+  const [showManagementOpen, setShowManagementOpen] = useState(false);
+  const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
 
   useEffect(() => {
     loadShows();
@@ -49,9 +54,13 @@ export const Shows: React.FC = () => {
   };
 
   const handleManageCast = (show: ShowWithDetails) => {
-    // TODO: Implement cast management modal
-    console.log('Managing cast for show:', show);
-    setMessage({ type: 'info', text: 'Cast management feature coming soon!' });
+    setSelectedShow(show);
+    setShowManagementOpen(true);
+  };
+
+  const handleAddShow = () => {
+    setSelectedShow(null);
+    setShowEditorOpen(true);
   };
 
   if (isLoading) {
@@ -62,7 +71,10 @@ export const Shows: React.FC = () => {
     <div className="p-4 sm:p-6">
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Shows</h1>
-        <button className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
+        <button
+          onClick={handleAddShow}
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+        >
           Add New Show
         </button>
       </div>
@@ -86,6 +98,28 @@ export const Shows: React.FC = () => {
           />
         ))}
       </div>
+
+      <ShowEditModal
+        isOpen={showEditorOpen}
+        show={selectedShow}
+        onClose={() => setShowEditorOpen(false)}
+        onSaved={() => {
+          setShowEditorOpen(false);
+          loadShows();
+        }}
+      />
+
+      {selectedShow && (
+        <ShowManagementModal
+          isOpen={showManagementOpen}
+          show={selectedShow}
+          onClose={() => setShowManagementOpen(false)}
+          onSaved={() => {
+            setShowManagementOpen(false);
+            loadShows();
+          }}
+        />
+      )}
     </div>
   );
 };
