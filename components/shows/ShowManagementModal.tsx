@@ -171,11 +171,24 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return assigned;
   };
 
+  const getSelectedCastPersonnelIds = () => {
+    return new Set(Array.from(selectedCastIds));
+  };
+
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
+    const selectedCastIds = getSelectedCastPersonnelIds();
     const currentAssignment = crewAssignments.get(dutyTypeId);
-    return personnelOptions.filter(p => !assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment);
-  };;
+    return personnelOptions.filter(p => 
+      (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
+      (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment)
+    );
+  };
+
+  const getAvailableCastMembers = () => {
+    const crewPersonnelIds = getAssignedPersonnelIds();
+    return availableCast.filter(member => !crewPersonnelIds.has(member.PersonnelID));
+  };
 
   if (!isOpen) return null;
 
@@ -221,8 +234,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Show Time</div><div className="text-gray-900">{show.ShowTime}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>
-              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{show.CastMembers && show.CastMembers.length > 0 ? show.CastMembers.map((member: any, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FirstName} {member.LastName}</span>) : 'No cast assigned'}</div></div>
-              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{show.CrewMembers && show.CrewMembers.length > 0 ? show.CrewMembers.map((member: any, index) => <span key={index} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FirstName} {member.LastName}</span>) : 'No crew assigned'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).length > 0 ? availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FullName}</span>) : 'No cast assigned'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{currentCrew.length > 0 ? currentCrew.map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
             </div>
           ) : activeTab === 'crew' ? (
             <>
@@ -259,13 +272,13 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           <>
             <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-3">
               <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={availableCast.length > 0 && availableCast.every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(availableCast.map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                Select all cast ({availableCast.length})
-              </label>
-              <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {availableCast.map(member => (
+                  <input type="checkbox" checked={getAvailableCastMembers().length > 0 && getAvailableCastMembers().every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(getAvailableCastMembers().map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  Select all cast ({getAvailableCastMembers().length})
+                </label>
+                <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {getAvailableCastMembers().map(member => (
                 <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.PersonnelID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                   <input type="checkbox" checked={selectedCastIds.has(member.PersonnelID)} onChange={() => toggleCast(member.PersonnelID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                   <div className="min-w-0"><div className="font-medium text-gray-900">{member.FullName}</div><div className="text-xs text-gray-500">{member.PrimaryEmail}</div></div>
