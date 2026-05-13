@@ -363,28 +363,29 @@ class SupabaseService {
     try {
       const { data, error } = await this.client
         .from('show_performances')
-        .select('show_id, cast_member_id, role')
+        .select('performance_id, show_id, personnel_id, role, personnel(first_name, last_name, primary_email)')
         .eq('show_id', showId)
-        .order('cast_member_id', { ascending: true });
+        .order('performance_id', { ascending: true });
 
       if (error) throw error;
 
       const castMembers = await this.getAllCastMembers();
-      const castMap = new Map((castMembers.success ? castMembers.data || [] : []).map((member: any) => [member.CastMemberID, member]));
+      const castMembersData = castMembers.success ? ((castMembers.data as any)?.data || castMembers.data || []) : [];
+      const castMapByPersonnel = new Map(castMembersData.map((member: any) => [member.PersonnelID, member]));
 
       const transformed = (data || []).map((row: any) => {
-        const castMember = castMap.get(row.cast_member_id);
+        const p = row.personnel || {};
+        const castMember = castMapByPersonnel.get(row.personnel_id);
         return {
-          PerformanceID: `${row.show_id}-${row.cast_member_id}`,
+          PerformanceID: row.performance_id,
           ShowID: row.show_id,
-          CastMemberID: row.cast_member_id,
+          PersonnelID: row.personnel_id,
+          CastMemberID: castMember?.CastMemberID || null,
           Role: row.role || 'Cast Member',
-          PersonnelID: castMember?.PersonnelID || null,
-          FirstName: castMember?.FirstName || '',
-          LastName: castMember?.LastName || '',
-          PrimaryEmail: castMember?.PrimaryEmail || '',
-          PrimaryPhone: castMember?.PrimaryPhone || '',
-          FullName: castMember?.FullName || `${castMember?.FirstName || ''} ${castMember?.LastName || ''}`.trim(),
+          FirstName: p.first_name || castMember?.FirstName || '',
+          LastName: p.last_name || castMember?.LastName || '',
+          PrimaryEmail: p.primary_email || castMember?.PrimaryEmail || '',
+          FullName: `${p.first_name || ''} ${p.last_name || ''}`.trim() || castMember?.FullName || '',
         };
       });
 
@@ -446,7 +447,7 @@ class SupabaseService {
       if (castMembers.length > 0) {
         const insertRows = castMembers.map(member => ({
           show_id: showId,
-          cast_member_id: member.CastMemberID,
+          personnel_id: (member as any).PersonnelID,
           role: member.Role || 'Cast Member',
         }));
 

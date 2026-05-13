@@ -15,6 +15,7 @@ type Tab = 'details' | 'cast' | 'crew';
 
 type CastOption = {
   CastMemberID: number;
+  PersonnelID: number;
   FullName: string;
   PrimaryEmail: string;
 };
@@ -74,13 +75,14 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       if (castResponse.success) {
         setAvailableCast(castRows.map((member: any) => ({
           CastMemberID: member.CastMemberID,
+          PersonnelID: member.PersonnelID,
           FullName: member.FullName || `${member.FirstName || ''} ${member.LastName || ''}`.trim(),
           PrimaryEmail: member.PrimaryEmail || '',
         })));
       }
 
       if (performancesResponse.success) {
-        setSelectedCastIds(new Set(performanceRows.map((row: ShowPerformances | any) => row.CastMemberID)));
+        setSelectedCastIds(new Set(performanceRows.map((row: any) => row.PersonnelID).filter(Boolean)));
       }
 
       if (crewResponse.success) {
@@ -128,8 +130,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     setMessage(null);
     try {
       const selected = availableCast
-        .filter(member => selectedCastIds.has(member.CastMemberID))
-        .map(member => ({ ShowID: show.ShowID, CastMemberID: member.CastMemberID, Role: 'Cast Member' } as ShowPerformances));
+        .filter(member => selectedCastIds.has(member.PersonnelID))
+        .map(member => ({ ShowID: show.ShowID, CastMemberID: member.CastMemberID, PersonnelID: member.PersonnelID, Role: 'Cast Member' } as ShowPerformances & { PersonnelID: number }));
 
       const response = await gasService.updateShowCast(show.ShowID, selected);
       if (response.success) {
@@ -237,15 +239,15 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
             <>
               <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-3">
                 <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input type="checkbox" checked={availableCast.length > 0 && availableCast.every(member => selectedCastIds.has(member.CastMemberID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(availableCast.map(member => member.CastMemberID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  <input type="checkbox" checked={availableCast.length > 0 && availableCast.every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(availableCast.map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                   Select all cast ({availableCast.length})
                 </label>
                 <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {availableCast.map(member => (
-                  <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.CastMemberID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
-                    <input type="checkbox" checked={selectedCastIds.has(member.CastMemberID)} onChange={() => toggleCast(member.CastMemberID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                  <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.PersonnelID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                    <input type="checkbox" checked={selectedCastIds.has(member.PersonnelID)} onChange={() => toggleCast(member.PersonnelID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
                     <div className="min-w-0"><div className="font-medium text-gray-900">{member.FullName}</div><div className="text-xs text-gray-500">{member.PrimaryEmail}</div></div>
                   </label>
                 ))}

@@ -34,6 +34,7 @@ export interface ShowPerformances {
   PerformanceID: number;
   ShowID: number;
   CastMemberID: number;
+  PersonnelID?: number;
   Role: string;
 }
 
