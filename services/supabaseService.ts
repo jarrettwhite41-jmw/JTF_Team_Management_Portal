@@ -533,6 +533,128 @@ class SupabaseService {
     }
   }
 
+  async getEnrolledStudents(offeringId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('student_enrollments')
+        .select(`
+          enrollment_id,
+          student_id,
+          enrollment_date,
+          status,
+          student_info(
+            personnel_id,
+            personnel(
+              first_name,
+              last_name,
+              primary_email,
+              primary_phone
+            )
+          )
+        `)
+        .eq('offering_id', offeringId)
+        .order('enrollment_date', { ascending: true });
+
+      if (error) throw error;
+
+      const rows = (data || []).map((row: any) => ({
+        EnrollmentID: row.enrollment_id,
+        StudentID: row.student_id,
+        PersonnelID: row.student_info?.personnel_id || null,
+        FirstName: row.student_info?.personnel?.first_name || '',
+        LastName: row.student_info?.personnel?.last_name || '',
+        PrimaryEmail: row.student_info?.personnel?.primary_email || '',
+        PrimaryPhone: row.student_info?.personnel?.primary_phone || '',
+        EnrollmentDate: row.enrollment_date,
+        CompletionStatus: row.status || 'Active',
+      }));
+
+      return { success: true, data: rows };
+    } catch (error) {
+      console.error('Error fetching enrolled students:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async enrollStudent(offeringId: number, studentId: number): Promise<ApiResponse<boolean>> {
+    try {
+      const existing = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id, status')
+        .eq('offering_id', offeringId)
+        .eq('student_id', studentId)
+        .order('enrollment_id', { ascending: false })
+        .limit(1);
+
+      if (existing.error) throw existing.error;
+
+      const latest = existing.data?.[0];
+      if (latest && latest.status !== 'ADMIN') {
+        return { success: false, error: 'Student is already enrolled in this class.' };
+      }
+
+      if (latest && latest.status === 'ADMIN') {
+        const { error: restoreError } = await this.client
+          .from('student_enrollments')
+          .update({
+            status: 'Active',
+            enrollment_date: new Date().toISOString().split('T')[0],
+          })
+          .eq('enrollment_id', latest.enrollment_id);
+
+        if (restoreError) throw restoreError;
+        return { success: true, data: true };
+      }
+
+      const { error: insertError } = await this.client
+        .from('student_enrollments')
+        .insert([
+          {
+            offering_id: offeringId,
+            student_id: studentId,
+            enrollment_date: new Date().toISOString().split('T')[0],
+            status: 'Active',
+          },
+        ]);
+
+      if (insertError) throw insertError;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error enrolling student:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async removeStudentFromClass(enrollmentId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_enrollments')
+        .update({ status: 'ADMIN' })
+        .eq('enrollment_id', enrollmentId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing student from class:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateEnrollmentStatus(enrollmentId: number, status: string): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_enrollments')
+        .update({ status })
+        .eq('enrollment_id', enrollmentId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating enrollment status:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // LOOKUP TABLES / REFERENCE DATA
   // ========================================================================

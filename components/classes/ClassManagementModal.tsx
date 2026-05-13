@@ -3,6 +3,7 @@ import { StudentCard } from './StudentCard';
 import { Loader } from '../common/Loader';
 import { Message } from '../common/Message';
 import { ClassEditModal } from './ClassEditModal';
+import { gasService } from '../../services/googleAppsScript';
 
 interface ClassManagementModalProps {
   isOpen: boolean;
@@ -45,23 +46,15 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const loadEnrolledStudents = async () => {
     setIsLoading(true);
     try {
-      // This will call the backend function
-      const response = await (window as any).google.script.run
-        .withSuccessHandler((data: any) => {
-          if (data.success) {
-            setEnrolledStudents(data.data || []);
-          } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to load students' });
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((error: any) => {
-          setMessage({ type: 'error', text: 'Error loading students' });
-          setIsLoading(false);
-        })
-        .getEnrolledStudents(classOffering.OfferingID);
+      const response = await gasService.getEnrolledStudents(classOffering.OfferingID);
+      if (response.success) {
+        setEnrolledStudents(response.data || []);
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to load students' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error loading students' });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -69,27 +62,20 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const loadAvailableStudents = async () => {
     setIsLoading(true);
     try {
-      const response = await (window as any).google.script.run
-        .withSuccessHandler((data: any) => {
-          if (data.success) {
-            // Filter out students already enrolled
-            const enrolledIds = enrolledStudents.map(s => s.StudentID);
-            const available = (data.data || []).filter(
-              (s: Student) => !enrolledIds.includes(s.StudentID)
-            );
-            setAvailableStudents(available);
-          } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to load students' });
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((error: any) => {
-          setMessage({ type: 'error', text: 'Error loading students' });
-          setIsLoading(false);
-        })
-        .getAllStudentsWithDetails();
+      const response = await gasService.getAllStudentsWithDetails();
+      if (response.success) {
+        // Filter out students already enrolled
+        const enrolledIds = enrolledStudents.map(s => s.StudentID);
+        const available = (response.data || []).filter(
+          (s: Student) => !enrolledIds.includes(s.StudentID)
+        );
+        setAvailableStudents(available);
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to load students' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error loading students' });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -103,25 +89,18 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const handleAddStudent = async (studentId: number) => {
     setIsLoading(true);
     try {
-      const response = await (window as any).google.script.run
-        .withSuccessHandler((data: any) => {
-          if (data.success) {
-            setMessage({ type: 'success', text: 'Student added successfully' });
-            loadEnrolledStudents();
-            loadAvailableStudents();
-            onRefresh();
-          } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to add student' });
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((error: any) => {
-          setMessage({ type: 'error', text: 'Error adding student' });
-          setIsLoading(false);
-        })
-        .enrollStudent(studentId, classOffering.OfferingID);
+      const response = await gasService.enrollStudent(classOffering.OfferingID, studentId);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Student added successfully' });
+        await loadEnrolledStudents();
+        await loadAvailableStudents();
+        onRefresh();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to add student' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error adding student' });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -133,25 +112,18 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
     setIsLoading(true);
     try {
-      const response = await (window as any).google.script.run
-        .withSuccessHandler((data: any) => {
-          if (data.success) {
-            setMessage({ type: 'success', text: 'Student removed successfully' });
-            loadEnrolledStudents();
-            loadAvailableStudents();
-            onRefresh();
-          } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to remove student' });
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((error: any) => {
-          setMessage({ type: 'error', text: 'Error removing student' });
-          setIsLoading(false);
-        })
-        .removeStudentFromClass(enrollmentId);
+      const response = await gasService.removeStudentFromClass(enrollmentId);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Student removed successfully' });
+        await loadEnrolledStudents();
+        await loadAvailableStudents();
+        onRefresh();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to remove student' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error removing student' });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -159,24 +131,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const handleStatusChange = async (enrollmentId: number, newStatus: string) => {
     setIsLoading(true);
     try {
-      const response = await (window as any).google.script.run
-        .withSuccessHandler((data: any) => {
-          if (data.success) {
-            setMessage({ type: 'success', text: 'Status updated successfully' });
-            loadEnrolledStudents();
-            onRefresh();
-          } else {
-            setMessage({ type: 'error', text: data.error || 'Failed to update status' });
-          }
-          setIsLoading(false);
-        })
-        .withFailureHandler((error: any) => {
-          setMessage({ type: 'error', text: 'Error updating status' });
-          setIsLoading(false);
-        })
-        .updateEnrollmentStatus(enrollmentId, newStatus);
+      const response = await gasService.updateEnrollmentStatus(enrollmentId, newStatus);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Status updated successfully' });
+        await loadEnrolledStudents();
+        onRefresh();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to update status' });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Error updating status' });
+    } finally {
       setIsLoading(false);
     }
   };

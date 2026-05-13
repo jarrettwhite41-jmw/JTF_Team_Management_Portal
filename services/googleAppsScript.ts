@@ -493,6 +493,14 @@ class GoogleAppsScriptService {
     return this.callServerFunction<boolean>('enrollStudent', offeringId, studentId);
   }
 
+  async getEnrolledStudents(offeringId: number): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getEnrolledStudents', offeringId);
+  }
+
+  async removeStudentFromClass(enrollmentId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeStudentFromClass', enrollmentId);
+  }
+
   // New Student Management Methods for Student Tab
   async enrollPersonAsStudent(personnelId: number, offeringId: number): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('enrollPersonAsStudent', personnelId, offeringId);
