@@ -49,6 +49,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [crewDutyTypes, setCrewDutyTypes] = useState<CrewDutyTypes[]>([]);
   const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
 
+  const sortByName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
+
   useEffect(() => {
     if (!isOpen) return;
     setActiveTab('details');
@@ -71,12 +73,14 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       const dutyTypeRows = Array.isArray(dutyTypesResponse.data) ? dutyTypesResponse.data : (dutyTypesResponse.data as any)?.data || [];
 
       if (castResponse.success) {
-        setAvailableCast(castRows.map((member: any) => ({
+        const mappedCast = castRows.map((member: any) => ({
           CastMemberID: member.CastMemberID,
           PersonnelID: member.PersonnelID,
           FullName: member.FullName || `${member.FirstName || ''} ${member.LastName || ''}`.trim(),
           PrimaryEmail: member.PrimaryEmail || '',
-        })));
+        }));
+        mappedCast.sort((a: CastOption, b: CastOption) => sortByName(a.FullName, b.FullName));
+        setAvailableCast(mappedCast);
       }
 
       if (performancesResponse.success) {
@@ -89,7 +93,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           crewMap.set(row.CrewDutyTypeID, row.PersonnelID);
         });
         setCrewAssignments(crewMap);
-        setCurrentCrew(crewRows.map((row: any) => ({
+        const mappedCrew = crewRows.map((row: any) => ({
           DutyID: row.DutyID,
           ShowID: row.ShowID,
           PersonnelID: row.PersonnelID,
@@ -97,16 +101,20 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           FullName: row.FullName || `${row.FirstName || ''} ${row.LastName || ''}`.trim(),
           PrimaryEmail: row.PrimaryEmail || '',
           DutyName: row.DutyName || 'Crew',
-        })));
+        }));
+        mappedCrew.sort((a: CrewAssignment, b: CrewAssignment) => sortByName(a.FullName, b.FullName));
+        setCurrentCrew(mappedCrew);
       }
 
       if (castResponse.success) {
-        setPersonnelOptions(castRows.map((member: any) => ({
+        const mappedPersonnel = castRows.map((member: any) => ({
           PersonnelID: member.PersonnelID,
           FirstName: member.FirstName,
           LastName: member.LastName,
           PrimaryEmail: member.PrimaryEmail,
-        })));
+        }));
+        mappedPersonnel.sort((a: PersonnelOption, b: PersonnelOption) => sortByName(`${a.FirstName || ''} ${a.LastName || ''}`.trim(), `${b.FirstName || ''} ${b.LastName || ''}`.trim()));
+        setPersonnelOptions(mappedPersonnel);
       }
 
       if (dutyTypesResponse.success) {
