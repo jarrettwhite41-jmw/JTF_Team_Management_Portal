@@ -452,22 +452,44 @@ class SupabaseService {
 
       if (error) throw error;
 
-      const rows = (data || []).map((cls: any) => ({
-        OfferingID: cls.offering_id,
-        ClassLevelID: cls.class_level_id,
-        LevelName: cls.class_levels?.level_name || '',
-        TeacherPersonnelID: cls.teachers?.personnel_id || null,
-        TeacherName: cls.teachers?.personnel
-          ? `${cls.teachers.personnel.first_name || ''} ${cls.teachers.personnel.last_name || ''}`.trim()
-          : '',
-        StartDate: cls.start_date,
-        EndDate: cls.end_date,
-        MaxStudents: cls.max_students || 0,
-        EnrolledCount: Array.isArray(cls.student_enrollments) ? cls.student_enrollments.length : 0,
-        Status: cls.status,
-        Location: cls.rooms?.room_name || '',
-        MeetingDays: cls.notes || '',
-      }));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const rows = (data || []).map((cls: any) => {
+        const start = cls.start_date ? new Date(cls.start_date) : null;
+        const end = cls.end_date ? new Date(cls.end_date) : null;
+        if (start) start.setHours(0, 0, 0, 0);
+        if (end) end.setHours(0, 0, 0, 0);
+
+        let computedStatus: string;
+        if (end && end < today) {
+          computedStatus = 'Completed';
+        } else if (start && start <= today && (!end || end >= today)) {
+          computedStatus = 'In Progress';
+        } else {
+          computedStatus = 'Upcoming';
+        }
+
+        const enrollments = Array.isArray(cls.student_enrollments) ? cls.student_enrollments : [];
+        const activeCount = enrollments.filter((e: any) => e.status !== 'ADMIN').length;
+
+        return {
+          OfferingID: cls.offering_id,
+          ClassLevelID: cls.class_level_id,
+          LevelName: cls.class_levels?.level_name || '',
+          TeacherPersonnelID: cls.teachers?.personnel_id || null,
+          TeacherName: cls.teachers?.personnel
+            ? `${cls.teachers.personnel.first_name || ''} ${cls.teachers.personnel.last_name || ''}`.trim()
+            : '',
+          StartDate: cls.start_date,
+          EndDate: cls.end_date,
+          MaxStudents: cls.max_students || 0,
+          EnrolledCount: activeCount,
+          Status: computedStatus,
+          Location: cls.rooms?.room_name || '',
+          MeetingDays: cls.notes || '',
+        };
+      });
 
       return { success: true, data: rows };
     } catch (error) {
