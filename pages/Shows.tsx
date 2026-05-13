@@ -7,8 +7,12 @@ import { Message } from '../components/common/Message';
 import { ShowWithDetails } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
+type FilterType = 'all' | 'upcoming' | 'in-progress' | 'completed';
+
 export const Shows: React.FC = () => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
+  const [filteredShows, setFilteredShows] = useState<ShowWithDetails[]>([]);
+  const [filter, setFilter] = useState<FilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showEditorOpen, setShowEditorOpen] = useState(false);
@@ -18,6 +22,10 @@ export const Shows: React.FC = () => {
   useEffect(() => {
     loadShows();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [shows, filter]);
 
   const loadShows = async () => {
     setIsLoading(true);
@@ -51,6 +59,34 @@ export const Shows: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...shows];
+
+    // Apply status filter
+    if (filter !== 'all') {
+      const statusMap: Record<FilterType, string> = {
+        'all': '',
+        'upcoming': 'Upcoming',
+        'in-progress': 'In Progress',
+        'completed': 'Completed'
+      };
+      filtered = filtered.filter(s => s.Status === statusMap[filter]);
+    }
+
+    setFilteredShows(filtered);
+  };
+
+  const getFilterCount = (filterType: FilterType): number => {
+    if (filterType === 'all') return shows.length;
+    const statusMap: Record<FilterType, string> = {
+      'all': '',
+      'upcoming': 'Upcoming',
+      'in-progress': 'In Progress',
+      'completed': 'Completed'
+    };
+    return shows.filter(s => s.Status === statusMap[filterType]).length;
   };
 
   const handleManageCast = (show: ShowWithDetails) => {
@@ -89,8 +125,54 @@ export const Shows: React.FC = () => {
         </div>
       )}
 
+      {/* Filters */}
+      <div className="mb-4 sm:mb-6 space-y-4">
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'all'
+                ? 'bg-primary-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            All Shows ({getFilterCount('all')})
+          </button>
+          <button
+            onClick={() => setFilter('upcoming')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'upcoming'
+                ? 'bg-yellow-500 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Upcoming ({getFilterCount('upcoming')})
+          </button>
+          <button
+            onClick={() => setFilter('in-progress')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'in-progress'
+                ? 'bg-green-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            In Progress ({getFilterCount('in-progress')})
+          </button>
+          <button
+            onClick={() => setFilter('completed')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              filter === 'completed'
+                ? 'bg-gray-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Completed ({getFilterCount('completed')})
+          </button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {shows.map((show) => (
+        {filteredShows.map((show) => (
           <ShowCard
             key={show.ShowID}
             show={show}
