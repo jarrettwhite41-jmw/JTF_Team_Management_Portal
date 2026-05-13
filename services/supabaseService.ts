@@ -986,6 +986,8 @@ class SupabaseService {
     try {
       const customGames = games.filter(game => game.customName && game.customName.trim().length > 0);
 
+      const resolvedGameMap = new Map<string, number>();
+
       for (const game of customGames) {
         const customName = game.customName!.trim();
         const { data: existing, error: lookupError } = await this.client
@@ -996,34 +998,25 @@ class SupabaseService {
 
         if (lookupError) throw lookupError;
 
-        if (!existing && game.flag) {
-          const { error: insertGameError } = await this.client
+        if (existing) {
+          resolvedGameMap.set(customName.toLowerCase(), existing.game_id);
+          continue;
+        }
+
+        const { data: insertedGame, error: insertGameError } = await this.client
             .from('master_game_list')
             .insert([{
               game_name: customName,
               description: game.variation || null,
-              category: 'Custom',
+              category: game.flag ? 'Requested from Show' : 'Custom',
               difficulty_level: null,
-            }]);
-
-          if (insertGameError) throw insertGameError;
-        }
-      }
-
-      const namesToResolve = customGames
-        .map(game => game.customName?.trim())
-        .filter((name): name is string => Boolean(name));
-
-      const { data: resolvedGames, error: resolveError } = namesToResolve.length > 0
-        ? await this.client
-            .from('master_game_list')
+            }])
             .select('game_id, game_name')
-            .in('game_name', namesToResolve)
-        : { data: [], error: null };
+            .single();
 
-      if (resolveError) throw resolveError;
-
-      const resolvedGameMap = new Map((resolvedGames || []).map((game: any) => [String(game.game_name).toLowerCase(), game.game_id]));
+        if (insertGameError) throw insertGameError;
+        resolvedGameMap.set(customName.toLowerCase(), insertedGame.game_id);
+      }
 
       const { error: deleteError } = await this.client
         .from('games_played')
@@ -1035,7 +1028,9 @@ class SupabaseService {
       const insertRows = games
         .map((game, index) => {
           const resolvedGameId = game.gameId || (game.customName ? resolvedGameMap.get(game.customName.trim().toLowerCase()) : null);
-          if (!resolvedGameId) return null;
+          if (!resolvedGameId) {
+            throw new Error(`Unable to resolve game entry ${index + 1} for saving`);
+          }
           return {
             show_id: showId,
             game_id: resolvedGameId,

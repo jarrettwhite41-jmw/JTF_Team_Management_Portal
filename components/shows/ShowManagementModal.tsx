@@ -277,6 +277,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
 
       setMessage({ type: 'success', text: 'Games played saved successfully' });
+      onSaved();
       await loadData();
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error saving games played' });
