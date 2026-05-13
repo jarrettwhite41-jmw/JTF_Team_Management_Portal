@@ -58,18 +58,16 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [castResponse, performancesResponse, crewResponse, personnelResponse, dutyTypesResponse] = await Promise.all([
+      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse] = await Promise.all([
         gasService.getAllCastMembers(),
         gasService.getShowPerformances(show.ShowID),
         gasService.getShowCrew(show.ShowID),
-        gasService.getAllPersonnel(),
         gasService.getAllCrewDutyTypes(),
       ]);
 
       const castRows = Array.isArray(castResponse.data) ? castResponse.data : (castResponse.data as any)?.data || [];
       const performanceRows = Array.isArray(performancesResponse.data) ? performancesResponse.data : (performancesResponse.data as any)?.data || [];
       const crewRows = Array.isArray(crewResponse.data) ? crewResponse.data : (crewResponse.data as any)?.data || [];
-      const personnelRows = Array.isArray(personnelResponse.data) ? personnelResponse.data : (personnelResponse.data as any)?.data || [];
       const dutyTypeRows = Array.isArray(dutyTypesResponse.data) ? dutyTypesResponse.data : (dutyTypesResponse.data as any)?.data || [];
 
       if (castResponse.success) {
@@ -97,12 +95,12 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         })));
       }
 
-      if (personnelResponse.success) {
-        setPersonnelOptions(personnelRows.map((person: any) => ({
-          PersonnelID: person.PersonnelID,
-          FirstName: person.FirstName,
-          LastName: person.LastName,
-          PrimaryEmail: person.PrimaryEmail,
+      if (castResponse.success) {
+        setPersonnelOptions(castRows.map((member: any) => ({
+          PersonnelID: member.PersonnelID,
+          FirstName: member.FirstName,
+          LastName: member.LastName,
+          PrimaryEmail: member.PrimaryEmail,
         })));
       }
 
