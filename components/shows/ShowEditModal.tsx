@@ -38,6 +38,7 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
   const [directors, setDirectors] = useState<DirectorOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -121,6 +122,27 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
       setMessage({ type: 'error', text: 'Error saving show' });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!show) return;
+    if (!confirm(`Delete ${show.ShowTypeName || 'this show'}? This will remove its cast and crew assignments.`)) return;
+
+    setIsDeleting(true);
+    setMessage(null);
+    try {
+      const response = await gasService.deleteShow(show.ShowID);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Show deleted successfully' });
+        onSaved();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to delete show' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Error deleting show' });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -237,7 +259,19 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
           )}
         </form>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4">
+          <div>
+            {show && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting || isSaving || isLoading}
+                className="rounded-lg border border-red-300 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete Show'}
+              </button>
+            )}
+          </div>
           <button
             type="button"
             onClick={onClose}

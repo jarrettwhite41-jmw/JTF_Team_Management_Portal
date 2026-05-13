@@ -217,7 +217,8 @@ class GoogleAppsScriptService {
                 ...show,
                 ShowTypeName: 'Mainstage Cast',
                 DirectorName: 'John Doe',
-                CastMembers: mockPersonnel.slice(0, 3)
+                CastMembers: mockPersonnel.slice(0, 3),
+                CrewMembers: mockPersonnel.slice(0, 2)
               }));
               break;
             case 'getAllClasses':
@@ -278,8 +279,20 @@ class GoogleAppsScriptService {
                 { PerformanceID: 2, ShowID: args[0], CastMemberID: 2, Role: 'Cast Member' },
               ];
               break;
+            case 'getShowCrew':
+              data = [
+                { DutyID: 1, ShowID: args[0], CrewMemberID: 1, CrewDutyTypeID: 1, DutyName: 'Tech', FullName: 'John Doe', PrimaryEmail: 'john.doe@email.com' },
+                { DutyID: 2, ShowID: args[0], CrewMemberID: 2, CrewDutyTypeID: 2, DutyName: 'House', FullName: 'Jane Smith', PrimaryEmail: 'jane.smith@email.com' },
+              ];
+              break;
             case 'updateShowCast':
               data = true;
+              break;
+            case 'addPersonAsCrewMember':
+              data = { CrewMemberID: 999, PersonnelID: args[0] };
+              break;
+            case 'removeCrewMember':
+              data = { deleted: true };
               break;
             case 'createClassOffering':
               data = { ...args[0], OfferingID: Date.now() };
@@ -299,10 +312,7 @@ class GoogleAppsScriptService {
                 { CrewDutyTypeID: 5, DutyName: 'Front of House' }
               ];
               break;
-            case 'addPersonAsCrewMember':
-              data = { CrewMemberID: 999, PersonnelID: args[0] };
-              break;
-            case 'removeCrewMember':
+            case 'deleteShow':
               data = { deleted: true };
               break;
             case 'getBartendersWithDetails':
@@ -427,6 +437,10 @@ class GoogleAppsScriptService {
     return this.callServerFunction<ShowPerformances[]>('getShowPerformances', showId);
   }
 
+  async getShowCrew(showId: number): Promise<ApiResponse<any[]>> {
+    return this.callServerFunction<any[]>('getShowCrew', showId);
+  }
+
   async getAllCastMembers(): Promise<ApiResponse<CastMemberWithDetails[]>> {
     return this.callServerFunction<CastMemberWithDetails[]>('getAllCastMembers');
   }
@@ -448,8 +462,8 @@ class GoogleAppsScriptService {
     return this.callServerFunction<CrewMemberWithDetails[]>('getAllCrewMembers');
   }
 
-  async addPersonAsCrewMember(personnelId: number): Promise<ApiResponse<{ CrewMemberID: number; PersonnelID: number }>> {
-    return this.callServerFunction<{ CrewMemberID: number; PersonnelID: number }>('addPersonAsCrewMember', personnelId);
+  async addPersonAsCrewMember(personnelId: number, showId: number, dutyTypeId: number): Promise<ApiResponse<{ CrewMemberID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ CrewMemberID: number; PersonnelID: number }>('addPersonAsCrewMember', personnelId, showId, dutyTypeId);
   }
 
   async removeCrewMember(crewMemberId: number): Promise<ApiResponse<{ deleted: boolean }>> {

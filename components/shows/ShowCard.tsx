@@ -62,6 +62,15 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
         )}
       </div>
 
+      <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-lg bg-blue-50 px-3 py-2 text-blue-700">
+          Cast: <span className="font-semibold">{show.CastMembers?.length || 0}</span>
+        </div>
+        <div className="rounded-lg bg-gray-50 px-3 py-2 text-gray-700">
+          Crew: <span className="font-semibold">{show.CrewMembers?.length || 0}</span>
+        </div>
+      </div>
+
       <button
         onClick={onManageCast}
         className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm"

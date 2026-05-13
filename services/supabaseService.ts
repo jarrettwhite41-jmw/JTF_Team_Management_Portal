@@ -304,6 +304,33 @@ class SupabaseService {
     }
   }
 
+  async deleteShow(showId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error: performancesError } = await this.client
+        .from('show_performances')
+        .delete()
+        .eq('show_id', showId);
+      if (performancesError) throw performancesError;
+
+      const { error: crewError } = await this.client
+        .from('crew_duties')
+        .delete()
+        .eq('show_id', showId);
+      if (crewError) throw crewError;
+
+      const { error: showError } = await this.client
+        .from('show_information')
+        .delete()
+        .eq('show_id', showId);
+      if (showError) throw showError;
+
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting show:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getAllDirectors(): Promise<ApiResponse<any[]>> {
     try {
       const { data, error } = await this.client
@@ -364,6 +391,45 @@ class SupabaseService {
       return { success: true, data: transformed };
     } catch (error) {
       console.error('Error fetching show performances:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getShowCrew(showId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('crew_duties')
+        .select(`
+          duty_id,
+          show_id,
+          personnel_id,
+          crew_duty_type_id,
+          personnel(first_name, last_name, primary_email),
+          crew_duty_types(duty_name)
+        `)
+        .eq('show_id', showId)
+        .order('duty_id', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed = (data || []).map((row: any) => ({
+        DutyID: row.duty_id,
+        ShowID: row.show_id,
+        CrewMemberID: row.personnel_id,
+        CrewDutyTypeID: row.crew_duty_type_id,
+        PersonnelID: row.personnel_id,
+        FirstName: row.personnel?.first_name || '',
+        LastName: row.personnel?.last_name || '',
+        Lastname: row.personnel?.last_name || '',
+        FullName: `${row.personnel?.first_name || ''} ${row.personnel?.last_name || ''}`.trim(),
+        PrimaryEmail: row.personnel?.primary_email || '',
+        DutyName: row.crew_duty_types?.duty_name || '',
+        Status: 'Active',
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching show crew:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
