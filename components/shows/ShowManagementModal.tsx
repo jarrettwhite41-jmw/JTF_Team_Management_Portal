@@ -48,6 +48,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [personnelOptions, setPersonnelOptions] = useState<PersonnelOption[]>([]);
   const [crewDutyTypes, setCrewDutyTypes] = useState<CrewDutyTypes[]>([]);
   const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
+  const [castSearch, setCastSearch] = useState('');
+  const [crewSearch, setCrewSearch] = useState('');
 
   const sortByName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 
@@ -187,15 +189,21 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     const assignedIds = getAssignedPersonnelIds();
     const selectedCastIds = getSelectedCastPersonnelIds();
     const currentAssignment = crewAssignments.get(dutyTypeId);
+    const query = crewSearch.trim().toLowerCase();
     return personnelOptions.filter(p => 
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
-      (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment)
+      (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
+      (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
     );
   };
 
   const getAvailableCastMembers = () => {
     const crewPersonnelIds = getAssignedPersonnelIds();
-    return availableCast.filter(member => !crewPersonnelIds.has(member.PersonnelID));
+    const query = castSearch.trim().toLowerCase();
+    return availableCast.filter(member => 
+      !crewPersonnelIds.has(member.PersonnelID) &&
+      (!query || member.FullName.toLowerCase().includes(query) || member.PrimaryEmail.toLowerCase().includes(query))
+    );
   };
 
   if (!isOpen) return null;
@@ -247,6 +255,16 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
             </div>
           ) : activeTab === 'crew' ? (
             <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search Crew Member</label>
+                <input
+                  type="text"
+                  value={crewSearch}
+                  onChange={(e) => setCrewSearch(e.target.value)}
+                  placeholder="Type a name to filter crew options..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
+              </div>
               <div className="space-y-3">
                 {crewDutyTypes.map(dutyType => {
                   const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
@@ -279,11 +297,21 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           ) : activeTab === 'cast' ? (
           <>
             <div className="mb-3 flex items-center justify-between border-b border-gray-200 pb-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
                   <input type="checkbox" checked={getAvailableCastMembers().length > 0 && getAvailableCastMembers().every(member => selectedCastIds.has(member.PersonnelID))} onChange={(e) => setSelectedCastIds(e.target.checked ? new Set(getAvailableCastMembers().map(member => member.PersonnelID)) : new Set())} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                  Select all cast ({getAvailableCastMembers().length})
-                </label>
+                  <span>Select all cast ({getAvailableCastMembers().length})</span>
+                </div>
                 <span className="text-sm font-medium text-primary-600">{selectedCastIds.size} selected</span>
+              </div>
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search Cast Member</label>
+                <input
+                  type="text"
+                  value={castSearch}
+                  onChange={(e) => setCastSearch(e.target.value)}
+                  placeholder="Type a name or email to filter cast..."
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2"
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {getAvailableCastMembers().map(member => (
