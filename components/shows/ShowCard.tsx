@@ -1,5 +1,6 @@
-import React from 'react';
-import { ShowWithDetails } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ShowGame, ShowWithDetails } from '../../types';
+import { gasService } from '../../services/googleAppsScript';
 
 interface ShowCardProps {
   show: ShowWithDetails;
@@ -7,6 +8,42 @@ interface ShowCardProps {
 }
 
 export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
+  const [gamesPlayed, setGamesPlayed] = useState<ShowGame[]>([]);
+
+  const isCompletedShow = useMemo(() => {
+    const rawDate = String(show.ShowDate || '').slice(0, 10);
+    const showDate = new Date(`${rawDate}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return !Number.isNaN(showDate.getTime()) && showDate.getTime() < today.getTime();
+  }, [show.ShowDate]);
+
+  useEffect(() => {
+    if (!isCompletedShow) {
+      setGamesPlayed([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadGames = async () => {
+      const response = await gasService.getShowGames(show.ShowID);
+      if (!isMounted) return;
+      if (response.success && response.data) {
+        const rows = Array.isArray(response.data) ? response.data : (response.data as any)?.data || [];
+        setGamesPlayed(rows);
+      } else {
+        setGamesPlayed([]);
+      }
+    };
+
+    loadGames();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isCompletedShow, show.ShowID]);
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Scheduled': return 'bg-green-100 text-green-800';
@@ -70,6 +107,31 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
           Crew: <span className="font-semibold">{show.CrewMembers?.length || 0}</span>
         </div>
       </div>
+
+      {isCompletedShow && (
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Games Played</h4>
+          {gamesPlayed.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {gamesPlayed.slice(0, 3).map((game, index) => (
+                <span
+                  key={game.GamesPlayedID || `${game.GameID || game.GameName}-${index}`}
+                  className="px-2 py-1 bg-amber-100 text-amber-800 text-xs rounded-full"
+                >
+                  {game.GameName || game.CustomGameName || 'Game'}
+                </span>
+              ))}
+              {gamesPlayed.length > 3 && (
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                  +{gamesPlayed.length - 3} more
+                </span>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No games logged</p>
+          )}
+        </div>
+      )}
 
       <button
         onClick={onManageCast}
