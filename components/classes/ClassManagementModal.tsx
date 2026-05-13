@@ -150,8 +150,12 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const filteredStudents = (() => {
     let students = activeTab === 'add' ? availableStudents : enrolledStudents;
     
-    // For roster and enrolled tabs, exclude ADMIN removals
-    if (activeTab === 'roster' || activeTab === 'enrolled') {
+    // For roster: show only Active students
+    if (activeTab === 'roster') {
+      students = students.filter((student: Student) => student.CompletionStatus === 'Active');
+    }
+    // For enrolled: show all non-admin-removed students
+    if (activeTab === 'enrolled') {
       students = students.filter((student: Student) => student.CompletionStatus !== 'ADMIN');
     }
     
@@ -223,7 +227,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Class Roster ({enrolledStudents.filter(s => s.CompletionStatus !== 'ADMIN').length}/{classOffering.MaxStudents})
+              Class Roster ({enrolledStudents.filter(s => s.CompletionStatus !== 'ADMIN' && s.CompletionStatus === 'Active').length}/{classOffering.MaxStudents})
             </button>
             <button
               onClick={() => setActiveTab('enrolled')}
@@ -233,7 +237,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Enrolled Students ({enrolledStudents.length}/{classOffering.MaxStudents})
+              Enrolled Students ({enrolledStudents.filter(s => s.CompletionStatus !== 'ADMIN').length}/{classOffering.MaxStudents})
             </button>
             <button
               onClick={() => setActiveTab('add')}
@@ -292,6 +296,9 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -322,6 +329,15 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                             <option value="Withdrawn">Withdrawn</option>
                           </select>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => handleRemoveStudent(student.EnrollmentID!)}
+                            className="text-xs px-2 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                            title="Remove student from class"
+                          >
+                            Remove
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -347,6 +363,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  )}
+                  {activeTab === 'enrolled' && (
+                    <button
+                      onClick={() => handleRemoveStudent(student.EnrollmentID!)}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                      title="Remove student from class"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   )}
