@@ -36,6 +36,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'roster' | 'enrolled' | 'add'>('roster');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (isOpen && classOffering) {
@@ -84,6 +85,8 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     if (activeTab === 'add' && availableStudents.length === 0) {
       loadAvailableStudents();
     }
+    // Clear selections when switching tabs
+    setSelectedStudentIds(new Set());
   }, [activeTab]);
 
   const handleAddStudent = async (studentId: number) => {
@@ -103,6 +106,43 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAddSelectedStudents = async () => {
+    if (selectedStudentIds.size === 0) return;
+    setIsLoading(true);
+    const ids = Array.from(selectedStudentIds);
+    let successCount = 0;
+    let failCount = 0;
+    try {
+      for (const studentId of ids) {
+        const response = await gasService.enrollStudent(classOffering.OfferingID, studentId);
+        if (response.success) successCount++;
+        else failCount++;
+      }
+      setSelectedStudentIds(new Set());
+      await loadEnrolledStudents();
+      await loadAvailableStudents();
+      onRefresh();
+      if (failCount === 0) {
+        setMessage({ type: 'success', text: `${successCount} student${successCount !== 1 ? 's' : ''} added successfully` });
+      } else {
+        setMessage({ type: 'error', text: `${successCount} added, ${failCount} failed` });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Error adding students' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const toggleStudentSelection = (studentId: number) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
   };
 
   const handleRemoveStudent = async (enrollmentId: number) => {
@@ -348,24 +388,67 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                 <p className="text-gray-500">No students enrolled yet</p>
               </div>
             )
+          ) : activeTab === 'add' ? (
+            filteredStudents.length > 0 ? (
+              <>
+                {/* Select All bar */}
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={filteredStudents.length > 0 && filteredStudents.every(s => selectedStudentIds.has(s.StudentID))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedStudentIds(new Set(filteredStudents.map(s => s.StudentID)));
+                        } else {
+                          setSelectedStudentIds(new Set());
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    Select all ({filteredStudents.length})
+                  </label>
+                  {selectedStudentIds.size > 0 && (
+                    <span className="text-sm text-primary-600 font-medium">{selectedStudentIds.size} selected</span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {filteredStudents.map((student) => (
+                    <div
+                      key={student.StudentID}
+                      className={`relative cursor-pointer rounded-lg border-2 transition-colors ${
+                        selectedStudentIds.has(student.StudentID)
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-transparent'
+                      }`}
+                      onClick={() => toggleStudentSelection(student.StudentID)}
+                    >
+                      <StudentCard student={student} onClick={() => {}} />
+                      <div className="absolute top-2 left-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedStudentIds.has(student.StudentID)}
+                          onChange={() => toggleStudentSelection(student.StudentID)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500">
+                  {searchTerm ? 'No students found matching your search' : 'No available students to add'}
+                </p>
+              </div>
+            )
           ) : filteredStudents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredStudents.map((student) => (
                 <div key={student.StudentID} className="relative">
                   <StudentCard student={student} onClick={() => {}} />
-                  {/* Remove Actions column for roster view */}
-                  {/* Only show remove/add button if activeTab is 'add' */}
-                  {activeTab === 'add' && (
-                    <button
-                      onClick={() => handleAddStudent(student.StudentID)}
-                      className="absolute top-2 right-2 p-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
-                      title="Add to class"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
-                  )}
                   {activeTab === 'enrolled' && (
                     <button
                       onClick={() => handleRemoveStudent(student.EnrollmentID!)}
@@ -394,7 +477,21 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+          <div>
+            {activeTab === 'add' && selectedStudentIds.size > 0 && (
+              <button
+                onClick={handleAddSelectedStudents}
+                disabled={isLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Selected ({selectedStudentIds.size})
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
