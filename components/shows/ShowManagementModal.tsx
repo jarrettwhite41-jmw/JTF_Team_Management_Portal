@@ -154,6 +154,20 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     setIsLoading(true);
     setMessage(null);
     try {
+      const selectedCast = availableCast
+        .filter(member => selectedCastIds.has(member.PersonnelID))
+        .map(member => ({
+          ShowID: show.ShowID,
+          CastMemberID: member.CastMemberID,
+          PersonnelID: member.PersonnelID,
+          Role: 'Cast Member',
+        } as ShowPerformances & { PersonnelID: number }));
+
+      const castResponse = await gasService.updateShowCast(show.ShowID, selectedCast);
+      if (!castResponse.success) {
+        throw new Error(castResponse.error || 'Failed to update cast');
+      }
+
       const assignmentsToRemove = currentCrew.filter(crew => !crewAssignments.has(crew.CrewDutyTypeID));
       for (const assignment of assignmentsToRemove) {
         await gasService.removeCrewMember(assignment.DutyID);
@@ -165,11 +179,11 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
       }
 
-      setMessage({ type: 'success', text: 'Crew assignments saved successfully' });
+      setMessage({ type: 'success', text: 'Cast and crew assignments saved successfully' });
       onSaved();
       await loadData();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error saving crew assignments' });
+      setMessage({ type: 'error', text: 'Error saving cast and crew assignments' });
     } finally {
       setIsLoading(false);
     }
@@ -322,28 +336,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               ))}
             </div>
             <div className="mt-6 flex justify-end border-t border-gray-200 pt-4">
-              <button onClick={async () => {
-                setIsLoading(true);
-                setMessage(null);
-                try {
-                  const selected = availableCast
-                    .filter(member => selectedCastIds.has(member.PersonnelID))
-                    .map(member => ({ ShowID: show.ShowID, CastMemberID: member.CastMemberID, PersonnelID: member.PersonnelID, Role: 'Cast Member' } as ShowPerformances & { PersonnelID: number }));
-                  const response = await gasService.updateShowCast(show.ShowID, selected);
-                  if (response.success) {
-                    setMessage({ type: 'success', text: 'Show cast updated successfully' });
-                    onSaved();
-                    await loadData();
-                  } else {
-                    setMessage({ type: 'error', text: response.error || 'Failed to update cast' });
-                  }
-                } catch (error) {
-                  setMessage({ type: 'error', text: 'Error updating cast' });
-                } finally {
-                  setIsLoading(false);
-                }
-              }} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
-                Save Cast
+              <button onClick={handleSaveCrew} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">
+                Save Cast & Crew
               </button>
             </div>
           </>
