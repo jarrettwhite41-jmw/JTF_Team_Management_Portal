@@ -421,18 +421,12 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                           ? 'border-primary-500 bg-primary-50'
                           : 'border-transparent'
                       }`}
-                      onClick={() => toggleStudentSelection(student.StudentID)}
                     >
-                      <StudentCard student={student} onClick={() => {}} />
-                      <div className="absolute top-2 left-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedStudentIds.has(student.StudentID)}
-                          onChange={() => toggleStudentSelection(student.StudentID)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                        />
-                      </div>
+                      <StudentCard
+                        student={student}
+                        isSelected={selectedStudentIds.has(student.StudentID)}
+                        onToggle={() => toggleStudentSelection(student.StudentID)}
+                      />
                     </div>
                   ))}
                 </div>
