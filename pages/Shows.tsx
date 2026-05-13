@@ -7,7 +7,7 @@ import { Message } from '../components/common/Message';
 import { ShowWithDetails } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
-type FilterType = 'all' | 'upcoming' | 'in-progress' | 'completed';
+type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
 
 export const Shows: React.FC = () => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
@@ -19,21 +19,23 @@ export const Shows: React.FC = () => {
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
 
-  const getComputedStatus = (show: ShowWithDetails): 'Upcoming' | 'In Progress' | 'Completed' => {
+  const getComputedStatus = (show: ShowWithDetails): 'Next Up' | 'Upcoming' | 'Completed' => {
     const rawDate = String(show.ShowDate || '').slice(0, 10);
     const showDate = new Date(`${rawDate}T00:00:00`);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
 
     if (!Number.isNaN(showDate.getTime())) {
-      if (showDate.getTime() > today.getTime()) return 'Upcoming';
       if (showDate.getTime() < today.getTime()) return 'Completed';
-      return 'In Progress';
+      if (showDate.getTime() <= nextWeek.getTime()) return 'Next Up';
+      return 'Upcoming';
     }
 
     const status = String(show.Status || '').toLowerCase();
     if (status === 'completed') return 'Completed';
-    if (status === 'in progress' || status === 'in-progress') return 'In Progress';
+    if (status === 'in progress' || status === 'in-progress' || status === 'next up' || status === 'next-up') return 'Next Up';
     return 'Upcoming';
   };
 
@@ -86,8 +88,8 @@ export const Shows: React.FC = () => {
     if (filter !== 'all') {
       const statusMap: Record<FilterType, string> = {
         'all': '',
+        'next-up': 'Next Up',
         'upcoming': 'Upcoming',
-        'in-progress': 'In Progress',
         'completed': 'Completed'
       };
       filtered = filtered.filter(s => getComputedStatus(s) === statusMap[filter]);
@@ -100,8 +102,8 @@ export const Shows: React.FC = () => {
     if (filterType === 'all') return shows.length;
     const statusMap: Record<FilterType, string> = {
       'all': '',
+      'next-up': 'Next Up',
       'upcoming': 'Upcoming',
-      'in-progress': 'In Progress',
       'completed': 'Completed'
     };
     return shows.filter(s => getComputedStatus(s) === statusMap[filterType]).length;
@@ -157,24 +159,24 @@ export const Shows: React.FC = () => {
             All Shows ({getFilterCount('all')})
           </button>
           <button
-            onClick={() => setFilter('upcoming')}
+            onClick={() => setFilter('next-up')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === 'upcoming'
+              filter === 'next-up'
                 ? 'bg-yellow-500 text-white'
                 : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            Upcoming ({getFilterCount('upcoming')})
+            Next Up ({getFilterCount('next-up')})
           </button>
           <button
-            onClick={() => setFilter('in-progress')}
+            onClick={() => setFilter('upcoming')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              filter === 'in-progress'
+              filter === 'upcoming'
                 ? 'bg-green-600 text-white'
                 : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
             }`}
           >
-            In Progress ({getFilterCount('in-progress')})
+            Upcoming ({getFilterCount('upcoming')})
           </button>
           <button
             onClick={() => setFilter('completed')}
