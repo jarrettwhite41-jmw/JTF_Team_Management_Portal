@@ -23,9 +23,14 @@ interface ShowTypeOption {
   ShowTypeName: string;
 }
 
+interface RoomOption {
+  RoomID: number;
+  RoomName: string;
+}
+
 const emptyForm = {
   ShowDate: '',
-  ShowTime: '',
+  ShowTime: '21:00',
   ShowTypeID: '',
   DirectorID: '',
   Venue: '',
@@ -36,10 +41,23 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
   const [form, setForm] = useState(emptyForm);
   const [showTypes, setShowTypes] = useState<ShowTypeOption[]>([]);
   const [directors, setDirectors] = useState<DirectorOption[]>([]);
+  const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const toErrorText = (error: unknown): string => {
+    if (typeof error === 'string') return error;
+    if (!error) return 'An unexpected error occurred';
+    if (typeof error === 'object') {
+      const maybeError = error as { message?: unknown; error?: unknown };
+      if (typeof maybeError.message === 'string' && maybeError.message.trim()) return maybeError.message;
+      if (typeof maybeError.error === 'string' && maybeError.error.trim()) return maybeError.error;
+      return JSON.stringify(error);
+    }
+    return String(error);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -47,9 +65,10 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
     const loadOptions = async () => {
       setIsLoading(true);
       try {
-        const [showTypesResponse, directorsResponse] = await Promise.all([
+        const [showTypesResponse, directorsResponse, roomsResponse] = await Promise.all([
           gasService.getAllShowTypes(),
           gasService.getAllDirectors(),
+          gasService.getAllRooms(),
         ]);
 
         if (showTypesResponse.success) {
@@ -62,6 +81,12 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
           setDirectors(directorsResponse.data || []);
         } else {
           setMessage({ type: 'error', text: directorsResponse.error || 'Failed to load directors' });
+        }
+
+        if (roomsResponse.success) {
+          setRooms(roomsResponse.data || []);
+        } else {
+          setMessage({ type: 'error', text: toErrorText(roomsResponse.error) || 'Failed to load venues' });
         }
       } finally {
         setIsLoading(false);
@@ -77,7 +102,7 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
     if (show) {
       setForm({
         ShowDate: typeof show.ShowDate === 'string' ? show.ShowDate : new Date(show.ShowDate).toISOString().split('T')[0],
-        ShowTime: show.ShowTime || '',
+        ShowTime: show.ShowTime || '21:00',
         ShowTypeID: String(show.ShowTypeID || ''),
         DirectorID: String(show.DirectorID || ''),
         Venue: show.Venue || '',
@@ -116,10 +141,10 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
         setMessage({ type: 'success', text: show ? 'Show updated successfully' : 'Show created successfully' });
         onSaved();
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to save show' });
+        setMessage({ type: 'error', text: toErrorText(response.error) || 'Failed to save show' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error saving show' });
+      setMessage({ type: 'error', text: toErrorText(error) || 'Error saving show' });
     } finally {
       setIsSaving(false);
     }
@@ -137,10 +162,10 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
         setMessage({ type: 'success', text: 'Show deleted successfully' });
         onSaved();
       } else {
-        setMessage({ type: 'error', text: response.error || 'Failed to delete show' });
+        setMessage({ type: 'error', text: toErrorText(response.error) || 'Failed to delete show' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error deleting show' });
+      setMessage({ type: 'error', text: toErrorText(error) || 'Error deleting show' });
     } finally {
       setIsDeleting(false);
     }
@@ -232,15 +257,21 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                <input
-                  type="text"
+                <select
                   name="Venue"
                   value={form.Venue}
                   onChange={handleChange}
                   required
-                  placeholder="Main Stage"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                />
+                >
+                  <option value="">Select a venue</option>
+                  {rooms.map(room => (
+                    <option key={room.RoomID} value={room.RoomName}>{room.RoomName}</option>
+                  ))}
+                  {form.Venue && !rooms.some(room => room.RoomName === form.Venue) && (
+                    <option value={form.Venue}>{form.Venue}</option>
+                  )}
+                </select>
               </div>
 
               <div>

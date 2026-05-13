@@ -19,6 +19,24 @@ export const Shows: React.FC = () => {
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
 
+  const getComputedStatus = (show: ShowWithDetails): 'Upcoming' | 'In Progress' | 'Completed' => {
+    const rawDate = String(show.ShowDate || '').slice(0, 10);
+    const showDate = new Date(`${rawDate}T00:00:00`);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (!Number.isNaN(showDate.getTime())) {
+      if (showDate.getTime() > today.getTime()) return 'Upcoming';
+      if (showDate.getTime() < today.getTime()) return 'Completed';
+      return 'In Progress';
+    }
+
+    const status = String(show.Status || '').toLowerCase();
+    if (status === 'completed') return 'Completed';
+    if (status === 'in progress' || status === 'in-progress') return 'In Progress';
+    return 'Upcoming';
+  };
+
   useEffect(() => {
     loadShows();
   }, []);
@@ -72,7 +90,7 @@ export const Shows: React.FC = () => {
         'in-progress': 'In Progress',
         'completed': 'Completed'
       };
-      filtered = filtered.filter(s => s.Status === statusMap[filter]);
+      filtered = filtered.filter(s => getComputedStatus(s) === statusMap[filter]);
     }
 
     setFilteredShows(filtered);
@@ -86,7 +104,7 @@ export const Shows: React.FC = () => {
       'in-progress': 'In Progress',
       'completed': 'Completed'
     };
-    return shows.filter(s => s.Status === statusMap[filterType]).length;
+    return shows.filter(s => getComputedStatus(s) === statusMap[filterType]).length;
   };
 
   const handleManageCast = (show: ShowWithDetails) => {
