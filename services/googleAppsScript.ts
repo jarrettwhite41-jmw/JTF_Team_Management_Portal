@@ -309,6 +309,12 @@ class GoogleAppsScriptService {
                 { DirectorID: 2, PersonnelID: 2, FirstName: 'Jane', LastName: 'Smith', PrimaryEmail: 'jane.smith@email.com' },
               ];
               break;
+            case 'addPersonAsDirector':
+              data = { DirectorID: 999, PersonnelID: args[0] };
+              break;
+            case 'removeDirector':
+              data = { deleted: true };
+              break;
             case 'getAllClassLevels':
               data = mockClassLevels;
               break;
@@ -544,6 +550,14 @@ class GoogleAppsScriptService {
 
   async getAllDirectors(): Promise<ApiResponse<any[]>> {
     return this.callServerFunction<any[]>('getAllDirectors');
+  }
+
+  async addPersonAsDirector(personnelId: number): Promise<ApiResponse<{ DirectorID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ DirectorID: number; PersonnelID: number }>('addPersonAsDirector', personnelId);
+  }
+
+  async removeDirector(directorId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeDirector', directorId);
   }
 
   async updateShow(show: ShowInformation): Promise<ApiResponse<ShowInformation>> {

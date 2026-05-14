@@ -23,8 +23,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       defaultPage: 'personnel-management' as PageType,
       children: [
         { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
-        { id: 'student-directory', label: 'Student Management', icon: '🎓' },
         { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'director-management', label: 'Director Management', icon: '🎬' },
         { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
@@ -38,7 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
-        { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
         { id: 'cast', label: 'Cast Management', icon: '🎭' },
       ] as NavigationItem[],
     },

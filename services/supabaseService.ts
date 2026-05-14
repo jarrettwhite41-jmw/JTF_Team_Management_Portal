@@ -386,6 +386,61 @@ class SupabaseService {
     }
   }
 
+  async addPersonAsDirector(personnelId: number): Promise<ApiResponse<any>> {
+    try {
+      const isCast = await this.isCastMember(personnelId);
+      if (!isCast) {
+        return { success: false, error: 'Director assignments are restricted to cast members.' };
+      }
+
+      const { data: existing, error: existingError } = await this.client
+        .from('directors')
+        .select('director_id')
+        .eq('personnel_id', personnelId)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing) {
+        return { success: true, data: { DirectorID: existing.director_id, PersonnelID: personnelId } };
+      }
+
+      const { data, error } = await this.client
+        .from('directors')
+        .insert([{ personnel_id: personnelId }])
+        .select('director_id, personnel_id')
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          DirectorID: data.director_id,
+          PersonnelID: data.personnel_id,
+        },
+      };
+    } catch (error) {
+      console.error('Error adding director:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async removeDirector(directorId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('directors')
+        .delete()
+        .eq('director_id', directorId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing director:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getShowPerformances(showId: number): Promise<ApiResponse<any[]>> {
     try {
       const { data, error } = await this.client
