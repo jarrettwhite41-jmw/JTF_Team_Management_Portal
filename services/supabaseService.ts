@@ -19,6 +19,7 @@ import {
   MasterGame,
   ShowGame,
   Workshop,
+  SpecialGuest,
   WorkshopRegistration,
   StudentInfo,
   ClassLevelProgression,
@@ -1071,11 +1072,13 @@ class SupabaseService {
           room_id,
           venue,
           instructor_personnel_id,
+          special_guest_id,
           capacity,
           status,
           notes,
           rooms(room_name),
           personnel!workshops_instructor_personnel_id_fkey(first_name, last_name),
+          special_guests(full_name),
           workshop_registrations(workshop_registration_id)
         `)
         .order('workshop_date', { ascending: true });
@@ -1106,9 +1109,10 @@ class SupabaseService {
           RoomID: row.room_id ?? null,
           Venue: row.venue || row.rooms?.room_name || '',
           InstructorPersonnelID: row.instructor_personnel_id ?? null,
+          SpecialGuestID: row.special_guest_id ?? null,
           InstructorName: row.personnel
             ? `${row.personnel.first_name || ''} ${row.personnel.last_name || ''}`.trim()
-            : '',
+            : (row.special_guests?.full_name || ''),
           Capacity: row.capacity ?? 0,
           RegistrationCount: Array.isArray(row.workshop_registrations) ? row.workshop_registrations.length : 0,
           Status: computedStatus,
@@ -1134,6 +1138,7 @@ class SupabaseService {
         room_id: workshop.RoomID || null,
         venue: workshop.Venue || null,
         instructor_personnel_id: workshop.InstructorPersonnelID || null,
+        special_guest_id: workshop.SpecialGuestID || null,
         capacity: workshop.Capacity ?? 0,
         status: workshop.Status || 'Upcoming',
         notes: workshop.Notes || null,
@@ -1159,6 +1164,7 @@ class SupabaseService {
           RoomID: data.room_id ?? null,
           Venue: data.venue || '',
           InstructorPersonnelID: data.instructor_personnel_id ?? null,
+          SpecialGuestID: data.special_guest_id ?? null,
           Capacity: data.capacity ?? 0,
           Status: data.status || 'Upcoming',
           Notes: data.notes || '',
@@ -1183,6 +1189,7 @@ class SupabaseService {
       if (workshop.RoomID !== undefined) updates.room_id = workshop.RoomID || null;
       if (workshop.Venue !== undefined) updates.venue = workshop.Venue || null;
       if (workshop.InstructorPersonnelID !== undefined) updates.instructor_personnel_id = workshop.InstructorPersonnelID || null;
+      if (workshop.SpecialGuestID !== undefined) updates.special_guest_id = workshop.SpecialGuestID || null;
       if (workshop.Capacity !== undefined) updates.capacity = workshop.Capacity;
       if (workshop.Status !== undefined) updates.status = workshop.Status;
       if (workshop.Notes !== undefined) updates.notes = workshop.Notes || null;
@@ -1208,6 +1215,7 @@ class SupabaseService {
           RoomID: data.room_id ?? null,
           Venue: data.venue || '',
           InstructorPersonnelID: data.instructor_personnel_id ?? null,
+          SpecialGuestID: data.special_guest_id ?? null,
           Capacity: data.capacity ?? 0,
           Status: data.status || 'Upcoming',
           Notes: data.notes || '',
@@ -1313,6 +1321,119 @@ class SupabaseService {
       return { success: true, data: { deleted: true } };
     } catch (error) {
       console.error('Error removing workshop registration:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getAllSpecialGuests(): Promise<ApiResponse<SpecialGuest[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('special_guests')
+        .select('*')
+        .order('full_name', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed: SpecialGuest[] = (data || []).map((row: any) => ({
+        SpecialGuestID: row.special_guest_id,
+        FullName: row.full_name || '',
+        PrimaryEmail: row.primary_email || '',
+        PrimaryPhone: row.primary_phone || '',
+        Expertise: row.expertise || '',
+        Notes: row.notes || '',
+        Active: row.active !== false,
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching special guests:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async createSpecialGuest(guest: Omit<SpecialGuest, 'SpecialGuestID'>): Promise<ApiResponse<SpecialGuest>> {
+    try {
+      const { data, error } = await this.client
+        .from('special_guests')
+        .insert([{
+          full_name: guest.FullName,
+          primary_email: guest.PrimaryEmail || null,
+          primary_phone: guest.PrimaryPhone || null,
+          expertise: guest.Expertise || null,
+          notes: guest.Notes || null,
+          active: guest.Active !== false,
+        }])
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          SpecialGuestID: data.special_guest_id,
+          FullName: data.full_name || '',
+          PrimaryEmail: data.primary_email || '',
+          PrimaryPhone: data.primary_phone || '',
+          Expertise: data.expertise || '',
+          Notes: data.notes || '',
+          Active: data.active !== false,
+        },
+      };
+    } catch (error) {
+      console.error('Error creating special guest:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateSpecialGuest(specialGuestId: number, guest: Partial<SpecialGuest>): Promise<ApiResponse<SpecialGuest>> {
+    try {
+      const updates: Record<string, any> = {};
+      if (guest.FullName !== undefined) updates.full_name = guest.FullName;
+      if (guest.PrimaryEmail !== undefined) updates.primary_email = guest.PrimaryEmail || null;
+      if (guest.PrimaryPhone !== undefined) updates.primary_phone = guest.PrimaryPhone || null;
+      if (guest.Expertise !== undefined) updates.expertise = guest.Expertise || null;
+      if (guest.Notes !== undefined) updates.notes = guest.Notes || null;
+      if (guest.Active !== undefined) updates.active = guest.Active;
+
+      const { data, error } = await this.client
+        .from('special_guests')
+        .update(updates)
+        .eq('special_guest_id', specialGuestId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          SpecialGuestID: data.special_guest_id,
+          FullName: data.full_name || '',
+          PrimaryEmail: data.primary_email || '',
+          PrimaryPhone: data.primary_phone || '',
+          Expertise: data.expertise || '',
+          Notes: data.notes || '',
+          Active: data.active !== false,
+        },
+      };
+    } catch (error) {
+      console.error('Error updating special guest:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deleteSpecialGuest(specialGuestId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('special_guests')
+        .delete()
+        .eq('special_guest_id', specialGuestId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting special guest:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
@@ -1711,7 +1832,7 @@ class SupabaseService {
 
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     try {
-      const [personnel, students, shows, classes, castRows, crewRows, bartenderRows, enrollRows] = await Promise.all([
+      const [personnel, students, shows, classes, castRows, crewRows, bartenderRows, enrollRows, workshopRows, workshopRegistrationRows] = await Promise.all([
         this.client.from('personnel').select('count', { count: 'exact' }),
         this.client.from('student_info').select('count', { count: 'exact' }),
         this.client.from('show_information').select('count', { count: 'exact' }),
@@ -1720,6 +1841,8 @@ class SupabaseService {
         this.client.from('crew_duties').select('personnel_id'),
         this.client.from('bartenders').select('active'),
         this.client.from('student_enrollments').select('enrollment_id, status'),
+        this.client.from('workshops').select('workshop_id, title, workshop_date, start_time, end_time, venue, instructor_personnel_id, special_guest_id, status'),
+        this.client.from('workshop_registrations').select('workshop_registration_id', { count: 'exact' }),
       ]);
 
       const totalShows = shows.count || 0;
@@ -1731,6 +1854,48 @@ class SupabaseService {
       const totalBartenders = (bartenderRows.data || []).length;
       const activeBartenders = (bartenderRows.data || []).filter((b: any) => b.active).length;
       const totalEnrollments = (enrollRows.data || []).length;
+      const workshops = workshopRows.data || [];
+      const totalWorkshops = workshops.length;
+      const totalWorkshopRegistrations = workshopRegistrationRows.count || (workshopRegistrationRows.data || []).length;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      let upcomingWorkshops = 0;
+      let inProgressWorkshops = 0;
+      let completedWorkshops = 0;
+      let cancelledWorkshops = 0;
+
+      const normalizedWorkshops = workshops.map((w: any) => {
+        const dateStr = String(w.workshop_date || '').slice(0, 10);
+        const date = new Date(`${dateStr}T00:00:00`);
+        const status = String(w.status || '').toLowerCase();
+
+        let normalizedStatus: Workshop['Status'] = 'Upcoming';
+        if (status === 'canceled' || status === 'cancelled') normalizedStatus = 'Canceled';
+        else if (status === 'completed' || (!Number.isNaN(date.getTime()) && date < today)) normalizedStatus = 'Completed';
+
+        if (date && !Number.isNaN(date.getTime()) && date.getTime() === today.getTime() && normalizedStatus === 'Upcoming') inProgressWorkshops++;
+        else if (normalizedStatus === 'Upcoming') upcomingWorkshops++;
+        else if (normalizedStatus === 'Completed') completedWorkshops++;
+        else if (normalizedStatus === 'Canceled') cancelledWorkshops++;
+
+        return {
+          WorkshopID: w.workshop_id,
+          Title: w.title || '',
+          WorkshopDate: w.workshop_date,
+          StartTime: w.start_time || '',
+          EndTime: w.end_time || '',
+          Venue: w.venue || '',
+          InstructorPersonnelID: w.instructor_personnel_id ?? null,
+          SpecialGuestID: w.special_guest_id ?? null,
+          Status: normalizedStatus,
+        } as Workshop;
+      });
+
+      const nextWorkshop = normalizedWorkshops
+        .filter((w) => String(w.Status || '').toLowerCase() === 'upcoming' && w.WorkshopDate)
+        .sort((a, b) => new Date(String(a.WorkshopDate)).getTime() - new Date(String(b.WorkshopDate)).getTime())[0] || null;
 
       return {
         success: true,
@@ -1753,6 +1918,13 @@ class SupabaseService {
           totalClasses,
           totalEnrollments,
           classEnrollmentData: [],
+          totalWorkshops,
+          upcomingWorkshops,
+          inProgressWorkshops,
+          completedWorkshops,
+          cancelledWorkshops,
+          totalWorkshopRegistrations,
+          nextWorkshop,
           totalCastMembers,
           totalCrewMembers,
           totalBartenders,

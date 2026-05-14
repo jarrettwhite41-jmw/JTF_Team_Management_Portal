@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { gasService } from '../services/googleAppsScript';
-import { Personnel, Workshop, WorkshopRegistration } from '../types';
+import { Personnel, SpecialGuest, Workshop, WorkshopRegistration } from '../types';
 
 type FilterType = 'all' | 'upcoming' | 'completed' | 'canceled';
 
@@ -14,7 +14,9 @@ type WorkshopFormData = {
   EndTime: string;
   RoomID: string;
   Venue: string;
+  InstructorType: 'personnel' | 'guest';
   InstructorPersonnelID: string;
+  SpecialGuestID: string;
   Capacity: string;
   Status: 'Upcoming' | 'Completed' | 'Canceled';
   Notes: string;
@@ -28,7 +30,9 @@ const emptyForm: WorkshopFormData = {
   EndTime: '',
   RoomID: '',
   Venue: '',
+  InstructorType: 'personnel',
   InstructorPersonnelID: '',
+  SpecialGuestID: '',
   Capacity: '20',
   Status: 'Upcoming',
   Notes: '',
@@ -52,11 +56,12 @@ interface WorkshopEditModalProps {
   workshop: Workshop | null;
   rooms: Array<{ RoomID: number; RoomName: string }>;
   instructors: Personnel[];
+  specialGuests: SpecialGuest[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop, rooms, instructors, onClose, onSaved }) => {
+const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop, rooms, instructors, specialGuests, onClose, onSaved }) => {
   const [form, setForm] = useState<WorkshopFormData>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -73,7 +78,9 @@ const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop,
         EndTime: workshop.EndTime || '',
         RoomID: workshop.RoomID ? String(workshop.RoomID) : '',
         Venue: workshop.Venue || '',
+        InstructorType: workshop.SpecialGuestID ? 'guest' : 'personnel',
         InstructorPersonnelID: workshop.InstructorPersonnelID ? String(workshop.InstructorPersonnelID) : '',
+        SpecialGuestID: workshop.SpecialGuestID ? String(workshop.SpecialGuestID) : '',
         Capacity: String(workshop.Capacity || 0),
         Status: workshop.Status || computeWorkshopStatus(workshop),
         Notes: workshop.Notes || '',
@@ -97,7 +104,8 @@ const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop,
         EndTime: form.EndTime || '',
         RoomID: form.RoomID ? Number(form.RoomID) : null,
         Venue: form.Venue.trim(),
-        InstructorPersonnelID: form.InstructorPersonnelID ? Number(form.InstructorPersonnelID) : null,
+        InstructorPersonnelID: form.InstructorType === 'personnel' && form.InstructorPersonnelID ? Number(form.InstructorPersonnelID) : null,
+        SpecialGuestID: form.InstructorType === 'guest' && form.SpecialGuestID ? Number(form.SpecialGuestID) : null,
         Capacity: Number(form.Capacity || 0),
         Status: form.Status,
         Notes: form.Notes.trim(),
@@ -189,18 +197,44 @@ const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop,
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
-              <select value={form.InstructorPersonnelID} onChange={(e) => setForm(prev => ({ ...prev, InstructorPersonnelID: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2">
-                <option value="">Select instructor</option>
-                {instructors.map(person => (
-                  <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>
-                ))}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Instructor Type</label>
+              <select
+                value={form.InstructorType}
+                onChange={(e) => setForm(prev => ({
+                  ...prev,
+                  InstructorType: e.target.value as WorkshopFormData['InstructorType'],
+                  InstructorPersonnelID: e.target.value === 'personnel' ? prev.InstructorPersonnelID : '',
+                  SpecialGuestID: e.target.value === 'guest' ? prev.SpecialGuestID : '',
+                }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2"
+              >
+                <option value="personnel">Team Instructor</option>
+                <option value="guest">Special Guest</option>
               </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
               <input type="number" min={1} value={form.Capacity} onChange={(e) => setForm(prev => ({ ...prev, Capacity: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2" />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Instructor</label>
+            {form.InstructorType === 'personnel' ? (
+              <select value={form.InstructorPersonnelID} onChange={(e) => setForm(prev => ({ ...prev, InstructorPersonnelID: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <option value="">Select instructor</option>
+                {instructors.map(person => (
+                  <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>
+                ))}
+              </select>
+            ) : (
+              <select value={form.SpecialGuestID} onChange={(e) => setForm(prev => ({ ...prev, SpecialGuestID: e.target.value }))} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                <option value="">Select special guest</option>
+                {specialGuests.filter(guest => guest.Active !== false).map(guest => (
+                  <option key={guest.SpecialGuestID} value={guest.SpecialGuestID}>{guest.FullName}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -366,6 +400,7 @@ export const Workshops: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [rooms, setRooms] = useState<Array<{ RoomID: number; RoomName: string }>>([]);
   const [instructors, setInstructors] = useState<Personnel[]>([]);
+  const [specialGuests, setSpecialGuests] = useState<SpecialGuest[]>([]);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
@@ -417,9 +452,10 @@ export const Workshops: React.FC = () => {
   };
 
   const loadOptions = async () => {
-    const [roomsResponse, personnelResponse] = await Promise.all([
+    const [roomsResponse, personnelResponse, specialGuestsResponse] = await Promise.all([
       gasService.getAllRooms(),
       gasService.getAllPersonnel(),
+      gasService.getAllSpecialGuests(),
     ]);
 
     if (roomsResponse.success) {
@@ -429,6 +465,11 @@ export const Workshops: React.FC = () => {
     if (personnelResponse.success) {
       const sorted = [...(personnelResponse.data || [])].sort((a, b) => `${a.FirstName} ${a.LastName}`.localeCompare(`${b.FirstName} ${b.LastName}`, undefined, { sensitivity: 'base' }));
       setInstructors(sorted);
+    }
+
+    if (specialGuestsResponse.success) {
+      const sortedGuests = [...(specialGuestsResponse.data || [])].sort((a, b) => a.FullName.localeCompare(b.FullName, undefined, { sensitivity: 'base' }));
+      setSpecialGuests(sortedGuests);
     }
   };
 
@@ -557,6 +598,7 @@ export const Workshops: React.FC = () => {
         workshop={selectedWorkshop}
         rooms={rooms}
         instructors={instructors}
+        specialGuests={specialGuests}
         onClose={() => setEditModalOpen(false)}
         onSaved={async () => {
           setEditModalOpen(false);

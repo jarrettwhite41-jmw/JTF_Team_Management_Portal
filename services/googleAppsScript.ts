@@ -18,6 +18,7 @@ import {
   MasterGame,
   ShowGame,
   Workshop,
+  SpecialGuest,
   WorkshopRegistration
 } from '../types';
 import { supabaseService } from './supabaseService';
@@ -134,6 +135,27 @@ const mockWorkshopRegistrations: WorkshopRegistration[] = [
   { WorkshopRegistrationID: 1, WorkshopID: 1, PersonnelID: 1, FullName: 'John Doe', PrimaryEmail: 'john.doe@email.com', RegistrationStatus: 'Registered', CheckedIn: false },
   { WorkshopRegistrationID: 2, WorkshopID: 1, PersonnelID: 2, FullName: 'Jane Smith', PrimaryEmail: 'jane.smith@email.com', RegistrationStatus: 'Registered', CheckedIn: false },
   { WorkshopRegistrationID: 3, WorkshopID: 2, PersonnelID: 2, FullName: 'Jane Smith', PrimaryEmail: 'jane.smith@email.com', RegistrationStatus: 'Registered', CheckedIn: true },
+];
+
+const mockSpecialGuests: SpecialGuest[] = [
+  {
+    SpecialGuestID: 1,
+    FullName: 'Ava Martinez',
+    PrimaryEmail: 'ava.martinez@example.com',
+    PrimaryPhone: '555-0191',
+    Expertise: 'Musical Improv',
+    Notes: 'Visiting artist from Chicago.',
+    Active: true,
+  },
+  {
+    SpecialGuestID: 2,
+    FullName: 'Leo Kim',
+    PrimaryEmail: 'leo.kim@example.com',
+    PrimaryPhone: '555-0192',
+    Expertise: 'Scene Editing',
+    Notes: '',
+    Active: true,
+  },
 ];
 
 const mockInventory: Inventory[] = [
@@ -441,6 +463,18 @@ class GoogleAppsScriptService {
             case 'removeWorkshopRegistration':
               data = { deleted: true };
               break;
+            case 'getAllSpecialGuests':
+              data = mockSpecialGuests;
+              break;
+            case 'createSpecialGuest':
+              data = { ...args[0], SpecialGuestID: Date.now(), Active: args[0]?.Active !== false };
+              break;
+            case 'updateSpecialGuest':
+              data = { SpecialGuestID: Number(args[0]), ...args[1] };
+              break;
+            case 'deleteSpecialGuest':
+              data = { deleted: true };
+              break;
             case 'getStudentNotesForStudent':
               data = [];
               break;
@@ -669,6 +703,22 @@ class GoogleAppsScriptService {
 
   async removeWorkshopRegistration(workshopRegistrationId: number): Promise<ApiResponse<{ deleted: boolean }>> {
     return this.callServerFunction<{ deleted: boolean }>('removeWorkshopRegistration', workshopRegistrationId);
+  }
+
+  async getAllSpecialGuests(): Promise<ApiResponse<SpecialGuest[]>> {
+    return this.callServerFunction<SpecialGuest[]>('getAllSpecialGuests');
+  }
+
+  async createSpecialGuest(guest: Omit<SpecialGuest, 'SpecialGuestID'>): Promise<ApiResponse<SpecialGuest>> {
+    return this.callServerFunction<SpecialGuest>('createSpecialGuest', guest);
+  }
+
+  async updateSpecialGuest(specialGuestId: number, guest: Partial<SpecialGuest>): Promise<ApiResponse<SpecialGuest>> {
+    return this.callServerFunction<SpecialGuest>('updateSpecialGuest', specialGuestId, guest);
+  }
+
+  async deleteSpecialGuest(specialGuestId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('deleteSpecialGuest', specialGuestId);
   }
 
   // Dashboard methods

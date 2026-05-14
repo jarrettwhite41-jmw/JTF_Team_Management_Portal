@@ -8,6 +8,7 @@ import { BartendersPage } from './pages/BartendersPage';
 import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
 import { Workshops } from './pages/Workshops';
+import { SpecialGuests } from './pages/SpecialGuests';
 import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
 import { StudentDirectory } from './pages/StudentDirectory';
@@ -37,6 +38,8 @@ const App: React.FC = () => {
         return <Shows />;
       case 'workshops':
         return <Workshops />;
+      case 'special-guests':
+        return <SpecialGuests />;
       case 'inventory':
         return <InventoryPage />;
       case 'scheduling':

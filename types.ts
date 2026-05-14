@@ -148,11 +148,22 @@ export interface Workshop {
   RoomID?: number | null;
   Venue?: string;
   InstructorPersonnelID?: number | null;
+  SpecialGuestID?: number | null;
   InstructorName?: string;
   Capacity?: number;
   RegistrationCount?: number;
   Status?: 'Upcoming' | 'Completed' | 'Canceled';
   Notes?: string;
+}
+
+export interface SpecialGuest {
+  SpecialGuestID: number;
+  FullName: string;
+  PrimaryEmail?: string;
+  PrimaryPhone?: string;
+  Expertise?: string;
+  Notes?: string;
+  Active?: boolean;
 }
 
 export interface WorkshopRegistration {
@@ -354,7 +365,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'workshops' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'workshops' | 'special-guests' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
