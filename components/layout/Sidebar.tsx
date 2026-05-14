@@ -11,17 +11,17 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen = false, onClose }) => {
   const navigationItems: NavigationItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'personnel', label: 'Personnel', icon: '👥' },
     { id: 'cast', label: 'Cast', icon: '🎭' },
     { id: 'crew', label: 'Crew', icon: '🛠️' },
     { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
+    { id: 'student-directory', label: 'Students', icon: '🎓' },
     { id: 'classes', label: 'Classes', icon: '📚' },
     { id: 'shows', label: 'Shows', icon: '🎬' },
     { id: 'workshops', label: 'Workshops', icon: '🧠' },
-    { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
-    { id: 'inventory', label: 'Inventory', icon: '📦' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
-    { id: 'student-directory', label: 'Students', icon: '🎓' }
+    { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
+    { id: 'personnel', label: 'Personnel', icon: '👥' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
   ];
 
   const handleNavigate = (page: PageType) => {
