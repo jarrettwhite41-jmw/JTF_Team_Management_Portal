@@ -10,6 +10,7 @@ interface PersonnelModalProps {
   onSave: (person: Personnel | Omit<Personnel, 'PersonnelID'>) => Promise<void>;
   onEdit?: () => void;
   onDelete?: () => void;
+  onReactivate?: () => void;
 }
 
 export const PersonnelModal: React.FC<PersonnelModalProps> = ({
@@ -19,7 +20,8 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   onClose,
   onSave,
   onEdit,
-  onDelete
+  onDelete,
+  onReactivate
 }) => {
   const [formData, setFormData] = useState<Partial<Personnel>>({
     FirstName: '',
@@ -251,6 +253,15 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
                   >
                     Delete
                   </button>
+                  {person.IsActive === false && (
+                    <button
+                      type="button"
+                      onClick={onReactivate}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Reactivate
+                    </button>
+                  )}
                 </>
               )}
               

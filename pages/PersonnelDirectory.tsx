@@ -11,6 +11,7 @@ export const PersonnelDirectory: React.FC = () => {
   const [filteredPersonnel, setFilteredPersonnel] = useState<PersonnelWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Personnel | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>('view');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,19 +43,23 @@ export const PersonnelDirectory: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const filtered = personnel.filter(person =>
-      `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = personnel.filter(person => {
+      const isVisibleByStatus = showInactive || person.IsActive !== false;
+      const matchesSearch =
+        `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase());
+
+      return isVisibleByStatus && matchesSearch;
+    });
     setFilteredPersonnel(filtered);
-  }, [personnel, searchTerm]);
+  }, [personnel, searchTerm, showInactive]);
 
   const loadPersonnel = async () => {
     setIsLoading(true);
     try {
       const response = await gasService.getAllPersonnel();
       if (response.success && response.data) {
-        setPersonnel(response.data.filter((person: PersonnelWithDetails) => person.IsActive !== false));
+        setPersonnel(response.data);
       } else {
         setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
       }
@@ -142,6 +147,24 @@ export const PersonnelDirectory: React.FC = () => {
     setForceDelete(false);
   };
 
+  const handleReactivate = async () => {
+    if (!selectedPerson) return;
+
+    try {
+      const response = await gasService.reactivatePersonnel(selectedPerson.PersonnelID);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Personnel reactivated successfully' });
+        setIsModalOpen(false);
+        setSelectedPerson(null);
+        await loadPersonnel();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to reactivate personnel' });
+      }
+    } catch (_error) {
+      setMessage({ type: 'error', text: 'Error reactivating personnel' });
+    }
+  };
+
   const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
     const normalized = normalizePersonnelPayload(personData);
     const emailToCheck = (normalized as Personnel).PrimaryEmail?.trim().toLowerCase();
@@ -203,13 +226,23 @@ export const PersonnelDirectory: React.FC = () => {
       )}
 
       <div className="mb-6">
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Show Inactive
+          </label>
+        </div>
       </div>
 
       {isLoading ? (
@@ -258,6 +291,7 @@ export const PersonnelDirectory: React.FC = () => {
         onSave={handleSavePerson}
         onEdit={handleEditPerson}
         onDelete={handleDeletePerson}
+        onReactivate={handleReactivate}
       />
 
       {isDeleteModalOpen && personToDelete && deleteDependencies && (

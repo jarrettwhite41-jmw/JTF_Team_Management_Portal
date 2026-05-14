@@ -376,6 +376,9 @@ class GoogleAppsScriptService {
             case 'inactivatePersonnel':
               data = { inactivated: true };
               break;
+            case 'reactivatePersonnel':
+              data = { reactivated: true };
+              break;
             case 'getPersonnelDeletionDependencies':
               data = {
                 canDelete: true,
@@ -568,6 +571,10 @@ class GoogleAppsScriptService {
 
   async inactivatePersonnel(personnelId: number): Promise<ApiResponse<{ inactivated: boolean }>> {
     return this.callServerFunction<{ inactivated: boolean }>('inactivatePersonnel', personnelId);
+  }
+
+  async reactivatePersonnel(personnelId: number): Promise<ApiResponse<{ reactivated: boolean }>> {
+    return this.callServerFunction<{ reactivated: boolean }>('reactivatePersonnel', personnelId);
   }
 
   // Show methods

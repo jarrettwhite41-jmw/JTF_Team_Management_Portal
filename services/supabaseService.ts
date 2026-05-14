@@ -385,6 +385,21 @@ class SupabaseService {
     }
   }
 
+  async reactivatePersonnel(personnelId: number): Promise<ApiResponse<{ reactivated: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('personnel')
+        .update({ active: true })
+        .eq('personnel_id', personnelId);
+
+      if (error) throw error;
+      return { success: true, data: { reactivated: true } };
+    } catch (error) {
+      console.error('Error reactivating personnel:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // SHOWS
   // ========================================================================
