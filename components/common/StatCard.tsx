@@ -5,6 +5,7 @@ interface StatCardProps {
   value: string | number;
   icon: string;
   color?: 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'gold';
+  onClick?: () => void;
   trend?: {
     value: number;
     isPositive: boolean;
@@ -16,6 +17,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   value, 
   icon, 
   color = 'red',
+  onClick,
   trend 
 }) => {
   const colorClasses = {
@@ -28,7 +30,12 @@ export const StatCard: React.FC<StatCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`bg-white rounded-lg shadow-sm border p-6 w-full text-left ${onClick ? 'hover:shadow-md transition-shadow cursor-pointer' : 'cursor-default'}`}
+      disabled={!onClick}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
@@ -43,6 +50,6 @@ export const StatCard: React.FC<StatCardProps> = ({
           {icon}
         </div>
       </div>
-    </div>
+    </button>
   );
 };

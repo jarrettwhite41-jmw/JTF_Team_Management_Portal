@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatCard } from '../components/common/StatCard';
 import { Loader } from '../components/common/Loader';
-import { DashboardStats, ClassEnrollmentEntry, NextShowInfo } from '../types';
+import { DashboardStats, ClassEnrollmentEntry, NextShowInfo, PageType } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -99,7 +99,11 @@ function formatShowDate(dateStr: Date | string | undefined): string {
 
 // ── Main Dashboard component ──────────────────────────────────────────────────
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onNavigate?: (page: PageType) => void;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
@@ -142,13 +146,13 @@ export const Dashboard: React.FC = () => {
 
       {/* ROW 1: KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
-        <StatCard title="Total Personnel"  value={stats.totalPersonnel}                              icon="👥" color="red"  />
-        <StatCard title="Active Students"  value={stats.studentsActive ?? stats.activeStudents}      icon="🎓" color="gold" />
-        <StatCard title="Scheduled Shows"  value={stats.scheduledShows}                             icon="🎪" color="red"  />
-        <StatCard title="Active Classes"   value={stats.activeClasses}                              icon="📚" color="gold" />
-        <StatCard title="Upcoming Workshops" value={stats.upcomingWorkshops}                         icon="🎓" color="red"  />
-        <StatCard title="Cast Members"     value={stats.totalCastMembers}                           icon="🎭" color="red"  />
-        <StatCard title="Bartenders"       value={stats.activeBartenders ?? stats.totalBartenders}  icon="🍺" color="gold" />
+        <StatCard title="Total Personnel"  value={stats.totalPersonnel}                              icon="👥" color="red" onClick={() => onNavigate?.('personnel-management')} />
+        <StatCard title="Active Students"  value={stats.studentsActive ?? stats.activeStudents}      icon="🎓" color="gold" onClick={() => onNavigate?.('student-directory')} />
+        <StatCard title="Scheduled Shows"  value={stats.scheduledShows}                              icon="🎪" color="red" onClick={() => onNavigate?.('show-management')} />
+        <StatCard title="Active Classes"   value={stats.activeClasses}                               icon="📚" color="gold" onClick={() => onNavigate?.('class-management')} />
+        <StatCard title="Upcoming Workshops" value={stats.upcomingWorkshops}                         icon="🧠" color="red" onClick={() => onNavigate?.('workshops')} />
+        <StatCard title="Cast Members"     value={stats.totalCastMembers}                            icon="🎭" color="red" onClick={() => onNavigate?.('cast')} />
+        <StatCard title="Bartenders"       value={stats.activeBartenders ?? stats.totalBartenders}   icon="🍺" color="gold" onClick={() => onNavigate?.('bartenders')} />
       </div>
 
       {/* ROW 2: Status Distribution Panels */}

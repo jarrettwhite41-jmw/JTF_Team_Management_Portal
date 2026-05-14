@@ -4,12 +4,16 @@ import { ShowEditModal } from '../components/shows/ShowEditModal';
 import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { ShowWithDetails } from '../types';
+import { PageType, ShowWithDetails } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
 
-export const Shows: React.FC = () => {
+interface ShowsProps {
+  onNavigate?: (page: PageType) => void;
+}
+
+export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
   const [filteredShows, setFilteredShows] = useState<ShowWithDetails[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -127,12 +131,32 @@ export const Shows: React.FC = () => {
     <div className="p-4 sm:p-6">
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Shows</h1>
-        <button
-          onClick={handleAddShow}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-        >
-          Add New Show
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => onNavigate?.('cast')}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Go to Cast Management
+          </button>
+          <button
+            onClick={() => onNavigate?.('crew')}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            View Crew Assignments
+          </button>
+          <button
+            onClick={() => onNavigate?.('bartenders')}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            View Bartenders
+          </button>
+          <button
+            onClick={handleAddShow}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Add New Show
+          </button>
+        </div>
       </div>
 
       {message && (

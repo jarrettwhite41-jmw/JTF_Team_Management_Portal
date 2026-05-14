@@ -13,6 +13,8 @@ import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
 import { StudentDirectory } from './pages/StudentDirectory';
 import { StudentProfile } from './pages/StudentProfile';
+import { TeacherManagement } from './pages/TeacherManagement';
+import { DirectorManagement } from './pages/DirectorManagement';
 import { PageType } from './types';
 
 const App: React.FC = () => {
@@ -23,7 +25,8 @@ const App: React.FC = () => {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentPage} />;
+      case 'personnel-management':
       case 'personnel':
         return <PersonnelDirectory />;
       case 'cast':
@@ -32,10 +35,16 @@ const App: React.FC = () => {
         return <CrewDirectory />;
       case 'bartenders':
         return <BartendersPage />;
+      case 'teacher-management':
+        return <TeacherManagement onNavigate={setCurrentPage} />;
+      case 'director-management':
+        return <DirectorManagement onNavigate={setCurrentPage} />;
+      case 'class-management':
       case 'classes':
-        return <ClassRegistration />;
+        return <ClassRegistration onNavigate={setCurrentPage} />;
+      case 'show-management':
       case 'shows':
-        return <Shows />;
+        return <Shows onNavigate={setCurrentPage} />;
       case 'workshops':
         return <Workshops />;
       case 'special-guests':

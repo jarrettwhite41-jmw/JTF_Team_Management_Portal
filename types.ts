@@ -365,7 +365,25 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'workshops' | 'special-guests' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType =
+  | 'dashboard'
+  | 'personnel'
+  | 'personnel-management'
+  | 'cast'
+  | 'crew'
+  | 'bartenders'
+  | 'classes'
+  | 'class-management'
+  | 'shows'
+  | 'show-management'
+  | 'workshops'
+  | 'special-guests'
+  | 'teacher-management'
+  | 'director-management'
+  | 'inventory'
+  | 'scheduling'
+  | 'student-directory'
+  | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
