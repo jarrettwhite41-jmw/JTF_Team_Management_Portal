@@ -141,17 +141,18 @@ export const Dashboard: React.FC = () => {
       </div>
 
       {/* ROW 1: KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
         <StatCard title="Total Personnel"  value={stats.totalPersonnel}                              icon="👥" color="red"  />
         <StatCard title="Active Students"  value={stats.studentsActive ?? stats.activeStudents}      icon="🎓" color="gold" />
         <StatCard title="Scheduled Shows"  value={stats.scheduledShows}                             icon="🎪" color="red"  />
         <StatCard title="Active Classes"   value={stats.activeClasses}                              icon="📚" color="gold" />
+        <StatCard title="Upcoming Workshops" value={stats.upcomingWorkshops}                         icon="🎓" color="red"  />
         <StatCard title="Cast Members"     value={stats.totalCastMembers}                           icon="🎭" color="red"  />
         <StatCard title="Bartenders"       value={stats.activeBartenders ?? stats.totalBartenders}  icon="🍺" color="gold" />
       </div>
 
       {/* ROW 2: Status Distribution Panels */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
 
         <div className="bg-white rounded-lg shadow-sm border p-5">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Show Status</h2>
@@ -180,6 +181,17 @@ export const Dashboard: React.FC = () => {
             { label: 'In Progress', count: stats.inProgressClasses,  color: 'bg-red-500'    },
             { label: 'Completed',   count: stats.completedClasses,   color: 'bg-zinc-400'   },
             { label: 'Cancelled',   count: stats.cancelledClasses,   color: 'bg-gray-600'   },
+          ]} />
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border p-5">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Workshop Status</h2>
+          <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalWorkshops} Total</p>
+          <SegmentedBar segments={[
+            { label: 'Upcoming',    count: stats.upcomingWorkshops,    color: 'bg-blue-500'  },
+            { label: 'In Progress', count: stats.inProgressWorkshops,  color: 'bg-red-500'   },
+            { label: 'Completed',   count: stats.completedWorkshops,   color: 'bg-zinc-400'  },
+            { label: 'Cancelled',   count: stats.cancelledWorkshops,   color: 'bg-gray-600'  },
           ]} />
         </div>
       </div>
@@ -224,6 +236,24 @@ export const Dashboard: React.FC = () => {
                 </div>
               )
               : <p className="text-sm text-gray-400">No upcoming shows scheduled.</p>
+            }
+          </div>
+
+          {/* Next Workshop */}
+          <div className="bg-white rounded-lg shadow-sm border p-5">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Next Upcoming Workshop</h2>
+            {stats.nextWorkshop
+              ? (
+                <div>
+                  <p className="text-lg font-bold text-gray-900">{stats.nextWorkshop.Title}</p>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    <span className="text-sm text-gray-600">📅 {formatShowDate(stats.nextWorkshop.WorkshopDate)}</span>
+                    {stats.nextWorkshop.Venue && <span className="text-sm text-gray-600">📍 {stats.nextWorkshop.Venue}</span>}
+                    <span className="text-sm text-gray-600">👤 {stats.totalWorkshopRegistrations} registrations</span>
+                  </div>
+                </div>
+              )
+              : <p className="text-sm text-gray-400">No upcoming workshops scheduled.</p>
             }
           </div>
 

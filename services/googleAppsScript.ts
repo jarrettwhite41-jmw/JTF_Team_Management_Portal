@@ -297,8 +297,38 @@ class GoogleAppsScriptService {
               data = {
                 totalPersonnel: mockPersonnel.length,
                 activeStudents: 25,
-                upcomingShows: mockShows.length,
-                activeClasses: mockClasses.length
+                totalStudents: 48,
+                studentsActive: 25,
+                studentsInactive: 15,
+                studentsGraduated: 8,
+                scheduledShows: 2,
+                canceledShows: 0,
+                totalShows: 2,
+                nextShow: mockShows[0] ? { 
+                  ShowID: mockShows[0].ShowID, 
+                  ShowDate: mockShows[0].ShowDate, 
+                  ShowTime: mockShows[0].ShowTime, 
+                  Venue: mockShows[0].Venue 
+                } : null,
+                activeClasses: mockClasses.length,
+                upcomingClasses: 1,
+                inProgressClasses: 1,
+                completedClasses: 0,
+                cancelledClasses: 0,
+                totalClasses: mockClasses.length,
+                totalEnrollments: 42,
+                classEnrollmentData: [],
+                totalWorkshops: mockWorkshops.length,
+                upcomingWorkshops: 1,
+                inProgressWorkshops: 0,
+                completedWorkshops: 1,
+                cancelledWorkshops: 0,
+                totalWorkshopRegistrations: mockWorkshopRegistrations.length,
+                nextWorkshop: mockWorkshops.find(w => w.Status === 'Upcoming') || null,
+                totalCastMembers: 12,
+                totalCrewMembers: mockCrewMembers.length,
+                totalBartenders: 5,
+                activeBartenders: 4
               };
               break;
             case 'createPersonnel':

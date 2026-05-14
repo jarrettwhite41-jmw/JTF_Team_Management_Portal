@@ -314,6 +314,14 @@ export interface DashboardStats {
   // Enrollments
   totalEnrollments: number;
   classEnrollmentData: ClassEnrollmentEntry[];
+  // Workshops
+  totalWorkshops: number;
+  upcomingWorkshops: number;
+  inProgressWorkshops: number;
+  completedWorkshops: number;
+  cancelledWorkshops: number;
+  totalWorkshopRegistrations: number;
+  nextWorkshop: Workshop | null;
   // Roles
   totalCastMembers: number;
   totalCrewMembers: number;
