@@ -38,7 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
-        { id: 'cast', label: 'Cast Management', icon: '🎭' },
       ] as NavigationItem[],
     },
     {
@@ -48,9 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
       defaultPage: 'class-management' as PageType,
       children: [
         { id: 'class-management', label: 'Classes', icon: '📘' },
-        { id: 'student-directory', label: 'Student Management', icon: '🎓' },
+        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
       ] as NavigationItem[],
     },

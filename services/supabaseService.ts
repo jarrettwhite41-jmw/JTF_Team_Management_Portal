@@ -152,6 +152,61 @@ class SupabaseService {
     }
   }
 
+  async addPersonAsTeacher(personnelId: number): Promise<ApiResponse<any>> {
+    try {
+      const isCast = await this.isCastMember(personnelId);
+      if (!isCast) {
+        return { success: false, error: 'Teacher assignments are restricted to cast members.' };
+      }
+
+      const { data: existing, error: existingError } = await this.client
+        .from('teachers')
+        .select('teacher_id')
+        .eq('personnel_id', personnelId)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing) {
+        return { success: true, data: { TeacherID: existing.teacher_id, PersonnelID: personnelId } };
+      }
+
+      const { data, error } = await this.client
+        .from('teachers')
+        .insert([{ personnel_id: personnelId }])
+        .select('teacher_id, personnel_id')
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          TeacherID: data.teacher_id,
+          PersonnelID: data.personnel_id,
+        },
+      };
+    } catch (error) {
+      console.error('Error adding teacher:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async removeTeacher(teacherId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('teachers')
+        .delete()
+        .eq('teacher_id', teacherId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing teacher:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getPersonnelById(personnelId: number): Promise<ApiResponse<Personnel>> {
     try {
       const { data, error } = await this.client

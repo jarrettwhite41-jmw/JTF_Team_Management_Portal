@@ -285,6 +285,12 @@ class GoogleAppsScriptService {
             case 'getAllTeachers':
               data = mockPersonnel;
               break;
+            case 'addPersonAsTeacher':
+              data = { TeacherID: 999, PersonnelID: args[0] };
+              break;
+            case 'removeTeacher':
+              data = { deleted: true };
+              break;
             case 'getAllShows':
               data = mockShows;
               break;
@@ -513,6 +519,14 @@ class GoogleAppsScriptService {
 
   async getAllTeachers(): Promise<ApiResponse<Personnel[]>> {
     return this.callServerFunction<Personnel[]>('getAllTeachers');
+  }
+
+  async addPersonAsTeacher(personnelId: number): Promise<ApiResponse<{ TeacherID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ TeacherID: number; PersonnelID: number }>('addPersonAsTeacher', personnelId);
+  }
+
+  async removeTeacher(teacherId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeTeacher', teacherId);
   }
 
   async createPersonnel(personnel: Omit<Personnel, 'PersonnelID'>): Promise<ApiResponse<Personnel>> {
