@@ -7,6 +7,7 @@ import { CrewDirectory } from './pages/CrewDirectory';
 import { BartendersPage } from './pages/BartendersPage';
 import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
+import { Workshops } from './pages/Workshops';
 import { InventoryPage } from './pages/Inventory';
 import { Scheduling } from './pages/Scheduling';
 import { StudentDirectory } from './pages/StudentDirectory';
@@ -34,6 +35,8 @@ const App: React.FC = () => {
         return <ClassRegistration />;
       case 'shows':
         return <Shows />;
+      case 'workshops':
+        return <Workshops />;
       case 'inventory':
         return <InventoryPage />;
       case 'scheduling':

@@ -17,6 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
     { id: 'classes', label: 'Classes', icon: '📚' },
     { id: 'shows', label: 'Shows', icon: '🎬' },
+    { id: 'workshops', label: 'Workshops', icon: '🧠' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
     { id: 'student-directory', label: 'Students', icon: '🎓' }

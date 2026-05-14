@@ -16,7 +16,9 @@ import {
   BartenderWithDetails,
   ShowWithDetails,
   MasterGame,
-  ShowGame
+  ShowGame,
+  Workshop,
+  WorkshopRegistration
 } from '../types';
 import { supabaseService } from './supabaseService';
 
@@ -93,6 +95,45 @@ const mockMasterGames: MasterGame[] = [
 const mockShowGames: ShowGame[] = [
   { GamesPlayedID: 1, ShowID: 1, GameID: 1, GameName: 'Freeze Tag', OrderInShow: 1, Notes: 'Opened strong' },
   { GamesPlayedID: 2, ShowID: 1, GameID: 3, GameName: 'Scenes From a Hat', OrderInShow: 2, Notes: 'Great audience suggestions' },
+];
+
+const mockWorkshops: Workshop[] = [
+  {
+    WorkshopID: 1,
+    Title: 'Character Intensives',
+    Description: 'Deep dive into character development and commitment.',
+    WorkshopDate: '2026-06-20',
+    StartTime: '14:00',
+    EndTime: '17:00',
+    RoomID: 3,
+    Venue: 'Main Stage',
+    InstructorPersonnelID: 1,
+    InstructorName: 'John Doe',
+    Capacity: 24,
+    RegistrationCount: 2,
+    Status: 'Upcoming',
+  },
+  {
+    WorkshopID: 2,
+    Title: 'Advanced Scene Work',
+    Description: 'Long-form scene construction with side-coaching.',
+    WorkshopDate: '2026-04-10',
+    StartTime: '10:00',
+    EndTime: '13:00',
+    RoomID: 2,
+    Venue: 'Studio B',
+    InstructorPersonnelID: 2,
+    InstructorName: 'Jane Smith',
+    Capacity: 20,
+    RegistrationCount: 1,
+    Status: 'Completed',
+  },
+];
+
+const mockWorkshopRegistrations: WorkshopRegistration[] = [
+  { WorkshopRegistrationID: 1, WorkshopID: 1, PersonnelID: 1, FullName: 'John Doe', PrimaryEmail: 'john.doe@email.com', RegistrationStatus: 'Registered', CheckedIn: false },
+  { WorkshopRegistrationID: 2, WorkshopID: 1, PersonnelID: 2, FullName: 'Jane Smith', PrimaryEmail: 'jane.smith@email.com', RegistrationStatus: 'Registered', CheckedIn: false },
+  { WorkshopRegistrationID: 3, WorkshopID: 2, PersonnelID: 2, FullName: 'Jane Smith', PrimaryEmail: 'jane.smith@email.com', RegistrationStatus: 'Registered', CheckedIn: true },
 ];
 
 const mockInventory: Inventory[] = [
@@ -349,6 +390,27 @@ class GoogleAppsScriptService {
             case 'updateShowGames':
               data = { success: true, message: 'Games updated successfully' };
               break;
+            case 'getAllWorkshops':
+              data = mockWorkshops;
+              break;
+            case 'createWorkshop':
+              data = { ...args[0], WorkshopID: Date.now(), RegistrationCount: 0 };
+              break;
+            case 'updateWorkshop':
+              data = args[1];
+              break;
+            case 'deleteWorkshop':
+              data = { deleted: true };
+              break;
+            case 'getWorkshopRegistrations':
+              data = mockWorkshopRegistrations.filter(r => r.WorkshopID === Number(args[0]));
+              break;
+            case 'registerPersonnelForWorkshop':
+              data = { created: true };
+              break;
+            case 'removeWorkshopRegistration':
+              data = { deleted: true };
+              break;
             case 'getStudentNotesForStudent':
               data = [];
               break;
@@ -549,6 +611,34 @@ class GoogleAppsScriptService {
 
   async updateShowGames(showId: number, games: Array<{ gameId?: number | null; customName?: string | null; variation?: string | null; flag?: boolean }>): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateShowGames', showId, games);
+  }
+
+  async getAllWorkshops(): Promise<ApiResponse<Workshop[]>> {
+    return this.callServerFunction<Workshop[]>('getAllWorkshops');
+  }
+
+  async createWorkshop(workshop: Omit<Workshop, 'WorkshopID'>): Promise<ApiResponse<Workshop>> {
+    return this.callServerFunction<Workshop>('createWorkshop', workshop);
+  }
+
+  async updateWorkshop(workshopId: number, workshop: Partial<Workshop>): Promise<ApiResponse<Workshop>> {
+    return this.callServerFunction<Workshop>('updateWorkshop', workshopId, workshop);
+  }
+
+  async deleteWorkshop(workshopId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('deleteWorkshop', workshopId);
+  }
+
+  async getWorkshopRegistrations(workshopId: number): Promise<ApiResponse<WorkshopRegistration[]>> {
+    return this.callServerFunction<WorkshopRegistration[]>('getWorkshopRegistrations', workshopId);
+  }
+
+  async registerPersonnelForWorkshop(workshopId: number, personnelId: number): Promise<ApiResponse<{ created: boolean }>> {
+    return this.callServerFunction<{ created: boolean }>('registerPersonnelForWorkshop', workshopId, personnelId);
+  }
+
+  async removeWorkshopRegistration(workshopRegistrationId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.callServerFunction<{ deleted: boolean }>('removeWorkshopRegistration', workshopRegistrationId);
   }
 
   // Dashboard methods

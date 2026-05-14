@@ -18,6 +18,8 @@ import {
   ShowWithDetails,
   MasterGame,
   ShowGame,
+  Workshop,
+  WorkshopRegistration,
   StudentInfo,
   ClassLevelProgression,
   Bartender,
@@ -1051,6 +1053,266 @@ class SupabaseService {
       return { success: true, data: { updated: true } };
     } catch (error) {
       console.error('Error updating show games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getAllWorkshops(): Promise<ApiResponse<Workshop[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('workshops')
+        .select(`
+          workshop_id,
+          title,
+          description,
+          workshop_date,
+          start_time,
+          end_time,
+          room_id,
+          venue,
+          instructor_personnel_id,
+          capacity,
+          status,
+          notes,
+          rooms(room_name),
+          personnel!workshops_instructor_personnel_id_fkey(first_name, last_name),
+          workshop_registrations(workshop_registration_id)
+        `)
+        .order('workshop_date', { ascending: true });
+
+      if (error) throw error;
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const transformed: Workshop[] = (data || []).map((row: any) => {
+        const date = row.workshop_date ? new Date(row.workshop_date) : null;
+        if (date) date.setHours(0, 0, 0, 0);
+
+        let computedStatus: Workshop['Status'] = 'Upcoming';
+        if (String(row.status || '').toLowerCase() === 'canceled') {
+          computedStatus = 'Canceled';
+        } else if (date && date < today) {
+          computedStatus = 'Completed';
+        }
+
+        return {
+          WorkshopID: row.workshop_id,
+          Title: row.title || '',
+          Description: row.description || '',
+          WorkshopDate: row.workshop_date,
+          StartTime: row.start_time || '',
+          EndTime: row.end_time || '',
+          RoomID: row.room_id ?? null,
+          Venue: row.venue || row.rooms?.room_name || '',
+          InstructorPersonnelID: row.instructor_personnel_id ?? null,
+          InstructorName: row.personnel
+            ? `${row.personnel.first_name || ''} ${row.personnel.last_name || ''}`.trim()
+            : '',
+          Capacity: row.capacity ?? 0,
+          RegistrationCount: Array.isArray(row.workshop_registrations) ? row.workshop_registrations.length : 0,
+          Status: computedStatus,
+          Notes: row.notes || '',
+        };
+      });
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching workshops:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async createWorkshop(workshop: Omit<Workshop, 'WorkshopID' | 'RegistrationCount' | 'InstructorName'>): Promise<ApiResponse<Workshop>> {
+    try {
+      const payload: Record<string, any> = {
+        title: workshop.Title,
+        description: workshop.Description || null,
+        workshop_date: workshop.WorkshopDate,
+        start_time: workshop.StartTime || null,
+        end_time: workshop.EndTime || null,
+        room_id: workshop.RoomID || null,
+        venue: workshop.Venue || null,
+        instructor_personnel_id: workshop.InstructorPersonnelID || null,
+        capacity: workshop.Capacity ?? 0,
+        status: workshop.Status || 'Upcoming',
+        notes: workshop.Notes || null,
+      };
+
+      const { data, error } = await this.client
+        .from('workshops')
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          WorkshopID: data.workshop_id,
+          Title: data.title,
+          Description: data.description || '',
+          WorkshopDate: data.workshop_date,
+          StartTime: data.start_time || '',
+          EndTime: data.end_time || '',
+          RoomID: data.room_id ?? null,
+          Venue: data.venue || '',
+          InstructorPersonnelID: data.instructor_personnel_id ?? null,
+          Capacity: data.capacity ?? 0,
+          Status: data.status || 'Upcoming',
+          Notes: data.notes || '',
+          RegistrationCount: 0,
+          InstructorName: '',
+        },
+      };
+    } catch (error) {
+      console.error('Error creating workshop:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateWorkshop(workshopId: number, workshop: Partial<Workshop>): Promise<ApiResponse<Workshop>> {
+    try {
+      const updates: Record<string, any> = {};
+      if (workshop.Title !== undefined) updates.title = workshop.Title;
+      if (workshop.Description !== undefined) updates.description = workshop.Description || null;
+      if (workshop.WorkshopDate !== undefined) updates.workshop_date = workshop.WorkshopDate;
+      if (workshop.StartTime !== undefined) updates.start_time = workshop.StartTime || null;
+      if (workshop.EndTime !== undefined) updates.end_time = workshop.EndTime || null;
+      if (workshop.RoomID !== undefined) updates.room_id = workshop.RoomID || null;
+      if (workshop.Venue !== undefined) updates.venue = workshop.Venue || null;
+      if (workshop.InstructorPersonnelID !== undefined) updates.instructor_personnel_id = workshop.InstructorPersonnelID || null;
+      if (workshop.Capacity !== undefined) updates.capacity = workshop.Capacity;
+      if (workshop.Status !== undefined) updates.status = workshop.Status;
+      if (workshop.Notes !== undefined) updates.notes = workshop.Notes || null;
+
+      const { data, error } = await this.client
+        .from('workshops')
+        .update(updates)
+        .eq('workshop_id', workshopId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          WorkshopID: data.workshop_id,
+          Title: data.title,
+          Description: data.description || '',
+          WorkshopDate: data.workshop_date,
+          StartTime: data.start_time || '',
+          EndTime: data.end_time || '',
+          RoomID: data.room_id ?? null,
+          Venue: data.venue || '',
+          InstructorPersonnelID: data.instructor_personnel_id ?? null,
+          Capacity: data.capacity ?? 0,
+          Status: data.status || 'Upcoming',
+          Notes: data.notes || '',
+        },
+      };
+    } catch (error) {
+      console.error('Error updating workshop:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deleteWorkshop(workshopId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error: registrationError } = await this.client
+        .from('workshop_registrations')
+        .delete()
+        .eq('workshop_id', workshopId);
+      if (registrationError) throw registrationError;
+
+      const { error } = await this.client
+        .from('workshops')
+        .delete()
+        .eq('workshop_id', workshopId);
+      if (error) throw error;
+
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting workshop:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getWorkshopRegistrations(workshopId: number): Promise<ApiResponse<WorkshopRegistration[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('workshop_registrations')
+        .select(`
+          workshop_registration_id,
+          workshop_id,
+          personnel_id,
+          registration_date,
+          registration_status,
+          checked_in,
+          personnel(first_name, last_name, primary_email)
+        `)
+        .eq('workshop_id', workshopId)
+        .order('registration_date', { ascending: true });
+
+      if (error) throw error;
+
+      const transformed: WorkshopRegistration[] = (data || []).map((row: any) => ({
+        WorkshopRegistrationID: row.workshop_registration_id,
+        WorkshopID: row.workshop_id,
+        PersonnelID: row.personnel_id,
+        FirstName: row.personnel?.first_name || '',
+        LastName: row.personnel?.last_name || '',
+        FullName: `${row.personnel?.first_name || ''} ${row.personnel?.last_name || ''}`.trim(),
+        PrimaryEmail: row.personnel?.primary_email || '',
+        RegistrationDate: row.registration_date,
+        RegistrationStatus: row.registration_status || 'Registered',
+        CheckedIn: Boolean(row.checked_in),
+      }));
+
+      return { success: true, data: transformed };
+    } catch (error) {
+      console.error('Error fetching workshop registrations:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async registerPersonnelForWorkshop(workshopId: number, personnelId: number): Promise<ApiResponse<{ created: boolean }>> {
+    try {
+      const { data: existing, error: existingError } = await this.client
+        .from('workshop_registrations')
+        .select('workshop_registration_id')
+        .eq('workshop_id', workshopId)
+        .eq('personnel_id', personnelId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      if (!existing) {
+        const { error } = await this.client
+          .from('workshop_registrations')
+          .insert([{ workshop_id: workshopId, personnel_id: personnelId, registration_status: 'Registered', checked_in: false }]);
+        if (error) throw error;
+      }
+
+      return { success: true, data: { created: true } };
+    } catch (error) {
+      console.error('Error registering personnel for workshop:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async removeWorkshopRegistration(workshopRegistrationId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('workshop_registrations')
+        .delete()
+        .eq('workshop_registration_id', workshopRegistrationId);
+      if (error) throw error;
+
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error removing workshop registration:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }

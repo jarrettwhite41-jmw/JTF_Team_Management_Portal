@@ -138,6 +138,36 @@ export interface ShowGame {
   FlagForMasterList?: boolean;
 }
 
+export interface Workshop {
+  WorkshopID: number;
+  Title: string;
+  Description?: string;
+  WorkshopDate: Date | string;
+  StartTime?: string;
+  EndTime?: string;
+  RoomID?: number | null;
+  Venue?: string;
+  InstructorPersonnelID?: number | null;
+  InstructorName?: string;
+  Capacity?: number;
+  RegistrationCount?: number;
+  Status?: 'Upcoming' | 'Completed' | 'Canceled';
+  Notes?: string;
+}
+
+export interface WorkshopRegistration {
+  WorkshopRegistrationID: number;
+  WorkshopID: number;
+  PersonnelID: number;
+  FullName?: string;
+  FirstName?: string;
+  LastName?: string;
+  PrimaryEmail?: string;
+  RegistrationDate?: Date | string;
+  RegistrationStatus?: 'Registered' | 'Canceled' | 'Waitlist';
+  CheckedIn?: boolean;
+}
+
 // Extended Types for UI
 export interface PersonnelWithDetails extends Personnel {
   isStudent?: boolean;
@@ -316,7 +346,7 @@ export interface ApiResponse<T> {
 }
 
 // Navigation Types
-export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
+export type PageType = 'dashboard' | 'personnel' | 'cast' | 'crew' | 'bartenders' | 'classes' | 'shows' | 'workshops' | 'inventory' | 'scheduling' | 'student-directory' | 'student-profile';
 
 export interface NavigationItem {
   id: PageType;
