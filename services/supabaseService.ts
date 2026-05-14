@@ -66,6 +66,28 @@ class SupabaseService {
     return String(error);
   }
 
+  private async isCastMember(personnelId: number): Promise<boolean> {
+    const { data, error } = await this.client
+      .from('cast_member_info')
+      .select('CastMemberID')
+      .eq('PersonnelID', personnelId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return Boolean(data);
+  }
+
+  private async isStudent(personnelId: number): Promise<boolean> {
+    const { data, error } = await this.client
+      .from('student_info')
+      .select('student_id')
+      .eq('personnel_id', personnelId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return Boolean(data);
+  }
+
   constructor() {
     try {
       this.client = getSupabaseClient();
@@ -1671,6 +1693,11 @@ class SupabaseService {
 
   async addPersonAsCrewMember(personnelId: number, showId: number, dutyTypeId: number): Promise<ApiResponse<CrewMemberWithDetails>> {
     try {
+      const isCast = await this.isCastMember(personnelId);
+      if (!isCast) {
+        return { success: false, error: 'Crew assignments are restricted to cast members.' };
+      }
+
       const { data, error } = await this.client
         .from('crew_duties')
         .insert([
@@ -1746,6 +1773,15 @@ class SupabaseService {
 
   async addPersonAsBartender(personnelId: number, trained: boolean = false, status: string = 'Active'): Promise<ApiResponse<BartenderWithDetails>> {
     try {
+      const [isCast, isStudent] = await Promise.all([
+        this.isCastMember(personnelId),
+        this.isStudent(personnelId),
+      ]);
+
+      if (!isCast && !isStudent) {
+        return { success: false, error: 'Bartender assignments are restricted to cast members or students.' };
+      }
+
       const { data, error } = await this.client
         .from('bartenders')
         .insert([

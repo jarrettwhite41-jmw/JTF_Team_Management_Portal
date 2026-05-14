@@ -16,6 +16,7 @@ export const BartendersPage: React.FC = () => {
   // Add modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
+  const [eligibleBartenderIds, setEligibleBartenderIds] = useState<number[]>([]);
   const [personnelSearch, setPersonnelSearch] = useState('');
   const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
   const [trainedMap, setTrainedMap] = useState<Record<number, boolean>>({});
@@ -68,11 +69,12 @@ export const BartendersPage: React.FC = () => {
   // Add modal helpers
   const availablePersonnel = allPersonnel.filter(p => {
     const notBartender = !bartenderPersonnelIds.has(p.PersonnelID);
+    const eligible = eligibleBartenderIds.includes(p.PersonnelID);
     const matchesSearch =
       personnelSearch === '' ||
       `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
       (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
-    return notBartender && matchesSearch;
+    return notBartender && eligible && matchesSearch;
   });
 
   const toggleSelect = (id: number) =>
@@ -92,12 +94,38 @@ export const BartendersPage: React.FC = () => {
     setPersonnelSearch('');
     setSelectedPersonnelIds([]);
     setTrainedMap({});
+    setEligibleBartenderIds([]);
     setIsAddOpen(true);
-    if (allPersonnel.length === 0) {
-      try {
-        const r = await gasService.getAllPersonnel();
-        if (r.success && Array.isArray(r.data)) setAllPersonnel(r.data as Personnel[]);
-      } catch { /* silent */ }
+
+    try {
+      const [personnelResponse, castResponse, studentsResponse] = await Promise.all([
+        gasService.getAllPersonnel(),
+        gasService.getAllCastMembers(),
+        gasService.getAllStudentsWithDetails(),
+      ]);
+
+      if (personnelResponse.success && Array.isArray(personnelResponse.data)) {
+        setAllPersonnel(personnelResponse.data as Personnel[]);
+      }
+
+      const castRows = Array.isArray((castResponse.data as any)?.data)
+        ? (castResponse.data as any).data
+        : (Array.isArray(castResponse.data) ? castResponse.data : []);
+      const studentRows = Array.isArray(studentsResponse.data)
+        ? studentsResponse.data
+        : (Array.isArray((studentsResponse.data as any)?.data) ? (studentsResponse.data as any).data : []);
+
+      const castIds = castRows
+        .map((row: any) => Number(row.PersonnelID))
+        .filter((id: number) => Number.isFinite(id));
+      const studentIds = studentRows
+        .map((row: any) => Number(row.PersonnelID))
+        .filter((id: number) => Number.isFinite(id));
+
+      const uniqueEligibleIds = Array.from(new Set([...castIds, ...studentIds]));
+      setEligibleBartenderIds(uniqueEligibleIds);
+    } catch {
+      setMessage({ type: 'error', text: 'Unable to load eligible bartender candidates.' });
     }
   };
 
@@ -287,6 +315,10 @@ export const BartendersPage: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900">Add Bartenders from Personnel</h2>
               <button onClick={() => setIsAddOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
             </div>
+
+            <p className="text-xs text-gray-500 mb-3">
+              Eligible candidates are cast members or students.
+            </p>
 
             <input
               type="text"
