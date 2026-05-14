@@ -7,6 +7,7 @@ export interface Personnel {
   PrimaryPhone: string;
   Instagram: string;
   Birthday: Date | string;
+  IsActive?: boolean;
 }
 
 export interface ShowInformation {

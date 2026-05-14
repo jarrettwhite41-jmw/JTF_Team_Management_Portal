@@ -54,7 +54,7 @@ export const PersonnelDirectory: React.FC = () => {
     try {
       const response = await gasService.getAllPersonnel();
       if (response.success && response.data) {
-        setPersonnel(response.data);
+        setPersonnel(response.data.filter((person: PersonnelWithDetails) => person.IsActive !== false));
       } else {
         setMessage({ type: 'error', text: response.error || 'Failed to load personnel' });
       }
@@ -115,6 +115,27 @@ export const PersonnelDirectory: React.FC = () => {
         setMessage({ type: 'error', text: 'Error deleting personnel' });
       }
     }
+    setIsDeleteModalOpen(false);
+    setPersonToDelete(null);
+    setDeleteDependencies(null);
+    setForceDelete(false);
+  };
+
+  const handleInactivate = async () => {
+    if (!personToDelete) return;
+
+    try {
+      const response = await gasService.inactivatePersonnel(personToDelete.PersonnelID);
+      if (response.success) {
+        setMessage({ type: 'success', text: 'Personnel inactivated successfully' });
+        await loadPersonnel();
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to inactivate personnel' });
+      }
+    } catch (_error) {
+      setMessage({ type: 'error', text: 'Error inactivating personnel' });
+    }
+
     setIsDeleteModalOpen(false);
     setPersonToDelete(null);
     setDeleteDependencies(null);
@@ -246,6 +267,9 @@ export const PersonnelDirectory: React.FC = () => {
             <p className="text-sm text-gray-700 mb-4">
               Are you sure you want to delete {personToDelete.FirstName} {personToDelete.LastName}?
             </p>
+            <p className="text-xs text-gray-500 mb-4">
+              Tip: Use Inactivate Instead to archive this person without permanently deleting their record.
+            </p>
 
             {deleteDependencies.totalReferences > 0 ? (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
@@ -287,6 +311,12 @@ export const PersonnelDirectory: React.FC = () => {
                 className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
               >
                 Cancel
+              </button>
+              <button
+                onClick={handleInactivate}
+                className="px-4 py-2 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-50"
+              >
+                Inactivate Instead
               </button>
               <button
                 onClick={confirmDelete}

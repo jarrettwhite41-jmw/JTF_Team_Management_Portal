@@ -56,6 +56,7 @@ class SupabaseService {
       PrimaryPhone: row.primary_phone || '',
       Instagram: row.instagram || '',
       Birthday: row.birthday || '',
+      IsActive: row.active !== false,
     };
   }
 
@@ -236,6 +237,7 @@ class SupabaseService {
             primary_phone: personnel.PrimaryPhone || null,
             instagram: personnel.Instagram || null,
             birthday: personnel.Birthday || null,
+            active: personnel.IsActive ?? true,
           },
         ])
         .select()
@@ -260,6 +262,7 @@ class SupabaseService {
       if (personnel.PrimaryPhone !== undefined) updates.primary_phone = personnel.PrimaryPhone || null;
       if (personnel.Instagram !== undefined) updates.instagram = personnel.Instagram || null;
       if (personnel.Birthday !== undefined) updates.birthday = personnel.Birthday || null;
+      if (personnel.IsActive !== undefined) updates.active = personnel.IsActive;
 
       const { data, error } = await this.client
         .from('personnel')
@@ -363,6 +366,21 @@ class SupabaseService {
       return { success: true, data: { deleted: true } };
     } catch (error) {
       console.error('Error deleting personnel:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async inactivatePersonnel(personnelId: number): Promise<ApiResponse<{ inactivated: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('personnel')
+        .update({ active: false })
+        .eq('personnel_id', personnelId);
+
+      if (error) throw error;
+      return { success: true, data: { inactivated: true } };
+    } catch (error) {
+      console.error('Error inactivating personnel:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
