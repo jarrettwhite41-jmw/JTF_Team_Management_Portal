@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { PersonCard } from '../components/personnel/PersonCard';
 import { PersonnelModal } from '../components/personnel/PersonnelModal';
-import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { Personnel, PersonnelWithDetails, ModalMode } from '../types';
+import { Personnel, PersonnelWithDetails, ModalMode, PersonnelDeletionDependencies } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 export const PersonnelDirectory: React.FC = () => {
@@ -17,6 +16,8 @@ export const PersonnelDirectory: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [personToDelete, setPersonToDelete] = useState<Personnel | null>(null);
+  const [deleteDependencies, setDeleteDependencies] = useState<PersonnelDeletionDependencies | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const getErrorMessage = (error: unknown, fallback: string) => {
@@ -80,18 +81,30 @@ export const PersonnelDirectory: React.FC = () => {
     setModalMode('edit');
   };
 
-  const handleDeletePerson = () => {
+  const handleDeletePerson = async () => {
     if (selectedPerson) {
-      setPersonToDelete(selectedPerson);
-      setIsDeleteModalOpen(true);
-      setIsModalOpen(false);
+      try {
+        const response = await gasService.getPersonnelDeletionDependencies(selectedPerson.PersonnelID);
+        if (!response.success || !response.data) {
+          setMessage({ type: 'error', text: response.error || 'Failed to check deletion dependencies' });
+          return;
+        }
+
+        setPersonToDelete(selectedPerson);
+        setDeleteDependencies(response.data);
+        setForceDelete(false);
+        setIsDeleteModalOpen(true);
+        setIsModalOpen(false);
+      } catch (_error) {
+        setMessage({ type: 'error', text: 'Error checking deletion dependencies' });
+      }
     }
   };
 
   const confirmDelete = async () => {
     if (personToDelete) {
       try {
-        const response = await gasService.deletePersonnel(personToDelete.PersonnelID);
+        const response = await gasService.deletePersonnel(personToDelete.PersonnelID, forceDelete);
         if (response.success) {
           setMessage({ type: 'success', text: 'Personnel deleted successfully' });
           loadPersonnel();
@@ -104,6 +117,8 @@ export const PersonnelDirectory: React.FC = () => {
     }
     setIsDeleteModalOpen(false);
     setPersonToDelete(null);
+    setDeleteDependencies(null);
+    setForceDelete(false);
   };
 
   const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
@@ -224,16 +239,70 @@ export const PersonnelDirectory: React.FC = () => {
         onDelete={handleDeletePerson}
       />
 
-      <ConfirmationModal
-        isOpen={isDeleteModalOpen}
-        title="Delete Personnel"
-        message={`Are you sure you want to delete ${personToDelete?.FirstName} ${personToDelete?.LastName}? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        onConfirm={confirmDelete}
-        onCancel={() => setIsDeleteModalOpen(false)}
-        isDestructive={true}
-      />
+      {isDeleteModalOpen && personToDelete && deleteDependencies && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">Delete Personnel</h3>
+            <p className="text-sm text-gray-700 mb-4">
+              Are you sure you want to delete {personToDelete.FirstName} {personToDelete.LastName}?
+            </p>
+
+            {deleteDependencies.totalReferences > 0 ? (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-900 mb-2">
+                  {deleteDependencies.totalReferences} related record(s) found.
+                </p>
+                <div className="text-xs text-amber-900 space-y-1 max-h-40 overflow-auto">
+                  {Object.entries(deleteDependencies.references)
+                    .filter(([, count]) => count > 0)
+                    .map(([key, count]) => (
+                      <div key={key} className="flex justify-between">
+                        <span className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                        <span>{count}</span>
+                      </div>
+                    ))}
+                </div>
+                <label className="mt-3 flex items-start gap-2 text-sm text-amber-900">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={forceDelete}
+                    onChange={(e) => setForceDelete(e.target.checked)}
+                  />
+                  I understand this person is referenced elsewhere and want to force delete anyway.
+                </label>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 mb-4">No dependent records found.</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setPersonToDelete(null);
+                  setDeleteDependencies(null);
+                  setForceDelete(false);
+                }}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleteDependencies.totalReferences > 0 && !forceDelete}
+                className={`px-4 py-2 rounded-lg text-white ${
+                  deleteDependencies.totalReferences > 0 && !forceDelete
+                    ? 'bg-red-300 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {deleteDependencies.totalReferences > 0 ? 'Force Delete' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -19,7 +19,8 @@ import {
   ShowGame,
   Workshop,
   SpecialGuest,
-  WorkshopRegistration
+  WorkshopRegistration,
+  PersonnelDeletionDependencies,
 } from '../types';
 import { supabaseService } from './supabaseService';
 
@@ -372,6 +373,23 @@ class GoogleAppsScriptService {
             case 'deletePersonnel':
               data = { deleted: true };
               break;
+            case 'getPersonnelDeletionDependencies':
+              data = {
+                canDelete: true,
+                totalReferences: 0,
+                references: {
+                  castMember: 0,
+                  studentProfile: 0,
+                  teacherRole: 0,
+                  directorRole: 0,
+                  showPerformances: 0,
+                  crewDuties: 0,
+                  bartenderAssignments: 0,
+                  workshopRegistrations: 0,
+                  studentEnrollments: 0,
+                },
+              };
+              break;
             case 'addPersonAsCastMember':
               data = { CastMemberID: 999, PersonnelID: args[0] };
               break;
@@ -537,8 +555,12 @@ class GoogleAppsScriptService {
     return this.callServerFunction<Personnel>('updatePersonnel', personnel);
   }
 
-  async deletePersonnel(personnelId: number): Promise<ApiResponse<boolean>> {
-    return this.callServerFunction<boolean>('deletePersonnel', personnelId);
+  async getPersonnelDeletionDependencies(personnelId: number): Promise<ApiResponse<PersonnelDeletionDependencies>> {
+    return this.callServerFunction<PersonnelDeletionDependencies>('getPersonnelDeletionDependencies', personnelId);
+  }
+
+  async deletePersonnel(personnelId: number, forceDelete: boolean = false): Promise<ApiResponse<boolean>> {
+    return this.callServerFunction<boolean>('deletePersonnel', personnelId, forceDelete);
   }
 
   // Show methods

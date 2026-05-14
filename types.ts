@@ -364,6 +364,22 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface PersonnelDeletionDependencies {
+  canDelete: boolean;
+  totalReferences: number;
+  references: {
+    castMember: number;
+    studentProfile: number;
+    teacherRole: number;
+    directorRole: number;
+    showPerformances: number;
+    crewDuties: number;
+    bartenderAssignments: number;
+    workshopRegistrations: number;
+    studentEnrollments: number;
+  };
+}
+
 // Navigation Types
 export type PageType =
   | 'dashboard'

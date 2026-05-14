@@ -24,6 +24,7 @@ import {
   StudentInfo,
   ClassLevelProgression,
   Bartender,
+  PersonnelDeletionDependencies,
 } from '../types';
 
 // Initialize Supabase client
@@ -275,8 +276,84 @@ class SupabaseService {
     }
   }
 
-  async deletePersonnel(personnelId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+  async getPersonnelDeletionDependencies(personnelId: number): Promise<ApiResponse<PersonnelDeletionDependencies>> {
     try {
+      const [castResult, studentResult, teacherResult, directorResult, performancesResult, crewResult, bartenderResult, workshopResult] = await Promise.all([
+        this.client.from('cast_member_info').select('CastMemberID', { count: 'exact', head: true }).eq('PersonnelID', personnelId),
+        this.client.from('student_info').select('student_id', { count: 'exact' }).eq('personnel_id', personnelId),
+        this.client.from('teachers').select('teacher_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+        this.client.from('directors').select('director_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+        this.client.from('show_performances').select('performance_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+        this.client.from('crew_duties').select('duty_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+        this.client.from('bartenders').select('bartender_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+        this.client.from('workshop_registrations').select('workshop_registration_id', { count: 'exact', head: true }).eq('personnel_id', personnelId),
+      ]);
+
+      if (castResult.error) throw castResult.error;
+      if (studentResult.error) throw studentResult.error;
+      if (teacherResult.error) throw teacherResult.error;
+      if (directorResult.error) throw directorResult.error;
+      if (performancesResult.error) throw performancesResult.error;
+      if (crewResult.error) throw crewResult.error;
+      if (bartenderResult.error) throw bartenderResult.error;
+      if (workshopResult.error) throw workshopResult.error;
+
+      const studentRows = studentResult.data || [];
+      const studentIds = studentRows.map((row: any) => row.student_id).filter((id: number) => Number.isFinite(id));
+
+      let studentEnrollmentCount = 0;
+      if (studentIds.length > 0) {
+        const enrollmentResult = await this.client
+          .from('student_enrollments')
+          .select('enrollment_id', { count: 'exact', head: true })
+          .in('student_id', studentIds);
+
+        if (enrollmentResult.error) throw enrollmentResult.error;
+        studentEnrollmentCount = enrollmentResult.count || 0;
+      }
+
+      const dependencies: PersonnelDeletionDependencies = {
+        references: {
+          castMember: castResult.count || 0,
+          studentProfile: studentResult.count || 0,
+          teacherRole: teacherResult.count || 0,
+          directorRole: directorResult.count || 0,
+          showPerformances: performancesResult.count || 0,
+          crewDuties: crewResult.count || 0,
+          bartenderAssignments: bartenderResult.count || 0,
+          workshopRegistrations: workshopResult.count || 0,
+          studentEnrollments: studentEnrollmentCount,
+        },
+        canDelete: true,
+        totalReferences: 0,
+      };
+
+      dependencies.totalReferences = Object.values(dependencies.references).reduce((sum, count) => sum + count, 0);
+      dependencies.canDelete = dependencies.totalReferences === 0;
+
+      return { success: true, data: dependencies };
+    } catch (error) {
+      console.error('Error checking personnel dependencies:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deletePersonnel(personnelId: number, forceDelete: boolean = false): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      if (!forceDelete) {
+        const dependenciesResponse = await this.getPersonnelDeletionDependencies(personnelId);
+        if (!dependenciesResponse.success || !dependenciesResponse.data) {
+          return { success: false, error: dependenciesResponse.error || 'Unable to validate personnel dependencies.' };
+        }
+
+        if (!dependenciesResponse.data.canDelete) {
+          return {
+            success: false,
+            error: `Cannot delete personnel. ${dependenciesResponse.data.totalReferences} related record(s) found. Use force delete to continue.`,
+          };
+        }
+      }
+
       const { error } = await this.client
         .from('personnel')
         .delete()
