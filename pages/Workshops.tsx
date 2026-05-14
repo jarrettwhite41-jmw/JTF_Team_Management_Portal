@@ -271,10 +271,17 @@ interface WorkshopRegistrationsModalProps {
   onUpdated: () => void;
 }
 
+type EligibleParticipant = Personnel & {
+  IsCast: boolean;
+  IsStudent: boolean;
+};
+
 const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({ isOpen, workshop, onClose, onUpdated }) => {
   const [registrations, setRegistrations] = useState<WorkshopRegistration[]>([]);
-  const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [participants, setParticipants] = useState<EligibleParticipant[]>([]);
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
+  const [participantFilter, setParticipantFilter] = useState<'all' | 'cast' | 'students'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -284,9 +291,11 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
     const loadModalData = async () => {
       setIsLoading(true);
       try {
-        const [registrationResponse, personnelResponse] = await Promise.all([
+        const [registrationResponse, personnelResponse, castResponse, studentResponse] = await Promise.all([
           gasService.getWorkshopRegistrations(workshop.WorkshopID),
           gasService.getAllPersonnel(),
+          gasService.getAllCastMembers(),
+          gasService.getAllStudentsWithDetails(),
         ]);
 
         if (registrationResponse.success && registrationResponse.data) {
@@ -294,7 +303,36 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
         }
 
         if (personnelResponse.success && personnelResponse.data) {
-          setPersonnel(personnelResponse.data || []);
+          const allPersonnel = personnelResponse.data || [];
+          const castRows = Array.isArray(castResponse.data)
+            ? castResponse.data
+            : (castResponse.data as any)?.data || [];
+          const studentRows = Array.isArray(studentResponse.data)
+            ? studentResponse.data
+            : [];
+
+          const castIds = new Set(
+            castRows
+              .map((row: any) => Number(row.PersonnelID))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          );
+
+          const studentIds = new Set(
+            studentRows
+              .map((row: any) => Number(row.PersonnelID))
+              .filter((id: number) => Number.isFinite(id) && id > 0)
+          );
+
+          const eligible = allPersonnel
+            .filter((person) => castIds.has(person.PersonnelID) || studentIds.has(person.PersonnelID))
+            .map((person) => ({
+              ...person,
+              IsCast: castIds.has(person.PersonnelID),
+              IsStudent: studentIds.has(person.PersonnelID),
+            }))
+            .sort((a, b) => `${a.FirstName} ${a.LastName}`.localeCompare(`${b.FirstName} ${b.LastName}`, undefined, { sensitivity: 'base' }));
+
+          setParticipants(eligible);
         }
       } finally {
         setIsLoading(false);
@@ -336,7 +374,18 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
   if (!isOpen || !workshop) return null;
 
   const registeredIds = new Set(registrations.map(r => r.PersonnelID));
-  const availablePersonnel = personnel.filter(p => !registeredIds.has(p.PersonnelID));
+  const availablePersonnel = participants
+    .filter((p) => !registeredIds.has(p.PersonnelID))
+    .filter((p) => {
+      if (participantFilter === 'cast') return p.IsCast;
+      if (participantFilter === 'students') return p.IsStudent;
+      return true;
+    })
+    .filter((p) => {
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.trim().toLowerCase();
+      return `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(q) || (p.PrimaryEmail || '').toLowerCase().includes(q);
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
@@ -356,11 +405,28 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
         )}
 
         <div className="px-6 py-4 border-b border-gray-200">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button onClick={() => setParticipantFilter('all')} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${participantFilter === 'all' ? 'bg-primary-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>All Eligible</button>
+            <button onClick={() => setParticipantFilter('cast')} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${participantFilter === 'cast' ? 'bg-primary-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Cast</button>
+            <button onClick={() => setParticipantFilter('students')} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${participantFilter === 'students' ? 'bg-primary-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50'}`}>Students</button>
+          </div>
+
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search eligible participants..."
+            className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2"
+          />
+
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
             <select value={selectedPersonnelId} onChange={(e) => setSelectedPersonnelId(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2">
               <option value="">Select participant</option>
               {availablePersonnel.map(person => (
-                <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>
+                <option key={person.PersonnelID} value={person.PersonnelID}>
+                  {person.FirstName} {person.LastName}
+                  {person.IsCast && person.IsStudent ? ' (Cast/Student)' : person.IsCast ? ' (Cast)' : person.IsStudent ? ' (Student)' : ''}
+                </option>
               ))}
             </select>
             <button onClick={handleAdd} disabled={!selectedPersonnelId} className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 disabled:opacity-50">Add</button>
