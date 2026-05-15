@@ -13,7 +13,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
-    { id: 'data-import', label: 'Import Center', icon: '⬆️' },
   ], []);
 
   const managementGroups = useMemo(() => [
@@ -190,6 +189,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <button
+              onClick={() => handleNavigate('data-import')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                currentPage === 'data-import'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm font-semibold'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+              }`}
+            >
+              <span className="text-lg leading-none">⬆️</span>
+              <span className="text-sm">Import Center</span>
+            </button>
           </div>
         </nav>
 
