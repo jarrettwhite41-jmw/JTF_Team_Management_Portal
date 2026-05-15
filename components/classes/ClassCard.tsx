@@ -25,7 +25,11 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage })
   const formatDate = (dateString: string) => {
     if (!dateString) return 'TBD';
     try {
-      return new Date(dateString).toLocaleDateString('en-US', {
+      const raw = String(dateString).slice(0, 10);
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? new Date(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)))
+        : new Date(dateString);
+      return date.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'

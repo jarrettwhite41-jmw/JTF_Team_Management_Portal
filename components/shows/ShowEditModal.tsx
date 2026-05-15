@@ -37,6 +37,17 @@ const emptyForm = {
   Status: 'Scheduled' as ShowInformation['Status'],
 };
 
+const toDateInputValue = (value: Date | string | undefined) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onClose, onSaved }) => {
   const [form, setForm] = useState(emptyForm);
   const [showTypes, setShowTypes] = useState<ShowTypeOption[]>([]);
@@ -101,7 +112,7 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
 
     if (show) {
       setForm({
-        ShowDate: typeof show.ShowDate === 'string' ? show.ShowDate : new Date(show.ShowDate).toISOString().split('T')[0],
+        ShowDate: toDateInputValue(show.ShowDate),
         ShowTime: show.ShowTime || '21:00',
         ShowTypeID: String(show.ShowTypeID || ''),
         DirectorID: String(show.DirectorID || ''),

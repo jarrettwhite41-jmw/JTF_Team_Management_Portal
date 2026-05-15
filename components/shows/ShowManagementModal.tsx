@@ -329,6 +329,15 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
 
   if (!isOpen) return null;
 
+  const formatDate = (value: Date | string | undefined) => {
+    if (!value) return 'TBD';
+    const raw = String(value).slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)))
+      : new Date(value as string);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
       <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -368,7 +377,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
             <div className="py-12 text-center text-gray-500">Loading show details...</div>
           ) : activeTab === 'details' ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
-              <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Show Date</div><div className="text-gray-900">{new Date(show.ShowDate).toLocaleDateString()}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Show Date</div><div className="text-gray-900">{formatDate(show.ShowDate)}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Show Time</div><div className="text-gray-900">{show.ShowTime}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>

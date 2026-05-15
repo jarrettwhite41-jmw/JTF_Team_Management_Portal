@@ -43,6 +43,17 @@ const defaultForm = {
   MeetingTime: '19:30',
 };
 
+const toDateInputValue = (value: Date | string | undefined) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value.slice(0, 10);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const ClassEditModal: React.FC<ClassEditModalProps> = ({
   isOpen,
   classOffering,
@@ -72,12 +83,8 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
       setForm({
         ClassLevelID: String(classOffering.ClassLevelID ?? ''),
         TeacherPersonnelID: String(classOffering.TeacherPersonnelID ?? ''),
-        StartDate: classOffering.StartDate
-          ? new Date(classOffering.StartDate).toISOString().split('T')[0]
-          : '',
-        EndDate: classOffering.EndDate
-          ? new Date(classOffering.EndDate).toISOString().split('T')[0]
-          : '',
+        StartDate: toDateInputValue(classOffering.StartDate),
+        EndDate: toDateInputValue(classOffering.EndDate),
         MaxStudents: String(classOffering.MaxStudents ?? '12'),
         Status: classOffering.Status ?? 'Upcoming',
         RoomID: String(classOffering.RoomID ?? ''),
@@ -114,7 +121,7 @@ export const ClassEditModal: React.FC<ClassEditModalProps> = ({
       // Auto-set end date to 42 days (6 weeks) after start so the 7th weekly session lands on the right day
       const start = new Date(value + 'T00:00:00');
       start.setDate(start.getDate() + 42);
-      const endDate = start.toISOString().split('T')[0];
+      const endDate = toDateInputValue(start);
       setForm(prev => ({ ...prev, StartDate: value, EndDate: endDate }));
     } else {
       setForm(prev => ({ ...prev, [name]: value }));

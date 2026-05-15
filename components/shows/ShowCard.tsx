@@ -10,6 +10,15 @@ interface ShowCardProps {
 export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
   const [gamesPlayed, setGamesPlayed] = useState<ShowGame[]>([]);
 
+  const formatDate = (value: Date | string | undefined) => {
+    if (!value) return 'TBD';
+    const raw = String(value).slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)))
+      : new Date(value as string);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString();
+  };
+
   const isCompletedShow = useMemo(() => {
     const rawDate = String(show.ShowDate || '').slice(0, 10);
     const showDate = new Date(`${rawDate}T00:00:00`);
@@ -71,7 +80,7 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
 
       <div className="mb-3">
         <p className="text-sm text-gray-900 font-medium">
-          {new Date(show.ShowDate).toLocaleDateString()}
+          {formatDate(show.ShowDate)}
         </p>
         <p className="text-sm text-gray-600">{show.ShowTime}</p>
       </div>

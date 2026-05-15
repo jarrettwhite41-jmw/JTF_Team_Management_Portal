@@ -91,7 +91,11 @@ const MetricTile: React.FC<MetricTileProps> = ({ value, label, color }) => {
 function formatShowDate(dateStr: Date | string | undefined): string {
   if (!dateStr) return 'TBD';
   try {
-    return new Date(dateStr as string).toLocaleDateString('en-US', {
+    const raw = String(dateStr).slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)))
+      : new Date(dateStr as string);
+    return date.toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
     });
   } catch { return String(dateStr); }
