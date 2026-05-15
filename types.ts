@@ -397,6 +397,7 @@ export type PageType =
   | 'special-guests'
   | 'teacher-management'
   | 'director-management'
+  | 'data-import'
   | 'inventory'
   | 'scheduling'
   | 'student-directory'

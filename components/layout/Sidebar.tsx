@@ -13,6 +13,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
+    { id: 'data-import', label: 'Import Center', icon: '⬆️' },
   ], []);
 
   const managementGroups = useMemo(() => [
@@ -105,11 +106,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         ].join(' ')}
       >
         {/* Brand Header */}
-        <div className="px-5 pt-6 pb-5 flex items-start justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="px-5 pt-6 pb-5 flex items-start justify-between border-b border-white/10">
           <div>
             <span className="jtf-logo-text">Just The Funny</span>
             <p className="jtf-logo-sub">Team Portal</p>
-            <div className="mt-3 h-px" style={{ background: 'linear-gradient(to right, #ef4444, #eab308, transparent)' }} />
+            <div className="mt-3 h-px bg-gradient-to-r from-red-500 via-amber-400 to-transparent" />
           </div>
           {/* Close button — mobile only */}
           <button
@@ -193,8 +194,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 text-center" style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <p className="text-xs" style={{ color: '#4b5563' }}>© {new Date().getFullYear()} Just The Funny</p>
+        <div className="px-4 py-3 text-center border-t border-white/10">
+          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>
         </div>
 
       </div>

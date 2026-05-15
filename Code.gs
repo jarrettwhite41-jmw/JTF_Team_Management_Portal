@@ -4005,6 +4005,59 @@ function getEnrolledStudents(offeringId) {
 }
 
 /**
+ * CREATE OPERATION: Ensures a StudentInfo record exists for a person
+ * DATA FLOW: Creates a row in StudentInfo sheet when needed
+ * @param {number} personnelId - PersonnelID of the student
+ * @returns {Object} Success status and student data
+ */
+function addPersonAsStudent(personnelId) {
+  try {
+    Logger.log(`=== addPersonAsStudent(personnelId: ${personnelId}) called ===`);
+
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    const existingStudent = allStudentInfo.find(si => si.PersonnelID == personnelId);
+
+    if (existingStudent) {
+      return {
+        success: true,
+        data: {
+          StudentID: existingStudent.StudentID,
+          PersonnelID: existingStudent.PersonnelID,
+        }
+      };
+    }
+
+    const newStudentData = {
+      PersonnelID: personnelId,
+      HighestLevelCompleted: null
+    };
+
+    addOrUpdateRow(studentInfoSheet, newStudentData, 0);
+    const refreshedStudentInfo = sheetToObjects(studentInfoSheet);
+    const createdStudent = refreshedStudentInfo.find(si => si.PersonnelID == personnelId);
+
+    if (!createdStudent) {
+      return { success: false, error: 'Unable to create StudentInfo record.' };
+    }
+
+    return {
+      success: true,
+      data: {
+        StudentID: createdStudent.StudentID,
+        PersonnelID: createdStudent.PersonnelID,
+      }
+    };
+  } catch (error) {
+    Logger.log(`ERROR in addPersonAsStudent(): ${error.toString()}`);
+    return {
+      success: false,
+      error: error.toString()
+    };
+  }
+}
+
+/**
  * DELETE OPERATION: Removes a student from a class (deletes enrollment record and related attendance)
  * DATA SOURCE: StudentEnrollments and ClassAttendance sheets
  * @param {number} enrollmentId - The enrollment ID to delete

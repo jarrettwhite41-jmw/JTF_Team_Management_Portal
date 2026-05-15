@@ -524,6 +524,9 @@ class GoogleAppsScriptService {
             case 'updateStudentLevel':
               data = { success: true };
               break;
+            case 'addPersonAsStudent':
+              data = { StudentID: Date.now(), PersonnelID: args[0] };
+              break;
             default:
               data = [];
           }
@@ -805,6 +808,10 @@ class GoogleAppsScriptService {
 
   async enrollStudent(offeringId: number, studentId: number): Promise<ApiResponse<boolean>> {
     return this.callServerFunction<boolean>('enrollStudent', offeringId, studentId);
+  }
+
+  async addPersonAsStudent(personnelId: number): Promise<ApiResponse<{ StudentID: number; PersonnelID: number }>> {
+    return this.callServerFunction<{ StudentID: number; PersonnelID: number }>('addPersonAsStudent', personnelId);
   }
 
   async getEnrolledStudents(offeringId: number): Promise<ApiResponse<any[]>> {

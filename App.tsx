@@ -15,6 +15,7 @@ import { StudentDirectory } from './pages/StudentDirectory';
 import { StudentProfile } from './pages/StudentProfile';
 import { TeacherManagement } from './pages/TeacherManagement';
 import { DirectorManagement } from './pages/DirectorManagement';
+import { DataImport } from './pages/DataImport';
 import { PageType } from './types';
 
 const App: React.FC = () => {
@@ -51,6 +52,8 @@ const App: React.FC = () => {
         return <SpecialGuests />;
       case 'inventory':
         return <InventoryPage />;
+      case 'data-import':
+        return <DataImport />;
       case 'scheduling':
         return <Scheduling />;
       case 'student-directory':

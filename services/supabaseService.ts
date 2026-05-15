@@ -154,6 +154,35 @@ class SupabaseService {
     }
   }
 
+  async addPersonAsStudent(personnelId: number): Promise<ApiResponse<{ StudentID: number; PersonnelID: number }>> {
+    try {
+      const { data: existing, error: existingError } = await this.client
+        .from('student_info')
+        .select('student_id, personnel_id')
+        .eq('personnel_id', personnelId)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing) {
+        return { success: true, data: { StudentID: existing.student_id, PersonnelID: existing.personnel_id } };
+      }
+
+      const { data, error } = await this.client
+        .from('student_info')
+        .insert([{ personnel_id: personnelId }])
+        .select('student_id, personnel_id')
+        .single();
+
+      if (error) throw error;
+
+      return { success: true, data: { StudentID: data.student_id, PersonnelID: data.personnel_id } };
+    } catch (error) {
+      console.error('Error adding student:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async addPersonAsTeacher(personnelId: number): Promise<ApiResponse<any>> {
     try {
       const isCast = await this.isCastMember(personnelId);
