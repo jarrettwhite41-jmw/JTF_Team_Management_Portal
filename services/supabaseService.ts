@@ -2117,7 +2117,7 @@ class SupabaseService {
 
   async getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
     try {
-      const [personnel, students, shows, classes, castRows, crewRows, bartenderRows, enrollRows, workshopRows, workshopRegistrationRows] = await Promise.all([
+      const [personnel, students, shows, classes, castRows, crewRows, bartenderRows, enrollRows, showRows, workshopRows, workshopRegistrationRows] = await Promise.all([
         this.client.from('personnel').select('count', { count: 'exact' }),
         this.client.from('student_info').select('count', { count: 'exact' }),
         this.client.from('show_information').select('count', { count: 'exact' }),
@@ -2126,6 +2126,7 @@ class SupabaseService {
         this.client.from('crew_duties').select('personnel_id'),
         this.client.from('bartenders').select('active'),
         this.client.from('student_enrollments').select('enrollment_id, status'),
+        this.client.from('show_information').select('show_date, show_time, venue, status'),
         this.client.from('workshops').select('workshop_id, title, workshop_date, start_time, end_time, venue, instructor_personnel_id, special_guest_id, status'),
         this.client.from('workshop_registrations').select('workshop_registration_id', { count: 'exact' }),
       ]);
@@ -2150,6 +2151,28 @@ class SupabaseService {
       let inProgressWorkshops = 0;
       let completedWorkshops = 0;
       let cancelledWorkshops = 0;
+
+      const showRecords = showRows.data || [];
+      const scheduledShows = showRecords.filter((s: any) => String(s.status || '').toLowerCase() === 'scheduled');
+      const canceledShows = showRecords.filter((s: any) => {
+        const status = String(s.status || '').toLowerCase();
+        return status === 'canceled' || status === 'cancelled';
+      });
+
+      const nextShow = scheduledShows
+        .filter((s: any) => {
+          const dateStr = String(s.show_date || '').slice(0, 10);
+          const showDate = new Date(`${dateStr}T00:00:00`);
+          return !Number.isNaN(showDate.getTime()) && showDate >= today;
+        })
+        .sort((a: any, b: any) => {
+          const aDate = new Date(`${String(a.show_date || '').slice(0, 10)}T00:00:00`).getTime();
+          const bDate = new Date(`${String(b.show_date || '').slice(0, 10)}T00:00:00`).getTime();
+          if (aDate !== bDate) return aDate - bDate;
+          const aTime = String(a.show_time || '');
+          const bTime = String(b.show_time || '');
+          return aTime.localeCompare(bTime);
+        })[0];
 
       const normalizedWorkshops = workshops.map((w: any) => {
         const dateStr = String(w.workshop_date || '').slice(0, 10);
@@ -2191,10 +2214,16 @@ class SupabaseService {
           studentsActive: totalStudents,
           studentsInactive: 0,
           studentsGraduated: 0,
-          scheduledShows: totalShows,
-          canceledShows: 0,
+          scheduledShows: scheduledShows.length,
+          canceledShows: canceledShows.length,
           totalShows,
-          nextShow: null,
+          nextShow: nextShow
+            ? {
+                ShowDate: nextShow.show_date,
+                ShowTime: nextShow.show_time || '',
+                Venue: nextShow.venue || '',
+              }
+            : null,
           activeClasses: totalClasses,
           upcomingClasses: totalClasses,
           inProgressClasses: 0,
