@@ -31,6 +31,7 @@ export const PortalAccess: React.FC = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
+  const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [portalName, setPortalName] = useState<PortalName>('instructor');
   const [portalRole, setPortalRole] = useState<PortalAccessRole>('teacher');
@@ -86,6 +87,27 @@ export const PortalAccess: React.FC = () => {
     });
   }, [accessRows, searchTerm]);
 
+  const sortedPersonnel = useMemo(() => {
+    return [...personnel].sort((a, b) => {
+      const aName = `${a.LastName || ''} ${a.FirstName || ''}`.trim().toLowerCase();
+      const bName = `${b.LastName || ''} ${b.FirstName || ''}`.trim().toLowerCase();
+      return aName.localeCompare(bName);
+    });
+  }, [personnel]);
+
+  const filteredPersonnel = useMemo(() => {
+    const query = personnelSearchTerm.trim().toLowerCase();
+    if (!query) return sortedPersonnel;
+
+    return sortedPersonnel.filter((person) => {
+      const fullName = `${person.FirstName || ''} ${person.LastName || ''}`.trim().toLowerCase();
+      const reverseName = `${person.LastName || ''}, ${person.FirstName || ''}`.trim().toLowerCase();
+      const email = (person.PrimaryEmail || '').toLowerCase();
+
+      return fullName.includes(query) || reverseName.includes(query) || email.includes(query);
+    });
+  }, [sortedPersonnel, personnelSearchTerm]);
+
   const handlePersonnelChange = (value: string) => {
     setSelectedPersonnelId(value);
     if (!value) return;
@@ -122,6 +144,7 @@ export const PortalAccess: React.FC = () => {
 
     setMessage({ type: 'success', text: `Portal access saved for ${trimmedEmail}.` });
     setSelectedPersonnelId('');
+    setPersonnelSearchTerm('');
     setLoginEmail('');
     setPortalName('instructor');
     setPortalRole('teacher');
@@ -181,6 +204,13 @@ export const PortalAccess: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Personnel (optional)</label>
+            <input
+              type="text"
+              value={personnelSearchTerm}
+              onChange={(e) => setPersonnelSearchTerm(e.target.value)}
+              placeholder="Search personnel by name or email..."
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2"
+            />
             <select
               title="Personnel"
               value={selectedPersonnelId}
@@ -188,9 +218,9 @@ export const PortalAccess: React.FC = () => {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             >
               <option value="">Not linked to personnel</option>
-              {personnel.map((person) => (
+              {filteredPersonnel.map((person) => (
                 <option key={person.PersonnelID} value={person.PersonnelID}>
-                  {`${person.FirstName || ''} ${person.LastName || ''}`.trim()} ({person.PrimaryEmail || 'no email'})
+                  {`${person.LastName || ''}, ${person.FirstName || ''}`.replace(/^,\s*/, '').trim()} ({person.PrimaryEmail || 'no email'})
                 </option>
               ))}
             </select>
