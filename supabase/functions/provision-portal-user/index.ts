@@ -13,7 +13,8 @@ interface ProvisionRequest {
   loginEmail: string;
   portalName: PortalName;
   portalRole?: PortalRole;
-  temporaryPassword: string;
+  temporaryPassword?: string;
+  useDefaultPassword?: boolean;
   sendResetEmail?: boolean;
   redirectTo?: string;
   personnelId?: number | null;
@@ -75,9 +76,13 @@ Deno.serve(async (req) => {
 
   const loginEmail = String(body.loginEmail || '').trim().toLowerCase();
   const portalName = body.portalName;
+  const useDefaultPassword = body.useDefaultPassword === true;
   const temporaryPassword = String(body.temporaryPassword || '');
   const redirectTo = isValidRedirectUrl(body.redirectTo) ? body.redirectTo : undefined;
   const sendResetEmail = body.sendResetEmail !== false;
+  const defaultPasswordFromSecret = Deno.env.get('PORTAL_DEFAULT_TEMP_PASSWORD') || '';
+
+  const passwordToApply = useDefaultPassword ? defaultPasswordFromSecret : temporaryPassword;
 
   if (!loginEmail || !isValidEmail(loginEmail)) {
     return json(400, { error: 'A valid loginEmail is required.' });
@@ -87,8 +92,12 @@ Deno.serve(async (req) => {
     return json(400, { error: 'portalName is invalid.' });
   }
 
-  if (!temporaryPassword || temporaryPassword.length < 8) {
-    return json(400, { error: 'temporaryPassword must be at least 8 characters.' });
+  if (!passwordToApply || passwordToApply.length < 8) {
+    return json(400, {
+      error: useDefaultPassword
+        ? 'Default password secret is missing or too short. Set PORTAL_DEFAULT_TEMP_PASSWORD (min 8 chars).'
+        : 'temporaryPassword must be at least 8 characters.',
+    });
   }
 
   const authClient = createClient(supabaseUrl, anonKey, {
@@ -171,7 +180,7 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       const { error } = await serviceClient.auth.admin.updateUserById(existingUser.id, {
-        password: temporaryPassword,
+        password: passwordToApply,
         email_confirm: true,
       });
 
@@ -181,7 +190,7 @@ Deno.serve(async (req) => {
     } else {
       const { data, error } = await serviceClient.auth.admin.createUser({
         email: loginEmail,
-        password: temporaryPassword,
+        password: passwordToApply,
         email_confirm: true,
       });
 
@@ -234,6 +243,7 @@ Deno.serve(async (req) => {
       resetEmailSent,
       portalName,
       loginEmail,
+      usedDefaultPassword: useDefaultPassword,
       warning: resetWarning,
     });
   } catch (error) {

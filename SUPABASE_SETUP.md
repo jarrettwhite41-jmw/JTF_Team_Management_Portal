@@ -272,7 +272,7 @@ Need help? Let me know!
 The Team portal now includes a secure onboarding action that can:
 - create or update a Supabase Auth user with a temporary password,
 - map that user to `portal_user_access`, and
-- optionally send a password reset email for the target portal.
+- reset credentials to a default admin-defined password for Team and Instructor access.
 
 ### Deploy the Edge Function
 
@@ -285,6 +285,12 @@ supabase functions deploy provision-portal-user
 ### Supabase Secrets (Edge Function)
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are normally available automatically in Supabase Edge Functions.
+
+You must set this custom secret for default password resets:
+
+```bash
+supabase secrets set PORTAL_DEFAULT_TEMP_PASSWORD=YOUR_DEFAULT_TEMP_PASSWORD
+```
 
 Only set them manually if you need to override defaults:
 
@@ -309,5 +315,4 @@ VITE_STUDENT_PORTAL_URL=https://YOUR-STUDENT-PORTAL.vercel.app
 ### Use in Team Portal
 
 In **Portal Access**:
-- **Set Initial Password**: creates/updates Auth user credentials for that access row.
-- **Reset Password**: sends reset email with portal-specific redirect URL.
+- **Reset to Default**: resets the auth password to `PORTAL_DEFAULT_TEMP_PASSWORD` for Team and Instructor portal rows for that email.

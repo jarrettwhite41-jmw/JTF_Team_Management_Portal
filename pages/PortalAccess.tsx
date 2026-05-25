@@ -27,7 +27,6 @@ export const PortalAccess: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [resettingEmail, setResettingEmail] = useState<string | null>(null);
   const [provisioningEmail, setProvisioningEmail] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -171,52 +170,60 @@ export const PortalAccess: React.FC = () => {
     setIsSaving(false);
   };
 
-  const handleSendResetEmail = async (loginEmailValue: string, targetPortal: PortalName) => {
-    setResettingEmail(loginEmailValue);
-    const result = await supabaseService.sendPasswordResetEmail(loginEmailValue, targetPortal);
+  const handleResetDefaultPassword = async (row: PortalUserAccess) => {
+    const shouldProceed = window.confirm(
+      `Reset password for ${row.LoginEmail} to the default admin password for Team + Instructor portals?`,
+    );
+    if (!shouldProceed) return;
 
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.error || 'Failed to send password reset email.' });
-      setResettingEmail(null);
-      return;
-    }
+    const targets = accessRows.filter(
+      (candidate) => candidate.LoginEmail.toLowerCase() === row.LoginEmail.toLowerCase()
+        && (candidate.PortalName === 'team' || candidate.PortalName === 'instructor'),
+    );
 
-    setMessage({ type: 'success', text: `Password reset email sent to ${loginEmailValue} for ${targetPortal} portal.` });
-    setResettingEmail(null);
-  };
-
-  const handleSetInitialPassword = async (row: PortalUserAccess) => {
-    const temporaryPassword = window.prompt(`Set a temporary password for ${row.LoginEmail}:`);
-    if (temporaryPassword === null) return;
-
-    if (!temporaryPassword || temporaryPassword.length < 8) {
-      setMessage({ type: 'error', text: 'Temporary password must be at least 8 characters.' });
+    if (targets.length === 0) {
+      setMessage({ type: 'error', text: `No Team or Instructor portal access rows found for ${row.LoginEmail}.` });
       return;
     }
 
     setProvisioningEmail(row.LoginEmail);
-    const result = await supabaseService.provisionPortalUserCredentials({
-      loginEmail: row.LoginEmail,
-      portalName: row.PortalName,
-      portalRole: row.PortalRole,
-      temporaryPassword,
-      sendResetEmail: true,
-    });
 
-    if (!result.success || !result.data) {
-      setMessage({ type: 'error', text: result.error || 'Failed to set initial password.' });
-      setProvisioningEmail(null);
-      return;
+    for (const target of targets) {
+      const result = await supabaseService.provisionPortalUserCredentials({
+        loginEmail: target.LoginEmail,
+        portalName: target.PortalName,
+        portalRole: target.PortalRole,
+        useDefaultPassword: true,
+        sendResetEmail: false,
+      });
+
+      if (!result.success || !result.data) {
+        setMessage({ type: 'error', text: result.error || 'Failed to reset password to default.' });
+        setProvisioningEmail(null);
+        return;
+      }
     }
 
-    const creationLabel = result.data.createdNewUser ? 'created' : 'updated';
-    const resetLabel = result.data.resetEmailSent ? ' A reset email was also sent.' : '';
+    const portalLabel = targets
+      .map((target) => target.PortalName)
+      .filter((name, index, arr) => arr.indexOf(name) === index)
+      .join(' + ');
+
     setMessage({
       type: 'success',
-      text: `Credentials ${creationLabel} for ${row.LoginEmail} on ${row.PortalName} portal.${resetLabel}`,
+      text: `Password reset to default for ${row.LoginEmail} on ${portalLabel} portals.`,
     });
     setProvisioningEmail(null);
     await loadData();
+  };
+
+  const hasTeamOrInstructorAccess = (row: PortalUserAccess): boolean => {
+    if (row.PortalName === 'team' || row.PortalName === 'instructor') return true;
+
+    return accessRows.some(
+      (candidate) => candidate.LoginEmail.toLowerCase() === row.LoginEmail.toLowerCase()
+        && (candidate.PortalName === 'team' || candidate.PortalName === 'instructor'),
+    );
   };
 
   if (isLoading) {
@@ -367,19 +374,11 @@ export const PortalAccess: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleSendResetEmail(row.LoginEmail, row.PortalName)}
-                      disabled={resettingEmail === row.LoginEmail}
-                      className="rounded-lg border border-blue-300 px-3 py-1.5 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                    >
-                      {resettingEmail === row.LoginEmail ? 'Sending...' : 'Reset Password'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetInitialPassword(row)}
-                      disabled={provisioningEmail === row.LoginEmail}
+                      onClick={() => handleResetDefaultPassword(row)}
+                      disabled={provisioningEmail === row.LoginEmail || !hasTeamOrInstructorAccess(row)}
                       className="rounded-lg border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
                     >
-                      {provisioningEmail === row.LoginEmail ? 'Setting...' : 'Set Initial Password'}
+                      {provisioningEmail === row.LoginEmail ? 'Resetting...' : 'Reset to Default'}
                     </button>
                   </div>
                 </td>

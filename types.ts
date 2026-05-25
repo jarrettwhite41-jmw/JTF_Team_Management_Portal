@@ -432,7 +432,8 @@ export interface PortalCredentialProvisionInput {
   loginEmail: string;
   portalName: PortalName;
   portalRole?: PortalAccessRole;
-  temporaryPassword: string;
+  temporaryPassword?: string;
+  useDefaultPassword?: boolean;
   sendResetEmail?: boolean;
 }
 
@@ -443,4 +444,5 @@ export interface PortalCredentialProvisionResult {
   resetEmailSent: boolean;
   portalName: PortalName;
   loginEmail: string;
+  usedDefaultPassword?: boolean;
 }

@@ -266,7 +266,7 @@ class SupabaseService {
         return { success: false, error: 'Login email is required.' };
       }
 
-      if (!input.temporaryPassword || input.temporaryPassword.length < 8) {
+      if (!input.useDefaultPassword && (!input.temporaryPassword || input.temporaryPassword.length < 8)) {
         return { success: false, error: 'Temporary password must be at least 8 characters.' };
       }
 
@@ -276,7 +276,8 @@ class SupabaseService {
         portalName: input.portalName,
         portalRole: input.portalRole,
         temporaryPassword: input.temporaryPassword,
-        sendResetEmail: input.sendResetEmail ?? true,
+        useDefaultPassword: input.useDefaultPassword ?? false,
+        sendResetEmail: input.sendResetEmail ?? false,
         redirectTo: redirect.url,
       };
 
