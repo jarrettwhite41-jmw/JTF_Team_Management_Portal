@@ -1,19 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { PageType, NavigationItem } from '../../types';
+import { PageType, NavigationItem, PortalAccessRole } from '../../types';
 
 interface SidebarProps {
   currentPage: PageType;
   onNavigate: (page: PageType) => void;
+  roleLabel?: PortalAccessRole | null;
+  currentUserEmail?: string | null;
+  onSignOut?: () => void;
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpen = false, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleLabel, currentUserEmail, onSignOut, isOpen = false, onClose }) => {
+  const canAccessItem = (role: PortalAccessRole | null | undefined, page: PageType): boolean => {
+    if (!role) return false;
+    if (role === 'admin' || role === 'manager') return true;
+    if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
+    if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops'].includes(page);
+    if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
+    if (role === 'student') return page === 'dashboard';
+    return page === 'dashboard';
+  };
   const topLevelItems: NavigationItem[] = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
-  ], []);
+  ].filter(item => canAccessItem(roleLabel, item.id)), [roleLabel]);
 
   const managementGroups = useMemo(() => [
     {
@@ -27,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'director-management', label: 'Director Management', icon: '🎬' },
+        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
         { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ] as NavigationItem[],
     },
@@ -52,7 +65,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
       ] as NavigationItem[],
     },
-  ], []);
+  ].map(group => ({
+    ...group,
+    children: group.children.filter(child => canAccessItem(roleLabel, child.id)),
+  })).filter(group => group.children.length > 0), [roleLabel]);
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(managementGroups.map((group) => group.id))
@@ -191,23 +207,39 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, isOpe
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-white/10">
-            <button
-              onClick={() => handleNavigate('data-import')}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
-                currentPage === 'data-import'
-                  ? 'bg-amber-500 text-slate-950 shadow-sm font-semibold'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
-              }`}
-            >
-              <span className="text-lg leading-none">⬆️</span>
-              <span className="text-sm">Import Center</span>
-            </button>
-          </div>
+          {canAccessItem(roleLabel, 'data-import') && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <button
+                onClick={() => handleNavigate('data-import')}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                  currentPage === 'data-import'
+                    ? 'bg-amber-500 text-slate-950 shadow-sm font-semibold'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+                }`}
+              >
+                <span className="text-lg leading-none">⬆️</span>
+                <span className="text-sm">Import Center</span>
+              </button>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 text-center border-t border-white/10">
+        <div className="px-4 py-3 border-t border-white/10">
+          {(currentUserEmail || roleLabel) && (
+            <div className="mb-2">
+              {currentUserEmail && <p className="text-xs text-slate-300 truncate">{currentUserEmail}</p>}
+              {roleLabel && <p className="text-[11px] uppercase tracking-wide text-slate-500">Role: {roleLabel}</p>}
+            </div>
+          )}
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="w-full mb-2 px-3 py-2 rounded-lg text-sm text-slate-200 border border-slate-700 hover:bg-slate-800"
+            >
+              Sign Out
+            </button>
+          )}
           <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>
         </div>
 

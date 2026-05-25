@@ -25,6 +25,9 @@ import {
   ClassLevelProgression,
   Bartender,
   PersonnelDeletionDependencies,
+  PortalName,
+  PortalAccessRole,
+  PortalUserAccess,
 } from '../types';
 
 // Initialize Supabase client
@@ -57,6 +60,22 @@ class SupabaseService {
       Instagram: row.instagram || '',
       Birthday: row.birthday || '',
       IsActive: row.active !== false,
+    };
+  }
+
+  private toPortalAccess(row: any): PortalUserAccess {
+    return {
+      AccessID: row.access_id,
+      AuthUserID: row.auth_user_id,
+      PersonnelID: row.personnel_id,
+      LoginEmail: row.login_email || '',
+      PortalName: row.portal_name,
+      PortalRole: row.portal_role,
+      IsActive: row.is_active !== false,
+      CreatedAt: row.created_at,
+      UpdatedAt: row.updated_at,
+      FirstName: row.personnel?.first_name || '',
+      LastName: row.personnel?.last_name || '',
     };
   }
 
@@ -114,6 +133,71 @@ class SupabaseService {
       return { success: true, data: (data || []).map((row) => this.toPersonnel(row)) };
     } catch (error) {
       console.error('Error fetching personnel:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getPortalUserAccess(): Promise<ApiResponse<PortalUserAccess[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('portal_user_access')
+        .select('*, personnel:personnel_id(first_name,last_name)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, data: (data || []).map((row: any) => this.toPortalAccess(row)) };
+    } catch (error) {
+      console.error('Error fetching portal access rows:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async upsertPortalUserAccess(input: {
+    personnelId?: number | null;
+    loginEmail: string;
+    portalName: PortalName;
+    portalRole: PortalAccessRole;
+    isActive?: boolean;
+  }): Promise<ApiResponse<PortalUserAccess>> {
+    try {
+      const normalizedEmail = input.loginEmail.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return { success: false, error: 'Login email is required.' };
+      }
+
+      const payload = {
+        personnel_id: input.personnelId ?? null,
+        login_email: normalizedEmail,
+        portal_name: input.portalName,
+        portal_role: input.portalRole,
+        is_active: input.isActive ?? true,
+      };
+
+      const { data, error } = await this.client
+        .from('portal_user_access')
+        .upsert(payload, { onConflict: 'login_email,portal_name' })
+        .select('*, personnel:personnel_id(first_name,last_name)')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toPortalAccess(data) };
+    } catch (error) {
+      console.error('Error upserting portal access row:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async setPortalAccessActive(accessId: string, isActive: boolean): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await this.client
+        .from('portal_user_access')
+        .update({ is_active: isActive })
+        .eq('access_id', accessId);
+
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error updating portal access status:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }

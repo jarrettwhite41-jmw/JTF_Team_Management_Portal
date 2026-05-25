@@ -397,6 +397,7 @@ export type PageType =
   | 'special-guests'
   | 'teacher-management'
   | 'director-management'
+  | 'portal-access'
   | 'data-import'
   | 'inventory'
   | 'scheduling'
@@ -407,4 +408,22 @@ export interface NavigationItem {
   id: PageType;
   label: string;
   icon: string;
+}
+
+export type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student';
+
+export type PortalAccessRole = 'admin' | 'manager' | 'director' | 'teacher' | 'cast' | 'student';
+
+export interface PortalUserAccess {
+  AccessID: string;
+  AuthUserID?: string | null;
+  PersonnelID?: number | null;
+  LoginEmail: string;
+  PortalName: PortalName;
+  PortalRole: PortalAccessRole;
+  IsActive: boolean;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+  FirstName?: string;
+  LastName?: string;
 }
