@@ -266,3 +266,48 @@ npm install @supabase/supabase-js
 5. ✅ Add row-level security (RLS) policies
 
 Need help? Let me know!
+
+## Team Portal Credential Provisioning (Initial Password)
+
+The Team portal now includes a secure onboarding action that can:
+- create or update a Supabase Auth user with a temporary password,
+- map that user to `portal_user_access`, and
+- optionally send a password reset email for the target portal.
+
+### Deploy the Edge Function
+
+From this project directory:
+
+```bash
+supabase functions deploy provision-portal-user
+```
+
+### Supabase Secrets (Edge Function)
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are normally available automatically in Supabase Edge Functions.
+
+Only set them manually if you need to override defaults:
+
+```bash
+supabase secrets set SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+supabase secrets set SUPABASE_ANON_KEY=YOUR_ANON_KEY
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+```
+
+### Required Frontend Env Vars (Redirects)
+
+Add these to `.env.local` and your Vercel environment settings:
+
+```bash
+VITE_TEAM_PORTAL_URL=https://jtf-team-management-portal.vercel.app
+VITE_INSTRUCTOR_PORTAL_URL=https://YOUR-INSTRUCTOR-PORTAL.vercel.app
+VITE_DIRECTOR_PORTAL_URL=https://YOUR-DIRECTOR-PORTAL.vercel.app
+VITE_CAST_PORTAL_URL=https://YOUR-CAST-PORTAL.vercel.app
+VITE_STUDENT_PORTAL_URL=https://YOUR-STUDENT-PORTAL.vercel.app
+```
+
+### Use in Team Portal
+
+In **Portal Access**:
+- **Set Initial Password**: creates/updates Auth user credentials for that access row.
+- **Reset Password**: sends reset email with portal-specific redirect URL.

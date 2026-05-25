@@ -427,3 +427,20 @@ export interface PortalUserAccess {
   FirstName?: string;
   LastName?: string;
 }
+
+export interface PortalCredentialProvisionInput {
+  loginEmail: string;
+  portalName: PortalName;
+  portalRole?: PortalAccessRole;
+  temporaryPassword: string;
+  sendResetEmail?: boolean;
+}
+
+export interface PortalCredentialProvisionResult {
+  userId: string;
+  createdNewUser: boolean;
+  portalAccessLinked: boolean;
+  resetEmailSent: boolean;
+  portalName: PortalName;
+  loginEmail: string;
+}

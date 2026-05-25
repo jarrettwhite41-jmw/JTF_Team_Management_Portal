@@ -28,6 +28,8 @@ import {
   PortalName,
   PortalAccessRole,
   PortalUserAccess,
+  PortalCredentialProvisionInput,
+  PortalCredentialProvisionResult,
 } from '../types';
 
 // Initialize Supabase client
@@ -49,6 +51,35 @@ const getSupabaseClient = () => {
 
 class SupabaseService {
   private client: SupabaseClient;
+
+  private getPortalResetRedirectUrl(portalName?: PortalName): { url?: string; error?: string } {
+    if (!portalName) {
+      return { url: window.location.origin };
+    }
+
+    const env = import.meta.env as Record<string, string | undefined>;
+    const configuredUrls: Record<PortalName, string | undefined> = {
+      team: env.VITE_TEAM_PORTAL_URL?.trim(),
+      instructor: env.VITE_INSTRUCTOR_PORTAL_URL?.trim(),
+      director: env.VITE_DIRECTOR_PORTAL_URL?.trim(),
+      cast: env.VITE_CAST_PORTAL_URL?.trim(),
+      student: env.VITE_STUDENT_PORTAL_URL?.trim(),
+    };
+
+    const url = configuredUrls[portalName];
+
+    if (url) {
+      return { url };
+    }
+
+    if (portalName === 'team') {
+      return { url: window.location.origin };
+    }
+
+    return {
+      error: `Missing redirect URL for ${portalName} portal. Set VITE_${portalName.toUpperCase()}_PORTAL_URL.`,
+    };
+  }
 
   private toPersonnel(row: any): Personnel {
     return {
@@ -202,21 +233,66 @@ class SupabaseService {
     }
   }
 
-  async sendPasswordResetEmail(loginEmail: string): Promise<ApiResponse<boolean>> {
+  async sendPasswordResetEmail(loginEmail: string, portalName?: PortalName): Promise<ApiResponse<boolean>> {
     try {
       const normalizedEmail = loginEmail.trim().toLowerCase();
       if (!normalizedEmail) {
         return { success: false, error: 'Login email is required.' };
       }
 
+      const redirect = this.getPortalResetRedirectUrl(portalName);
+      if (!redirect.url) {
+        return { success: false, error: redirect.error || 'Password reset redirect URL is not configured.' };
+      }
+
       const { error } = await this.client.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: window.location.origin,
+        redirectTo: redirect.url,
       });
 
       if (error) throw error;
       return { success: true, data: true };
     } catch (error) {
       console.error('Error sending password reset email:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async provisionPortalUserCredentials(
+    input: PortalCredentialProvisionInput,
+  ): Promise<ApiResponse<PortalCredentialProvisionResult>> {
+    try {
+      const normalizedEmail = input.loginEmail.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return { success: false, error: 'Login email is required.' };
+      }
+
+      if (!input.temporaryPassword || input.temporaryPassword.length < 8) {
+        return { success: false, error: 'Temporary password must be at least 8 characters.' };
+      }
+
+      const redirect = this.getPortalResetRedirectUrl(input.portalName);
+      const payload = {
+        loginEmail: normalizedEmail,
+        portalName: input.portalName,
+        portalRole: input.portalRole,
+        temporaryPassword: input.temporaryPassword,
+        sendResetEmail: input.sendResetEmail ?? true,
+        redirectTo: redirect.url,
+      };
+
+      const { data, error } = await this.client.functions.invoke<PortalCredentialProvisionResult>(
+        'provision-portal-user',
+        { body: payload },
+      );
+
+      if (error) throw error;
+      if (!data) {
+        return { success: false, error: 'Provisioning function returned no data.' };
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error provisioning portal credentials:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
