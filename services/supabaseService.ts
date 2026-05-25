@@ -202,6 +202,25 @@ class SupabaseService {
     }
   }
 
+  async sendPasswordResetEmail(loginEmail: string): Promise<ApiResponse<boolean>> {
+    try {
+      const normalizedEmail = loginEmail.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return { success: false, error: 'Login email is required.' };
+      }
+
+      const { error } = await this.client.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: window.location.origin,
+      });
+
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error sending password reset email:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getAllTeachers(): Promise<ApiResponse<any[]>> {
     try {
       const { data, error } = await this.client

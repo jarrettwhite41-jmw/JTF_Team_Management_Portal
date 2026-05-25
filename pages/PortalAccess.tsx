@@ -27,6 +27,7 @@ export const PortalAccess: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [resettingEmail, setResettingEmail] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
@@ -144,6 +145,20 @@ export const PortalAccess: React.FC = () => {
     });
     await loadData();
     setIsSaving(false);
+  };
+
+  const handleSendResetEmail = async (loginEmailValue: string) => {
+    setResettingEmail(loginEmailValue);
+    const result = await supabaseService.sendPasswordResetEmail(loginEmailValue);
+
+    if (!result.success) {
+      setMessage({ type: 'error', text: result.error || 'Failed to send password reset email.' });
+      setResettingEmail(null);
+      return;
+    }
+
+    setMessage({ type: 'success', text: `Password reset email sent to ${loginEmailValue}.` });
+    setResettingEmail(null);
   };
 
   if (isLoading) {
@@ -276,14 +291,24 @@ export const PortalAccess: React.FC = () => {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleActive(row)}
-                    disabled={isSaving}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    {row.IsActive ? 'Deactivate' : 'Activate'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(row)}
+                      disabled={isSaving}
+                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {row.IsActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendResetEmail(row.LoginEmail)}
+                      disabled={resettingEmail === row.LoginEmail}
+                      className="rounded-lg border border-blue-300 px-3 py-1.5 text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {resettingEmail === row.LoginEmail ? 'Sending...' : 'Reset Password'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
