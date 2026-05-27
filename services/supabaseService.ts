@@ -682,6 +682,9 @@ class SupabaseService {
 
   async createShow(show: Omit<ShowInformation, 'ShowID'>): Promise<ApiResponse<ShowInformation>> {
     try {
+      const parsedDirectorId = Number(show.DirectorID);
+      const directorId = Number.isFinite(parsedDirectorId) && parsedDirectorId > 0 ? parsedDirectorId : null;
+
       const { data, error } = await this.client
         .from('show_information')
         .insert([
@@ -689,7 +692,7 @@ class SupabaseService {
             show_date: show.ShowDate,
             show_time: show.ShowTime,
             show_type_id: show.ShowTypeID,
-            director_id: show.DirectorID,
+            director_id: directorId,
             venue: show.Venue,
             status: show.Status,
           },
@@ -927,7 +930,10 @@ class SupabaseService {
       if (show.ShowDate) updates.show_date = show.ShowDate;
       if (show.ShowTime) updates.show_time = show.ShowTime;
       if (show.ShowTypeID) updates.show_type_id = show.ShowTypeID;
-      if (show.DirectorID) updates.director_id = show.DirectorID;
+      if ('DirectorID' in show) {
+        const parsedDirectorId = Number(show.DirectorID as number | null);
+        updates.director_id = Number.isFinite(parsedDirectorId) && parsedDirectorId > 0 ? parsedDirectorId : null;
+      }
       if (show.Venue) updates.venue = show.Venue;
       if (show.Status) updates.status = show.Status;
 

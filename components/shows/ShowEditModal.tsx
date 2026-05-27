@@ -139,7 +139,7 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
         ShowDate: form.ShowDate,
         ShowTime: form.ShowTime,
         ShowTypeID: Number(form.ShowTypeID),
-        DirectorID: Number(form.DirectorID),
+        DirectorID: form.DirectorID ? Number(form.DirectorID) : null,
         Venue: form.Venue.trim(),
         Status: form.Status,
       };
@@ -253,10 +253,9 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
                     name="DirectorID"
                     value={form.DirectorID}
                     onChange={handleChange}
-                    required
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">Select a director</option>
+                    <option value="">No director assigned</option>
                     {directors.map(director => (
                       <option key={director.DirectorID} value={director.DirectorID}>
                         {director.FirstName} {director.LastName}

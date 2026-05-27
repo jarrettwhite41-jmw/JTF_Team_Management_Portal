@@ -465,7 +465,7 @@ const DataImport: React.FC = () => {
           ShowDate: readValue(row, 'ShowDate', 'showDate', 'show_date') || '',
           ShowTime: asString(readValue(row, 'ShowTime', 'showTime', 'show_time')),
           ShowTypeID: asNumber(readValue(row, 'ShowTypeID', 'showTypeId', 'show_type_id')) || 0,
-          DirectorID: directorPersonnelId || 0,
+          DirectorID: directorPersonnelId ?? null,
           Venue: asString(readValue(row, 'Venue', 'venue')),
           Status: asString(readValue(row, 'Status', 'status')) || 'Scheduled',
         });

@@ -15,7 +15,7 @@ export interface ShowInformation {
   ShowDate: Date | string;
   ShowTime: string;
   ShowTypeID: number;
-  DirectorID: number;
+  DirectorID: number | null;
   Venue: string;
   Status: 'Scheduled' | 'Canceled';
 }
