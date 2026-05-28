@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileSectionsOpen, setIsMobileSectionsOpen] = useState(false);
+  const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -273,6 +274,7 @@ const App: React.FC = () => {
     if (canAccessPage(userRole, page)) {
       setCurrentPage(page);
       setIsMobileSectionsOpen(false);
+      setIsMobileActionsOpen(false);
       setIsMobileMenuOpen(false);
     }
   };
@@ -298,9 +300,12 @@ const App: React.FC = () => {
       {/* Mobile sections sheet for nested navigation */}
       <div
         className={`fixed inset-0 z-40 bg-black/40 transition-opacity md:hidden ${
-          isMobileSectionsOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+          (isMobileSectionsOpen || isMobileActionsOpen) ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
-        onClick={() => setIsMobileSectionsOpen(false)}
+        onClick={() => {
+          setIsMobileSectionsOpen(false);
+          setIsMobileActionsOpen(false);
+        }}
         aria-hidden="true"
       />
       <div
@@ -368,6 +373,48 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {/* Mobile actions sheet (replaces sidebar usage on phone) */}
+      <div
+        className={`fixed inset-x-0 bottom-16 z-50 max-h-[55vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl transition-transform duration-300 md:hidden ${
+          isMobileActionsOpen ? 'translate-y-0' : 'translate-y-full'
+        }`}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Quick Actions</h2>
+          <button
+            onClick={() => setIsMobileActionsOpen(false)}
+            className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Signed In</p>
+          <p className="mt-1 truncate text-sm font-medium text-slate-700">{sessionEmail || 'Team user'}</p>
+          <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Role: {userRole}</p>
+        </div>
+
+        <div className="mt-3 grid grid-cols-1 gap-2">
+          {canAccessPage(userRole, 'data-import') && (
+            <button
+              onClick={() => handleMobileNavigate('data-import')}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+            >
+              <span className="mr-2">⬆️</span>
+              Import Center
+            </button>
+          )}
+          <button
+            onClick={handleSignOut}
+            className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            <span className="mr-2">↪</span>
+            Sign Out
+          </button>
+        </div>
+      </div>
+
       {/* Mobile bottom navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden">
         <div className="mx-auto grid h-16 max-w-2xl grid-cols-4 px-2">
@@ -404,13 +451,15 @@ const App: React.FC = () => {
           <button
             onClick={() => {
               setIsMobileSectionsOpen(false);
-              setIsMobileMenuOpen(true);
+              setIsMobileActionsOpen((prev) => !prev);
             }}
-            className="flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium text-slate-500"
-            aria-label="Open full menu"
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
+              isMobileActionsOpen ? 'text-primary-600' : 'text-slate-500'
+            }`}
+            aria-label="Open quick actions"
           >
-            <span className="text-base">☰</span>
-            Menu
+            <span className="text-base">⚙️</span>
+            Actions
           </button>
         </div>
       </nav>
