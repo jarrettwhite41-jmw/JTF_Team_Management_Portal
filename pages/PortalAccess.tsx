@@ -12,14 +12,22 @@ const PORTAL_OPTIONS: Array<{ value: PortalName; label: string }> = [
   { value: 'student', label: 'Student Portal' },
 ];
 
-const ROLE_OPTIONS: Array<{ value: PortalAccessRole; label: string }> = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'director', label: 'Director' },
-  { value: 'teacher', label: 'Teacher' },
-  { value: 'cast', label: 'Cast' },
-  { value: 'student', label: 'Student' },
-];
+const DEFAULT_ROLE_BY_PORTAL: Record<PortalName, PortalAccessRole> = {
+  instructor: 'teacher',
+  team: 'manager',
+  director: 'director',
+  cast: 'cast',
+  student: 'student',
+};
+
+const ROLE_LABELS: Record<PortalAccessRole, string> = {
+  admin: 'Admin',
+  manager: 'Manager',
+  director: 'Director',
+  teacher: 'Teacher',
+  cast: 'Cast',
+  student: 'Student',
+};
 
 export const PortalAccess: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
@@ -34,7 +42,7 @@ export const PortalAccess: React.FC = () => {
   const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [portalName, setPortalName] = useState<PortalName>('instructor');
-  const [portalRole, setPortalRole] = useState<PortalAccessRole>('teacher');
+  const [portalRole, setPortalRole] = useState<PortalAccessRole>(DEFAULT_ROLE_BY_PORTAL.instructor);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -118,6 +126,11 @@ export const PortalAccess: React.FC = () => {
     }
   };
 
+  const handlePortalChange = (value: PortalName) => {
+    setPortalName(value);
+    setPortalRole(DEFAULT_ROLE_BY_PORTAL[value]);
+  };
+
   const handleSave = async () => {
     const trimmedEmail = loginEmail.trim().toLowerCase();
     if (!trimmedEmail) {
@@ -147,7 +160,7 @@ export const PortalAccess: React.FC = () => {
     setPersonnelSearchTerm('');
     setLoginEmail('');
     setPortalName('instructor');
-    setPortalRole('teacher');
+    setPortalRole(DEFAULT_ROLE_BY_PORTAL.instructor);
     await loadData();
     setIsSaving(false);
   };
@@ -284,7 +297,7 @@ export const PortalAccess: React.FC = () => {
             <select
               title="Portal"
               value={portalName}
-              onChange={(e) => setPortalName(e.target.value as PortalName)}
+              onChange={(e) => handlePortalChange(e.target.value as PortalName)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             >
               {PORTAL_OPTIONS.map((option) => (
@@ -295,16 +308,14 @@ export const PortalAccess: React.FC = () => {
 
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
-            <select
-              title="Role"
-              value={portalRole}
-              onChange={(e) => setPortalRole(e.target.value as PortalAccessRole)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            >
-              {ROLE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <input
+              type="text"
+              title="Auto-assigned role"
+              value={ROLE_LABELS[portalRole]}
+              readOnly
+              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+            />
+            <p className="mt-1 text-xs text-gray-500">Role is automatically assigned from the selected portal.</p>
           </div>
         </div>
 
