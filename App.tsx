@@ -229,7 +229,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex w-full h-full bg-slate-100 overflow-hidden">
+    <div className="flex w-full h-full min-h-0 min-w-0 bg-slate-100 overflow-hidden">
       {/* Mobile top header bar */}
       <header className="jtf-mobile-header md:hidden fixed top-0 left-0 right-0 z-30 h-14 flex items-center px-4 shadow-lg">
         <button
@@ -259,7 +259,7 @@ const App: React.FC = () => {
         onClose={() => setIsMobileMenuOpen(false)}
       />
 
-      <main className="flex-1 overflow-auto pt-14 md:pt-0">
+      <main className="flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto pt-14 md:pt-0">
         {renderPage()}
       </main>
     </div>

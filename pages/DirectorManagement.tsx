@@ -148,6 +148,7 @@ export const DirectorManagement: React.FC<DirectorManagementProps> = ({ onNaviga
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Add Director (Cast Only)</h2>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
           <select
+            title="Select cast member to add as director"
             value={selectedPersonnelId}
             onChange={(event) => setSelectedPersonnelId(event.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2"
@@ -163,7 +164,7 @@ export const DirectorManagement: React.FC<DirectorManagementProps> = ({ onNaviga
             type="button"
             onClick={handleAddDirector}
             disabled={!selectedPersonnelId || isSubmitting}
-            className="rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 disabled:opacity-50"
+            className="w-full rounded-lg bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 disabled:opacity-50 sm:w-auto"
           >
             {isSubmitting ? 'Saving...' : 'Add Director'}
           </button>
@@ -186,7 +187,33 @@ export const DirectorManagement: React.FC<DirectorManagementProps> = ({ onNaviga
         />
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {filteredDirectors.map((director) => (
+          <article key={director.DirectorID} className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-gray-900">{`${director.FirstName || ''} ${director.LastName || ''}`.trim()}</h2>
+                <p className="mt-1 break-all text-sm text-gray-600">{director.PrimaryEmail || '-'}</p>
+              </div>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">#{director.DirectorID}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleRemoveDirector(director.DirectorID, `${director.FirstName || ''} ${director.LastName || ''}`.trim())}
+              disabled={isSubmitting}
+              className="mt-4 w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          </article>
+        ))}
+
+        {filteredDirectors.length === 0 && (
+          <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No directors found.</div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border bg-white shadow-sm md:block">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

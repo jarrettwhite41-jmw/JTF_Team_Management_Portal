@@ -312,7 +312,7 @@ export const PortalAccess: React.FC = () => {
           type="button"
           onClick={handleSave}
           disabled={isSaving}
-          className="rounded-lg bg-primary-600 px-4 py-2 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-60"
+          className="w-full rounded-lg bg-primary-600 px-4 py-2 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
         >
           {isSaving ? 'Saving...' : 'Save Access'}
         </button>
@@ -334,7 +334,48 @@ export const PortalAccess: React.FC = () => {
         />
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {filteredRows.map((row) => (
+          <article key={row.AccessID} className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="break-all text-base font-semibold text-gray-900">{row.LoginEmail}</h2>
+                <p className="mt-1 text-sm text-gray-600">{row.PortalName} · {row.PortalRole}</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                {row.IsActive ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            <div className="mt-3 space-y-1 text-sm text-gray-600">
+              <p><span className="font-medium text-gray-800">Linked person:</span> {(row.FirstName || row.LastName) ? `${row.FirstName || ''} ${row.LastName || ''}`.trim() : '-'}</p>
+            </div>
+            <div className="mt-4 grid gap-2">
+              <button
+                type="button"
+                onClick={() => handleToggleActive(row)}
+                disabled={isSaving}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {row.IsActive ? 'Deactivate' : 'Activate'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleResetDefaultPassword(row)}
+                disabled={provisioningEmail === row.LoginEmail || !hasTeamOrInstructorAccess(row)}
+                className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+              >
+                {provisioningEmail === row.LoginEmail ? 'Resetting...' : 'Reset to Default'}
+              </button>
+            </div>
+          </article>
+        ))}
+
+        {filteredRows.length === 0 && (
+          <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No portal access rows found.</div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border bg-white shadow-sm md:block">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

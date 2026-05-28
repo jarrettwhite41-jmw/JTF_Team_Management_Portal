@@ -112,6 +112,7 @@ export const Scheduling: React.FC = () => {
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
   const today = new Date();
+  const selectedDateEvents = getEventsForDate(selectedDate);
 
   return (
     <div className="p-4 sm:p-6">
@@ -127,7 +128,49 @@ export const Scheduling: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border">
+      <div className="mb-6 space-y-4 md:hidden">
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <label htmlFor="schedule-date" className="mb-2 block text-sm font-medium text-gray-700">Select date</label>
+          <input
+            id="schedule-date"
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="rounded-lg border bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-gray-900">Agenda</h2>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+              {selectedDateEvents.length} event{selectedDateEvents.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {selectedDateEvents.length === 0 ? (
+            <p className="text-sm text-gray-500">No shows or classes scheduled for this date.</p>
+          ) : (
+            <div className="space-y-3">
+              {selectedDateEvents.map((event) => (
+                <article key={event.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-gray-900">{event.title}</h3>
+                      <p className="mt-1 text-xs text-gray-500">{event.date}</p>
+                    </div>
+                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${event.type === 'show' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {event.type === 'show' ? 'Show' : 'Class'}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="hidden rounded-lg border bg-white shadow-sm md:block">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold text-gray-900">
             {monthNames[today.getMonth()]} {today.getFullYear()}
