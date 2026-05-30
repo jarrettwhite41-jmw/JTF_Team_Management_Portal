@@ -123,6 +123,21 @@ export interface MasterGame {
   GameID: number;
   GameName: string;
   Description?: string;
+  HowToPlay?: string;
+  SetupNotes?: string;
+  PlayerCount?: string | number | null;
+  Format?: string;
+  Category?: string;
+  DifficultyLevel?: number | null;
+}
+
+export interface MasterGameInput {
+  GameName: string;
+  Description?: string;
+  HowToPlay?: string;
+  SetupNotes?: string;
+  PlayerCount?: string | number | null;
+  Format?: string;
   Category?: string;
   DifficultyLevel?: number | null;
 }

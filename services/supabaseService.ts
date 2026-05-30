@@ -17,6 +17,7 @@ import {
   BartenderWithDetails,
   ShowWithDetails,
   MasterGame,
+  MasterGameInput,
   ShowGame,
   Workshop,
   SpecialGuest,
@@ -116,6 +117,41 @@ class SupabaseService {
       return String((error as { message: unknown }).message);
     }
     return String(error);
+  }
+
+  private toMasterGame(row: any): MasterGame {
+    return {
+      GameID: row.game_id,
+      GameName: row.game_name,
+      Description: row.description || row.short_description || row['SHORT DESCRIPTION'] || '',
+      HowToPlay:
+        row.how_to_play ||
+        row.setup_edits_stage_direction ||
+        row.setup_notes ||
+        row['SETUP / EDITS / STAGE DIRECTION'] ||
+        '',
+      SetupNotes: row.setup_notes || row['SETUP / EDITS / STAGE DIRECTION'] || '',
+      PlayerCount: row.player_count ?? null,
+      Format: row.short_long_form || row['Short/Long Form'] || '',
+      Category: row.category || row.game_type || row.GameType || '',
+      DifficultyLevel: row.difficulty_level ?? null,
+    };
+  }
+
+  private toMasterGameMutationPayload(input: MasterGameInput) {
+    return {
+      game_name: input.GameName.trim(),
+      description: input.Description?.trim() || null,
+      how_to_play: input.HowToPlay?.trim() || null,
+      setup_notes: input.SetupNotes?.trim() || null,
+      player_count:
+        input.PlayerCount == null || String(input.PlayerCount).trim() === ''
+          ? null
+          : String(input.PlayerCount).trim(),
+      short_long_form: input.Format?.trim() || null,
+      category: input.Category?.trim() || null,
+      difficulty_level: input.DifficultyLevel ?? null,
+    };
   }
 
   private async isCastMember(personnelId: number): Promise<boolean> {
@@ -1400,17 +1436,77 @@ class SupabaseService {
 
       if (error) throw error;
 
-      const transformed = (data || []).map((game: any) => ({
-        GameID: game.game_id,
-        GameName: game.game_name,
-        Description: game.description || '',
-        Category: game.category || '',
-        DifficultyLevel: game.difficulty_level ?? null,
-      }));
+      const transformed = (data || []).map((game: any) => this.toMasterGame(game));
 
       return { success: true, data: transformed };
     } catch (error) {
       console.error('Error fetching games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async createMasterGame(input: MasterGameInput): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!input.GameName?.trim()) {
+        return { success: false, error: 'Game name is required.' };
+      }
+
+      const payload = this.toMasterGameMutationPayload(input);
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .insert([payload])
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error creating master game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateMasterGame(gameId: number, input: MasterGameInput): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      if (!input.GameName?.trim()) {
+        return { success: false, error: 'Game name is required.' };
+      }
+
+      const payload = this.toMasterGameMutationPayload(input);
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .update(payload)
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error updating master game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deleteMasterGame(gameId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const { error } = await this.client
+        .from('master_game_list')
+        .delete()
+        .eq('game_id', gameId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting master game:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }

@@ -140,7 +140,7 @@ const App: React.FC = () => {
       case 'personnel':
         return <PersonnelDirectory />;
       case 'cast':
-        return <CastDirectory />;
+        return <CastDirectory canManageGames={userRole === 'admin' || userRole === 'manager'} />;
       case 'crew':
         return <CrewDirectory />;
       case 'bartenders':
