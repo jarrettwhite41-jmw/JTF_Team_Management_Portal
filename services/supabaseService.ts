@@ -482,7 +482,6 @@ class SupabaseService {
             primary_phone: personnel.PrimaryPhone || null,
             instagram: personnel.Instagram || null,
             birthday: personnel.Birthday || null,
-            active: personnel.IsActive ?? true,
           },
         ])
         .select()
@@ -507,7 +506,6 @@ class SupabaseService {
       if (personnel.PrimaryPhone !== undefined) updates.primary_phone = personnel.PrimaryPhone || null;
       if (personnel.Instagram !== undefined) updates.instagram = personnel.Instagram || null;
       if (personnel.Birthday !== undefined) updates.birthday = personnel.Birthday || null;
-      if (personnel.IsActive !== undefined) updates.active = personnel.IsActive;
 
       const { data, error } = await this.client
         .from('personnel')
