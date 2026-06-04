@@ -43,6 +43,12 @@ interface PersonAccessRow {
 export const PortalAccess: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [accessRows, setAccessRows] = useState<PortalUserAccess[]>([]);
+  const [rolePersonnelIds, setRolePersonnelIds] = useState<Record<'cast' | 'instructor' | 'director' | 'student', Set<number>>>({
+    cast: new Set<number>(),
+    instructor: new Set<number>(),
+    director: new Set<number>(),
+    student: new Set<number>(),
+  });
 
   const [searchTerm, setSearchTerm] = useState('');
   const [portalFilter, setPortalFilter] = useState<'all' | PortalName>('all');
@@ -64,9 +70,13 @@ export const PortalAccess: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [personnelRes, accessRes] = await Promise.all([
+      const [personnelRes, accessRes, castRes, teacherRes, directorRes, studentRes] = await Promise.all([
         supabaseService.getAllPersonnel(),
         supabaseService.getPortalUserAccess(),
+        supabaseService.getAllCastMembers(),
+        supabaseService.getAllTeachers(),
+        supabaseService.getAllDirectors(),
+        supabaseService.getAllStudentsWithDetails(),
       ]);
 
       if (personnelRes.success && personnelRes.data) {
@@ -80,6 +90,46 @@ export const PortalAccess: React.FC = () => {
       } else {
         setMessage({ type: 'error', text: accessRes.error || 'Failed to load portal access assignments.' });
       }
+
+      const castIds = new Set<number>();
+      const teacherIds = new Set<number>();
+      const directorIds = new Set<number>();
+      const studentIds = new Set<number>();
+
+      if (castRes.success && castRes.data?.data) {
+        castRes.data.data.forEach((row: any) => {
+          const id = Number(row.PersonnelID);
+          if (Number.isFinite(id) && id > 0) castIds.add(id);
+        });
+      }
+
+      if (teacherRes.success && teacherRes.data) {
+        teacherRes.data.forEach((row: any) => {
+          const id = Number(row.PersonnelID);
+          if (Number.isFinite(id) && id > 0) teacherIds.add(id);
+        });
+      }
+
+      if (directorRes.success && directorRes.data) {
+        directorRes.data.forEach((row: any) => {
+          const id = Number(row.PersonnelID);
+          if (Number.isFinite(id) && id > 0) directorIds.add(id);
+        });
+      }
+
+      if (studentRes.success && studentRes.data) {
+        studentRes.data.forEach((row: any) => {
+          const id = Number(row.PersonnelID);
+          if (Number.isFinite(id) && id > 0) studentIds.add(id);
+        });
+      }
+
+      setRolePersonnelIds({
+        cast: castIds,
+        instructor: teacherIds,
+        director: directorIds,
+        student: studentIds,
+      });
     } catch {
       setMessage({ type: 'error', text: 'Unexpected error while loading portal access.' });
     } finally {
@@ -192,6 +242,16 @@ export const PortalAccess: React.FC = () => {
     const q = searchTerm.trim().toLowerCase();
 
     return personRows.filter((row) => {
+      if (portalFilter !== 'all') {
+        const personnelId = row.PersonnelID;
+        if (portalFilter === 'team') {
+          if (!row.AccessByPortal.team) return false;
+        } else {
+          const eligibleSet = rolePersonnelIds[portalFilter];
+          if (!personnelId || !eligibleSet?.has(personnelId)) return false;
+        }
+      }
+
       const targetAccess = portalFilter === 'all' ? undefined : row.AccessByPortal[portalFilter];
 
       if (roleFilter !== 'all') {
@@ -235,7 +295,7 @@ export const PortalAccess: React.FC = () => {
         || row.Email.toLowerCase().includes(q)
         || searchablePortals.includes(q);
     });
-  }, [personRows, searchTerm, portalFilter, roleFilter, accessStateFilter]);
+  }, [personRows, searchTerm, portalFilter, roleFilter, accessStateFilter, rolePersonnelIds]);
 
   const handlePersonnelChange = (value: string) => {
     setSelectedPersonnelId(value);
@@ -429,6 +489,9 @@ export const PortalAccess: React.FC = () => {
         <p className="text-sm text-gray-600 mt-1">
           Use one quick list to manage access by person. Filter by portal to activate/deactivate fast, or set portal to
           All Portals to review each person&apos;s full access footprint.
+        </p>
+        <p className="mt-1 text-xs text-gray-500">
+          Portal tabs use role membership: Cast = cast members, Instructor = teachers, Director = directors, Student = students, Team = existing team access only.
         </p>
       </div>
 
