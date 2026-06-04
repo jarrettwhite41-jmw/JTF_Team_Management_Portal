@@ -29,35 +29,44 @@ const ROLE_LABELS: Record<PortalAccessRole, string> = {
   student: 'Student',
 };
 
+type AccessStateFilter = 'all' | 'has' | 'none' | 'active' | 'inactive';
+
+interface PersonAccessRow {
+  Key: string;
+  PersonnelID: number | null;
+  FullName: string;
+  Email: string;
+  AccessRows: PortalUserAccess[];
+  AccessByPortal: Partial<Record<PortalName, PortalUserAccess>>;
+}
+
 export const PortalAccess: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [accessRows, setAccessRows] = useState<PortalUserAccess[]>([]);
-  const [castMembers, setCastMembers] = useState<any[]>([]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [portalFilter, setPortalFilter] = useState<'all' | PortalName>('all');
-  const [accessStatusFilter, setAccessStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [castSearchTerm, setCastSearchTerm] = useState('');
-  const [castAccessFilter, setCastAccessFilter] = useState<'all' | 'with' | 'without'>('all');
-  const [castStatusFilter, setCastStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [roleFilter, setRoleFilter] = useState<'all' | PortalAccessRole>('all');
+  const [accessStateFilter, setAccessStateFilter] = useState<AccessStateFilter>('all');
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [provisioningEmail, setProvisioningEmail] = useState<string | null>(null);
-  const [showCastManager, setShowCastManager] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const [showManualAdd, setShowManualAdd] = useState(false);
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
   const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
-  const [portalName, setPortalName] = useState<PortalName>('instructor');
-  const [portalRole, setPortalRole] = useState<PortalAccessRole>(DEFAULT_ROLE_BY_PORTAL.instructor);
+  const [manualPortalName, setManualPortalName] = useState<PortalName>('instructor');
+  const [manualPortalRole, setManualPortalRole] = useState<PortalAccessRole>(DEFAULT_ROLE_BY_PORTAL.instructor);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [personnelRes, accessRes, castRes] = await Promise.all([
+      const [personnelRes, accessRes] = await Promise.all([
         supabaseService.getAllPersonnel(),
         supabaseService.getPortalUserAccess(),
-        supabaseService.getAllCastMembers(),
       ]);
 
       if (personnelRes.success && personnelRes.data) {
@@ -70,12 +79,6 @@ export const PortalAccess: React.FC = () => {
         setAccessRows(accessRes.data);
       } else {
         setMessage({ type: 'error', text: accessRes.error || 'Failed to load portal access assignments.' });
-      }
-
-      if (castRes.success && castRes.data?.data) {
-        setCastMembers(castRes.data.data);
-      } else {
-        setMessage({ type: 'error', text: castRes.error || 'Failed to load cast members.' });
       }
     } catch {
       setMessage({ type: 'error', text: 'Unexpected error while loading portal access.' });
@@ -94,77 +97,14 @@ export const PortalAccess: React.FC = () => {
     return map;
   }, [personnel]);
 
-  const filteredRows = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return accessRows.filter((row) => {
-      if (portalFilter !== 'all' && row.PortalName !== portalFilter) return false;
-      if (accessStatusFilter === 'active' && !row.IsActive) return false;
-      if (accessStatusFilter === 'inactive' && row.IsActive) return false;
-
-      if (!q) return true;
-      const fullName = `${row.FirstName || ''} ${row.LastName || ''}`.trim().toLowerCase();
-      return (
-        row.LoginEmail.toLowerCase().includes(q)
-        || row.PortalName.toLowerCase().includes(q)
-        || row.PortalRole.toLowerCase().includes(q)
-        || fullName.includes(q)
-      );
+  const personnelByEmail = useMemo(() => {
+    const map = new Map<string, Personnel>();
+    personnel.forEach((p) => {
+      const email = (p.PrimaryEmail || '').trim().toLowerCase();
+      if (email) map.set(email, p);
     });
-  }, [accessRows, searchTerm, portalFilter, accessStatusFilter]);
-
-  const castAccessByPersonnelId = useMemo(() => {
-    const map = new Map<number, PortalUserAccess>();
-    accessRows
-      .filter((row) => row.PortalName === 'cast' && row.PersonnelID)
-      .forEach((row) => map.set(Number(row.PersonnelID), row));
     return map;
-  }, [accessRows]);
-
-  const castAccessByEmail = useMemo(() => {
-    const map = new Map<string, PortalUserAccess>();
-    accessRows
-      .filter((row) => row.PortalName === 'cast' && row.LoginEmail)
-      .forEach((row) => map.set(row.LoginEmail.trim().toLowerCase(), row));
-    return map;
-  }, [accessRows]);
-
-  const castPortalRows = useMemo(() => {
-    const rows = castMembers.map((member) => {
-      const email = (member.PrimaryEmail || '').trim().toLowerCase();
-      const byPersonnel = member.PersonnelID ? castAccessByPersonnelId.get(Number(member.PersonnelID)) : undefined;
-      const byEmail = email ? castAccessByEmail.get(email) : undefined;
-      const accessRow = byPersonnel || byEmail || null;
-      const fullName = member.FullName || `${member.FirstName || ''} ${member.LastName || member.Lastname || ''}`.trim();
-
-      return {
-        PersonnelID: member.PersonnelID as number | undefined,
-        FullName: fullName || 'Unknown',
-        PrimaryEmail: member.PrimaryEmail || '',
-        CastStatus: member.Status || 'Active',
-        AccessRow: accessRow,
-      };
-    });
-
-    const q = castSearchTerm.trim().toLowerCase();
-    const filtered = rows.filter((row) => {
-      const hasAccess = !!row.AccessRow;
-      const isActive = row.AccessRow?.IsActive === true;
-
-      if (castAccessFilter === 'with' && !hasAccess) return false;
-      if (castAccessFilter === 'without' && hasAccess) return false;
-      if (castStatusFilter === 'active' && (!hasAccess || !isActive)) return false;
-      if (castStatusFilter === 'inactive' && (!hasAccess || isActive)) return false;
-
-      if (!q) return true;
-      return (
-        row.FullName.toLowerCase().includes(q)
-        || row.PrimaryEmail.toLowerCase().includes(q)
-        || row.CastStatus.toLowerCase().includes(q)
-      );
-    });
-
-    return filtered.sort((a, b) => a.FullName.localeCompare(b.FullName));
-  }, [castMembers, castAccessByPersonnelId, castAccessByEmail, castSearchTerm, castAccessFilter, castStatusFilter]);
+  }, [personnel]);
 
   const sortedPersonnel = useMemo(() => {
     return [...personnel].sort((a, b) => {
@@ -182,10 +122,120 @@ export const PortalAccess: React.FC = () => {
       const fullName = `${person.FirstName || ''} ${person.LastName || ''}`.trim().toLowerCase();
       const reverseName = `${person.LastName || ''}, ${person.FirstName || ''}`.trim().toLowerCase();
       const email = (person.PrimaryEmail || '').toLowerCase();
-
       return fullName.includes(query) || reverseName.includes(query) || email.includes(query);
     });
   }, [sortedPersonnel, personnelSearchTerm]);
+
+  const personRows = useMemo(() => {
+    const rowsByKey = new Map<string, PersonAccessRow>();
+
+    const upsertRow = (key: string, partial: Omit<PersonAccessRow, 'AccessRows' | 'AccessByPortal'>) => {
+      if (!rowsByKey.has(key)) {
+        rowsByKey.set(key, {
+          ...partial,
+          AccessRows: [],
+          AccessByPortal: {},
+        });
+      }
+      return rowsByKey.get(key)!;
+    };
+
+    personnel.forEach((p) => {
+      const email = (p.PrimaryEmail || '').trim().toLowerCase();
+      const fullName = `${p.FirstName || ''} ${p.LastName || ''}`.trim() || 'Unknown';
+      const key = `pid:${p.PersonnelID}`;
+      upsertRow(key, {
+        Key: key,
+        PersonnelID: p.PersonnelID,
+        FullName: fullName,
+        Email: email,
+      });
+    });
+
+    accessRows.forEach((row) => {
+      const email = (row.LoginEmail || '').trim().toLowerCase();
+      const personnelId = row.PersonnelID ?? null;
+      const matchedPersonnel = personnelId ? personnelById.get(personnelId) : undefined;
+      const matchedByEmail = !matchedPersonnel && email ? personnelByEmail.get(email) : undefined;
+      const resolvedPersonnel = matchedPersonnel || matchedByEmail;
+
+      const key = resolvedPersonnel
+        ? `pid:${resolvedPersonnel.PersonnelID}`
+        : (email ? `email:${email}` : `access:${row.AccessID}`);
+
+      const fullName = resolvedPersonnel
+        ? `${resolvedPersonnel.FirstName || ''} ${resolvedPersonnel.LastName || ''}`.trim() || 'Unknown'
+        : `${row.FirstName || ''} ${row.LastName || ''}`.trim() || email || 'Unknown';
+
+      const target = upsertRow(key, {
+        Key: key,
+        PersonnelID: resolvedPersonnel?.PersonnelID ?? personnelId,
+        FullName: fullName,
+        Email: (resolvedPersonnel?.PrimaryEmail || email || '').trim().toLowerCase(),
+      });
+
+      if (!target.AccessRows.some((existing) => existing.AccessID === row.AccessID)) {
+        target.AccessRows.push(row);
+        target.AccessByPortal[row.PortalName] = row;
+      }
+    });
+
+    return Array.from(rowsByKey.values())
+      .map((row) => {
+        row.AccessRows.sort((a, b) => a.PortalName.localeCompare(b.PortalName));
+        return row;
+      })
+      .sort((a, b) => a.FullName.localeCompare(b.FullName));
+  }, [personnel, accessRows, personnelById, personnelByEmail]);
+
+  const filteredPeople = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+
+    return personRows.filter((row) => {
+      const targetAccess = portalFilter === 'all' ? undefined : row.AccessByPortal[portalFilter];
+
+      if (roleFilter !== 'all') {
+        if (portalFilter === 'all') {
+          if (!row.AccessRows.some((accessRow) => accessRow.PortalRole === roleFilter)) return false;
+        } else if (!targetAccess || targetAccess.PortalRole !== roleFilter) {
+          return false;
+        }
+      }
+
+      if (accessStateFilter !== 'all') {
+        const hasAny = row.AccessRows.length > 0;
+
+        if (portalFilter === 'all') {
+          const hasActive = row.AccessRows.some((accessRow) => accessRow.IsActive);
+          const hasInactive = row.AccessRows.some((accessRow) => !accessRow.IsActive);
+
+          if (accessStateFilter === 'has' && !hasAny) return false;
+          if (accessStateFilter === 'none' && hasAny) return false;
+          if (accessStateFilter === 'active' && !hasActive) return false;
+          if (accessStateFilter === 'inactive' && !hasInactive) return false;
+        } else {
+          const hasPortalAccess = !!targetAccess;
+          const isActive = targetAccess?.IsActive === true;
+
+          if (accessStateFilter === 'has' && !hasPortalAccess) return false;
+          if (accessStateFilter === 'none' && hasPortalAccess) return false;
+          if (accessStateFilter === 'active' && (!hasPortalAccess || !isActive)) return false;
+          if (accessStateFilter === 'inactive' && (!hasPortalAccess || isActive)) return false;
+        }
+      }
+
+      if (!q) return true;
+
+      const searchablePortals = row.AccessRows
+        .map((accessRow) => `${accessRow.PortalName} ${accessRow.PortalRole} ${accessRow.IsActive ? 'active' : 'inactive'}`)
+        .join(' ')
+        .toLowerCase();
+
+      return row.FullName.toLowerCase().includes(q)
+        || row.Email.toLowerCase().includes(q)
+        || searchablePortals.includes(q);
+    });
+  }, [personRows, searchTerm, portalFilter, roleFilter, accessStateFilter]);
 
   const handlePersonnelChange = (value: string) => {
     setSelectedPersonnelId(value);
@@ -197,9 +247,9 @@ export const PortalAccess: React.FC = () => {
     }
   };
 
-  const handlePortalChange = (value: PortalName) => {
-    setPortalName(value);
-    setPortalRole(DEFAULT_ROLE_BY_PORTAL[value]);
+  const handleManualPortalChange = (value: PortalName) => {
+    setManualPortalName(value);
+    setManualPortalRole(DEFAULT_ROLE_BY_PORTAL[value]);
   };
 
   const ensureDefaultCredentials = async (row: Pick<PortalUserAccess, 'LoginEmail' | 'PortalName' | 'PortalRole'>): Promise<string | null> => {
@@ -220,7 +270,7 @@ export const PortalAccess: React.FC = () => {
     return null;
   };
 
-  const handleSave = async () => {
+  const handleSaveManual = async () => {
     const trimmedEmail = loginEmail.trim().toLowerCase();
     if (!trimmedEmail) {
       setMessage({ type: 'error', text: 'Email is required to create portal access.' });
@@ -233,8 +283,8 @@ export const PortalAccess: React.FC = () => {
     const result = await supabaseService.upsertPortalUserAccess({
       personnelId: selectedPersonnelId ? Number(selectedPersonnelId) : null,
       loginEmail: trimmedEmail,
-      portalName,
-      portalRole,
+      portalName: manualPortalName,
+      portalRole: manualPortalRole,
       isActive: true,
     });
 
@@ -252,7 +302,7 @@ export const PortalAccess: React.FC = () => {
     if (credentialIssue) {
       setMessage({
         type: 'error',
-        text: `Portal access saved for ${trimmedEmail} on ${portalName} portal, but default password setup failed: ${credentialIssue}`,
+        text: `Portal access saved for ${trimmedEmail} on ${manualPortalName} portal, but default password setup failed: ${credentialIssue}`,
       });
       await loadData();
       setIsSaving(false);
@@ -261,29 +311,11 @@ export const PortalAccess: React.FC = () => {
 
     setMessage({
       type: 'success',
-      text: `Portal access saved for ${trimmedEmail} on ${portalName} portal${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+      text: `Portal access saved for ${trimmedEmail} on ${manualPortalName} portal${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
     });
     setSelectedPersonnelId('');
     setPersonnelSearchTerm('');
     setLoginEmail('');
-    await loadData();
-    setIsSaving(false);
-  };
-
-  const handleToggleActive = async (row: PortalUserAccess) => {
-    setIsSaving(true);
-    const result = await supabaseService.setPortalAccessActive(row.AccessID, !row.IsActive);
-
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.error || 'Failed to update access status.' });
-      setIsSaving(false);
-      return;
-    }
-
-    setMessage({
-      type: 'success',
-      text: `${row.LoginEmail} is now ${row.IsActive ? 'inactive' : 'active'} for ${row.PortalName} portal.`,
-    });
     await loadData();
     setIsSaving(false);
   };
@@ -318,60 +350,60 @@ export const PortalAccess: React.FC = () => {
     await loadData();
   };
 
-  const handleToggleCastMemberAccess = async (castRow: {
-    PersonnelID?: number;
-    FullName: string;
-    PrimaryEmail: string;
-    AccessRow: PortalUserAccess | null;
-  }) => {
-    const email = castRow.PrimaryEmail.trim().toLowerCase();
-    if (!email) {
-      setMessage({ type: 'error', text: `Cannot manage portal access for ${castRow.FullName} because no email is set.` });
+  const handleQuickToggle = async (person: PersonAccessRow) => {
+    if (portalFilter === 'all') {
+      setMessage({ type: 'error', text: 'Select a specific portal to activate/deactivate access.' });
+      return;
+    }
+
+    if (!person.Email) {
+      setMessage({ type: 'error', text: `Cannot manage portal access for ${person.FullName} because no email is set.` });
       return;
     }
 
     setIsSaving(true);
+    const existing = person.AccessByPortal[portalFilter];
 
-    if (castRow.AccessRow) {
-      const result = await supabaseService.setPortalAccessActive(castRow.AccessRow.AccessID, !castRow.AccessRow.IsActive);
+    if (existing) {
+      const result = await supabaseService.setPortalAccessActive(existing.AccessID, !existing.IsActive);
       if (!result.success) {
-        setMessage({ type: 'error', text: result.error || 'Failed to update cast portal access.' });
+        setMessage({ type: 'error', text: result.error || 'Failed to update portal access.' });
         setIsSaving(false);
         return;
       }
 
       setMessage({
         type: 'success',
-        text: `${castRow.FullName} is now ${castRow.AccessRow.IsActive ? 'inactive' : 'active'} for cast portal.`,
+        text: `${person.FullName} is now ${existing.IsActive ? 'inactive' : 'active'} for ${portalFilter} portal.`,
       });
       await loadData();
       setIsSaving(false);
       return;
     }
 
-    const result = await supabaseService.upsertPortalUserAccess({
-      personnelId: castRow.PersonnelID ?? null,
-      loginEmail: email,
-      portalName: 'cast',
-      portalRole: 'cast',
+    const insertResult = await supabaseService.upsertPortalUserAccess({
+      personnelId: person.PersonnelID,
+      loginEmail: person.Email,
+      portalName: portalFilter,
+      portalRole: DEFAULT_ROLE_BY_PORTAL[portalFilter],
       isActive: true,
     });
 
-    if (!result.success) {
-      setMessage({ type: 'error', text: result.error || 'Failed to grant cast portal access.' });
+    if (!insertResult.success) {
+      setMessage({ type: 'error', text: insertResult.error || 'Failed to grant portal access.' });
       setIsSaving(false);
       return;
     }
 
     let credentialIssue: string | null = null;
-    if (result.data && !result.data.AuthUserID) {
-      credentialIssue = await ensureDefaultCredentials(result.data);
+    if (insertResult.data && !insertResult.data.AuthUserID) {
+      credentialIssue = await ensureDefaultCredentials(insertResult.data);
     }
 
     if (credentialIssue) {
       setMessage({
         type: 'error',
-        text: `Cast portal access granted for ${castRow.FullName}, but default password setup failed: ${credentialIssue}`,
+        text: `Access granted for ${person.FullName}, but default password setup failed: ${credentialIssue}`,
       });
       await loadData();
       setIsSaving(false);
@@ -380,7 +412,7 @@ export const PortalAccess: React.FC = () => {
 
     setMessage({
       type: 'success',
-      text: `Cast portal access granted for ${castRow.FullName}${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+      text: `${portalFilter} portal access granted for ${person.FullName}${insertResult.data?.AuthUserID ? '.' : ' and default password was set.'}`,
     });
     await loadData();
     setIsSaving(false);
@@ -395,94 +427,9 @@ export const PortalAccess: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Portal Access Management</h1>
         <p className="text-sm text-gray-600 mt-1">
-          Create or update access per portal. The same email can have separate roles across Team, Instructor,
-          Director, Cast, and Student portals.
+          Use one quick list to manage access by person. Filter by portal to activate/deactivate fast, or set portal to
+          All Portals to review each person&apos;s full access footprint.
         </p>
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setShowCastManager((prev) => !prev)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            {showCastManager ? 'Hide Cast Access Manager' : 'Show Cast Access Manager'}
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border p-4 mb-4">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Create or Update Portal Access</h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Personnel (optional)</label>
-            <input
-              type="text"
-              value={personnelSearchTerm}
-              onChange={(e) => setPersonnelSearchTerm(e.target.value)}
-              placeholder="Search personnel by name or email..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2"
-            />
-            <select
-              title="Personnel"
-              value={selectedPersonnelId}
-              onChange={(e) => handlePersonnelChange(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            >
-              <option value="">Not linked to personnel</option>
-              {filteredPersonnel.map((person) => (
-                <option key={person.PersonnelID} value={person.PersonnelID}>
-                  {`${person.LastName || ''}, ${person.FirstName || ''}`.replace(/^,\s*/, '').trim()} ({person.PrimaryEmail || 'no email'})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Login Email</label>
-            <input
-              type="email"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              placeholder="name@example.com"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Portal</label>
-            <select
-              title="Portal"
-              value={portalName}
-              onChange={(e) => handlePortalChange(e.target.value as PortalName)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            >
-              {PORTAL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
-            <input
-              type="text"
-              title="Auto-assigned role"
-              value={ROLE_LABELS[portalRole]}
-              readOnly
-              className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
-            />
-            <p className="mt-1 text-xs text-gray-500">Role is automatically assigned from the selected portal.</p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className="w-full rounded-lg bg-primary-600 px-4 py-2 text-white text-sm font-medium hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
-        >
-          {isSaving ? 'Saving...' : 'Save Access'}
-        </button>
       </div>
 
       {message && (
@@ -491,216 +438,120 @@ export const PortalAccess: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-        <input
-          type="text"
-          placeholder="Search by email, portal, role, or name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        />
-        <select
-          title="Filter by portal"
-          value={portalFilter}
-          onChange={(e) => setPortalFilter(e.target.value as 'all' | PortalName)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-        >
-          <option value="all">All Portals</option>
-          {PORTAL_OPTIONS.map((option) => (
-            <option key={`filter-${option.value}`} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <select
-          title="Filter by status"
-          value={accessStatusFilter}
-          onChange={(e) => setAccessStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-        >
-          <option value="all">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <div className="text-sm text-gray-500 flex items-center justify-start md:justify-end">
-          Showing {filteredRows.length} access rows
-        </div>
-      </div>
-
-      <div className="space-y-3 md:hidden">
-        {filteredRows.map((row) => (
-          <article key={row.AccessID} className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="break-all text-base font-semibold text-gray-900">{row.LoginEmail}</h2>
-                <p className="mt-1 text-sm text-gray-600">{row.PortalName} · {row.PortalRole}</p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                {row.IsActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-            <div className="mt-3 space-y-1 text-sm text-gray-600">
-              <p><span className="font-medium text-gray-800">Linked person:</span> {(row.FirstName || row.LastName) ? `${row.FirstName || ''} ${row.LastName || ''}`.trim() : '-'}</p>
-            </div>
-            <div className="mt-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => handleToggleActive(row)}
-                disabled={isSaving}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {row.IsActive ? 'Deactivate' : 'Activate'}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleResetDefaultPassword(row)}
-                disabled={provisioningEmail === row.LoginEmail}
-                className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-              >
-                {provisioningEmail === row.LoginEmail ? 'Resetting...' : 'Reset to Default'}
-              </button>
-            </div>
-          </article>
-        ))}
-
-        {filteredRows.length === 0 && (
-          <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No portal access rows found.</div>
-        )}
-      </div>
-
-      <div className="hidden overflow-x-auto rounded-lg border bg-white shadow-sm md:block">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Portal</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked Person</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredRows.map((row) => (
-              <tr key={row.AccessID} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.LoginEmail}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{row.PortalName}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{row.PortalRole}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {(row.FirstName || row.LastName)
-                    ? `${row.FirstName || ''} ${row.LastName || ''}`.trim()
-                    : '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                    {row.IsActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(row)}
-                      disabled={isSaving}
-                      className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {row.IsActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleResetDefaultPassword(row)}
-                      disabled={provisioningEmail === row.LoginEmail}
-                      className="rounded-lg border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                    >
-                      {provisioningEmail === row.LoginEmail ? 'Resetting...' : 'Reset to Default'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredRows.length === 0 && (
-          <div className="py-10 text-center text-gray-500">No portal access rows found.</div>
-        )}
-      </div>
-
-      {showCastManager && (
-      <div className="mt-8 bg-white rounded-lg shadow-sm border p-4">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Cast Portal Access Manager</h2>
-        <p className="text-xs text-gray-500 mb-4">
-          Review all cast members, grant or deactivate cast portal access, and reset default password for cast users.
-        </p>
-
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+      <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
           <input
             type="text"
-            placeholder="Search cast by name, email, or cast status..."
-            value={castSearchTerm}
-            onChange={(e) => setCastSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="Search by name, email, portal, or role..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-primary-500"
           />
           <select
-            title="Filter cast access"
-            value={castAccessFilter}
-            onChange={(e) => setCastAccessFilter(e.target.value as 'all' | 'with' | 'without')}
+            title="Filter by portal"
+            value={portalFilter}
+            onChange={(e) => setPortalFilter(e.target.value as 'all' | PortalName)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           >
-            <option value="all">All Cast Members</option>
-            <option value="with">With Cast Portal Access</option>
-            <option value="without">Without Cast Portal Access</option>
+            <option value="all">All Portals</option>
+            {PORTAL_OPTIONS.map((option) => (
+              <option key={`portal-filter-${option.value}`} value={option.value}>{option.label}</option>
+            ))}
           </select>
           <select
-            title="Filter cast portal status"
-            value={castStatusFilter}
-            onChange={(e) => setCastStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+            title="Filter by role"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as 'all' | PortalAccessRole)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           >
-            <option value="all">All Access Statuses</option>
-            <option value="active">Access Active</option>
-            <option value="inactive">Access Inactive</option>
+            <option value="all">All Roles</option>
+            {Object.entries(ROLE_LABELS).map(([value, label]) => (
+              <option key={`role-filter-${value}`} value={value}>{label}</option>
+            ))}
           </select>
-          <div className="text-sm text-gray-500 flex items-center justify-start md:justify-end">
-            Showing {castPortalRows.length} cast members
+          <select
+            title="Filter by access state"
+            value={accessStateFilter}
+            onChange={(e) => setAccessStateFilter(e.target.value as AccessStateFilter)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="all">All Access States</option>
+            <option value="has">Has Access</option>
+            <option value="none">No Access</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <div className="flex items-center justify-start text-sm text-gray-500 md:justify-end">
+            Showing {filteredPeople.length} people
           </div>
         </div>
 
         <div className="space-y-3 md:hidden">
-          {castPortalRows.map((row) => (
-            <article key={`${row.PersonnelID || row.PrimaryEmail}-${row.FullName}`} className="rounded-xl border bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-gray-900">{row.FullName}</h3>
-                  <p className="text-sm text-gray-600 break-all">{row.PrimaryEmail || 'No email'}</p>
-                  <p className="mt-1 text-xs text-gray-500">Cast Status: {row.CastStatus}</p>
+          {filteredPeople.map((person) => {
+            const selectedPortalRow = portalFilter === 'all' ? undefined : person.AccessByPortal[portalFilter];
+            const selectedPortalHasAccess = !!selectedPortalRow;
+
+            return (
+              <article key={person.Key} className="rounded-xl border bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="text-base font-semibold text-gray-900">{person.FullName}</h2>
+                    <p className="break-all text-sm text-gray-600">{person.Email || 'No email'}</p>
+                  </div>
+                  {portalFilter === 'all' ? (
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                      {person.AccessRows.length} portals
+                    </span>
+                  ) : (
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${selectedPortalRow?.IsActive ? 'bg-green-100 text-green-700' : selectedPortalHasAccess ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
+                      {selectedPortalRow ? (selectedPortalRow.IsActive ? 'Access Active' : 'Access Inactive') : 'No Access'}
+                    </span>
+                  )}
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${row.AccessRow?.IsActive ? 'bg-green-100 text-green-700' : row.AccessRow ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
-                  {row.AccessRow ? (row.AccessRow.IsActive ? 'Access Active' : 'Access Inactive') : 'No Access'}
-                </span>
-              </div>
 
-              <div className="mt-4 grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleToggleCastMemberAccess(row)}
-                  disabled={isSaving || !row.PrimaryEmail}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {!row.AccessRow ? 'Grant Access' : row.AccessRow.IsActive ? 'Deactivate Access' : 'Activate Access'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => row.AccessRow && handleResetDefaultPassword(row.AccessRow)}
-                  disabled={!row.AccessRow || provisioningEmail === row.PrimaryEmail || !row.PrimaryEmail}
-                  className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                >
-                  {provisioningEmail === row.PrimaryEmail ? 'Resetting...' : 'Reset to Default'}
-                </button>
-              </div>
-            </article>
-          ))}
+                {portalFilter === 'all' ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {person.AccessRows.length === 0 && (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">No portal access</span>
+                    )}
+                    {person.AccessRows.map((row) => (
+                      <span key={row.AccessID} className={`rounded-full px-2.5 py-1 text-xs ${row.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {row.PortalName} · {ROLE_LABELS[row.PortalRole]}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 text-sm text-gray-600">
+                    Role: {selectedPortalRow ? ROLE_LABELS[selectedPortalRow.PortalRole] : ROLE_LABELS[DEFAULT_ROLE_BY_PORTAL[portalFilter]]}
+                  </div>
+                )}
 
-          {castPortalRows.length === 0 && (
-            <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No cast members match the current filters.</div>
+                {portalFilter !== 'all' && (
+                  <div className="mt-4 grid gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickToggle(person)}
+                      disabled={isSaving || !person.Email}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {!selectedPortalRow ? 'Grant Access' : selectedPortalRow.IsActive ? 'Deactivate Access' : 'Activate Access'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectedPortalRow && handleResetDefaultPassword(selectedPortalRow)}
+                      disabled={!selectedPortalRow || !person.Email || provisioningEmail === person.Email}
+                      className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                    >
+                      {provisioningEmail === person.Email ? 'Resetting...' : 'Reset to Default'}
+                    </button>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+
+          {filteredPeople.length === 0 && (
+            <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No people match the current filters.</div>
           )}
         </div>
 
@@ -708,54 +559,163 @@ export const PortalAccess: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cast Member</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cast Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Portal Access</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Person</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                  {portalFilter === 'all' ? 'All Access' : `${portalFilter} Access`}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {castPortalRows.map((row) => (
-                <tr key={`${row.PersonnelID || row.PrimaryEmail}-${row.FullName}`} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{row.FullName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{row.PrimaryEmail || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{row.CastStatus}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${row.AccessRow?.IsActive ? 'bg-green-100 text-green-700' : row.AccessRow ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
-                      {row.AccessRow ? (row.AccessRow.IsActive ? 'Access Active' : 'Access Inactive') : 'No Access'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleCastMemberAccess(row)}
-                        disabled={isSaving || !row.PrimaryEmail}
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        {!row.AccessRow ? 'Grant Access' : row.AccessRow.IsActive ? 'Deactivate Access' : 'Activate Access'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => row.AccessRow && handleResetDefaultPassword(row.AccessRow)}
-                        disabled={!row.AccessRow || provisioningEmail === row.PrimaryEmail || !row.PrimaryEmail}
-                        className="rounded-lg border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                      >
-                        {provisioningEmail === row.PrimaryEmail ? 'Resetting...' : 'Reset to Default'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {filteredPeople.map((person) => {
+                const selectedPortalRow = portalFilter === 'all' ? undefined : person.AccessByPortal[portalFilter];
+
+                return (
+                  <tr key={person.Key} className="hover:bg-gray-50">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{person.FullName}</td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{person.Email || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {portalFilter === 'all' ? (
+                        <div className="flex flex-wrap gap-2">
+                          {person.AccessRows.length === 0 && (
+                            <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">No portal access</span>
+                          )}
+                          {person.AccessRows.map((row) => (
+                            <span key={row.AccessID} className={`rounded-full px-2 py-1 text-xs ${row.IsActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {row.PortalName} · {ROLE_LABELS[row.PortalRole]}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${selectedPortalRow?.IsActive ? 'bg-green-100 text-green-700' : selectedPortalRow ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'}`}>
+                          {selectedPortalRow
+                            ? `${selectedPortalRow.IsActive ? 'Active' : 'Inactive'} · ${ROLE_LABELS[selectedPortalRow.PortalRole]}`
+                            : `No Access · ${ROLE_LABELS[DEFAULT_ROLE_BY_PORTAL[portalFilter]]}`}
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm">
+                      {portalFilter === 'all' ? (
+                        <span className="text-xs text-gray-500">Choose a portal filter to manage access</span>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickToggle(person)}
+                            disabled={isSaving || !person.Email}
+                            className="rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            {!selectedPortalRow ? 'Grant' : selectedPortalRow.IsActive ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => selectedPortalRow && handleResetDefaultPassword(selectedPortalRow)}
+                            disabled={!selectedPortalRow || !person.Email || provisioningEmail === person.Email}
+                            className="rounded-lg border border-amber-300 px-3 py-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            {provisioningEmail === person.Email ? 'Resetting...' : 'Reset Default'}
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
-          {castPortalRows.length === 0 && (
-            <div className="py-10 text-center text-gray-500">No cast members match the current filters.</div>
+          {filteredPeople.length === 0 && (
+            <div className="py-10 text-center text-gray-500">No people match the current filters.</div>
           )}
         </div>
       </div>
+
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={() => setShowManualAdd((prev) => !prev)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          {showManualAdd ? 'Hide Advanced Manual Add' : 'Show Advanced Manual Add'}
+        </button>
+      </div>
+
+      {showManualAdd && (
+        <div className="mt-4 rounded-lg border bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Advanced Manual Add / Update</h2>
+
+          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Personnel (optional)</label>
+              <input
+                type="text"
+                value={personnelSearchTerm}
+                onChange={(e) => setPersonnelSearchTerm(e.target.value)}
+                placeholder="Search personnel by name or email..."
+                className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+              <select
+                title="Personnel"
+                value={selectedPersonnelId}
+                onChange={(e) => handlePersonnelChange(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Not linked to personnel</option>
+                {filteredPersonnel.map((person) => (
+                  <option key={person.PersonnelID} value={person.PersonnelID}>
+                    {`${person.LastName || ''}, ${person.FirstName || ''}`.replace(/^,\s*/, '').trim()} ({person.PrimaryEmail || 'no email'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Login Email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Portal</label>
+              <select
+                title="Portal"
+                value={manualPortalName}
+                onChange={(e) => handleManualPortalChange(e.target.value as PortalName)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                {PORTAL_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Role</label>
+              <input
+                type="text"
+                title="Auto-assigned role"
+                value={ROLE_LABELS[manualPortalRole]}
+                readOnly
+                className="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSaveManual}
+            disabled={isSaving}
+            className="w-full rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60 sm:w-auto"
+          >
+            {isSaving ? 'Saving...' : 'Save Access'}
+          </button>
+        </div>
       )}
     </div>
   );
