@@ -240,6 +240,37 @@ class SupabaseService {
         is_active: input.isActive ?? true,
       };
 
+      const rpcPayload = {
+        p_login_email: normalizedEmail,
+        p_portal_name: input.portalName,
+        p_portal_role: input.portalRole,
+        p_personnel_id: input.personnelId ?? null,
+        p_is_active: input.isActive ?? true,
+      };
+
+      const rpcResult = await this.client
+        .rpc('upsert_portal_user_access_admin', rpcPayload)
+        .single();
+
+      if (!rpcResult.error && rpcResult.data) {
+        const { data: hydratedRow, error: hydratedError } = await this.client
+          .from('portal_user_access')
+          .select('*, personnel:personnel_id(first_name,last_name)')
+          .eq('access_id', rpcResult.data.access_id)
+          .single();
+
+        if (hydratedError) throw hydratedError;
+        return { success: true, data: this.toPortalAccess(hydratedRow) };
+      }
+
+      const rpcMessage = rpcResult.error?.message || '';
+      const isMissingRpc = /upsert_portal_user_access_admin/i.test(rpcMessage)
+        && /not found|does not exist|Could not find/i.test(rpcMessage);
+
+      if (rpcResult.error && !isMissingRpc) {
+        throw rpcResult.error;
+      }
+
       const { data, error } = await this.client
         .from('portal_user_access')
         .upsert(payload, { onConflict: 'login_email,portal_name' })
