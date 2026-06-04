@@ -155,12 +155,10 @@ export const PortalAccess: React.FC = () => {
       return;
     }
 
-    setMessage({ type: 'success', text: `Portal access saved for ${trimmedEmail}.` });
+    setMessage({ type: 'success', text: `Portal access saved for ${trimmedEmail} on ${portalName} portal.` });
     setSelectedPersonnelId('');
     setPersonnelSearchTerm('');
     setLoginEmail('');
-    setPortalName('instructor');
-    setPortalRole(DEFAULT_ROLE_BY_PORTAL.instructor);
     await loadData();
     setIsSaving(false);
   };
