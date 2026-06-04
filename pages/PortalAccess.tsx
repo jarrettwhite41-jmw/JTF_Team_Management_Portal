@@ -439,6 +439,26 @@ export const PortalAccess: React.FC = () => {
       )}
 
       <div className="rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setPortalFilter('all')}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium ${portalFilter === 'all' ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            All
+          </button>
+          {PORTAL_OPTIONS.map((option) => (
+            <button
+              key={`portal-tab-${option.value}`}
+              type="button"
+              onClick={() => setPortalFilter(option.value)}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium ${portalFilter === option.value ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            >
+              {option.label.replace(' Portal', '')}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
           <input
             type="text"
