@@ -42,6 +42,7 @@ export const PortalAccess: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [provisioningEmail, setProvisioningEmail] = useState<string | null>(null);
+  const [showCastManager, setShowCastManager] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
@@ -201,6 +202,24 @@ export const PortalAccess: React.FC = () => {
     setPortalRole(DEFAULT_ROLE_BY_PORTAL[value]);
   };
 
+  const ensureDefaultCredentials = async (row: Pick<PortalUserAccess, 'LoginEmail' | 'PortalName' | 'PortalRole'>): Promise<string | null> => {
+    setProvisioningEmail(row.LoginEmail);
+    const provisionResult = await supabaseService.provisionPortalUserCredentials({
+      loginEmail: row.LoginEmail,
+      portalName: row.PortalName,
+      portalRole: row.PortalRole,
+      useDefaultPassword: true,
+      sendResetEmail: false,
+    });
+    setProvisioningEmail(null);
+
+    if (!provisionResult.success || !provisionResult.data) {
+      return provisionResult.error || 'Default password setup failed.';
+    }
+
+    return null;
+  };
+
   const handleSave = async () => {
     const trimmedEmail = loginEmail.trim().toLowerCase();
     if (!trimmedEmail) {
@@ -225,7 +244,25 @@ export const PortalAccess: React.FC = () => {
       return;
     }
 
-    setMessage({ type: 'success', text: `Portal access saved for ${trimmedEmail} on ${portalName} portal.` });
+    let credentialIssue: string | null = null;
+    if (result.data && !result.data.AuthUserID) {
+      credentialIssue = await ensureDefaultCredentials(result.data);
+    }
+
+    if (credentialIssue) {
+      setMessage({
+        type: 'error',
+        text: `Portal access saved for ${trimmedEmail} on ${portalName} portal, but default password setup failed: ${credentialIssue}`,
+      });
+      await loadData();
+      setIsSaving(false);
+      return;
+    }
+
+    setMessage({
+      type: 'success',
+      text: `Portal access saved for ${trimmedEmail} on ${portalName} portal${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+    });
     setSelectedPersonnelId('');
     setPersonnelSearchTerm('');
     setLoginEmail('');
@@ -326,7 +363,25 @@ export const PortalAccess: React.FC = () => {
       return;
     }
 
-    setMessage({ type: 'success', text: `Cast portal access granted for ${castRow.FullName}.` });
+    let credentialIssue: string | null = null;
+    if (result.data && !result.data.AuthUserID) {
+      credentialIssue = await ensureDefaultCredentials(result.data);
+    }
+
+    if (credentialIssue) {
+      setMessage({
+        type: 'error',
+        text: `Cast portal access granted for ${castRow.FullName}, but default password setup failed: ${credentialIssue}`,
+      });
+      await loadData();
+      setIsSaving(false);
+      return;
+    }
+
+    setMessage({
+      type: 'success',
+      text: `Cast portal access granted for ${castRow.FullName}${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+    });
     await loadData();
     setIsSaving(false);
   };
@@ -343,6 +398,15 @@ export const PortalAccess: React.FC = () => {
           Create or update access per portal. The same email can have separate roles across Team, Instructor,
           Director, Cast, and Student portals.
         </p>
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowCastManager((prev) => !prev)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            {showCastManager ? 'Hide Cast Access Manager' : 'Show Cast Access Manager'}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-4">
@@ -560,6 +624,7 @@ export const PortalAccess: React.FC = () => {
         )}
       </div>
 
+      {showCastManager && (
       <div className="mt-8 bg-white rounded-lg shadow-sm border p-4">
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Cast Portal Access Manager</h2>
         <p className="text-xs text-gray-500 mb-4">
@@ -691,6 +756,7 @@ export const PortalAccess: React.FC = () => {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 };
