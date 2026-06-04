@@ -459,7 +459,7 @@ export const PortalAccess: React.FC = () => {
           ))}
         </div>
 
-        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <input
             type="text"
             placeholder="Search by name, email, portal, or role..."
@@ -467,28 +467,6 @@ export const PortalAccess: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-transparent focus:ring-2 focus:ring-primary-500"
           />
-          <select
-            title="Filter by portal"
-            value={portalFilter}
-            onChange={(e) => setPortalFilter(e.target.value as 'all' | PortalName)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="all">All Portals</option>
-            {PORTAL_OPTIONS.map((option) => (
-              <option key={`portal-filter-${option.value}`} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <select
-            title="Filter by role"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as 'all' | PortalAccessRole)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="all">All Roles</option>
-            {Object.entries(ROLE_LABELS).map(([value, label]) => (
-              <option key={`role-filter-${value}`} value={value}>{label}</option>
-            ))}
-          </select>
           <select
             title="Filter by access state"
             value={accessStateFilter}
