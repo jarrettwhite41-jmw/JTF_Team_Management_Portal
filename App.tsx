@@ -23,6 +23,31 @@ import { authService } from './services/authService';
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { PageType, PortalAccessRole } from './types';
 
+const TEAM_PAGE_STORAGE_KEY = 'team:current-page';
+const TEAM_STUDENT_STORAGE_KEY = 'team:selected-student';
+const HUB_URL = (import.meta.env.VITE_PORTAL_HUB_URL as string | undefined)?.trim() || 'https://jtf-hub.vercel.app';
+
+const TEAM_PAGE_SET = new Set<PageType>([
+  'dashboard', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
+  'class-management', 'classes', 'show-management', 'shows', 'workshops',
+  'special-guests', 'teacher-management', 'director-management', 'portal-access',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile',
+]);
+
+const getInitialTeamPage = (): PageType => {
+  if (typeof window === 'undefined') return 'dashboard';
+  const saved = window.sessionStorage.getItem(TEAM_PAGE_STORAGE_KEY) as PageType | null;
+  return saved && TEAM_PAGE_SET.has(saved) ? saved : 'dashboard';
+};
+
+const getInitialSelectedStudent = (): number | null => {
+  if (typeof window === 'undefined') return null;
+  const saved = window.sessionStorage.getItem(TEAM_STUDENT_STORAGE_KEY);
+  if (!saved) return null;
+  const parsed = Number(saved);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
   const adminPages: PageType[] = [
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
@@ -41,8 +66,9 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
 };
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<PageType>('dashboard');
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState<PageType>(getInitialTeamPage);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(getInitialSelectedStudent);
+  const [pageHistory, setPageHistory] = useState<PageType[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileSectionsOpen, setIsMobileSectionsOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
@@ -115,10 +141,44 @@ const App: React.FC = () => {
     setCurrentPage('dashboard');
   }, [userRole, currentPage]);
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(TEAM_PAGE_STORAGE_KEY, currentPage);
+    if (selectedStudentId) {
+      window.sessionStorage.setItem(TEAM_STUDENT_STORAGE_KEY, String(selectedStudentId));
+    } else {
+      window.sessionStorage.removeItem(TEAM_STUDENT_STORAGE_KEY);
+    }
+  }, [currentPage, selectedStudentId]);
+
+  const navigateToPage = (page: PageType) => {
+    setPageHistory((prev) => (page !== currentPage ? [...prev, currentPage].slice(-20) : prev));
+    setCurrentPage(page);
+    if (page !== 'student-profile') setSelectedStudentId(null);
+  };
+
+  const handleBackPage = () => {
+    setPageHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const next = [...prev];
+      const lastPage = next.pop();
+      if (lastPage) {
+        setCurrentPage(lastPage);
+        if (lastPage !== 'student-profile') setSelectedStudentId(null);
+      }
+      return next;
+    });
+  };
+
   const handleSignOut = async () => {
     await authService.signOut();
     setCurrentPage('dashboard');
     setSelectedStudentId(null);
+    setPageHistory([]);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(TEAM_PAGE_STORAGE_KEY);
+      window.sessionStorage.removeItem(TEAM_STUDENT_STORAGE_KEY);
+    }
   };
 
   const renderPage = () => {
@@ -135,7 +195,7 @@ const App: React.FC = () => {
 
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard onNavigate={setCurrentPage} />;
+        return <Dashboard onNavigate={navigateToPage} />;
       case 'personnel-management':
       case 'personnel':
         return <PersonnelDirectory />;
@@ -146,17 +206,17 @@ const App: React.FC = () => {
       case 'bartenders':
         return <BartendersPage />;
       case 'teacher-management':
-        return <TeacherManagement onNavigate={setCurrentPage} />;
+        return <TeacherManagement onNavigate={navigateToPage} />;
       case 'director-management':
-        return <DirectorManagement onNavigate={setCurrentPage} />;
+        return <DirectorManagement onNavigate={navigateToPage} />;
       case 'portal-access':
         return <PortalAccess />;
       case 'class-management':
       case 'classes':
-        return <ClassRegistration onNavigate={setCurrentPage} />;
+        return <ClassRegistration onNavigate={navigateToPage} />;
       case 'show-management':
       case 'shows':
-        return <Shows onNavigate={setCurrentPage} />;
+        return <Shows onNavigate={navigateToPage} />;
       case 'workshops':
         return <Workshops />;
       case 'special-guests':
@@ -170,17 +230,17 @@ const App: React.FC = () => {
       case 'student-directory':
         return <StudentDirectory onNavigateToStudent={(id) => {
           setSelectedStudentId(id);
-          setCurrentPage('student-profile');
+          navigateToPage('student-profile');
         }} />;
       case 'student-profile':
         return selectedStudentId ? (
           <StudentProfile 
             studentId={selectedStudentId} 
-            onBack={() => setCurrentPage('student-directory')} 
+            onBack={() => navigateToPage('student-directory')} 
           />
         ) : <StudentDirectory onNavigateToStudent={(id) => {
           setSelectedStudentId(id);
-          setCurrentPage('student-profile');
+          navigateToPage('student-profile');
         }} />;
       default:
         return <Dashboard />;
@@ -272,7 +332,7 @@ const App: React.FC = () => {
 
   const handleMobileNavigate = (page: PageType) => {
     if (canAccessPage(userRole, page)) {
-      setCurrentPage(page);
+      navigateToPage(page);
       setIsMobileSectionsOpen(false);
       setIsMobileActionsOpen(false);
       setIsMobileMenuOpen(false);
@@ -284,7 +344,7 @@ const App: React.FC = () => {
       <Sidebar
         currentPage={currentPage}
         onNavigate={(page) => {
-          if (canAccessPage(userRole, page)) setCurrentPage(page);
+          if (canAccessPage(userRole, page)) navigateToPage(page);
         }}
         roleLabel={userRole}
         currentUserEmail={sessionEmail}
@@ -294,6 +354,30 @@ const App: React.FC = () => {
       />
 
       <main className="flex-1 min-h-0 min-w-0 overflow-x-hidden overflow-y-auto pb-20 md:pb-0">
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBackPage}
+              disabled={pageHistory.length === 0}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => { window.location.href = HUB_URL; }}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Portal Hub
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
+            >
+              Refresh
+            </button>
+          </div>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{currentPage.replace(/-/g, ' ')}</p>
+        </div>
         {renderPage()}
       </main>
 
