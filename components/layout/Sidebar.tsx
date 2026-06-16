@@ -51,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ] as NavigationItem[],
     },
     {

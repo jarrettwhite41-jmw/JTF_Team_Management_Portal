@@ -1540,6 +1540,66 @@ class SupabaseService {
     }
   }
 
+  async getRequestedMasterGames(): Promise<ApiResponse<MasterGame[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .select('*')
+        .ilike('category', 'Requested from Show%')
+        .order('game_name', { ascending: true });
+
+      if (error) throw error;
+      return { success: true, data: (data || []).map((row: any) => this.toMasterGame(row)) };
+    } catch (error) {
+      console.error('Error fetching requested master games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async approveRequestedGame(gameId: number, approvedCategory: string = 'Improv'): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const category = approvedCategory.trim() || 'Improv';
+
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .update({ category })
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error approving requested game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async rejectRequestedGame(gameId: number): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .update({ category: 'Rejected Request' })
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error rejecting requested game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async getShowGames(showId: number): Promise<ApiResponse<ShowGame[]>> {
     try {
       const { data, error } = await this.client

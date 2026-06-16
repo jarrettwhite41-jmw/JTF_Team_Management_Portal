@@ -7,6 +7,7 @@ import { CrewDirectory } from './pages/CrewDirectory';
 import { BartendersPage } from './pages/BartendersPage';
 import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
+import { Games } from './pages/Games';
 import { Workshops } from './pages/Workshops';
 import { SpecialGuests } from './pages/SpecialGuests';
 import { InventoryPage } from './pages/Inventory';
@@ -28,7 +29,7 @@ const TEAM_STUDENT_STORAGE_KEY = 'team:selected-student';
 const HUB_URL = (import.meta.env.VITE_PORTAL_HUB_URL as string | undefined)?.trim() || 'https://jtf-hub.vercel.app';
 
 const TEAM_PAGE_SET = new Set<PageType>([
-  'dashboard', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
+  'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
   'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile',
@@ -51,7 +52,7 @@ const getInitialSelectedStudent = (): number | null => {
 const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
   const adminPages: PageType[] = [
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
-    'class-management', 'classes', 'show-management', 'shows', 'workshops',
+    'class-management', 'classes', 'show-management', 'shows', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
     'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile',
   ];
@@ -217,6 +218,8 @@ const App: React.FC = () => {
       case 'show-management':
       case 'shows':
         return <Shows onNavigate={navigateToPage} />;
+      case 'games':
+        return <Games />;
       case 'workshops':
         return <Workshops />;
       case 'special-guests':
@@ -317,6 +320,7 @@ const App: React.FC = () => {
       pages: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {

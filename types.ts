@@ -399,6 +399,7 @@ export interface PersonnelDeletionDependencies {
 // Navigation Types
 export type PageType =
   | 'dashboard'
+  | 'games'
   | 'personnel'
   | 'personnel-management'
   | 'cast'
