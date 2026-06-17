@@ -125,33 +125,81 @@ class SupabaseService {
       GameName: row.game_name,
       Description: row.description || row.short_description || row['SHORT DESCRIPTION'] || '',
       HowToPlay:
+        row.description ||
         row.how_to_play ||
         row.setup_edits_stage_direction ||
         row.setup_notes ||
         row['SETUP / EDITS / STAGE DIRECTION'] ||
         '',
       SetupNotes: row.setup_notes || row['SETUP / EDITS / STAGE DIRECTION'] || '',
-      PlayerCount: row.player_count ?? null,
-      Format: row.short_long_form || row['Short/Long Form'] || '',
+      PlayerCount: row.player_count ?? row.difficulty_level ?? null,
+      Format: row.format || row.short_long_form || row['Short/Long Form'] || '',
       Category: row.category || row.game_type || row.GameType || '',
       DifficultyLevel: row.difficulty_level ?? null,
     };
   }
 
   private toMasterGameMutationPayload(input: MasterGameInput) {
+    const mergedDescriptionParts = [input.Description, input.HowToPlay]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    const mergedDescription = mergedDescriptionParts.length > 0
+      ? mergedDescriptionParts.join('\n\n')
+      : null;
+
+    const parsedPlayerCount =
+      input.PlayerCount == null || String(input.PlayerCount).trim() === ''
+        ? null
+        : Number.parseInt(String(input.PlayerCount).trim(), 10);
+
+    const normalizedFormat = input.Format?.trim().toLowerCase();
+    const format = normalizedFormat === 'short'
+      ? 'Short'
+      : normalizedFormat === 'long'
+        ? 'Long'
+        : null;
+
     return {
       game_name: input.GameName.trim(),
-      description: input.Description?.trim() || null,
-      how_to_play: input.HowToPlay?.trim() || null,
-      setup_notes: input.SetupNotes?.trim() || null,
-      player_count:
-        input.PlayerCount == null || String(input.PlayerCount).trim() === ''
-          ? null
-          : String(input.PlayerCount).trim(),
-      short_long_form: input.Format?.trim() || null,
+      description: mergedDescription,
+      player_count: Number.isNaN(parsedPlayerCount as number) ? null : parsedPlayerCount,
+      format,
       category: input.Category?.trim() || null,
-      difficulty_level: input.DifficultyLevel ?? null,
     };
+  }
+
+  private toLegacyMasterGameMutationPayload(input: MasterGameInput) {
+    const mergedDescriptionParts = [input.Description, input.HowToPlay]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    const mergedDescription = mergedDescriptionParts.length > 0
+      ? mergedDescriptionParts.join('\n\n')
+      : null;
+
+    const parsedPlayerCount =
+      input.PlayerCount == null || String(input.PlayerCount).trim() === ''
+        ? null
+        : Number.parseInt(String(input.PlayerCount).trim(), 10);
+
+    return {
+      game_name: input.GameName.trim(),
+      description: mergedDescription,
+      category: input.Category?.trim() || null,
+      difficulty_level: Number.isNaN(parsedPlayerCount as number) ? null : parsedPlayerCount,
+    };
+  }
+
+  private isMissingMasterGameColumnError(error: unknown): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    return (
+      message.includes('master_game_list')
+      && (
+        message.includes('schema cache')
+        || (message.includes('column') && message.includes('does not exist'))
+      )
+    );
   }
 
   private async isCastMember(personnelId: number): Promise<boolean> {
@@ -1502,11 +1550,22 @@ class SupabaseService {
       }
 
       const payload = this.toMasterGameMutationPayload(input);
-      const { data, error } = await this.client
+      let { data, error } = await this.client
         .from('master_game_list')
         .insert([payload])
         .select('*')
         .single();
+
+      if (error && this.isMissingMasterGameColumnError(error)) {
+        const legacyPayload = this.toLegacyMasterGameMutationPayload(input);
+        const fallbackResult = await this.client
+          .from('master_game_list')
+          .insert([legacyPayload])
+          .select('*')
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
       return { success: true, data: this.toMasterGame(data) };
@@ -1527,12 +1586,24 @@ class SupabaseService {
       }
 
       const payload = this.toMasterGameMutationPayload(input);
-      const { data, error } = await this.client
+      let { data, error } = await this.client
         .from('master_game_list')
         .update(payload)
         .eq('game_id', gameId)
         .select('*')
         .single();
+
+      if (error && this.isMissingMasterGameColumnError(error)) {
+        const legacyPayload = this.toLegacyMasterGameMutationPayload(input);
+        const fallbackResult = await this.client
+          .from('master_game_list')
+          .update(legacyPayload)
+          .eq('game_id', gameId)
+          .select('*')
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
       return { success: true, data: this.toMasterGame(data) };

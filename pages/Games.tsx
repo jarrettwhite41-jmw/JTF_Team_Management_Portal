@@ -7,12 +7,9 @@ import { supabaseService } from '../services/supabaseService';
 const createEmptyGameForm = (): MasterGameInput => ({
   GameName: '',
   Description: '',
-  HowToPlay: '',
-  SetupNotes: '',
   PlayerCount: '',
   Format: '',
   Category: '',
-  DifficultyLevel: null,
 });
 
 const APPROVAL_CATEGORIES = ['Improv', 'Game Based', 'Scene Based', 'Audience Participation', 'Musical'];
@@ -91,12 +88,9 @@ export const Games: React.FC = () => {
     setGameForm({
       GameName: selectedGame.GameName || '',
       Description: selectedGame.Description || '',
-      HowToPlay: selectedGame.HowToPlay || '',
-      SetupNotes: selectedGame.SetupNotes || '',
       PlayerCount: selectedGame.PlayerCount ?? '',
       Format: selectedGame.Format || '',
       Category: selectedGame.Category || '',
-      DifficultyLevel: selectedGame.DifficultyLevel ?? null,
     });
   }, [selectedGame, isCreateMode]);
 
@@ -340,38 +334,28 @@ export const Games: React.FC = () => {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
             <input
-              type="text"
-              value={gameForm.Format || ''}
-              onChange={(event) => setGameForm((prev) => ({ ...prev, Format: event.target.value }))}
-              placeholder="Format (Short/Long)"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-            <input
-              type="text"
+              type="number"
+              min="1"
               value={String(gameForm.PlayerCount ?? '')}
               onChange={(event) => setGameForm((prev) => ({ ...prev, PlayerCount: event.target.value }))}
               placeholder="Player count"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
+            <select
+              value={gameForm.Format || ''}
+              onChange={(event) => setGameForm((prev) => ({ ...prev, Format: event.target.value }))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              aria-label="Format"
+            >
+              <option value="">Select format</option>
+              <option value="Short">Short</option>
+              <option value="Long">Long</option>
+            </select>
             <textarea
               value={gameForm.Description || ''}
               onChange={(event) => setGameForm((prev) => ({ ...prev, Description: event.target.value }))}
-              placeholder="Description"
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-            <textarea
-              value={gameForm.HowToPlay || ''}
-              onChange={(event) => setGameForm((prev) => ({ ...prev, HowToPlay: event.target.value }))}
-              placeholder="How to play"
-              rows={3}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-            />
-            <textarea
-              value={gameForm.SetupNotes || ''}
-              onChange={(event) => setGameForm((prev) => ({ ...prev, SetupNotes: event.target.value }))}
-              placeholder="Setup notes"
-              rows={2}
+              placeholder="Description / How To Play"
+              rows={5}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
