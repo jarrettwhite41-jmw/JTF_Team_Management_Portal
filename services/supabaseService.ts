@@ -1098,8 +1098,8 @@ class SupabaseService {
       const { error } = await this.client
         .from('cast_member_info')
         .update({
-          OutOfTown: flags.outOfTown,
-          'Limited/Inactive': flags.limitedInactive,
+          OutOfTown: flags.outOfTown ? 1 : 0,
+          'Limited/Inactive': flags.limitedInactive ? 1 : 0,
         })
         .eq('CastMemberID', castMemberId);
 
