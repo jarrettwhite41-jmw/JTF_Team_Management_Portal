@@ -38,6 +38,11 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
   const [isSavingGame, setIsSavingGame] = useState(false);
   const [isDeletingGame, setIsDeletingGame] = useState(false);
   const [gameForm, setGameForm] = useState<MasterGameInput>(createEmptyGameForm());
+  const [statusFlags, setStatusFlags] = useState<{ outOfTown: boolean; limitedInactive: boolean }>({
+    outOfTown: false,
+    limitedInactive: false,
+  });
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Add Cast Member modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -217,7 +222,60 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
 
   const handleCastMemberClick = (castMember: CastMemberWithDetails) => {
     setSelectedCastMember(castMember);
+    setStatusFlags({
+      outOfTown: Boolean((castMember as any).OutOfTown),
+      limitedInactive: Boolean((castMember as any).LimitedInactive),
+    });
     setIsModalOpen(true);
+  };
+
+  const getStatusFromFlags = (flags: { outOfTown: boolean; limitedInactive: boolean }) => {
+    if (flags.outOfTown) return 'Out of Town';
+    if (flags.limitedInactive) return 'Limited/Inactive';
+    return 'Active';
+  };
+
+  const handleSaveStatus = async () => {
+    if (!selectedCastMember) return;
+
+    setIsSavingStatus(true);
+    try {
+      const response = await gasService.updateCastMemberFlags(selectedCastMember.CastMemberID, statusFlags);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update cast status.');
+      }
+
+      const updatedStatus = getStatusFromFlags(statusFlags);
+      setSelectedCastMember((prev) =>
+        prev
+          ? {
+              ...prev,
+              OutOfTown: statusFlags.outOfTown ? 1 : 0,
+              LimitedInactive: statusFlags.limitedInactive ? 1 : 0,
+              Status: updatedStatus,
+            }
+          : prev,
+      );
+
+      setCastMembers((prev) =>
+        prev.map((member) =>
+          member.CastMemberID === selectedCastMember.CastMemberID
+            ? {
+                ...member,
+                OutOfTown: statusFlags.outOfTown ? 1 : 0,
+                LimitedInactive: statusFlags.limitedInactive ? 1 : 0,
+                Status: updatedStatus,
+              }
+            : member,
+        ),
+      );
+
+      setMessage({ type: 'success', text: 'Cast member status updated.' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error updating cast status.' });
+    } finally {
+      setIsSavingStatus(false);
+    }
   };
 
   const loadMasterGames = async (preferredGameId?: number | null) => {
@@ -958,7 +1016,49 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="mb-6 rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">Edit Status Flags</h3>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={statusFlags.limitedInactive}
+                    onChange={(e) =>
+                      setStatusFlags((prev) => ({
+                        ...prev,
+                        limitedInactive: e.target.checked,
+                      }))
+                    }
+                  />
+                  Limited / Inactive
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={statusFlags.outOfTown}
+                    onChange={(e) =>
+                      setStatusFlags((prev) => ({
+                        ...prev,
+                        outOfTown: e.target.checked,
+                      }))
+                    }
+                  />
+                  Out Of Town
+                </label>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Preview status: <span className="font-medium text-gray-700">{getStatusFromFlags(statusFlags)}</span>
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleSaveStatus}
+                disabled={isSavingStatus}
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {isSavingStatus ? 'Saving...' : 'Save Status'}
+              </button>
               <button
                 onClick={handleCloseModal}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"

@@ -1090,6 +1090,27 @@ class SupabaseService {
     }
   }
 
+  async updateCastMemberFlags(
+    castMemberId: number,
+    flags: { outOfTown: boolean; limitedInactive: boolean },
+  ): Promise<ApiResponse<{ updated: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('cast_member_info')
+        .update({
+          OutOfTown: flags.outOfTown,
+          'Limited/Inactive': flags.limitedInactive,
+        })
+        .eq('CastMemberID', castMemberId);
+
+      if (error) throw error;
+      return { success: true, data: { updated: true } };
+    } catch (error) {
+      console.error('Error updating cast member flags:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // CLASSES
   // ========================================================================
