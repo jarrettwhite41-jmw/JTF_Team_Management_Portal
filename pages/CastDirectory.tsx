@@ -25,6 +25,7 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
   const [filteredCastMembers, setFilteredCastMembers] = useState<CastMemberWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [nameSortOrder, setNameSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedCastMember, setSelectedCastMember] = useState<CastMemberWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -54,13 +55,25 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
   }, []);
 
   useEffect(() => {
-    const filtered = castMembers.filter(member =>
-      `${member.FirstName || ''} ${(member as any).Lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const normalizedQuery = searchTerm.toLowerCase();
+    const displayName = (member: CastMemberWithDetails) =>
+      `${member.FirstName || ''} ${member.LastName || (member as any).Lastname || ''}`.trim();
+
+    const filtered = castMembers
+      .filter((member) =>
+        displayName(member).toLowerCase().includes(normalizedQuery) ||
+        (member.PrimaryEmail || '').toLowerCase().includes(normalizedQuery) ||
+        (member.PrimaryPhone || '').toLowerCase().includes(normalizedQuery)
+      )
+      .sort((a, b) => {
+        const left = displayName(a).toLowerCase();
+        const right = displayName(b).toLowerCase();
+        const baseCompare = left.localeCompare(right, undefined, { sensitivity: 'base' });
+        return nameSortOrder === 'asc' ? baseCompare : -baseCompare;
+      });
+
     setFilteredCastMembers(filtered);
-  }, [castMembers, searchTerm]);
+  }, [castMembers, searchTerm, nameSortOrder]);
 
   const loadCastMembers = async () => {
     setIsLoading(true);
@@ -704,14 +717,24 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
         </div>
       )}
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
         <input
           type="text"
           placeholder="Search by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full sm:max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
+        <select
+          value={nameSortOrder}
+          onChange={(e) => setNameSortOrder(e.target.value as 'asc' | 'desc')}
+          className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+          aria-label="Sort cast names"
+          title="Sort cast names"
+        >
+          <option value="asc">Name: A to Z</option>
+          <option value="desc">Name: Z to A</option>
+        </select>
       </div>
 
       {isLoading ? (
