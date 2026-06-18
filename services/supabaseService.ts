@@ -1746,7 +1746,8 @@ class SupabaseService {
               game_name: customName,
               description: game.variation || null,
               category: game.flag ? 'Requested from Show' : 'Custom',
-              difficulty_level: null,
+              player_count: null,
+              format: null,
             }])
             .select('game_id, game_name')
             .single();
