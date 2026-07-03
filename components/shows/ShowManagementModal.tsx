@@ -258,6 +258,26 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     });
   };
 
+  const handleMoveGameUp = (localId: string) => {
+    setShowGames(prev => {
+      const index = prev.findIndex(game => game.localId === localId);
+      if (index <= 0) return prev;
+      const newGames = [...prev];
+      [newGames[index - 1], newGames[index]] = [newGames[index], newGames[index - 1]];
+      return newGames;
+    });
+  };
+
+  const handleMoveGameDown = (localId: string) => {
+    setShowGames(prev => {
+      const index = prev.findIndex(game => game.localId === localId);
+      if (index >= prev.length - 1) return prev;
+      const newGames = [...prev];
+      [newGames[index], newGames[index + 1]] = [newGames[index + 1], newGames[index]];
+      return newGames;
+    });
+  };
+
   const handleSaveGames = async () => {
     setIsLoading(true);
     setMessage(null);
@@ -440,11 +460,33 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="space-y-4">
                 {showGames.map((game, index) => {
                   const filteredGames = getFilteredMasterGames(game.gameId);
+                  const isFirst = index === 0;
+                  const isLast = index === showGames.length - 1;
                   return (
                     <div key={game.localId} className="rounded-lg border border-gray-200 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-gray-900">Game {index + 1}</h4>
-                        <button type="button" onClick={() => handleRemoveGameRow(game.localId)} className="text-sm text-red-600 hover:text-red-700">Remove</button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGameUp(game.localId)}
+                            disabled={isFirst}
+                            title="Move game up in the setlist"
+                            className="px-2 py-1 text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-300 hover:disabled:text-gray-300 transition-colors"
+                          >
+                            ↑ Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGameDown(game.localId)}
+                            disabled={isLast}
+                            title="Move game down in the setlist"
+                            className="px-2 py-1 text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-300 hover:disabled:text-gray-300 transition-colors"
+                          >
+                            ↓ Down
+                          </button>
+                          <button type="button" onClick={() => handleRemoveGameRow(game.localId)} className="px-2 py-1 text-sm text-red-600 hover:text-red-700">Remove</button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
