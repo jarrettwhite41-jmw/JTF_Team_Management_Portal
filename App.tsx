@@ -18,6 +18,7 @@ import { TeacherManagement } from './pages/TeacherManagement';
 import { DirectorManagement } from './pages/DirectorManagement';
 import { PortalAccess } from './pages/PortalAccess';
 import { DataImport } from './pages/DataImport';
+import { AccountRecovery } from './pages/AccountRecovery';
 import { Login } from './pages/Login';
 import { Loader } from './components/common/Loader';
 import { authService } from './services/authService';
@@ -32,7 +33,7 @@ const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
-  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery',
 ]);
 
 const getInitialTeamPage = (): PageType => {
@@ -228,6 +229,8 @@ const App: React.FC = () => {
         return <InventoryPage />;
       case 'data-import':
         return <DataImport />;
+      case 'account-recovery':
+        return <AccountRecovery />;
       case 'scheduling':
         return <Scheduling />;
       case 'student-directory':

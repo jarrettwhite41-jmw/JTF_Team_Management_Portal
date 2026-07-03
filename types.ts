@@ -414,6 +414,7 @@ export type PageType =
   | 'teacher-management'
   | 'director-management'
   | 'portal-access'
+  | 'account-recovery'
   | 'data-import'
   | 'inventory'
   | 'scheduling'

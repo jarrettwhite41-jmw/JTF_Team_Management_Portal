@@ -40,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'director-management', label: 'Director Management', icon: '🎬' },
         { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
         { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ] as NavigationItem[],
     },
