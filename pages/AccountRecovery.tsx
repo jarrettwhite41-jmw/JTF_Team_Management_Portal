@@ -26,6 +26,8 @@ export function AccountRecovery() {
   const [error, setError] = useState<string | null>(null);
   const [fixing, setFixing] = useState<string | null>(null);
   const [fixError, setFixError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [selectedAuthUser, setSelectedAuthUser] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
@@ -91,6 +93,32 @@ export function AccountRecovery() {
     }
   };
 
+  const syncAuthEmail = async (mismatch: AccountMismatch) => {
+    setSyncing(mismatch.access_id);
+    setSyncMessage(null);
+
+    try {
+      // Call the RPC function to sync auth email to personnel email
+      const { data, error: syncError } = await supabase.rpc('fix_auth_email_mismatch', {
+        p_access_id: mismatch.access_id,
+        p_personnel_id: mismatch.personnel_id,
+      });
+
+      if (syncError) throw syncError;
+
+      setSyncMessage(`✓ Email synced: ${data.old_email} → ${data.new_email}`);
+      
+      // Reload mismatches to refresh the list
+      setTimeout(() => {
+        loadMismatches();
+      }, 1500);
+    } catch (err) {
+      setSyncMessage(`✗ Error: ${err instanceof Error ? err.message : 'Failed to sync email'}`);
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   if (loading) {
     return <div className="p-6">Loading account information...</div>;
   }
@@ -125,8 +153,8 @@ export function AccountRecovery() {
                   <th className="px-4 py-2 text-left font-semibold text-slate-700">Portal</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-700">Current Login Email</th>
                   <th className="px-4 py-2 text-left font-semibold text-slate-700">Auth Email</th>
-                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Select Auth User</th>
-                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Action</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Personnel Email</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -152,31 +180,15 @@ export function AccountRecovery() {
                       <div className="text-sm text-orange-600">{mismatch.auth_email}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={selectedAuthUser[mismatch.access_id] || ''}
-                        onChange={(e) =>
-                          setSelectedAuthUser({
-                            ...selectedAuthUser,
-                            [mismatch.access_id]: e.target.value,
-                          })
-                        }
-                        className="rounded border border-slate-300 px-2 py-1 text-sm"
-                      >
-                        <option value="">-- Select auth user --</option>
-                        {authUsers.map((user) => (
-                          <option key={user.id} value={user.email}>
-                            {user.email}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="text-sm font-medium text-green-700">{mismatch.personnel_email}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 space-x-2">
                       <button
-                        onClick={() => fixMismatch(mismatch)}
-                        disabled={fixing === mismatch.access_id || !selectedAuthUser[mismatch.access_id]}
-                        className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white disabled:bg-slate-300 hover:bg-blue-700"
+                        onClick={() => syncAuthEmail(mismatch)}
+                        disabled={syncing === mismatch.access_id}
+                        className="rounded bg-green-600 px-3 py-1 text-sm font-medium text-white disabled:bg-slate-300 hover:bg-green-700"
                       >
-                        {fixing === mismatch.access_id ? 'Fixing...' : 'Fix'}
+                        {syncing === mismatch.access_id ? 'Syncing...' : 'Sync Auth Email'}
                       </button>
                     </td>
                   </tr>
@@ -191,13 +203,25 @@ export function AccountRecovery() {
         <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">{fixError}</div>
       )}
 
+      {syncMessage && (
+        <div className={`rounded-lg border p-4 ${
+          syncMessage.startsWith('✓')
+            ? 'border-green-300 bg-green-50 text-green-800'
+            : 'border-red-300 bg-red-50 text-red-800'
+        }`}>
+          {syncMessage}
+        </div>
+      )}
+
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
         <h3 className="font-semibold text-slate-900">How to fix:</h3>
         <ol className="mt-2 list-inside list-decimal space-y-1">
-          <li>For each mismatched account, the "Current Login Email" (red) doesn't match the "Auth Email" (orange)</li>
-          <li>Select the correct Auth User from the dropdown that should be linked to this account</li>
-          <li>Click "Fix" to update the portal account to use that auth user</li>
-          <li>The account will now use the auth user's email for login</li>
+          <li><strong>Sync Auth Email:</strong> Automatically updates the auth user's email to match the personnel record's email</li>
+          <li>Red "Current Login Email" = what portal_user_access currently has</li>
+          <li>Orange "Auth Email" = what auth.users currently has</li>
+          <li>Green "Personnel Email" = what personnel record has (the target)</li>
+          <li>Click "Sync Auth Email" to update auth.users.email to match personnel.primary_email</li>
+          <li>The trigger will automatically sync portal_user_access.login_email to match</li>
         </ol>
       </div>
     </div>
