@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { StudentWithDetails } from '../types';
+import { StudentWithDetails, Personnel } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 interface StudentDirectoryProps {
@@ -14,6 +14,13 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Inactive' | 'Graduated'>('All');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  // Add student modal state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
+  const [personnelSearch, setPersonnelSearch] = useState('');
+  const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     loadStudents();
@@ -37,6 +44,59 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
     }
   };
 
+  const handleOpenAdd = async () => {
+    setPersonnelSearch('');
+    setSelectedPersonnelIds([]);
+    setIsAddOpen(true);
+
+    try {
+      const response = await gasService.getAllPersonnel();
+      if (response.success && Array.isArray(response.data)) {
+        // Filter out people already students
+        const studentPersonnelIds = new Set(students.map(s => s.PersonnelID).filter(Boolean));
+        const available = (response.data as Personnel[]).filter(p => !studentPersonnelIds.has(p.PersonnelID));
+        setAllPersonnel(available);
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Unable to load personnel.' });
+    }
+  };
+
+  const toggleSelect = (id: number) =>
+    setSelectedPersonnelIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+
+  const toggleSelectAll = () => {
+    if (availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))) {
+      setSelectedPersonnelIds([]);
+    } else {
+      setSelectedPersonnelIds(availablePersonnel.map(p => p.PersonnelID));
+    }
+  };
+
+  const handleAddSelected = async () => {
+    if (selectedPersonnelIds.length === 0) return;
+    setIsAdding(true);
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of selectedPersonnelIds) {
+      try {
+        const r = await gasService.addPersonAsStudent(id);
+        if (r.success) successCount++;
+        else failCount++;
+      } catch { failCount++; }
+    }
+    setIsAdding(false);
+    setIsAddOpen(false);
+    setSelectedPersonnelIds([]);
+    await loadStudents();
+    if (successCount > 0)
+      setMessage({ type: 'success', text: `${successCount} student${successCount !== 1 ? 's' : ''} added successfully.` });
+    if (failCount > 0)
+      setMessage({ type: 'error', text: `${failCount} student${failCount !== 1 ? 's' : ''} failed to add.` });
+  };
+
   const filteredStudents = students.filter(student => {
     const matchesSearch = (
       `${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,6 +104,14 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
     );
     const matchesFilter = filterStatus === 'All' || student.StudentStatus === filterStatus;
     return matchesSearch && matchesFilter;
+  });
+
+  const availablePersonnel = allPersonnel.filter(p => {
+    const matchesSearch =
+      personnelSearch === '' ||
+      `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
+      (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
+    return matchesSearch;
   });
 
   const getStatusBadgeClass = (status?: string) => {
@@ -66,6 +134,12 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
           <h1 className="text-2xl font-bold text-gray-900">Student Directory</h1>
           <p className="text-sm text-gray-600 mt-1">{filteredStudents.length} students</p>
         </div>
+        <button
+          onClick={handleOpenAdd}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+        >
+          + Add Student
+        </button>
       </div>
 
       {message && (
@@ -166,6 +240,85 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Add Student Modal */}
+      {isAddOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-6 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Add Students</h2>
+              <button
+                onClick={() => setIsAddOpen(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <input
+                type="text"
+                placeholder="Search personnel by name or email..."
+                value={personnelSearch}
+                onChange={(e) => setPersonnelSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-50 p-3 border-b flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={availablePersonnel.length > 0 && availablePersonnel.every(p => selectedPersonnelIds.includes(p.PersonnelID))}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Select All ({availablePersonnel.length})</span>
+                </div>
+                <div className="max-h-64 overflow-y-auto space-y-1">
+                  {availablePersonnel.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      No available personnel to add
+                    </div>
+                  ) : (
+                    availablePersonnel.map(person => (
+                      <div key={person.PersonnelID} className="flex items-center gap-3 p-3 hover:bg-gray-50 border-b last:border-b-0">
+                        <input
+                          type="checkbox"
+                          checked={selectedPersonnelIds.includes(person.PersonnelID)}
+                          onChange={() => toggleSelect(person.PersonnelID)}
+                          className="w-4 h-4 cursor-pointer"
+                        />
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-900">
+                            {person.FirstName} {person.LastName}
+                          </div>
+                          <div className="text-xs text-gray-500">{person.PrimaryEmail}</div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <button
+                  onClick={() => setIsAddOpen(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddSelected}
+                  disabled={isAdding || selectedPersonnelIds.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
+                >
+                  {isAdding ? 'Adding...' : `Add ${selectedPersonnelIds.length} Student${selectedPersonnelIds.length !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
