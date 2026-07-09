@@ -196,6 +196,16 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   };
 
   const castCounts = useMemo(() => ({ selected: selectedCastIds.size, total: availableCast.length }), [selectedCastIds, availableCast.length]);
+  const allPersonnelById = useMemo(() => {
+    const entries = [...personnelOptions, ...bartenderOptions];
+    const map = new Map<number, PersonnelOption>();
+    entries.forEach((person) => {
+      if (!map.has(person.PersonnelID)) {
+        map.set(person.PersonnelID, person);
+      }
+    });
+    return map;
+  }, [personnelOptions, bartenderOptions]);
 
   const toggleCast = (castMemberId: number) => {
     setSelectedCastIds(prev => {
@@ -330,21 +340,51 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return new Set(Array.from(selectedCastIds));
   };
 
+  const isPersonnelInCast = (personnelId?: number | null) => {
+    return Boolean(personnelId && selectedCastIds.has(personnelId));
+  };
+
   const isBartenderDuty = (dutyTypeId: number) => {
     const dutyName = crewDutyTypes.find(type => type.CrewDutyTypeID === dutyTypeId)?.DutyName || '';
     const normalizedDutyName = dutyName.trim().toLowerCase();
     return normalizedDutyName.includes('bartender') || normalizedDutyName === 'bar';
   };
 
+  const isExternalBartenderAssignment = (dutyTypeId: number, personnelId?: number | null) => {
+    return Boolean(personnelId && isBartenderDuty(dutyTypeId) && !isPersonnelInCast(personnelId));
+  };
+
+  const countedCrewAssignments = useMemo(() => {
+    return crewDutyTypes.flatMap((dutyType) => {
+      const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
+      if (!assignedPersonnelId || isExternalBartenderAssignment(dutyType.CrewDutyTypeID, assignedPersonnelId)) {
+        return [];
+      }
+
+      const person = allPersonnelById.get(assignedPersonnelId);
+      const existingAssignment = currentCrew.find((crew) => crew.CrewDutyTypeID === dutyType.CrewDutyTypeID);
+      const fullName = person
+        ? `${person.FirstName || ''} ${person.LastName || ''}`.trim()
+        : existingAssignment?.FullName || 'Assigned';
+
+      return [{
+        PersonnelID: assignedPersonnelId,
+        FullName: fullName,
+        DutyName: dutyType.DutyName,
+      }];
+    });
+  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew, selectedCastIds]);
+
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
     const selectedCastIds = getSelectedCastPersonnelIds();
     const currentAssignment = crewAssignments.get(dutyTypeId);
     const query = crewSearch.trim().toLowerCase();
-    const sourceOptions = isBartenderDuty(dutyTypeId) ? bartenderOptions : personnelOptions;
+    const isBartender = isBartenderDuty(dutyTypeId);
+    const sourceOptions = isBartender ? bartenderOptions : personnelOptions;
     return sourceOptions.filter(p => 
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
-      (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
+      (isBartender || !selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
     );
   };
@@ -408,7 +448,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           <div className="flex gap-4">
             <button onClick={() => setActiveTab('details')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Details</button>
             <button onClick={() => setActiveTab('cast')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'cast' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Cast ({castCounts.selected})</button>
-            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({currentCrew.length})</button>
+            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({countedCrewAssignments.length})</button>
             {isCompletedShow && <button onClick={() => setActiveTab('games')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'games' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Games ({showGames.filter(game => game.gameId || game.customName.trim()).length})</button>}
           </div>
         </div>
@@ -423,7 +463,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).length > 0 ? availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FullName}</span>) : 'No cast assigned'}</div></div>
-              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{currentCrew.length > 0 ? currentCrew.map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{countedCrewAssignments.length > 0 ? countedCrewAssignments.map((member, index) => <span key={`${member.PersonnelID}-${member.DutyName}-${index}`} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
             </div>
           ) : activeTab === 'crew' ? (
             <>
@@ -442,14 +482,18 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                   const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
                   const assignedPerson = [...personnelOptions, ...bartenderOptions].find(p => p.PersonnelID === assignedPersonnelId);
                   const availablePersonnel = getAvailablePersonnelForDuty(dutyType.CrewDutyTypeID);
+                  const isExternalBartender = isExternalBartenderAssignment(dutyType.CrewDutyTypeID, assignedPersonnelId);
                   return (
-                    <div key={dutyType.CrewDutyTypeID} className="flex items-end gap-3 rounded-lg border border-gray-200 p-4">
+                    <div key={dutyType.CrewDutyTypeID} className={`flex items-end gap-3 rounded-lg border p-4 ${isExternalBartender ? 'border-sky-200 bg-sky-50' : 'border-gray-200'}`}>
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">{dutyType.DutyName}</label>
-                        <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                        <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className={`w-full rounded-lg border px-3 py-2 ${isExternalBartender ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-gray-300'}`}>
                           <option value="">Unassigned</option>
                           {availablePersonnel.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
                         </select>
+                        {isExternalBartender && (
+                          <p className="mt-2 text-xs text-sky-700">This bartender is not in the cast, so this assignment will not count toward crew totals.</p>
+                        )}
                       </div>
                       {assignedPerson && (
                         <div className="text-xs text-gray-500 text-right pb-2 min-w-[100px]">
