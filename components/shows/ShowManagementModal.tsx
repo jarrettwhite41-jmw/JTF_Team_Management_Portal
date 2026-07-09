@@ -196,6 +196,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   };
 
   const castCounts = useMemo(() => ({ selected: selectedCastIds.size, total: availableCast.length }), [selectedCastIds, availableCast.length]);
+  const castPersonnelIds = useMemo(() => new Set(availableCast.map((member) => member.PersonnelID)), [availableCast]);
   const allPersonnelById = useMemo(() => {
     const entries = [...personnelOptions, ...bartenderOptions];
     const map = new Map<number, PersonnelOption>();
@@ -341,7 +342,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   };
 
   const isPersonnelInCast = (personnelId?: number | null) => {
-    return Boolean(personnelId && selectedCastIds.has(personnelId));
+    return Boolean(personnelId && castPersonnelIds.has(personnelId));
   };
 
   const isBartenderDuty = (dutyTypeId: number) => {
@@ -373,7 +374,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         DutyName: dutyType.DutyName,
       }];
     });
-  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew, selectedCastIds]);
+  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew, castPersonnelIds]);
 
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
