@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from '../common/Message';
 import { ShowEditModal } from './ShowEditModal';
 import { gasService } from '../../services/googleAppsScript';
-import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame } from '../../types';
+import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame, BartenderWithDetails } from '../../types';
 
 interface ShowManagementModalProps {
   isOpen: boolean;
@@ -54,6 +54,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [selectedCastIds, setSelectedCastIds] = useState<Set<number>>(new Set());
   const [currentCrew, setCurrentCrew] = useState<CrewAssignment[]>([]);
   const [personnelOptions, setPersonnelOptions] = useState<PersonnelOption[]>([]);
+  const [bartenderOptions, setBartenderOptions] = useState<PersonnelOption[]>([]);
   const [crewDutyTypes, setCrewDutyTypes] = useState<CrewDutyTypes[]>([]);
   const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
   const [castSearch, setCastSearch] = useState('');
@@ -88,11 +89,12 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse] = await Promise.all([
+      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse, bartendersResponse] = await Promise.all([
         gasService.getAllCastMembers(),
         gasService.getShowPerformances(show.ShowID),
         gasService.getShowCrew(show.ShowID),
         gasService.getAllCrewDutyTypes(),
+        gasService.getBartendersWithDetails(),
       ]);
 
       const [gamesResponse, showGamesResponse] = isCompletedShow
@@ -106,6 +108,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       const performanceRows = Array.isArray(performancesResponse.data) ? performancesResponse.data : (performancesResponse.data as any)?.data || [];
       const crewRows = Array.isArray(crewResponse.data) ? crewResponse.data : (crewResponse.data as any)?.data || [];
       const dutyTypeRows = Array.isArray(dutyTypesResponse.data) ? dutyTypesResponse.data : (dutyTypesResponse.data as any)?.data || [];
+      const bartenderRows = Array.isArray(bartendersResponse.data) ? bartendersResponse.data : (bartendersResponse.data as any)?.data || [];
 
       if (castResponse.success) {
         const mappedCast = castRows.map((member: any) => ({
@@ -150,6 +153,17 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         }));
         mappedPersonnel.sort((a: PersonnelOption, b: PersonnelOption) => sortByName(`${a.FirstName || ''} ${a.LastName || ''}`.trim(), `${b.FirstName || ''} ${b.LastName || ''}`.trim()));
         setPersonnelOptions(mappedPersonnel);
+      }
+
+      if (bartendersResponse.success) {
+        const mappedBartenders = bartenderRows.map((bartender: BartenderWithDetails) => ({
+          PersonnelID: bartender.PersonnelID,
+          FirstName: bartender.FirstName,
+          LastName: bartender.LastName,
+          PrimaryEmail: bartender.PrimaryEmail,
+        }));
+        mappedBartenders.sort((a: PersonnelOption, b: PersonnelOption) => sortByName(`${a.FirstName || ''} ${a.LastName || ''}`.trim(), `${b.FirstName || ''} ${b.LastName || ''}`.trim()));
+        setBartenderOptions(mappedBartenders);
       }
 
       if (dutyTypesResponse.success) {
@@ -316,12 +330,18 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return new Set(Array.from(selectedCastIds));
   };
 
+  const isBartenderDuty = (dutyTypeId: number) => {
+    const dutyName = crewDutyTypes.find(type => type.CrewDutyTypeID === dutyTypeId)?.DutyName || '';
+    return dutyName.trim().toLowerCase().includes('bartender');
+  };
+
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
     const selectedCastIds = getSelectedCastPersonnelIds();
     const currentAssignment = crewAssignments.get(dutyTypeId);
     const query = crewSearch.trim().toLowerCase();
-    return personnelOptions.filter(p => 
+    const sourceOptions = isBartenderDuty(dutyTypeId) ? bartenderOptions : personnelOptions;
+    return sourceOptions.filter(p => 
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
@@ -419,7 +439,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="space-y-3">
                 {crewDutyTypes.map(dutyType => {
                   const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
-                  const assignedPerson = personnelOptions.find(p => p.PersonnelID === assignedPersonnelId);
+                  const assignedPerson = [...personnelOptions, ...bartenderOptions].find(p => p.PersonnelID === assignedPersonnelId);
                   const availablePersonnel = getAvailablePersonnelForDuty(dutyType.CrewDutyTypeID);
                   return (
                     <div key={dutyType.CrewDutyTypeID} className="flex items-end gap-3 rounded-lg border border-gray-200 p-4">
