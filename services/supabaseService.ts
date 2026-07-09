@@ -2403,8 +2403,18 @@ class SupabaseService {
 
   async addPersonAsCrewMember(personnelId: number, showId: number, dutyTypeId: number): Promise<ApiResponse<CrewMemberWithDetails>> {
     try {
+      const { data: dutyType, error: dutyTypeError } = await this.client
+        .from('crew_duty_types')
+        .select('duty_name')
+        .eq('crew_duty_type_id', dutyTypeId)
+        .maybeSingle();
+
+      if (dutyTypeError) throw dutyTypeError;
+
+      const normalizedDutyName = String(dutyType?.duty_name || '').trim().toLowerCase();
+      const isBartenderDuty = normalizedDutyName.includes('bartender') || normalizedDutyName === 'bar';
       const isCast = await this.isCastMember(personnelId);
-      if (!isCast) {
+      if (!isCast && !isBartenderDuty) {
         return { success: false, error: 'Crew assignments are restricted to cast members.' };
       }
 

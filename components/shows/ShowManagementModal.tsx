@@ -247,15 +247,27 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         throw new Error(castResponse.error || 'Failed to update cast');
       }
 
-      const assignmentsToRemove = currentCrew.filter(crew => !crewAssignments.has(crew.CrewDutyTypeID));
+      const assignmentsToRemove = currentCrew.filter((crew) => {
+        const nextPersonnelId = crewAssignments.get(crew.CrewDutyTypeID);
+        return !nextPersonnelId || nextPersonnelId !== crew.PersonnelID;
+      });
       for (const assignment of assignmentsToRemove) {
-        await gasService.removeCrewMember(assignment.DutyID);
+        const removeResponse = await gasService.removeCrewMember(assignment.DutyID);
+        if (!removeResponse.success) {
+          throw new Error(removeResponse.error || 'Failed to remove crew assignment');
+        }
       }
 
       const assignmentsToAdd = Array.from(crewAssignments.entries())
-        .filter(([dutyTypeId]) => !currentCrew.find(crew => crew.CrewDutyTypeID === dutyTypeId));
+        .filter(([dutyTypeId, personnelId]) => {
+          const existingAssignment = currentCrew.find((crew) => crew.CrewDutyTypeID === dutyTypeId);
+          return !existingAssignment || existingAssignment.PersonnelID !== personnelId;
+        });
       for (const [dutyTypeId, personnelId] of assignmentsToAdd) {
-        await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
+        const addResponse = await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
+        if (!addResponse.success) {
+          throw new Error(addResponse.error || 'Failed to add crew assignment');
+        }
       }
 
       setMessage({ type: 'success', text: 'Cast and crew assignments saved successfully' });
