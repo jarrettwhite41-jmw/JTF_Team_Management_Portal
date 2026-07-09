@@ -332,7 +332,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
 
   const isBartenderDuty = (dutyTypeId: number) => {
     const dutyName = crewDutyTypes.find(type => type.CrewDutyTypeID === dutyTypeId)?.DutyName || '';
-    return dutyName.trim().toLowerCase().includes('bartender');
+    const normalizedDutyName = dutyName.trim().toLowerCase();
+    return normalizedDutyName.includes('bartender') || normalizedDutyName === 'bar';
   };
 
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
