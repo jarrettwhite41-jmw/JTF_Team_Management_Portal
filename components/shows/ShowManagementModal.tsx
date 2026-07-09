@@ -358,7 +358,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const countedCrewAssignments = useMemo(() => {
     return crewDutyTypes.flatMap((dutyType) => {
       const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
-      if (!assignedPersonnelId || isExternalBartenderAssignment(dutyType.CrewDutyTypeID, assignedPersonnelId)) {
+      if (!assignedPersonnelId) {
         return [];
       }
 
@@ -493,7 +493,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                           {availablePersonnel.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
                         </select>
                         {isExternalBartender && (
-                          <p className="mt-2 text-xs text-sky-700">This bartender is not in the cast, so this assignment will not count toward crew totals.</p>
+                          <p className="mt-2 text-xs text-sky-700">This bartender is not in the cast roster.</p>
                         )}
                       </div>
                       {assignedPerson && (

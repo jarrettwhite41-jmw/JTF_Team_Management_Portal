@@ -767,15 +767,7 @@ class SupabaseService {
 
       if (error) throw error;
 
-      const transformed = data?.map((show: any) => {
-        const castPersonnelIds = new Set((show.show_performances || []).map((perf: any) => perf.personnel_id).filter(Boolean));
-        const countedCrewDuties = (show.crew_duties || []).filter((crew: any) => {
-          const dutyName = String(crew.crew_duty_types?.duty_name || '').trim().toLowerCase();
-          const isBartenderDuty = dutyName.includes('bartender') || dutyName === 'bar';
-          return !isBartenderDuty || castPersonnelIds.has(crew.personnel_id);
-        });
-
-        return {
+      const transformed = data?.map((show: any) => ({
           ShowID: show.show_id,
           ShowDate: show.show_date,
           ShowTime: show.show_time,
@@ -788,9 +780,8 @@ class SupabaseService {
             ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
             : '',
           CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
-          CrewMembers: countedCrewDuties.map((crew: any) => crew.personnel) || [],
-        };
-      }) || [];
+          CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
+      })) || [];
 
       return { success: true, data: transformed };
     } catch (error) {
