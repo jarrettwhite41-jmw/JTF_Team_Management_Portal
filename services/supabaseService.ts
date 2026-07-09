@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
   Personnel,
   ShowInformation,
@@ -32,22 +32,14 @@ import {
   PortalCredentialProvisionInput,
   PortalCredentialProvisionResult,
 } from '../types';
-
-// Initialize Supabase client
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-let supabase: SupabaseClient | null = null;
+import { isSupabaseConfigured, supabase as sharedSupabaseClient } from './supabaseClient';
 
 const getSupabaseClient = () => {
-  if (!supabase) {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error('Supabase credentials not configured in environment variables');
-      throw new Error('Missing Supabase configuration');
-    }
-    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if (!isSupabaseConfigured()) {
+    console.error('Supabase credentials not configured in environment variables');
+    throw new Error('Missing Supabase configuration');
   }
-  return supabase;
+  return sharedSupabaseClient;
 };
 
 class SupabaseService {
@@ -465,7 +457,12 @@ class SupabaseService {
 
       const { data, error } = await this.client
         .from('student_info')
-        .insert([{ personnel_id: personnelId }])
+        .insert([
+          {
+            personnel_id: personnelId,
+            enrollment_date: new Date().toISOString().split('T')[0],
+          },
+        ])
         .select('student_id, personnel_id')
         .single();
 
