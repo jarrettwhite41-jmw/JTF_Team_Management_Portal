@@ -110,13 +110,24 @@ export const BartendersPage: React.FC = () => {
     setIsAdding(true);
     let successCount = 0;
     let failCount = 0;
+    const errors: string[] = [];
     for (const id of selectedPersonnelIds) {
       try {
         const trained = trainedMap[id] ?? false;
         const r = await gasService.addPersonAsBartender(id, trained, 'Active');
         if (r.success) successCount++;
-        else failCount++;
-      } catch { failCount++; }
+        else {
+          failCount++;
+          const person = allPersonnel.find(p => p.PersonnelID === id);
+          const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+          errors.push(`${name}: ${r.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        failCount++;
+        const person = allPersonnel.find(p => p.PersonnelID === id);
+        const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+        errors.push(`${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     setIsAdding(false);
     setIsAddOpen(false);
@@ -124,8 +135,10 @@ export const BartendersPage: React.FC = () => {
     await loadBartenders();
     if (successCount > 0)
       setMessage({ type: 'success', text: `${successCount} bartender${successCount !== 1 ? 's' : ''} added successfully.` });
-    if (failCount > 0)
-      setMessage({ type: 'error', text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added.` });
+    if (failCount > 0) {
+      const errorText = errors.join(' | ');
+      setMessage({ type: 'error', text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added: ${errorText}` });
+    }
   };
 
   const handleConfirmRemove = async () => {

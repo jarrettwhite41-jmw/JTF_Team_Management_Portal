@@ -80,12 +80,23 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
     setIsAdding(true);
     let successCount = 0;
     let failCount = 0;
+    const errors: string[] = [];
     for (const id of selectedPersonnelIds) {
       try {
         const r = await gasService.addPersonAsStudent(id);
         if (r.success) successCount++;
-        else failCount++;
-      } catch { failCount++; }
+        else {
+          failCount++;
+          const person = allPersonnel.find(p => p.PersonnelID === id);
+          const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+          errors.push(`${name}: ${r.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        failCount++;
+        const person = allPersonnel.find(p => p.PersonnelID === id);
+        const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+        errors.push(`${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     setIsAdding(false);
     setIsAddOpen(false);
@@ -93,8 +104,10 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
     await loadStudents();
     if (successCount > 0)
       setMessage({ type: 'success', text: `${successCount} student${successCount !== 1 ? 's' : ''} added successfully.` });
-    if (failCount > 0)
-      setMessage({ type: 'error', text: `${failCount} student${failCount !== 1 ? 's' : ''} failed to add.` });
+    if (failCount > 0) {
+      const errorText = errors.join(' | ');
+      setMessage({ type: 'error', text: `${failCount} student${failCount !== 1 ? 's' : ''} failed to add: ${errorText}` });
+    }
   };
 
   const filteredStudents = students.filter(student => {
