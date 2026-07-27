@@ -18,6 +18,9 @@ interface Student {
   FirstName: string;
   LastName: string;
   PrimaryEmail: string;
+  PrimaryPhone?: string;
+  Instagram?: string;
+  Birthday?: string;
   EnrollmentID?: number;
   EnrollmentDate?: string;
   CompletionStatus?: string;
@@ -669,37 +672,58 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                     {studentAttendanceSummary.length === 0 ? (
                       <p className="text-xs text-gray-500">No attendance data yet.</p>
                     ) : (
-                      <div className="hidden md:block border rounded-lg overflow-x-auto">
-                        <table className="min-w-full text-xs">
-                          <thead className="bg-gray-50 text-gray-600">
-                            <tr>
-                              <th className="text-left px-2 py-2 font-semibold">Student</th>
-                              <th className="text-right px-2 py-2 font-semibold">Present</th>
-                              <th className="text-right px-2 py-2 font-semibold">Late</th>
-                              <th className="text-right px-2 py-2 font-semibold">Excused</th>
-                              <th className="text-right px-2 py-2 font-semibold">Absent</th>
-                              <th className="text-right px-2 py-2 font-semibold">Marked</th>
-                              <th className="text-right px-2 py-2 font-semibold">Attendance</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {studentAttendanceSummary.map((summary: any) => (
-                              <tr key={summary.enrollmentId} className="border-t border-gray-100">
-                                <td className="px-2 py-2">
-                                  <div className="font-medium text-gray-900">{summary.name || 'Unknown'}</div>
-                                  <div className="text-[11px] text-gray-500">{summary.status}</div>
-                                </td>
-                                <td className="text-right px-2 py-2">{summary.presentCount}</td>
-                                <td className="text-right px-2 py-2">{summary.lateCount}</td>
-                                <td className="text-right px-2 py-2">{summary.excusedCount}</td>
-                                <td className="text-right px-2 py-2">{summary.absentCount}</td>
-                                <td className="text-right px-2 py-2">{summary.markedCount}/{classDates.length}</td>
-                                <td className="text-right px-2 py-2 font-semibold text-primary-700">{summary.attendancePct}%</td>
+                      <>
+                        <div className="space-y-2 md:hidden">
+                          {studentAttendanceSummary.map((summary: any) => (
+                            <article key={summary.enrollmentId} className="rounded-lg border bg-white p-3 text-xs">
+                              <div className="mb-2">
+                                <p className="font-semibold text-gray-900">{summary.name || 'Unknown'}</p>
+                                <p className="text-[11px] text-gray-500">{summary.status}</p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-gray-700">
+                                <p>Present: {summary.presentCount}</p>
+                                <p>Late: {summary.lateCount}</p>
+                                <p>Excused: {summary.excusedCount}</p>
+                                <p>Absent: {summary.absentCount}</p>
+                                <p>Marked: {summary.markedCount}/{classDates.length}</p>
+                                <p className="font-semibold text-primary-700">Attendance: {summary.attendancePct}%</p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+
+                        <div className="hidden md:block border rounded-lg overflow-x-auto">
+                          <table className="min-w-full text-xs">
+                            <thead className="bg-gray-50 text-gray-600">
+                              <tr>
+                                <th className="text-left px-2 py-2 font-semibold">Student</th>
+                                <th className="text-right px-2 py-2 font-semibold">Present</th>
+                                <th className="text-right px-2 py-2 font-semibold">Late</th>
+                                <th className="text-right px-2 py-2 font-semibold">Excused</th>
+                                <th className="text-right px-2 py-2 font-semibold">Absent</th>
+                                <th className="text-right px-2 py-2 font-semibold">Marked</th>
+                                <th className="text-right px-2 py-2 font-semibold">Attendance</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody>
+                              {studentAttendanceSummary.map((summary: any) => (
+                                <tr key={summary.enrollmentId} className="border-t border-gray-100">
+                                  <td className="px-2 py-2">
+                                    <div className="font-medium text-gray-900">{summary.name || 'Unknown'}</div>
+                                    <div className="text-[11px] text-gray-500">{summary.status}</div>
+                                  </td>
+                                  <td className="text-right px-2 py-2">{summary.presentCount}</td>
+                                  <td className="text-right px-2 py-2">{summary.lateCount}</td>
+                                  <td className="text-right px-2 py-2">{summary.excusedCount}</td>
+                                  <td className="text-right px-2 py-2">{summary.absentCount}</td>
+                                  <td className="text-right px-2 py-2">{summary.markedCount}/{classDates.length}</td>
+                                  <td className="text-right px-2 py-2 font-semibold text-primary-700">{summary.attendancePct}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )}
                   </div>
 
@@ -1149,19 +1173,23 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
           ) : filteredStudents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredStudents.map((student) => (
-                <div key={student.StudentID} className="relative">
-                  <StudentCard student={student} onClick={() => {}} />
-                  {activeTab === 'enrolled' && (
-                    <button
-                      onClick={() => handleRemoveStudent(student.EnrollmentID!)}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                      title="Remove student from class"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
+                <div key={student.StudentID} className="relative rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                  <div className="pr-8">
+                    <h4 className="text-sm font-semibold text-gray-900">{student.FirstName} {student.LastName}</h4>
+                    <p className="text-xs text-gray-600 mt-1">{student.PrimaryEmail || 'No email'}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Status: {normalizeStatus(student.CompletionStatus || 'Active')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveStudent(student.EnrollmentID!)}
+                    className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                    title="Remove student from class"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
               ))}
             </div>
