@@ -2,17 +2,47 @@ import React, { useState, useEffect } from 'react';
 import { CastCard } from '../components/cast/CastCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { CastMemberWithDetails, Personnel } from '../types';
+import { CastMemberWithDetails, MasterGame, MasterGameInput, Personnel } from '../types';
 import { supabaseService as gasService } from '../services/supabaseService';
 
-export const CastDirectory: React.FC = () => {
+interface CastDirectoryProps {
+  canManageGames?: boolean;
+}
+
+const createEmptyGameForm = (): MasterGameInput => ({
+  GameName: '',
+  Description: '',
+  HowToPlay: '',
+  SetupNotes: '',
+  PlayerCount: '',
+  Format: '',
+  Category: '',
+  DifficultyLevel: null,
+});
+
+export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = false }) => {
   const [castMembers, setCastMembers] = useState<CastMemberWithDetails[]>([]);
   const [filteredCastMembers, setFilteredCastMembers] = useState<CastMemberWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [nameSortOrder, setNameSortOrder] = useState<'asc' | 'desc'>('asc');
   const [selectedCastMember, setSelectedCastMember] = useState<CastMemberWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isGamesModalOpen, setIsGamesModalOpen] = useState(false);
+  const [masterGames, setMasterGames] = useState<MasterGame[]>([]);
+  const [gamesSearchTerm, setGamesSearchTerm] = useState('');
+  const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+  const [isGamesLoading, setIsGamesLoading] = useState(false);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [isSavingGame, setIsSavingGame] = useState(false);
+  const [isDeletingGame, setIsDeletingGame] = useState(false);
+  const [gameForm, setGameForm] = useState<MasterGameInput>(createEmptyGameForm());
+  const [statusFlags, setStatusFlags] = useState<{ outOfTown: boolean; limitedInactive: boolean }>({
+    outOfTown: false,
+    limitedInactive: false,
+  });
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // Add Cast Member modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -30,13 +60,25 @@ export const CastDirectory: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const filtered = castMembers.filter(member =>
-      `${member.FirstName || ''} ${(member as any).Lastname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.PrimaryEmail || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.PrimaryPhone || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const normalizedQuery = searchTerm.toLowerCase();
+    const displayName = (member: CastMemberWithDetails) =>
+      `${member.FirstName || ''} ${member.LastName || (member as any).Lastname || ''}`.trim();
+
+    const filtered = castMembers
+      .filter((member) =>
+        displayName(member).toLowerCase().includes(normalizedQuery) ||
+        (member.PrimaryEmail || '').toLowerCase().includes(normalizedQuery) ||
+        (member.PrimaryPhone || '').toLowerCase().includes(normalizedQuery)
+      )
+      .sort((a, b) => {
+        const left = displayName(a).toLowerCase();
+        const right = displayName(b).toLowerCase();
+        const baseCompare = left.localeCompare(right, undefined, { sensitivity: 'base' });
+        return nameSortOrder === 'asc' ? baseCompare : -baseCompare;
+      });
+
     setFilteredCastMembers(filtered);
-  }, [castMembers, searchTerm]);
+  }, [castMembers, searchTerm, nameSortOrder]);
 
   const loadCastMembers = async () => {
     setIsLoading(true);
@@ -180,7 +222,201 @@ export const CastDirectory: React.FC = () => {
 
   const handleCastMemberClick = (castMember: CastMemberWithDetails) => {
     setSelectedCastMember(castMember);
+    setStatusFlags({
+      outOfTown: Boolean((castMember as any).OutOfTown),
+      limitedInactive: Boolean((castMember as any).LimitedInactive),
+    });
     setIsModalOpen(true);
+  };
+
+  const getStatusFromFlags = (flags: { outOfTown: boolean; limitedInactive: boolean }) => {
+    if (flags.outOfTown) return 'Out of Town';
+    if (flags.limitedInactive) return 'Limited/Inactive';
+    return 'Active';
+  };
+
+  const handleSaveStatus = async () => {
+    if (!selectedCastMember) return;
+
+    setIsSavingStatus(true);
+    try {
+      const response = await gasService.updateCastMemberFlags(selectedCastMember.CastMemberID, statusFlags);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update cast status.');
+      }
+
+      const updatedStatus = getStatusFromFlags(statusFlags);
+      setSelectedCastMember((prev) =>
+        prev
+          ? {
+              ...prev,
+              OutOfTown: statusFlags.outOfTown ? 1 : 0,
+              LimitedInactive: statusFlags.limitedInactive ? 1 : 0,
+              Status: updatedStatus,
+            }
+          : prev,
+      );
+
+      setCastMembers((prev) =>
+        prev.map((member) =>
+          member.CastMemberID === selectedCastMember.CastMemberID
+            ? {
+                ...member,
+                OutOfTown: statusFlags.outOfTown ? 1 : 0,
+                LimitedInactive: statusFlags.limitedInactive ? 1 : 0,
+                Status: updatedStatus,
+              }
+            : member,
+        ),
+      );
+
+      setMessage({ type: 'success', text: 'Cast member status updated.' });
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error updating cast status.' });
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
+  const loadMasterGames = async (preferredGameId?: number | null) => {
+    setIsGamesLoading(true);
+    try {
+      const response = await gasService.getAllGames();
+      if (response.success && Array.isArray(response.data)) {
+        const games = [...response.data].sort((a, b) =>
+          (a.GameName || '').localeCompare(b.GameName || '', undefined, { sensitivity: 'base' })
+        );
+        setMasterGames(games);
+        setSelectedGameId((current) => {
+          const nextId = preferredGameId ?? current;
+          if (nextId && games.some((game) => game.GameID === nextId)) {
+            return nextId;
+          }
+          return games[0]?.GameID ?? null;
+        });
+      } else {
+        setMessage({ type: 'error', text: response.error || 'Failed to load game library.' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Error loading game library.' });
+    } finally {
+      setIsGamesLoading(false);
+    }
+  };
+
+  const handleOpenGamesModal = async () => {
+    setIsGamesModalOpen(true);
+    setIsCreatingGame(false);
+    setGameForm(createEmptyGameForm());
+    if (masterGames.length > 0) return;
+    await loadMasterGames();
+  };
+
+  const filteredGames = masterGames.filter((game) => {
+    const search = gamesSearchTerm.trim().toLowerCase();
+    if (!search) return true;
+    const haystack = [
+      game.GameName,
+      game.Category,
+      game.Description,
+      game.HowToPlay,
+      game.SetupNotes,
+      game.Format,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(search);
+  });
+
+  const selectedGame = filteredGames.find((game) => game.GameID === selectedGameId) || filteredGames[0] || null;
+
+  const getHowToPlay = (game: MasterGame) => {
+    return game.HowToPlay || game.SetupNotes || game.Description || 'No instructions have been added yet.';
+  };
+
+  useEffect(() => {
+    if (isCreatingGame) return;
+    if (!selectedGame) {
+      setGameForm(createEmptyGameForm());
+      return;
+    }
+
+    setGameForm({
+      GameName: selectedGame.GameName || '',
+      Description: selectedGame.Description || '',
+      HowToPlay: selectedGame.HowToPlay || '',
+      SetupNotes: selectedGame.SetupNotes || '',
+      PlayerCount: selectedGame.PlayerCount ?? '',
+      Format: selectedGame.Format || '',
+      Category: selectedGame.Category || '',
+      DifficultyLevel: selectedGame.DifficultyLevel ?? null,
+    });
+  }, [isCreatingGame, selectedGame]);
+
+  const handleSelectGame = (gameId: number) => {
+    setIsCreatingGame(false);
+    setSelectedGameId(gameId);
+  };
+
+  const handleCreateGame = () => {
+    setIsCreatingGame(true);
+    setSelectedGameId(null);
+    setGameForm(createEmptyGameForm());
+  };
+
+  const handleSaveGame = async () => {
+    const trimmedName = gameForm.GameName.trim();
+    if (!trimmedName) {
+      setMessage({ type: 'error', text: 'Game name is required.' });
+      return;
+    }
+
+    const payload: MasterGameInput = {
+      ...gameForm,
+      GameName: trimmedName,
+    };
+
+    setIsSavingGame(true);
+    try {
+      const response = isCreatingGame || !selectedGameId
+        ? await gasService.createMasterGame(payload)
+        : await gasService.updateMasterGame(selectedGameId, payload);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to save game details.');
+      }
+
+      setMessage({ type: 'success', text: isCreatingGame ? 'Game added to master list.' : 'Game updated successfully.' });
+      setIsCreatingGame(false);
+      await loadMasterGames(response.data.GameID);
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error saving game.' });
+    } finally {
+      setIsSavingGame(false);
+    }
+  };
+
+  const handleDeleteGame = async () => {
+    if (!selectedGameId || !selectedGame) return;
+
+    const confirmed = window.confirm(`Delete ${selectedGame.GameName}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsDeletingGame(true);
+    try {
+      const response = await gasService.deleteMasterGame(selectedGameId);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to delete game.');
+      }
+
+      setMessage({ type: 'success', text: 'Game deleted from master list.' });
+      await loadMasterGames();
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Error deleting game.' });
+    } finally {
+      setIsDeletingGame(false);
+    }
   };
 
   const handleCloseModal = () => {
@@ -204,6 +440,12 @@ export const CastDirectory: React.FC = () => {
         <div className="flex items-center gap-3">
           <p className="text-sm text-gray-600">{filteredCastMembers.length} cast assignments</p>
           <button
+            onClick={handleOpenGamesModal}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Game Library
+          </button>
+          <button
             onClick={handleOpenAddModal}
             className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors"
           >
@@ -211,6 +453,317 @@ export const CastDirectory: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {isGamesModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl bg-white rounded-xl shadow-xl border max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Master Game Library</h2>
+                <p className="text-sm text-gray-500">Browse games and how to play them.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {canManageGames && (
+                  <button
+                    type="button"
+                    onClick={handleCreateGame}
+                    className="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700"
+                  >
+                    + New Game
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsGamesModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 text-xl leading-none"
+                  aria-label="Close game library"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-b">
+              <input
+                type="text"
+                placeholder="Search games, categories, or instructions..."
+                value={gamesSearchTerm}
+                onChange={(e) => setGamesSearchTerm(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none"
+              />
+            </div>
+
+            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-3">
+              <div className="border-r overflow-y-auto min-h-0">
+                {isGamesLoading ? (
+                  <div className="p-4 text-sm text-gray-500">Loading games...</div>
+                ) : filteredGames.length === 0 ? (
+                  <div className="p-4 text-sm text-gray-500">No games found.</div>
+                ) : (
+                  <ul className="divide-y divide-gray-100">
+                    {filteredGames.map((game) => (
+                      <li key={game.GameID}>
+                        <button
+                          onClick={() => handleSelectGame(game.GameID)}
+                          className={`w-full text-left px-4 py-3 transition-colors ${
+                            !isCreatingGame && selectedGame?.GameID === game.GameID ? 'bg-blue-50' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <p className="text-sm font-semibold text-gray-900">{game.GameName}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{game.Category || 'Uncategorized'}</p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="md:col-span-2 overflow-y-auto min-h-0 p-5">
+                {isCreatingGame ? (
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-gray-900">New Master Game</h3>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-1">Game Name</h4>
+                      <input
+                        type="text"
+                        value={gameForm.GameName}
+                        onChange={(e) => setGameForm((prev) => ({ ...prev, GameName: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-1">Overview</h4>
+                      <textarea
+                        value={gameForm.Description || ''}
+                        onChange={(e) => setGameForm((prev) => ({ ...prev, Description: e.target.value }))}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-1">How To Play</h4>
+                      <textarea
+                        value={gameForm.HowToPlay || ''}
+                        onChange={(e) => setGameForm((prev) => ({ ...prev, HowToPlay: e.target.value }))}
+                        rows={5}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-1">Setup Notes</h4>
+                      <textarea
+                        value={gameForm.SetupNotes || ''}
+                        onChange={(e) => setGameForm((prev) => ({ ...prev, SetupNotes: e.target.value }))}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Category</h4>
+                        <input
+                          type="text"
+                          value={gameForm.Category || ''}
+                          onChange={(e) => setGameForm((prev) => ({ ...prev, Category: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Format</h4>
+                        <input
+                          type="text"
+                          value={gameForm.Format || ''}
+                          onChange={(e) => setGameForm((prev) => ({ ...prev, Format: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Player Count</h4>
+                        <input
+                          type="text"
+                          value={gameForm.PlayerCount == null ? '' : String(gameForm.PlayerCount)}
+                          onChange={(e) => setGameForm((prev) => ({ ...prev, PlayerCount: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Difficulty (optional)</h4>
+                        <input
+                          type="number"
+                          min={1}
+                          value={gameForm.DifficultyLevel ?? ''}
+                          onChange={(e) => setGameForm((prev) => ({
+                            ...prev,
+                            DifficultyLevel: e.target.value ? Number(e.target.value) : null,
+                          }))}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex justify-end gap-2 border-t">
+                      <button
+                        type="button"
+                        onClick={() => setIsCreatingGame(false)}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveGame}
+                        disabled={isSavingGame}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        {isSavingGame ? 'Saving...' : 'Save New Game'}
+                      </button>
+                    </div>
+                  </div>
+                ) : selectedGame ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">{selectedGame.GameName}</h3>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                        {selectedGame.Category && (
+                          <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700">{selectedGame.Category}</span>
+                        )}
+                        {selectedGame.Format && (
+                          <span className="px-2 py-1 rounded-full bg-purple-100 text-purple-700">{selectedGame.Format}</span>
+                        )}
+                        {selectedGame.PlayerCount !== undefined && selectedGame.PlayerCount !== null && selectedGame.PlayerCount !== '' && (
+                          <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                            Players: {selectedGame.PlayerCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {selectedGame.Description && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Overview</h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedGame.Description}</p>
+                      </div>
+                    )}
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-1">How To Play</h4>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{getHowToPlay(selectedGame)}</p>
+                    </div>
+
+                    {canManageGames && (
+                      <>
+                        <div className="pt-3 border-t grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="sm:col-span-2">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Game Name</h4>
+                            <input
+                              type="text"
+                              value={gameForm.GameName}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, GameName: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Overview</h4>
+                            <textarea
+                              value={gameForm.Description || ''}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, Description: e.target.value }))}
+                              rows={3}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">How To Play</h4>
+                            <textarea
+                              value={gameForm.HowToPlay || ''}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, HowToPlay: e.target.value }))}
+                              rows={5}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Setup Notes</h4>
+                            <textarea
+                              value={gameForm.SetupNotes || ''}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, SetupNotes: e.target.value }))}
+                              rows={3}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Category</h4>
+                            <input
+                              type="text"
+                              value={gameForm.Category || ''}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, Category: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Format</h4>
+                            <input
+                              type="text"
+                              value={gameForm.Format || ''}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, Format: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Player Count</h4>
+                            <input
+                              type="text"
+                              value={gameForm.PlayerCount == null ? '' : String(gameForm.PlayerCount)}
+                              onChange={(e) => setGameForm((prev) => ({ ...prev, PlayerCount: e.target.value }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-800 mb-1">Difficulty</h4>
+                            <input
+                              type="number"
+                              min={1}
+                              value={gameForm.DifficultyLevel ?? ''}
+                              onChange={(e) => setGameForm((prev) => ({
+                                ...prev,
+                                DifficultyLevel: e.target.value ? Number(e.target.value) : null,
+                              }))}
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="pt-2 flex justify-end gap-2 border-t">
+                          <button
+                            type="button"
+                            onClick={handleDeleteGame}
+                            disabled={isDeletingGame || isSavingGame}
+                            className="px-4 py-2 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 disabled:opacity-60"
+                          >
+                            {isDeletingGame ? 'Deleting...' : 'Delete'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveGame}
+                            disabled={isSavingGame || isDeletingGame}
+                            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                          >
+                            {isSavingGame ? 'Saving...' : 'Save Changes'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Select a game to view details.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {message && (
         <div className="mb-4">
@@ -222,14 +775,24 @@ export const CastDirectory: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
         <input
           type="text"
           placeholder="Search by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          className="w-full sm:max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
+        <select
+          value={nameSortOrder}
+          onChange={(e) => setNameSortOrder(e.target.value as 'asc' | 'desc')}
+          className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+          aria-label="Sort cast names"
+          title="Sort cast names"
+        >
+          <option value="asc">Name: A to Z</option>
+          <option value="desc">Name: Z to A</option>
+        </select>
       </div>
 
       {isLoading ? (
@@ -453,7 +1016,49 @@ export const CastDirectory: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end">
+            <div className="mb-6 rounded-lg border border-gray-200 p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-3">Edit Status Flags</h3>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={statusFlags.limitedInactive}
+                    onChange={(e) =>
+                      setStatusFlags((prev) => ({
+                        ...prev,
+                        limitedInactive: e.target.checked,
+                      }))
+                    }
+                  />
+                  Limited / Inactive
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={statusFlags.outOfTown}
+                    onChange={(e) =>
+                      setStatusFlags((prev) => ({
+                        ...prev,
+                        outOfTown: e.target.checked,
+                      }))
+                    }
+                  />
+                  Out Of Town
+                </label>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                Preview status: <span className="font-medium text-gray-700">{getStatusFromFlags(statusFlags)}</span>
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleSaveStatus}
+                disabled={isSavingStatus}
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {isSavingStatus ? 'Saving...' : 'Save Status'}
+              </button>
               <button
                 onClick={handleCloseModal}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"

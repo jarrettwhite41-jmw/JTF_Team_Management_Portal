@@ -4030,6 +4030,7 @@ function addPersonAsStudent(personnelId) {
 
     const newStudentData = {
       PersonnelID: personnelId,
+      EnrollmentDate: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
       HighestLevelCompleted: null
     };
 

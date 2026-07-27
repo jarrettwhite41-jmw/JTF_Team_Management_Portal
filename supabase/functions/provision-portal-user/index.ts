@@ -159,10 +159,10 @@ Deno.serve(async (req) => {
   try {
     const { data: existingAccess, error: existingAccessError } = await serviceClient
       .from('portal_user_access')
-      .select('portal_role,personnel_id')
+      .select('portal_role,personnel_id,auth_user_id')
       .eq('login_email', loginEmail)
       .eq('portal_name', portalName)
-      .maybeSingle<{ portal_role: PortalRole; personnel_id: number | null }>();
+      .maybeSingle<{ portal_role: PortalRole; personnel_id: number | null; auth_user_id: string | null }>();
 
     if (existingAccessError) {
       return json(500, { error: `Unable to read portal access row: ${existingAccessError.message}` });
@@ -175,19 +175,38 @@ Deno.serve(async (req) => {
 
     const existingUser = await findUserByEmail(loginEmail);
 
-    let authUserId = existingUser?.id;
+    // If user not found by email but we have an auth_user_id from portal_access, they may have changed their email
+    let fallbackAuthUserId: string | null = null;
+    if (!existingUser && existingAccess?.auth_user_id) {
+      fallbackAuthUserId = existingAccess.auth_user_id;
+    }
+
+    let authUserId = existingUser?.id || fallbackAuthUserId;
     let createdNewUser = false;
 
     if (existingUser) {
       const { error } = await serviceClient.auth.admin.updateUserById(existingUser.id, {
         password: passwordToApply,
+        email: loginEmail, // Also update email if needed
         email_confirm: true,
       });
 
       if (error) {
         return json(500, { error: `Unable to update existing auth user: ${error.message}` });
       }
+    } else if (fallbackAuthUserId) {
+      // User was found by auth_user_id (email might have changed)
+      const { error } = await serviceClient.auth.admin.updateUserById(fallbackAuthUserId, {
+        password: passwordToApply,
+        email: loginEmail, // Update email to match login_email
+        email_confirm: true,
+      });
+
+      if (error) {
+        return json(500, { error: `Unable to update auth user by ID: ${error.message}` });
+      }
     } else {
+      // Create new user
       const { data, error } = await serviceClient.auth.admin.createUser({
         email: loginEmail,
         password: passwordToApply,

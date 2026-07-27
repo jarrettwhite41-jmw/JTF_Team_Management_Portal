@@ -120,7 +120,41 @@ export const InventoryPage: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="space-y-3 md:hidden">
+        {inventory.map((item) => (
+          <article key={item.ItemID} className="rounded-xl border bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold text-gray-900">{item.ItemName}</h2>
+                <p className="mt-1 text-sm text-gray-500">{item.Category || 'Uncategorized'}</p>
+              </div>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                Qty {item.Quantity}
+              </span>
+            </div>
+            <div className="mt-3 space-y-1 text-sm text-gray-600">
+              <p><span className="font-medium text-gray-800">Location:</span> {item.Location || 'Not set'}</p>
+              {item.Notes && <p><span className="font-medium text-gray-800">Notes:</span> {item.Notes}</p>}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => handleEdit(item)}
+                className="flex-1 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 hover:bg-primary-100"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleDelete(item)}
+                className="flex-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              >
+                Delete
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border bg-white shadow-sm md:block">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>

@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
 import {
   Personnel,
   ShowInformation,
@@ -17,6 +17,7 @@ import {
   BartenderWithDetails,
   ShowWithDetails,
   MasterGame,
+  MasterGameInput,
   ShowGame,
   Workshop,
   SpecialGuest,
@@ -31,22 +32,14 @@ import {
   PortalCredentialProvisionInput,
   PortalCredentialProvisionResult,
 } from '../types';
-
-// Initialize Supabase client
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-let supabase: SupabaseClient | null = null;
+import { isSupabaseConfigured, supabase as sharedSupabaseClient } from './supabaseClient';
 
 const getSupabaseClient = () => {
-  if (!supabase) {
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error('Supabase credentials not configured in environment variables');
-      throw new Error('Missing Supabase configuration');
-    }
-    supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  if (!isSupabaseConfigured()) {
+    console.error('Supabase credentials not configured in environment variables');
+    throw new Error('Missing Supabase configuration');
   }
-  return supabase;
+  return sharedSupabaseClient;
 };
 
 class SupabaseService {
@@ -116,6 +109,89 @@ class SupabaseService {
       return String((error as { message: unknown }).message);
     }
     return String(error);
+  }
+
+  private toMasterGame(row: any): MasterGame {
+    return {
+      GameID: row.game_id,
+      GameName: row.game_name,
+      Description: row.description || row.short_description || row['SHORT DESCRIPTION'] || '',
+      HowToPlay:
+        row.description ||
+        row.how_to_play ||
+        row.setup_edits_stage_direction ||
+        row.setup_notes ||
+        row['SETUP / EDITS / STAGE DIRECTION'] ||
+        '',
+      SetupNotes: row.setup_notes || row['SETUP / EDITS / STAGE DIRECTION'] || '',
+      PlayerCount: row.player_count ?? row.difficulty_level ?? null,
+      Format: row.format || row.short_long_form || row['Short/Long Form'] || '',
+      Category: row.category || row.game_type || row.GameType || '',
+      DifficultyLevel: row.difficulty_level ?? null,
+    };
+  }
+
+  private toMasterGameMutationPayload(input: MasterGameInput) {
+    const mergedDescriptionParts = [input.Description, input.HowToPlay]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    const mergedDescription = mergedDescriptionParts.length > 0
+      ? mergedDescriptionParts.join('\n\n')
+      : null;
+
+    const parsedPlayerCount =
+      input.PlayerCount == null || String(input.PlayerCount).trim() === ''
+        ? null
+        : Number.parseInt(String(input.PlayerCount).trim(), 10);
+
+    const normalizedFormat = input.Format?.trim().toLowerCase();
+    const format = normalizedFormat === 'short'
+      ? 'Short'
+      : normalizedFormat === 'long'
+        ? 'Long'
+        : null;
+
+    return {
+      game_name: input.GameName.trim(),
+      description: mergedDescription,
+      player_count: Number.isNaN(parsedPlayerCount as number) ? null : parsedPlayerCount,
+      format,
+      category: input.Category?.trim() || null,
+    };
+  }
+
+  private toLegacyMasterGameMutationPayload(input: MasterGameInput) {
+    const mergedDescriptionParts = [input.Description, input.HowToPlay]
+      .map((value) => value?.trim())
+      .filter((value): value is string => Boolean(value));
+
+    const mergedDescription = mergedDescriptionParts.length > 0
+      ? mergedDescriptionParts.join('\n\n')
+      : null;
+
+    const parsedPlayerCount =
+      input.PlayerCount == null || String(input.PlayerCount).trim() === ''
+        ? null
+        : Number.parseInt(String(input.PlayerCount).trim(), 10);
+
+    return {
+      game_name: input.GameName.trim(),
+      description: mergedDescription,
+      category: input.Category?.trim() || null,
+      difficulty_level: Number.isNaN(parsedPlayerCount as number) ? null : parsedPlayerCount,
+    };
+  }
+
+  private isMissingMasterGameColumnError(error: unknown): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    return (
+      message.includes('master_game_list')
+      && (
+        message.includes('schema cache')
+        || (message.includes('column') && message.includes('does not exist'))
+      )
+    );
   }
 
   private async isCastMember(personnelId: number): Promise<boolean> {
@@ -203,6 +279,37 @@ class SupabaseService {
         portal_role: input.portalRole,
         is_active: input.isActive ?? true,
       };
+
+      const rpcPayload = {
+        p_login_email: normalizedEmail,
+        p_portal_name: input.portalName,
+        p_portal_role: input.portalRole,
+        p_personnel_id: input.personnelId ?? null,
+        p_is_active: input.isActive ?? true,
+      };
+
+      const rpcResult = await this.client
+        .rpc('upsert_portal_user_access_admin', rpcPayload)
+        .single();
+
+      if (!rpcResult.error && rpcResult.data) {
+        const { data: hydratedRow, error: hydratedError } = await this.client
+          .from('portal_user_access')
+          .select('*, personnel:personnel_id(first_name,last_name)')
+          .eq('access_id', rpcResult.data.access_id)
+          .single();
+
+        if (hydratedError) throw hydratedError;
+        return { success: true, data: this.toPortalAccess(hydratedRow) };
+      }
+
+      const rpcMessage = rpcResult.error?.message || '';
+      const isMissingRpc = /upsert_portal_user_access_admin/i.test(rpcMessage)
+        && /not found|does not exist|Could not find/i.test(rpcMessage);
+
+      if (rpcResult.error && !isMissingRpc) {
+        throw rpcResult.error;
+      }
 
       const { data, error } = await this.client
         .from('portal_user_access')
@@ -350,7 +457,12 @@ class SupabaseService {
 
       const { data, error } = await this.client
         .from('student_info')
-        .insert([{ personnel_id: personnelId }])
+        .insert([
+          {
+            personnel_id: personnelId,
+            enrollment_date: new Date().toISOString().split('T')[0],
+          },
+        ])
         .select('student_id, personnel_id')
         .single();
 
@@ -446,7 +558,6 @@ class SupabaseService {
             primary_phone: personnel.PrimaryPhone || null,
             instagram: personnel.Instagram || null,
             birthday: personnel.Birthday || null,
-            active: personnel.IsActive ?? true,
           },
         ])
         .select()
@@ -471,7 +582,6 @@ class SupabaseService {
       if (personnel.PrimaryPhone !== undefined) updates.primary_phone = personnel.PrimaryPhone || null;
       if (personnel.Instagram !== undefined) updates.instagram = personnel.Instagram || null;
       if (personnel.Birthday !== undefined) updates.birthday = personnel.Birthday || null;
-      if (personnel.IsActive !== undefined) updates.active = personnel.IsActive;
 
       const { data, error } = await this.client
         .from('personnel')
@@ -650,7 +760,7 @@ class SupabaseService {
           show_types(show_type_name),
           directors(personnel_id, personnel(first_name, last_name)),
           show_performances(*, personnel(*)),
-          crew_duties(*, personnel(*))
+          crew_duties(*, personnel(*), crew_duty_types(duty_name))
         `
         )
         .order('show_date', { ascending: false });
@@ -658,19 +768,19 @@ class SupabaseService {
       if (error) throw error;
 
       const transformed = data?.map((show: any) => ({
-        ShowID: show.show_id,
-        ShowDate: show.show_date,
-        ShowTime: show.show_time,
-        ShowTypeID: show.show_type_id,
-        DirectorID: show.director_id,
-        Venue: show.venue,
-        Status: show.status,
-        ShowTypeName: show.show_types?.show_type_name || '',
-        DirectorName: show.directors?.personnel
-          ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
-          : '',
-        CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
-        CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
+          ShowID: show.show_id,
+          ShowDate: show.show_date,
+          ShowTime: show.show_time,
+          ShowTypeID: show.show_type_id,
+          DirectorID: show.director_id,
+          Venue: show.venue,
+          Status: show.status,
+          ShowTypeName: show.show_types?.show_type_name || '',
+          DirectorName: show.directors?.personnel
+            ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
+            : '',
+          CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
+          CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
       })) || [];
 
       return { success: true, data: transformed };
@@ -1025,6 +1135,27 @@ class SupabaseService {
     }
   }
 
+  async updateCastMemberFlags(
+    castMemberId: number,
+    flags: { outOfTown: boolean; limitedInactive: boolean },
+  ): Promise<ApiResponse<{ updated: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('cast_member_info')
+        .update({
+          OutOfTown: flags.outOfTown ? 1 : 0,
+          'Limited/Inactive': flags.limitedInactive ? 1 : 0,
+        })
+        .eq('CastMemberID', castMemberId);
+
+      if (error) throw error;
+      return { success: true, data: { updated: true } };
+    } catch (error) {
+      console.error('Error updating cast member flags:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // CLASSES
   // ========================================================================
@@ -1302,6 +1433,382 @@ class SupabaseService {
     }
   }
 
+  async getClassOfferingDetails(offeringId: number): Promise<ApiResponse<any>> {
+    try {
+      const offeringRes = await this.client
+        .from('class_offerings')
+        .select('offering_id, class_level_id, status, class_levels(level_name)')
+        .eq('offering_id', offeringId)
+        .maybeSingle();
+
+      if (offeringRes.error) throw offeringRes.error;
+
+      const enrollmentsRes = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id, offering_id, student_id, status')
+        .eq('offering_id', offeringId)
+        .order('enrollment_id', { ascending: true });
+
+      if (enrollmentsRes.error) throw enrollmentsRes.error;
+
+      const enrollmentRows = enrollmentsRes.data || [];
+      const studentIds = Array.from(new Set(enrollmentRows.map((row: any) => row.student_id).filter(Boolean)));
+
+      const studentInfoRes = studentIds.length > 0
+        ? await this.client
+            .from('student_info')
+            .select('student_id, personnel_id')
+            .in('student_id', studentIds)
+        : { data: [], error: null };
+
+      if (studentInfoRes.error) throw studentInfoRes.error;
+
+      const studentInfoById = new Map<number, any>(
+        (studentInfoRes.data || []).map((row: any) => [row.student_id, row]),
+      );
+
+      const personnelIds = Array.from(
+        new Set((studentInfoRes.data || []).map((row: any) => row.personnel_id).filter(Boolean)),
+      );
+
+      const personnelRes = personnelIds.length > 0
+        ? await this.client
+            .from('personnel')
+            .select('personnel_id, first_name, last_name, primary_email')
+            .in('personnel_id', personnelIds)
+        : { data: [], error: null };
+
+      if (personnelRes.error) throw personnelRes.error;
+
+      const personnelById = new Map<number, any>(
+        (personnelRes.data || []).map((row: any) => [row.personnel_id, row]),
+      );
+
+      const toEnrollmentStatus = (raw: string): string => {
+        const normalized = String(raw || '').trim().toLowerCase();
+        if (!normalized) return 'Active';
+        if (normalized === 'admin') return 'ADMIN';
+        if (normalized === 'in progress') return 'In Progress';
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      };
+
+      const enrollments = enrollmentRows.map((row: any) => {
+        const studentInfo = studentInfoById.get(row.student_id);
+        const person = studentInfo ? personnelById.get(studentInfo.personnel_id) : null;
+        const status = toEnrollmentStatus(row.status);
+        return {
+          EnrollmentID: row.enrollment_id,
+          OfferingID: row.offering_id,
+          StudentID: row.student_id,
+          Status: status,
+          CompletionStatus: status,
+          FirstName: person?.first_name || 'Unknown',
+          LastName: person?.last_name || '',
+          PrimaryEmail: person?.primary_email || '',
+        };
+      });
+
+      const enrollmentIds = enrollments.map((row: any) => row.EnrollmentID).filter(Boolean);
+      const attendanceRes = enrollmentIds.length > 0
+        ? await this.client
+            .from('class_attendance')
+            .select('attendance_id, enrollment_id, class_date, attended, notes')
+            .in('enrollment_id', enrollmentIds)
+            .order('class_date', { ascending: true })
+        : { data: [], error: null };
+
+      if (attendanceRes.error) throw attendanceRes.error;
+
+      const toAttendanceStatus = (attended: boolean | null, notes: string | null): 'Present' | 'Absent' | 'Late' | 'Excused' => {
+        const notesValue = String(notes || '').trim().toLowerCase();
+        if (notesValue === 'late') return 'Late';
+        if (notesValue === 'excused') return 'Excused';
+        return attended ? 'Present' : 'Absent';
+      };
+
+      const attendanceRecords = (attendanceRes.data || []).map((row: any) => ({
+        AttendanceID: row.attendance_id,
+        EnrollmentID: row.enrollment_id,
+        ClassDate: String(row.class_date || '').split('T')[0],
+        AttendanceStatus: toAttendanceStatus(row.attended, row.notes),
+      }));
+
+      const activeEnrollmentCount = enrollments.filter((row: any) => row.Status === 'Active').length;
+      const byDateMap = new Map<string, any>();
+
+      for (const row of attendanceRecords) {
+        const current = byDateMap.get(row.ClassDate) || {
+          ClassDate: row.ClassDate,
+          PresentCount: 0,
+          LateCount: 0,
+          ExcusedCount: 0,
+          AbsentCount: 0,
+          MarkedCount: 0,
+          AttendancePct: 0,
+        };
+
+        current.MarkedCount += 1;
+        if (row.AttendanceStatus === 'Present') current.PresentCount += 1;
+        if (row.AttendanceStatus === 'Late') current.LateCount += 1;
+        if (row.AttendanceStatus === 'Excused') current.ExcusedCount += 1;
+        if (row.AttendanceStatus === 'Absent') current.AbsentCount += 1;
+
+        byDateMap.set(row.ClassDate, current);
+      }
+
+      const attendanceByDate = Array.from(byDateMap.values())
+        .map((day: any) => ({
+          ...day,
+          AttendancePct: activeEnrollmentCount > 0
+            ? Math.round(((day.PresentCount + day.LateCount) / activeEnrollmentCount) * 100)
+            : 0,
+        }))
+        .sort((a: any, b: any) => a.ClassDate.localeCompare(b.ClassDate));
+
+      return {
+        success: true,
+        data: {
+          Enrollments: enrollments,
+          AttendanceRecords: attendanceRecords,
+          AttendanceByDate: attendanceByDate,
+          ClassLevelID: offeringRes.data?.class_level_id,
+          LevelName: offeringRes.data?.class_levels?.level_name,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching class offering details:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getClassOfferingStatus(offeringId: number): Promise<ApiResponse<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .select('status')
+        .eq('offering_id', offeringId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return { success: false, error: 'Class offering not found.' };
+
+      const normalized = String(data.status || '').trim().toLowerCase();
+      let status: 'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled' = 'Upcoming';
+      if (normalized === 'completed') status = 'Completed';
+      else if (normalized === 'cancelled' || normalized === 'canceled') status = 'Cancelled';
+      else if (normalized === 'in progress' || normalized === 'open') status = 'In Progress';
+
+      return { success: true, data: status };
+    } catch (error) {
+      console.error('Error fetching class offering status:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateClassAttendance(attendanceData: {
+    EnrollmentID?: number;
+    OfferingID?: number;
+    ClassDate?: string;
+    Status?: string;
+    Notes?: string;
+    enrollmentId?: number;
+    offeringId?: number;
+    classDate?: string;
+    status?: string;
+    notes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const enrollmentId = attendanceData.EnrollmentID ?? attendanceData.enrollmentId;
+      const classDateRaw = attendanceData.ClassDate ?? attendanceData.classDate;
+      const statusRaw = attendanceData.Status ?? attendanceData.status;
+
+      if (!enrollmentId || !classDateRaw || !statusRaw) {
+        return { success: false, error: 'Missing required attendance fields.' };
+      }
+
+      const classDate = String(classDateRaw).split('T')[0];
+      const status = String(statusRaw);
+      const attended = status === 'Present' || status === 'Late';
+      const notes = status === 'Late' || status === 'Excused'
+        ? status
+        : (attendanceData.Notes ?? attendanceData.notes ?? null);
+
+      const existingRes = await this.client
+        .from('class_attendance')
+        .select('attendance_id')
+        .eq('enrollment_id', enrollmentId)
+        .eq('class_date', classDate)
+        .order('attendance_id', { ascending: false })
+        .limit(1);
+
+      if (existingRes.error) throw existingRes.error;
+
+      if ((existingRes.data || []).length > 0) {
+        const { error } = await this.client
+          .from('class_attendance')
+          .update({ attended, notes })
+          .eq('attendance_id', existingRes.data![0].attendance_id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('class_attendance')
+          .insert({
+            enrollment_id: enrollmentId,
+            class_date: classDate,
+            attended,
+            notes,
+          });
+
+        if (error) throw error;
+      }
+
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating class attendance:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async saveStudentCompetency(data: {
+    EnrollmentID: number;
+    StudentID: number;
+    SkillID: number;
+    Rating: 1 | 2 | 3 | 4 | 5;
+    Notes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const existing = await this.client
+        .from('student_competencies')
+        .select('competency_id')
+        .eq('enrollment_id', data.EnrollmentID)
+        .eq('skill_id', data.SkillID)
+        .maybeSingle();
+
+      if (existing.error) throw existing.error;
+
+      if (existing.data) {
+        const { error } = await this.client
+          .from('student_competencies')
+          .update({ rating: data.Rating, notes: data.Notes ?? null })
+          .eq('competency_id', existing.data.competency_id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('student_competencies')
+          .insert({
+            enrollment_id: data.EnrollmentID,
+            student_id: data.StudentID,
+            skill_id: data.SkillID,
+            rating: data.Rating,
+            notes: data.Notes ?? null,
+          });
+
+        if (error) throw error;
+      }
+
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving student competency:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async addStudentProgressNote(note: { EnrollmentID: number; NoteDate: string; Note: string }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_progress_notes')
+        .insert({
+          enrollment_id: note.EnrollmentID,
+          note_date: note.NoteDate,
+          narrative_feedback: note.Note,
+        });
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving progress note:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async saveSessionLog(log: {
+    OfferingID: number;
+    SessionDate: string;
+    CurriculumNotes?: string;
+    GeneralNotes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('class_session_logs')
+        .insert({
+          offering_id: log.OfferingID,
+          session_date: log.SessionDate,
+          curriculum_notes: log.CurriculumNotes || null,
+          group_notes: log.GeneralNotes || null,
+        });
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving session log:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getSessionLogsForOffering(offeringId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_session_logs')
+        .select('session_log_id, offering_id, session_date, curriculum_notes, group_notes')
+        .eq('offering_id', offeringId)
+        .order('session_date', { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          LogID: row.session_log_id,
+          OfferingID: row.offering_id,
+          SessionDate: String(row.session_date || '').split('T')[0],
+          CurriculumNotes: row.curriculum_notes || '',
+          GeneralNotes: row.group_notes || '',
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching session logs:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getProgressNotesForOffering(enrollmentIds: number[]): Promise<ApiResponse<any[]>> {
+    try {
+      if (enrollmentIds.length === 0) return { success: true, data: [] };
+
+      const { data, error } = await this.client
+        .from('student_progress_notes')
+        .select('progress_note_id, enrollment_id, note_date, narrative_feedback')
+        .in('enrollment_id', enrollmentIds)
+        .order('note_date', { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          EnrollmentID: row.enrollment_id,
+          NoteDate: String(row.note_date || '').split('T')[0],
+          Note: row.narrative_feedback || '',
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching progress notes:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // LOOKUP TABLES / REFERENCE DATA
   // ========================================================================
@@ -1400,17 +1907,160 @@ class SupabaseService {
 
       if (error) throw error;
 
-      const transformed = (data || []).map((game: any) => ({
-        GameID: game.game_id,
-        GameName: game.game_name,
-        Description: game.description || '',
-        Category: game.category || '',
-        DifficultyLevel: game.difficulty_level ?? null,
-      }));
+      const transformed = (data || []).map((game: any) => this.toMasterGame(game));
 
       return { success: true, data: transformed };
     } catch (error) {
       console.error('Error fetching games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async createMasterGame(input: MasterGameInput): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!input.GameName?.trim()) {
+        return { success: false, error: 'Game name is required.' };
+      }
+
+      const payload = this.toMasterGameMutationPayload(input);
+      let { data, error } = await this.client
+        .from('master_game_list')
+        .insert([payload])
+        .select('*')
+        .single();
+
+      if (error && this.isMissingMasterGameColumnError(error)) {
+        const legacyPayload = this.toLegacyMasterGameMutationPayload(input);
+        const fallbackResult = await this.client
+          .from('master_game_list')
+          .insert([legacyPayload])
+          .select('*')
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error creating master game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateMasterGame(gameId: number, input: MasterGameInput): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      if (!input.GameName?.trim()) {
+        return { success: false, error: 'Game name is required.' };
+      }
+
+      const payload = this.toMasterGameMutationPayload(input);
+      let { data, error } = await this.client
+        .from('master_game_list')
+        .update(payload)
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error && this.isMissingMasterGameColumnError(error)) {
+        const legacyPayload = this.toLegacyMasterGameMutationPayload(input);
+        const fallbackResult = await this.client
+          .from('master_game_list')
+          .update(legacyPayload)
+          .eq('game_id', gameId)
+          .select('*')
+          .single();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error updating master game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deleteMasterGame(gameId: number): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const { error } = await this.client
+        .from('master_game_list')
+        .delete()
+        .eq('game_id', gameId);
+
+      if (error) throw error;
+      return { success: true, data: { deleted: true } };
+    } catch (error) {
+      console.error('Error deleting master game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getRequestedMasterGames(): Promise<ApiResponse<MasterGame[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .select('*')
+        .ilike('category', 'Requested from Show%')
+        .order('game_name', { ascending: true });
+
+      if (error) throw error;
+      return { success: true, data: (data || []).map((row: any) => this.toMasterGame(row)) };
+    } catch (error) {
+      console.error('Error fetching requested master games:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async approveRequestedGame(gameId: number, approvedCategory: string = 'Improv'): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const category = approvedCategory.trim() || 'Improv';
+
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .update({ category })
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error approving requested game:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async rejectRequestedGame(gameId: number): Promise<ApiResponse<MasterGame>> {
+    try {
+      if (!Number.isFinite(gameId) || gameId <= 0) {
+        return { success: false, error: 'Valid game ID is required.' };
+      }
+
+      const { data, error } = await this.client
+        .from('master_game_list')
+        .update({ category: 'Rejected Request' })
+        .eq('game_id', gameId)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.toMasterGame(data) };
+    } catch (error) {
+      console.error('Error rejecting requested game:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
@@ -1469,7 +2119,8 @@ class SupabaseService {
               game_name: customName,
               description: game.variation || null,
               category: game.flag ? 'Requested from Show' : 'Custom',
-              difficulty_level: null,
+              player_count: null,
+              format: null,
             }])
             .select('game_id, game_name')
             .single();
@@ -2128,8 +2779,18 @@ class SupabaseService {
 
   async addPersonAsCrewMember(personnelId: number, showId: number, dutyTypeId: number): Promise<ApiResponse<CrewMemberWithDetails>> {
     try {
+      const { data: dutyType, error: dutyTypeError } = await this.client
+        .from('crew_duty_types')
+        .select('duty_name')
+        .eq('crew_duty_type_id', dutyTypeId)
+        .maybeSingle();
+
+      if (dutyTypeError) throw dutyTypeError;
+
+      const normalizedDutyName = String(dutyType?.duty_name || '').trim().toLowerCase();
+      const isBartenderDuty = normalizedDutyName.includes('bartender') || normalizedDutyName === 'bar';
       const isCast = await this.isCastMember(personnelId);
-      if (!isCast) {
+      if (!isCast && !isBartenderDuty) {
         return { success: false, error: 'Crew assignments are restricted to cast members.' };
       }
 

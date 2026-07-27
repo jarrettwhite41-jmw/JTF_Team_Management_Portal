@@ -318,7 +318,8 @@ CREATE TABLE master_game_list (
   game_name VARCHAR(255) NOT NULL UNIQUE,
   description TEXT,
   category VARCHAR(100),
-  difficulty_level INT CHECK (difficulty_level >= 1 AND difficulty_level <= 5),
+  player_count INT CHECK (player_count IS NULL OR player_count > 0),
+  format VARCHAR(10) CHECK (format IN ('Short', 'Long')),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

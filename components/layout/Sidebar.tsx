@@ -40,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'director-management', label: 'Director Management', icon: '🎬' },
         { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
         { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ] as NavigationItem[],
     },
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ] as NavigationItem[],
     },
     {
@@ -113,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
       {/* Sidebar panel */}
       <div
         className={[
-          'bg-slate-900 flex flex-col shadow-xl',
+          'jtf-sidebar flex flex-col shadow-xl',
           'fixed inset-y-0 left-0 z-50 w-64',
           'transition-transform duration-300 ease-in-out',
           'md:relative md:inset-auto md:z-auto md:h-full md:flex-shrink-0 md:translate-x-0',
@@ -149,8 +151,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                   onClick={() => handleNavigate(item.id)}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
                     currentPage === item.id
-                      ? 'bg-sky-500 text-white shadow-sm'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                      ? 'jtf-nav-active'
+                      : 'jtf-nav-item'
                   }`}
                 >
                   <span className="text-lg leading-none">{item.icon}</span>
@@ -173,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                       toggleGroup(group.id);
                     }}
                     className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors ${
-                      hasActiveChild ? 'bg-slate-800 text-slate-100' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                      hasActiveChild ? 'jtf-nav-active-soft' : 'jtf-nav-item'
                     }`}
                   >
                     <span className="flex items-center gap-3">
@@ -191,8 +193,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                             onClick={() => handleNavigate(item.id)}
                             className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-left transition-colors ${
                               currentPage === item.id
-                                ? 'bg-sky-500 text-white'
-                                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                                ? 'jtf-nav-active'
+                                : 'jtf-nav-item'
                             }`}
                           >
                             <span className="text-sm leading-none">{item.icon}</span>
@@ -213,8 +215,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                 onClick={() => handleNavigate('data-import')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
                   currentPage === 'data-import'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm font-semibold'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+                    ? 'jtf-nav-active font-semibold'
+                    : 'jtf-nav-item'
                 }`}
               >
                 <span className="text-lg leading-none">⬆️</span>

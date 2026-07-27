@@ -16,7 +16,6 @@ export const BartendersPage: React.FC = () => {
   // Add modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
-  const [eligibleBartenderIds, setEligibleBartenderIds] = useState<number[]>([]);
   const [personnelSearch, setPersonnelSearch] = useState('');
   const [selectedPersonnelIds, setSelectedPersonnelIds] = useState<number[]>([]);
   const [trainedMap, setTrainedMap] = useState<Record<number, boolean>>({});
@@ -69,12 +68,11 @@ export const BartendersPage: React.FC = () => {
   // Add modal helpers
   const availablePersonnel = allPersonnel.filter(p => {
     const notBartender = !bartenderPersonnelIds.has(p.PersonnelID);
-    const eligible = eligibleBartenderIds.includes(p.PersonnelID);
     const matchesSearch =
       personnelSearch === '' ||
       `${p.FirstName} ${p.LastName}`.toLowerCase().includes(personnelSearch.toLowerCase()) ||
       (p.PrimaryEmail || '').toLowerCase().includes(personnelSearch.toLowerCase());
-    return notBartender && eligible && matchesSearch;
+    return notBartender && matchesSearch;
   });
 
   const toggleSelect = (id: number) =>
@@ -94,38 +92,16 @@ export const BartendersPage: React.FC = () => {
     setPersonnelSearch('');
     setSelectedPersonnelIds([]);
     setTrainedMap({});
-    setEligibleBartenderIds([]);
     setIsAddOpen(true);
 
     try {
-      const [personnelResponse, castResponse, studentsResponse] = await Promise.all([
-        gasService.getAllPersonnel(),
-        gasService.getAllCastMembers(),
-        gasService.getAllStudentsWithDetails(),
-      ]);
+      const personnelResponse = await gasService.getAllPersonnel();
 
       if (personnelResponse.success && Array.isArray(personnelResponse.data)) {
         setAllPersonnel(personnelResponse.data as Personnel[]);
       }
-
-      const castRows = Array.isArray((castResponse.data as any)?.data)
-        ? (castResponse.data as any).data
-        : (Array.isArray(castResponse.data) ? castResponse.data : []);
-      const studentRows = Array.isArray(studentsResponse.data)
-        ? studentsResponse.data
-        : (Array.isArray((studentsResponse.data as any)?.data) ? (studentsResponse.data as any).data : []);
-
-      const castIds = castRows
-        .map((row: any) => Number(row.PersonnelID))
-        .filter((id: number) => Number.isFinite(id));
-      const studentIds = studentRows
-        .map((row: any) => Number(row.PersonnelID))
-        .filter((id: number) => Number.isFinite(id));
-
-      const uniqueEligibleIds = Array.from(new Set([...castIds, ...studentIds]));
-      setEligibleBartenderIds(uniqueEligibleIds);
     } catch {
-      setMessage({ type: 'error', text: 'Unable to load eligible bartender candidates.' });
+      setMessage({ type: 'error', text: 'Unable to load personnel.' });
     }
   };
 
@@ -134,13 +110,24 @@ export const BartendersPage: React.FC = () => {
     setIsAdding(true);
     let successCount = 0;
     let failCount = 0;
+    const errors: string[] = [];
     for (const id of selectedPersonnelIds) {
       try {
         const trained = trainedMap[id] ?? false;
         const r = await gasService.addPersonAsBartender(id, trained, 'Active');
         if (r.success) successCount++;
-        else failCount++;
-      } catch { failCount++; }
+        else {
+          failCount++;
+          const person = allPersonnel.find(p => p.PersonnelID === id);
+          const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+          errors.push(`${name}: ${r.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        failCount++;
+        const person = allPersonnel.find(p => p.PersonnelID === id);
+        const name = person ? `${person.FirstName} ${person.LastName}` : `ID ${id}`;
+        errors.push(`${name}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
     }
     setIsAdding(false);
     setIsAddOpen(false);
@@ -148,8 +135,10 @@ export const BartendersPage: React.FC = () => {
     await loadBartenders();
     if (successCount > 0)
       setMessage({ type: 'success', text: `${successCount} bartender${successCount !== 1 ? 's' : ''} added successfully.` });
-    if (failCount > 0)
-      setMessage({ type: 'error', text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added.` });
+    if (failCount > 0) {
+      const errorText = errors.join(' | ');
+      setMessage({ type: 'error', text: `${failCount} person${failCount !== 1 ? 's' : ''} could not be added: ${errorText}` });
+    }
   };
 
   const handleConfirmRemove = async () => {

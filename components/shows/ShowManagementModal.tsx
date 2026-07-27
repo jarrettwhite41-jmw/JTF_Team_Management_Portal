@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from '../common/Message';
 import { ShowEditModal } from './ShowEditModal';
 import { gasService } from '../../services/googleAppsScript';
-import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame } from '../../types';
+import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame, BartenderWithDetails } from '../../types';
 
 interface ShowManagementModalProps {
   isOpen: boolean;
@@ -54,6 +54,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [selectedCastIds, setSelectedCastIds] = useState<Set<number>>(new Set());
   const [currentCrew, setCurrentCrew] = useState<CrewAssignment[]>([]);
   const [personnelOptions, setPersonnelOptions] = useState<PersonnelOption[]>([]);
+  const [bartenderOptions, setBartenderOptions] = useState<PersonnelOption[]>([]);
   const [crewDutyTypes, setCrewDutyTypes] = useState<CrewDutyTypes[]>([]);
   const [crewAssignments, setCrewAssignments] = useState<Map<number, number>>(new Map());
   const [castSearch, setCastSearch] = useState('');
@@ -88,11 +89,12 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse] = await Promise.all([
+      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse, bartendersResponse] = await Promise.all([
         gasService.getAllCastMembers(),
         gasService.getShowPerformances(show.ShowID),
         gasService.getShowCrew(show.ShowID),
         gasService.getAllCrewDutyTypes(),
+        gasService.getBartendersWithDetails(),
       ]);
 
       const [gamesResponse, showGamesResponse] = isCompletedShow
@@ -106,6 +108,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       const performanceRows = Array.isArray(performancesResponse.data) ? performancesResponse.data : (performancesResponse.data as any)?.data || [];
       const crewRows = Array.isArray(crewResponse.data) ? crewResponse.data : (crewResponse.data as any)?.data || [];
       const dutyTypeRows = Array.isArray(dutyTypesResponse.data) ? dutyTypesResponse.data : (dutyTypesResponse.data as any)?.data || [];
+      const bartenderRows = Array.isArray(bartendersResponse.data) ? bartendersResponse.data : (bartendersResponse.data as any)?.data || [];
 
       if (castResponse.success) {
         const mappedCast = castRows.map((member: any) => ({
@@ -152,6 +155,17 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         setPersonnelOptions(mappedPersonnel);
       }
 
+      if (bartendersResponse.success) {
+        const mappedBartenders = bartenderRows.map((bartender: BartenderWithDetails) => ({
+          PersonnelID: bartender.PersonnelID,
+          FirstName: bartender.FirstName,
+          LastName: bartender.LastName,
+          PrimaryEmail: bartender.PrimaryEmail,
+        }));
+        mappedBartenders.sort((a: PersonnelOption, b: PersonnelOption) => sortByName(`${a.FirstName || ''} ${a.LastName || ''}`.trim(), `${b.FirstName || ''} ${b.LastName || ''}`.trim()));
+        setBartenderOptions(mappedBartenders);
+      }
+
       if (dutyTypesResponse.success) {
         setCrewDutyTypes(dutyTypeRows || []);
       }
@@ -182,6 +196,17 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   };
 
   const castCounts = useMemo(() => ({ selected: selectedCastIds.size, total: availableCast.length }), [selectedCastIds, availableCast.length]);
+  const castPersonnelIds = useMemo(() => new Set(availableCast.map((member) => member.PersonnelID)), [availableCast]);
+  const allPersonnelById = useMemo(() => {
+    const entries = [...personnelOptions, ...bartenderOptions];
+    const map = new Map<number, PersonnelOption>();
+    entries.forEach((person) => {
+      if (!map.has(person.PersonnelID)) {
+        map.set(person.PersonnelID, person);
+      }
+    });
+    return map;
+  }, [personnelOptions, bartenderOptions]);
 
   const toggleCast = (castMemberId: number) => {
     setSelectedCastIds(prev => {
@@ -222,15 +247,27 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         throw new Error(castResponse.error || 'Failed to update cast');
       }
 
-      const assignmentsToRemove = currentCrew.filter(crew => !crewAssignments.has(crew.CrewDutyTypeID));
+      const assignmentsToRemove = currentCrew.filter((crew) => {
+        const nextPersonnelId = crewAssignments.get(crew.CrewDutyTypeID);
+        return !nextPersonnelId || nextPersonnelId !== crew.PersonnelID;
+      });
       for (const assignment of assignmentsToRemove) {
-        await gasService.removeCrewMember(assignment.DutyID);
+        const removeResponse = await gasService.removeCrewMember(assignment.DutyID);
+        if (!removeResponse.success) {
+          throw new Error(removeResponse.error || 'Failed to remove crew assignment');
+        }
       }
 
       const assignmentsToAdd = Array.from(crewAssignments.entries())
-        .filter(([dutyTypeId]) => !currentCrew.find(crew => crew.CrewDutyTypeID === dutyTypeId));
+        .filter(([dutyTypeId, personnelId]) => {
+          const existingAssignment = currentCrew.find((crew) => crew.CrewDutyTypeID === dutyTypeId);
+          return !existingAssignment || existingAssignment.PersonnelID !== personnelId;
+        });
       for (const [dutyTypeId, personnelId] of assignmentsToAdd) {
-        await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
+        const addResponse = await gasService.addPersonAsCrewMember(personnelId, show.ShowID, dutyTypeId);
+        if (!addResponse.success) {
+          throw new Error(addResponse.error || 'Failed to add crew assignment');
+        }
       }
 
       setMessage({ type: 'success', text: 'Cast and crew assignments saved successfully' });
@@ -255,6 +292,26 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     setShowGames(prev => {
       const remaining = prev.filter(game => game.localId !== localId);
       return remaining.length > 0 ? remaining : [createEmptyGame()];
+    });
+  };
+
+  const handleMoveGameUp = (localId: string) => {
+    setShowGames(prev => {
+      const index = prev.findIndex(game => game.localId === localId);
+      if (index <= 0) return prev;
+      const newGames = [...prev];
+      [newGames[index - 1], newGames[index]] = [newGames[index], newGames[index - 1]];
+      return newGames;
+    });
+  };
+
+  const handleMoveGameDown = (localId: string) => {
+    setShowGames(prev => {
+      const index = prev.findIndex(game => game.localId === localId);
+      if (index >= prev.length - 1) return prev;
+      const newGames = [...prev];
+      [newGames[index], newGames[index + 1]] = [newGames[index + 1], newGames[index]];
+      return newGames;
     });
   };
 
@@ -296,14 +353,51 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return new Set(Array.from(selectedCastIds));
   };
 
+  const isPersonnelInCast = (personnelId?: number | null) => {
+    return Boolean(personnelId && castPersonnelIds.has(personnelId));
+  };
+
+  const isBartenderDuty = (dutyTypeId: number) => {
+    const dutyName = crewDutyTypes.find(type => type.CrewDutyTypeID === dutyTypeId)?.DutyName || '';
+    const normalizedDutyName = dutyName.trim().toLowerCase();
+    return normalizedDutyName.includes('bartender') || normalizedDutyName === 'bar';
+  };
+
+  const isExternalBartenderAssignment = (dutyTypeId: number, personnelId?: number | null) => {
+    return Boolean(personnelId && isBartenderDuty(dutyTypeId) && !isPersonnelInCast(personnelId));
+  };
+
+  const countedCrewAssignments = useMemo(() => {
+    return crewDutyTypes.flatMap((dutyType) => {
+      const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
+      if (!assignedPersonnelId) {
+        return [];
+      }
+
+      const person = allPersonnelById.get(assignedPersonnelId);
+      const existingAssignment = currentCrew.find((crew) => crew.CrewDutyTypeID === dutyType.CrewDutyTypeID);
+      const fullName = person
+        ? `${person.FirstName || ''} ${person.LastName || ''}`.trim()
+        : existingAssignment?.FullName || 'Assigned';
+
+      return [{
+        PersonnelID: assignedPersonnelId,
+        FullName: fullName,
+        DutyName: dutyType.DutyName,
+      }];
+    });
+  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew, castPersonnelIds]);
+
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
     const selectedCastIds = getSelectedCastPersonnelIds();
     const currentAssignment = crewAssignments.get(dutyTypeId);
     const query = crewSearch.trim().toLowerCase();
-    return personnelOptions.filter(p => 
+    const isBartender = isBartenderDuty(dutyTypeId);
+    const sourceOptions = isBartender ? bartenderOptions : personnelOptions;
+    return sourceOptions.filter(p => 
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
-      (!selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
+      (isBartender || !selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
     );
   };
@@ -367,7 +461,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           <div className="flex gap-4">
             <button onClick={() => setActiveTab('details')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Details</button>
             <button onClick={() => setActiveTab('cast')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'cast' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Cast ({castCounts.selected})</button>
-            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({currentCrew.length})</button>
+            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({countedCrewAssignments.length})</button>
             {isCompletedShow && <button onClick={() => setActiveTab('games')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'games' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Games ({showGames.filter(game => game.gameId || game.customName.trim()).length})</button>}
           </div>
         </div>
@@ -382,7 +476,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).length > 0 ? availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FullName}</span>) : 'No cast assigned'}</div></div>
-              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{currentCrew.length > 0 ? currentCrew.map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{countedCrewAssignments.length > 0 ? countedCrewAssignments.map((member, index) => <span key={`${member.PersonnelID}-${member.DutyName}-${index}`} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
             </div>
           ) : activeTab === 'crew' ? (
             <>
@@ -399,16 +493,20 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="space-y-3">
                 {crewDutyTypes.map(dutyType => {
                   const assignedPersonnelId = crewAssignments.get(dutyType.CrewDutyTypeID);
-                  const assignedPerson = personnelOptions.find(p => p.PersonnelID === assignedPersonnelId);
+                  const assignedPerson = [...personnelOptions, ...bartenderOptions].find(p => p.PersonnelID === assignedPersonnelId);
                   const availablePersonnel = getAvailablePersonnelForDuty(dutyType.CrewDutyTypeID);
+                  const isExternalBartender = isExternalBartenderAssignment(dutyType.CrewDutyTypeID, assignedPersonnelId);
                   return (
-                    <div key={dutyType.CrewDutyTypeID} className="flex items-end gap-3 rounded-lg border border-gray-200 p-4">
+                    <div key={dutyType.CrewDutyTypeID} className={`flex items-end gap-3 rounded-lg border p-4 ${isExternalBartender ? 'border-sky-200 bg-sky-50' : 'border-gray-200'}`}>
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-1">{dutyType.DutyName}</label>
-                        <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className="w-full rounded-lg border border-gray-300 px-3 py-2">
+                        <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className={`w-full rounded-lg border px-3 py-2 ${isExternalBartender ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-gray-300'}`}>
                           <option value="">Unassigned</option>
                           {availablePersonnel.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
                         </select>
+                        {isExternalBartender && (
+                          <p className="mt-2 text-xs text-sky-700">This bartender is not in the cast roster.</p>
+                        )}
                       </div>
                       {assignedPerson && (
                         <div className="text-xs text-gray-500 text-right pb-2 min-w-[100px]">
@@ -440,11 +538,33 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="space-y-4">
                 {showGames.map((game, index) => {
                   const filteredGames = getFilteredMasterGames(game.gameId);
+                  const isFirst = index === 0;
+                  const isLast = index === showGames.length - 1;
                   return (
                     <div key={game.localId} className="rounded-lg border border-gray-200 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium text-gray-900">Game {index + 1}</h4>
-                        <button type="button" onClick={() => handleRemoveGameRow(game.localId)} className="text-sm text-red-600 hover:text-red-700">Remove</button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGameUp(game.localId)}
+                            disabled={isFirst}
+                            title="Move game up in the setlist"
+                            className="px-2 py-1 text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-300 hover:disabled:text-gray-300 transition-colors"
+                          >
+                            ↑ Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveGameDown(game.localId)}
+                            disabled={isLast}
+                            title="Move game down in the setlist"
+                            className="px-2 py-1 text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-300 hover:disabled:text-gray-300 transition-colors"
+                          >
+                            ↓ Down
+                          </button>
+                          <button type="button" onClick={() => handleRemoveGameRow(game.localId)} className="px-2 py-1 text-sm text-red-600 hover:text-red-700">Remove</button>
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
