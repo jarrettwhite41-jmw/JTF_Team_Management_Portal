@@ -1433,6 +1433,382 @@ class SupabaseService {
     }
   }
 
+  async getClassOfferingDetails(offeringId: number): Promise<ApiResponse<any>> {
+    try {
+      const offeringRes = await this.client
+        .from('class_offerings')
+        .select('offering_id, class_level_id, status, class_levels(level_name)')
+        .eq('offering_id', offeringId)
+        .maybeSingle();
+
+      if (offeringRes.error) throw offeringRes.error;
+
+      const enrollmentsRes = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id, offering_id, student_id, status')
+        .eq('offering_id', offeringId)
+        .order('enrollment_id', { ascending: true });
+
+      if (enrollmentsRes.error) throw enrollmentsRes.error;
+
+      const enrollmentRows = enrollmentsRes.data || [];
+      const studentIds = Array.from(new Set(enrollmentRows.map((row: any) => row.student_id).filter(Boolean)));
+
+      const studentInfoRes = studentIds.length > 0
+        ? await this.client
+            .from('student_info')
+            .select('student_id, personnel_id')
+            .in('student_id', studentIds)
+        : { data: [], error: null };
+
+      if (studentInfoRes.error) throw studentInfoRes.error;
+
+      const studentInfoById = new Map<number, any>(
+        (studentInfoRes.data || []).map((row: any) => [row.student_id, row]),
+      );
+
+      const personnelIds = Array.from(
+        new Set((studentInfoRes.data || []).map((row: any) => row.personnel_id).filter(Boolean)),
+      );
+
+      const personnelRes = personnelIds.length > 0
+        ? await this.client
+            .from('personnel')
+            .select('personnel_id, first_name, last_name, primary_email')
+            .in('personnel_id', personnelIds)
+        : { data: [], error: null };
+
+      if (personnelRes.error) throw personnelRes.error;
+
+      const personnelById = new Map<number, any>(
+        (personnelRes.data || []).map((row: any) => [row.personnel_id, row]),
+      );
+
+      const toEnrollmentStatus = (raw: string): string => {
+        const normalized = String(raw || '').trim().toLowerCase();
+        if (!normalized) return 'Active';
+        if (normalized === 'admin') return 'ADMIN';
+        if (normalized === 'in progress') return 'In Progress';
+        return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      };
+
+      const enrollments = enrollmentRows.map((row: any) => {
+        const studentInfo = studentInfoById.get(row.student_id);
+        const person = studentInfo ? personnelById.get(studentInfo.personnel_id) : null;
+        const status = toEnrollmentStatus(row.status);
+        return {
+          EnrollmentID: row.enrollment_id,
+          OfferingID: row.offering_id,
+          StudentID: row.student_id,
+          Status: status,
+          CompletionStatus: status,
+          FirstName: person?.first_name || 'Unknown',
+          LastName: person?.last_name || '',
+          PrimaryEmail: person?.primary_email || '',
+        };
+      });
+
+      const enrollmentIds = enrollments.map((row: any) => row.EnrollmentID).filter(Boolean);
+      const attendanceRes = enrollmentIds.length > 0
+        ? await this.client
+            .from('class_attendance')
+            .select('attendance_id, enrollment_id, class_date, attended, notes')
+            .in('enrollment_id', enrollmentIds)
+            .order('class_date', { ascending: true })
+        : { data: [], error: null };
+
+      if (attendanceRes.error) throw attendanceRes.error;
+
+      const toAttendanceStatus = (attended: boolean | null, notes: string | null): 'Present' | 'Absent' | 'Late' | 'Excused' => {
+        const notesValue = String(notes || '').trim().toLowerCase();
+        if (notesValue === 'late') return 'Late';
+        if (notesValue === 'excused') return 'Excused';
+        return attended ? 'Present' : 'Absent';
+      };
+
+      const attendanceRecords = (attendanceRes.data || []).map((row: any) => ({
+        AttendanceID: row.attendance_id,
+        EnrollmentID: row.enrollment_id,
+        ClassDate: String(row.class_date || '').split('T')[0],
+        AttendanceStatus: toAttendanceStatus(row.attended, row.notes),
+      }));
+
+      const activeEnrollmentCount = enrollments.filter((row: any) => row.Status === 'Active').length;
+      const byDateMap = new Map<string, any>();
+
+      for (const row of attendanceRecords) {
+        const current = byDateMap.get(row.ClassDate) || {
+          ClassDate: row.ClassDate,
+          PresentCount: 0,
+          LateCount: 0,
+          ExcusedCount: 0,
+          AbsentCount: 0,
+          MarkedCount: 0,
+          AttendancePct: 0,
+        };
+
+        current.MarkedCount += 1;
+        if (row.AttendanceStatus === 'Present') current.PresentCount += 1;
+        if (row.AttendanceStatus === 'Late') current.LateCount += 1;
+        if (row.AttendanceStatus === 'Excused') current.ExcusedCount += 1;
+        if (row.AttendanceStatus === 'Absent') current.AbsentCount += 1;
+
+        byDateMap.set(row.ClassDate, current);
+      }
+
+      const attendanceByDate = Array.from(byDateMap.values())
+        .map((day: any) => ({
+          ...day,
+          AttendancePct: activeEnrollmentCount > 0
+            ? Math.round(((day.PresentCount + day.LateCount) / activeEnrollmentCount) * 100)
+            : 0,
+        }))
+        .sort((a: any, b: any) => a.ClassDate.localeCompare(b.ClassDate));
+
+      return {
+        success: true,
+        data: {
+          Enrollments: enrollments,
+          AttendanceRecords: attendanceRecords,
+          AttendanceByDate: attendanceByDate,
+          ClassLevelID: offeringRes.data?.class_level_id,
+          LevelName: offeringRes.data?.class_levels?.level_name,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching class offering details:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getClassOfferingStatus(offeringId: number): Promise<ApiResponse<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_offerings')
+        .select('status')
+        .eq('offering_id', offeringId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return { success: false, error: 'Class offering not found.' };
+
+      const normalized = String(data.status || '').trim().toLowerCase();
+      let status: 'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled' = 'Upcoming';
+      if (normalized === 'completed') status = 'Completed';
+      else if (normalized === 'cancelled' || normalized === 'canceled') status = 'Cancelled';
+      else if (normalized === 'in progress' || normalized === 'open') status = 'In Progress';
+
+      return { success: true, data: status };
+    } catch (error) {
+      console.error('Error fetching class offering status:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateClassAttendance(attendanceData: {
+    EnrollmentID?: number;
+    OfferingID?: number;
+    ClassDate?: string;
+    Status?: string;
+    Notes?: string;
+    enrollmentId?: number;
+    offeringId?: number;
+    classDate?: string;
+    status?: string;
+    notes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const enrollmentId = attendanceData.EnrollmentID ?? attendanceData.enrollmentId;
+      const classDateRaw = attendanceData.ClassDate ?? attendanceData.classDate;
+      const statusRaw = attendanceData.Status ?? attendanceData.status;
+
+      if (!enrollmentId || !classDateRaw || !statusRaw) {
+        return { success: false, error: 'Missing required attendance fields.' };
+      }
+
+      const classDate = String(classDateRaw).split('T')[0];
+      const status = String(statusRaw);
+      const attended = status === 'Present' || status === 'Late';
+      const notes = status === 'Late' || status === 'Excused'
+        ? status
+        : (attendanceData.Notes ?? attendanceData.notes ?? null);
+
+      const existingRes = await this.client
+        .from('class_attendance')
+        .select('attendance_id')
+        .eq('enrollment_id', enrollmentId)
+        .eq('class_date', classDate)
+        .order('attendance_id', { ascending: false })
+        .limit(1);
+
+      if (existingRes.error) throw existingRes.error;
+
+      if ((existingRes.data || []).length > 0) {
+        const { error } = await this.client
+          .from('class_attendance')
+          .update({ attended, notes })
+          .eq('attendance_id', existingRes.data![0].attendance_id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('class_attendance')
+          .insert({
+            enrollment_id: enrollmentId,
+            class_date: classDate,
+            attended,
+            notes,
+          });
+
+        if (error) throw error;
+      }
+
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating class attendance:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async saveStudentCompetency(data: {
+    EnrollmentID: number;
+    StudentID: number;
+    SkillID: number;
+    Rating: 1 | 2 | 3 | 4 | 5;
+    Notes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const existing = await this.client
+        .from('student_competencies')
+        .select('competency_id')
+        .eq('enrollment_id', data.EnrollmentID)
+        .eq('skill_id', data.SkillID)
+        .maybeSingle();
+
+      if (existing.error) throw existing.error;
+
+      if (existing.data) {
+        const { error } = await this.client
+          .from('student_competencies')
+          .update({ rating: data.Rating, notes: data.Notes ?? null })
+          .eq('competency_id', existing.data.competency_id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('student_competencies')
+          .insert({
+            enrollment_id: data.EnrollmentID,
+            student_id: data.StudentID,
+            skill_id: data.SkillID,
+            rating: data.Rating,
+            notes: data.Notes ?? null,
+          });
+
+        if (error) throw error;
+      }
+
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving student competency:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async addStudentProgressNote(note: { EnrollmentID: number; NoteDate: string; Note: string }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_progress_notes')
+        .insert({
+          enrollment_id: note.EnrollmentID,
+          note_date: note.NoteDate,
+          narrative_feedback: note.Note,
+        });
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving progress note:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async saveSessionLog(log: {
+    OfferingID: number;
+    SessionDate: string;
+    CurriculumNotes?: string;
+    GeneralNotes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('class_session_logs')
+        .insert({
+          offering_id: log.OfferingID,
+          session_date: log.SessionDate,
+          curriculum_notes: log.CurriculumNotes || null,
+          group_notes: log.GeneralNotes || null,
+        });
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error saving session log:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getSessionLogsForOffering(offeringId: number): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_session_logs')
+        .select('session_log_id, offering_id, session_date, curriculum_notes, group_notes')
+        .eq('offering_id', offeringId)
+        .order('session_date', { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          LogID: row.session_log_id,
+          OfferingID: row.offering_id,
+          SessionDate: String(row.session_date || '').split('T')[0],
+          CurriculumNotes: row.curriculum_notes || '',
+          GeneralNotes: row.group_notes || '',
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching session logs:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getProgressNotesForOffering(enrollmentIds: number[]): Promise<ApiResponse<any[]>> {
+    try {
+      if (enrollmentIds.length === 0) return { success: true, data: [] };
+
+      const { data, error } = await this.client
+        .from('student_progress_notes')
+        .select('progress_note_id, enrollment_id, note_date, narrative_feedback')
+        .in('enrollment_id', enrollmentIds)
+        .order('note_date', { ascending: false });
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          EnrollmentID: row.enrollment_id,
+          NoteDate: String(row.note_date || '').split('T')[0],
+          Note: row.narrative_feedback || '',
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching progress notes:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   // ========================================================================
   // LOOKUP TABLES / REFERENCE DATA
   // ========================================================================

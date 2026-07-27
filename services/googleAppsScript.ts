@@ -862,6 +862,115 @@ class GoogleAppsScriptService {
     return this.callServerFunction<any>('updateClassAttendance', attendanceData);
   }
 
+  async getClassOfferingStatus(offeringId: number): Promise<ApiResponse<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>> {
+    return this.callServerFunction<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>('getClassOfferingStatus', offeringId);
+  }
+
+  async saveStudentCompetency(data: {
+    EnrollmentID: number;
+    StudentID: number;
+    SkillID: number;
+    Rating: 1 | 2 | 3 | 4 | 5;
+    Notes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await this.callServerFunction<any>('saveStudentCompetency', data);
+    if (response.success) return { success: true, data: { success: true } };
+
+    const fallback = await this.callServerFunction<any>('upsertStudentCompetency', {
+      EnrollmentID: data.EnrollmentID,
+      SkillCategory: data.SkillID,
+      Rating: data.Rating,
+      TeacherComments: data.Notes || '',
+    });
+
+    if (fallback.success) return { success: true, data: { success: true } };
+    return { success: false, error: fallback.error || response.error || 'Failed to save student competency.' };
+  }
+
+  async addStudentProgressNote(note: { EnrollmentID: number; NoteDate: string; Note: string }): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await this.callServerFunction<any>('addStudentProgressNote', note);
+    if (response.success) return { success: true, data: { success: true } };
+
+    const fallback = await this.callServerFunction<any>('saveProgressNote', {
+      EnrollmentID: note.EnrollmentID,
+      NoteDate: note.NoteDate,
+      FeedbackText: note.Note,
+      InternalOnly: false,
+    });
+
+    if (fallback.success) return { success: true, data: { success: true } };
+    return { success: false, error: fallback.error || response.error || 'Failed to save student progress note.' };
+  }
+
+  async saveSessionLog(log: {
+    OfferingID: number;
+    SessionDate: string;
+    CurriculumNotes?: string;
+    GeneralNotes?: string;
+  }): Promise<ApiResponse<{ success: boolean }>> {
+    const response = await this.callServerFunction<any>('saveSessionLog', log);
+    if (response.success) return { success: true, data: { success: true } };
+
+    const fallback = await this.callServerFunction<any>('saveSessionLog', {
+      OfferingID: log.OfferingID,
+      ClassDate: log.SessionDate,
+      CurriculumCovered: log.CurriculumNotes || '',
+      GeneralClassNotes: log.GeneralNotes || '',
+    });
+
+    if (fallback.success) return { success: true, data: { success: true } };
+    return { success: false, error: fallback.error || response.error || 'Failed to save session log.' };
+  }
+
+  async getSessionLogsForOffering(offeringId: number): Promise<ApiResponse<any[]>> {
+    const response = await this.callServerFunction<any[]>('getSessionLogsForOffering', offeringId);
+    if (response.success) return response;
+
+    const fallback = await this.callServerFunction<any>('getClassSessionLogs', offeringId);
+    if (!fallback.success) {
+      return { success: false, error: fallback.error || response.error || 'Failed to load session logs.' };
+    }
+
+    const logs = Array.isArray(fallback.data) ? fallback.data : [];
+    return {
+      success: true,
+      data: logs.map((row: any) => ({
+        LogID: row.SessionLogID || row.LogID,
+        OfferingID: row.OfferingID || offeringId,
+        SessionDate: String(row.ClassDate || row.SessionDate || '').split('T')[0],
+        CurriculumNotes: row.CurriculumCovered || row.CurriculumNotes || '',
+        GeneralNotes: row.GeneralClassNotes || row.GeneralNotes || '',
+      })),
+    };
+  }
+
+  async getProgressNotesForOffering(enrollmentIds: number[], offeringId?: number): Promise<ApiResponse<any[]>> {
+    const response = await this.callServerFunction<any[]>('getProgressNotesForOffering', enrollmentIds);
+    if (response.success) return response;
+
+    if (!offeringId) {
+      return { success: true, data: [] };
+    }
+
+    const fallback = await this.callServerFunction<any[]>('getStudentProgressNotes', offeringId);
+    if (!fallback.success || !Array.isArray(fallback.data)) {
+      return { success: false, error: fallback.error || response.error || 'Failed to load progress notes.' };
+    }
+
+    const flattened = fallback.data.flatMap((studentRow: any) => {
+      const enrollmentId = Number(studentRow.EnrollmentID);
+      if (!enrollmentIds.includes(enrollmentId)) return [];
+      const notes = Array.isArray(studentRow.notes) ? studentRow.notes : [];
+      return notes.map((note: any) => ({
+        EnrollmentID: enrollmentId,
+        NoteDate: String(note.NoteDate || '').split('T')[0],
+        Note: note.FeedbackText || note.Note || '',
+      }));
+    });
+
+    return { success: true, data: flattened };
+  }
+
   async updateEnrollmentStatus(enrollmentId: number, status: string): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateEnrollmentStatus', enrollmentId, status);
   }
