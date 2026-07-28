@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ShowGame, ShowWithDetails } from '../../types';
-import { gasService } from '../../services/googleAppsScript';
+import { supabaseService as gasService } from '../../services/supabaseService';
 
 interface ShowCardProps {
   show: ShowWithDetails;

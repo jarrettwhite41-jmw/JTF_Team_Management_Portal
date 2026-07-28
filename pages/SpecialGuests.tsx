@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 import { SpecialGuest } from '../types';
 
 type SpecialGuestFormData = {

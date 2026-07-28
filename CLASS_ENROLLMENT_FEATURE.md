@@ -67,7 +67,7 @@ Updated the main class management page:
 
 ---
 
-### Backend Functions (Code.gs)
+### Backend Service Functions
 
 #### **1. getEnrolledStudents(offeringId)** (NEW)
 **Purpose:** Retrieves all students enrolled in a specific class with full details
@@ -136,7 +136,7 @@ Already existed - used for adding students. Updated to use `CompletionStatus` fi
 User clicks "Manage Class"
   → ClassManagementModal opens
   → Calls getEnrolledStudents(offeringId)
-  → Code.gs queries StudentEnrollments → StudentInformation → Personnel
+  → Service layer queries StudentEnrollments → StudentInformation → Personnel
   → Returns array of student objects with full details
   → Modal displays students in grid with StudentCard components
 ```
@@ -148,7 +148,7 @@ User clicks "Add Students" tab
   → Filters out already-enrolled students
   → User clicks + button on student card
   → Calls enrollStudent(studentId, offeringId)
-  → Code.gs checks for duplicates, creates enrollment record
+  → Service layer checks for duplicates, creates enrollment record
   → Returns success
   → Modal refreshes both tabs
   → Class list refreshes with updated enrollment count
@@ -161,7 +161,7 @@ User on "Enrolled Students" tab
   → Confirmation dialog appears
   → User confirms
   → Calls removeStudentFromClass(enrollmentId)
-  → Code.gs deletes enrollment row
+  → Service layer deletes enrollment row
   → Returns success
   → Modal refreshes both tabs
   → Class list refreshes with updated enrollment count
@@ -251,17 +251,16 @@ User on "Enrolled Students" tab
 - `components/classes/ClassManagementModal.tsx` (303 lines)
 
 ### Modified Files:
-- `Code.gs` (+135 lines)
+- Service layer implementation (+135 lines)
   - Added `getEnrolledStudents()`
   - Added `removeStudentFromClass()`
 - `pages/ClassRegistration.tsx` (+7 lines)
   - Imported and integrated ClassManagementModal
   - Updated click handler
 
-### Pushed to Google Apps Script:
-- ✅ Code.gs
-- ✅ index.html (no changes)
-- ✅ appsscript.json (no changes)
+### Updated in Portal Codebase:
+- ✅ Service layer methods
+- ✅ UI integration in Class Registration flow
 
 ---
 
@@ -271,7 +270,7 @@ User on "Enrolled Students" tab
 1. Open the app and navigate to Classes tab
 2. Click "Manage Class" on any class
 3. Test adding and removing students
-4. Verify database updates in Google Sheets
+4. Verify database updates in Supabase tables
 
 ### Future Enhancements (Optional):
 - **Attendance Tracking**: Add attendance management to the modal
@@ -290,7 +289,7 @@ User on "Enrolled Students" tab
 **New Components:** 1  
 **Backend Calls:** 4 (getEnrolledStudents, getAllStudentsWithDetails, enrollStudent, removeStudentFromClass)  
 
-**Status:** ✅ All code written, tested, and pushed to Google Apps Script. Ready for user testing!
+**Status:** ✅ All code written and validated in the Supabase/Vercel stack. Ready for user testing.
 
 ---
 

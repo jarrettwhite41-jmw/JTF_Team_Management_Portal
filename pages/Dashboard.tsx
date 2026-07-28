@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StatCard } from '../components/common/StatCard';
 import { Loader } from '../components/common/Loader';
 import { DashboardStats, ClassEnrollmentEntry, NextShowInfo, PageType } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 

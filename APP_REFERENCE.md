@@ -9,11 +9,11 @@
 
 | Layer | Tech |
 |---|---|
-| Backend | Google Apps Script (`Code.gs`) |
-| Frontend | Single `index.html` — React 18 (UMD CDN) + Babel Standalone + Tailwind CSS (CDN) |
-| Deployment | `clasp push --force` from project root |
-| Auth | `jarrett@justthefunny.com` (clasp) |
-| Pattern | `const e = React.createElement` — no JSX, no bundler |
+| Backend/Data | Supabase (Postgres + Auth + RLS) |
+| Frontend | React 18 + TypeScript + Vite |
+| Deployment | Vercel |
+| Auth | Supabase Auth |
+| Pattern | Typed service layer via `supabaseService` |
 
 ---
 
@@ -338,7 +338,7 @@ const lastName = person.LastName || person.Lastname || '';
 // Active class statuses
 ['active', 'in progress', 'scheduled'].includes(c.Status?.toLowerCase())
 
-// Date comparison (GAS)
+// Date comparison
 const today = new Date(); today.setHours(0,0,0,0);
 const showDate = new Date(show.ShowDate);
 if (showDate < today) { /* past show logic */ }
@@ -390,9 +390,9 @@ e('div', { className: 'flex flex-wrap gap-2 items-center flex-shrink-0' },
 )
 ```
 
-### gasService Call Pattern
+### Service Call Pattern
 ```js
-const result = await gasService.someFunction(param);
+const result = await supabaseService.someFunction(param);
 if (result.success) { /* result.data */ }
 else { setMessage({ type: 'error', text: result.error }); }
 ```
@@ -441,16 +441,8 @@ Data is now fully modeled. Implementation path:
 
 ## Date Handling
 - All dates stored/passed as `YYYY-MM-DD`
-- GAS: use `new Date(dateString)` — avoid locale-sensitive formatting
+- Use `new Date(dateString)` — avoid locale-sensitive formatting
 - Comparisons: normalize with `.setHours(0,0,0,0)` before comparing
-
----
-
-## Deployment
-```bash
-clasp push --force
-```
-Pushes: `appsscript.json`, `Code.gs`, `index.html`
 
 ---
 
@@ -460,6 +452,6 @@ Pushes: `appsscript.json`, `Code.gs`, `index.html`
 |---|---|
 | `LastName` vs `Lastname` in Personnel | Always use `p.LastName \|\| p.Lastname \|\| ''` |
 | ClassOfferings uses `TeacherID` not `TeacherPersonnelID` | Join on `c.TeacherID == teacher.TeacherID` |
-| Babel parse errors | Extra `),` pairs from split-panel conversion — count parens carefully |
-| String `==` vs `===` for IDs | GAS sheets can return numbers or strings; use `==` for ID comparisons |
+| JSX/TSX build errors | Keep strict typing in service responses and page state |
+| String `==` vs `===` for IDs | Normalize data types at service boundaries before comparisons |
 | Active class statuses are not uniform | Check for `'active'`, `'in progress'`, `'scheduled'` (case-insensitive) |

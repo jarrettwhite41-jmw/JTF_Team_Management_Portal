@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from '../common/Message';
 import { ShowEditModal } from './ShowEditModal';
-import { gasService } from '../../services/googleAppsScript';
+import { supabaseService as gasService } from '../../services/supabaseService';
 import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame, BartenderWithDetails } from '../../types';
 
 interface ShowManagementModalProps {

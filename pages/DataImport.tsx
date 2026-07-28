@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Message } from '../components/common/Message';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 type Primitive = string | number | boolean | null | undefined;
 

@@ -1,94 +1,49 @@
 # Development Notes & Workflow
 
-## ⚠️ Critical: How This App Works
+## Critical Runtime Model
 
-The app runs entirely from **`index.html`** — it is a single-file Google Apps Script Web App.
+This portal runs as a Vite + React + TypeScript web app deployed on Vercel.
+All application data reads and writes must go through Supabase-backed services.
 
-The `.tsx` files (`components/`, `pages/`, `services/`) are **source references only** — they are NOT compiled or bundled automatically. Any UI change must be made directly in `index.html`.
-
----
+Primary service: `services/supabaseService.ts`
 
 ## Workflow for Making Changes
 
-### 1. UI / Frontend Changes
-- Edit **`index.html`** directly
-- All React components are written as `React.createElement` calls (using the `e()` shorthand) inside `<script type="text/babel">` tags
-- The `gasService` object (defined around line 170 in index.html) must also have any new service methods added directly there
+### 1. Frontend Changes
+- Edit `.tsx` files in `pages/` and `components/`.
+- Keep interactions typed and use existing `ApiResponse<T>` patterns.
 
-### 2. Backend / Data Changes
-- Edit **`Code.gs`** for any Google Apps Script server-side functions
+### 2. Data/Backend Changes
+- Update methods in `services/supabaseService.ts`.
+- Add migrations under `migrations/` for schema or RLS changes.
 
-### 3. After Any Change — Deploy to Google Apps Script
+### 3. Validation
 ```bash
-npm run push       # pushes Code.gs + index.html to Google Apps Script
-npm run deploy     # creates a new versioned deployment (do this for production releases)
+npm run type-check
+npm run build
 ```
 
-### 4. Git — Push to GitHub
-```bash
-git add .
-git commit -m "your message"
-git push
+### 4. Deployment
+- Preview in Vercel using the branch/PR deployment.
+- Promote after role-based smoke tests pass.
+
+## Data Modeling Notes
+
+Class and enrollment joins remain:
+```text
+class_offerings.teacher_id -> teachers.teacher_id
+teachers.personnel_id -> personnel.personnel_id
+
+student_enrollments.student_id -> student_info.student_id
+student_info.personnel_id -> personnel.personnel_id
 ```
 
----
+## Service Expectations
 
-## Keeping `.tsx` Files in Sync
+- Return human-readable errors from service methods.
+- Do not bypass service layer by querying Supabase directly in page components.
+- Treat role checks as policy-first. UI checks are additive only.
 
-The `.tsx` source files should be kept up to date as documentation/reference and for future tooling, but **changes there do NOT affect the live app** until manually ported into `index.html`.
+## Current Delivery Mode
 
-When making a significant change:
-1. Make the change in `index.html` (live)
-2. Mirror the same logic into the corresponding `.tsx` file (for source control clarity)
-
----
-
-## Database / Sheet Schema Quick Reference
-
-### ClassOfferings sheet columns
-| Column | Notes |
-|--------|-------|
-| `OfferingID` | Primary key |
-| `TeacherID` | FK → `Teachers.TeacherID` (NOT PersonnelID directly) |
-| `ClassLevelID` | FK → `ClassLevels.ClassLevelID` |
-| `StartDate` / `EndDate` | |
-| `MaxStudents` | |
-| `Status` | Upcoming / In Progress / Completed / Cancelled |
-| `VenueOrRoom` | |
-| `MeetingDays` | Comma-separated, e.g. "Monday, Wednesday" |
-| `MeetingTime` | |
-
-### Teachers table join chain
-```
-ClassOfferings.TeacherID → Teachers.TeacherID
-Teachers.PersonnelID    → Personnel.PersonnelID
-```
-Always use `getActiveTeachers()` (not `getAllPersonnel()`) for teacher dropdowns — it returns `{ TeacherID, PersonnelID, FirstName, LastName, FullName }`.
-
-### StudentEnrollments
-```
-StudentEnrollments.StudentID → StudentInfo.StudentID
-StudentInfo.PersonnelID      → Personnel.PersonnelID
-```
-
----
-
-## Backend Functions Reference
-
-| Function | Description |
-|----------|-------------|
-| `getAllClassOfferings()` | All classes with TeacherName, LevelName, EnrolledCount |
-| `getClassOfferingDetails(offeringId)` | Full class + enrolled students + attendance |
-| `createClassOffering(classData)` | Creates new row in ClassOfferings |
-| `updateClassOffering(classData)` | Updates existing row by OfferingID |
-| `getActiveTeachers()` | Returns active teachers joined with Personnel |
-| `getAllClassLevels()` | Returns ClassLevels lookup table |
-| `enrollPersonAsStudent(personnelId, offeringId)` | Enrolls a person |
-| `removeStudentFromClass(enrollmentId)` | Removes student from class |
-| `updateEnrollmentStatus(enrollmentId, status)` | Updates enrollment status |
-| `updateClassAttendance(attendanceData)` | Saves/updates an attendance record |
-
----
-
-## Current Branch
-`feature/crew-management` — all active work is happening here. Merge to `main` when ready for a stable release.
+Portal changes are executed one portal at a time with branch-isolated fixes and regression gates before merge.

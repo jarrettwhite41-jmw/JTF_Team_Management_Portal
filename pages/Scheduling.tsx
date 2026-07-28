@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { CalendarEvent, ShowWithDetails, ClassWithDetails } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 export const Scheduling: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);

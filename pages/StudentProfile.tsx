@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { ClassLevels, StudentProfileData } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 interface StudentProfileProps {
   studentId: number;

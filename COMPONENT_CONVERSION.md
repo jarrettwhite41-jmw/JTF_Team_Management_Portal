@@ -1,14 +1,14 @@
 # Component Conversion Quick Reference
 
-This shows how to update components from Google Apps Script to Supabase.
+This shows how to update components to the Supabase service layer.
 
 ## Quick Pattern
 
-**OLD (Google Apps Script):**
+**OLD (legacy wrapper):**
 ```typescript
-import { googleAppsScriptService } from '../services/googleAppsScript';
+import { previousService } from '../services/previousService';
 
-const response = await googleAppsScriptService.getAllPersonnel();
+const response = await previousService.getAllPersonnel();
 ```
 
 **NEW (Supabase):**
@@ -27,12 +27,12 @@ const response = await supabaseService.getAllPersonnel();
 ### PersonnelDirectory.tsx
 
 <details>
-<summary>BEFORE (Google Apps Script)</summary>
+<summary>BEFORE (legacy wrapper)</summary>
 
 ```typescript
 import React, { useEffect, useState } from 'react';
 import { Personnel } from '../types';
-import { googleAppsScriptService } from '../services/googleAppsScript';
+import { previousService } from '../services/previousService';
 import { PersonCard } from '../components/personnel/PersonCard';
 import { Loader } from '../components/common/Loader';
 
@@ -44,7 +44,7 @@ export const PersonnelDirectory: React.FC = () => {
   useEffect(() => {
     const loadPersonnel = async () => {
       try {
-        const response = await googleAppsScriptService.getAllPersonnel();
+        const response = await previousService.getAllPersonnel();
         if (response.success) {
           setPersonnel(response.data);
         } else {

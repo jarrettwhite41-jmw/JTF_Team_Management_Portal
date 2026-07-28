@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Message } from '../common/Message';
-import { gasService } from '../../services/googleAppsScript';
+import { supabaseService as gasService } from '../../services/supabaseService';
 import { ShowInformation, ShowWithDetails } from '../../types';
 
 interface ShowEditModalProps {

@@ -4,7 +4,7 @@ import { ConfirmationModal } from '../components/common/ConfirmationModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { Inventory, ModalMode } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 export const InventoryPage: React.FC = () => {
   const [inventory, setInventory] = useState<Inventory[]>([]);

@@ -3,7 +3,7 @@ import { StudentCard } from './StudentCard';
 import { Loader } from '../common/Loader';
 import { Message } from '../common/Message';
 import { ClassEditModal } from './ClassEditModal';
-import { gasService } from '../../services/googleAppsScript';
+import { supabaseService as gasService } from '../../services/supabaseService';
 
 interface ClassManagementModalProps {
   isOpen: boolean;

@@ -147,7 +147,7 @@ If available, can be used to get enriched enrollment data in a single query inst
 
 ## Backend Functions
 
-### Primary Functions (Code.gs)
+### Primary Functions (Service Layer)
 
 #### `getAllStudentsWithDetails()`
 **Returns:** Array of students with full details  
@@ -272,7 +272,7 @@ If available, can be used to get enriched enrollment data in a single query inst
 ### "Get all students"
 ```javascript
 // Frontend call
-const response = await gasService.getAllStudentsWithDetails();
+const response = await supabaseService.getAllStudentsWithDetails();
 
 // Returns students from StudentInfo joined with Personnel
 // Email comes from Personnel.PrimaryEmail
@@ -282,7 +282,7 @@ const response = await gasService.getAllStudentsWithDetails();
 ### "Get student profile"
 ```javascript
 // Frontend call (uses StudentID)
-const response = await gasService.getStudentProfileData(studentId);
+const response = await supabaseService.getStudentProfileData(studentId);
 
 // Returns complete profile with:
 // - Personal info from Personnel (including email/phone)
@@ -305,6 +305,6 @@ const response = await gasService.getStudentProfileData(studentId);
 4. **Referential Integrity:** All foreign keys must reference valid primary keys
 
 ## Updated Files
-- ✅ Code.gs - Backend functions updated
+- ✅ Service layer - Backend functions updated
 - ✅ SHEET_CONFIG - Added StudentInfo and EnrollmentView references
 - ✅ getSheetHeaders() - Added correct columns for StudentInfo and StudentEnrollments

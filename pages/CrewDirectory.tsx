@@ -3,7 +3,7 @@ import { CrewCard } from '../components/crew/CrewCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { CrewMemberWithDetails } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 // Palette of Tailwind badge class sets — one per show (cycles if > 8 shows)
 const SHOW_COLORS = [

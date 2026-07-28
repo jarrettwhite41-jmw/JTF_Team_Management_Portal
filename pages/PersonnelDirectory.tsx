@@ -4,7 +4,7 @@ import { PersonnelModal } from '../components/personnel/PersonnelModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { Personnel, PersonnelWithDetails, ModalMode, PersonnelDeletionDependencies } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 export const PersonnelDirectory: React.FC = () => {
   const [personnel, setPersonnel] = useState<PersonnelWithDetails[]>([]);

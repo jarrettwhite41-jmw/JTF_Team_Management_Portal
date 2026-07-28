@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { gasService } from '../../services/googleAppsScript';
+import { supabaseService as gasService } from '../../services/supabaseService';
 import { Loader } from '../common/Loader';
 import { Message } from '../common/Message';
 

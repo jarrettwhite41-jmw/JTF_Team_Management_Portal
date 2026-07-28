@@ -1,6 +1,6 @@
 # Supabase & Vercel Migration Guide
 
-This guide walks you through migrating from Google Apps Script to Supabase + Vercel.
+This guide walks you through setting up the portal on Supabase + Vercel.
 
 ## Phase 1: Supabase Setup
 
@@ -121,11 +121,11 @@ The service file has already been created at `services/supabaseService.ts`.
 
 To update any React component to use Supabase:
 
-### Before (Google Apps Script):
+### Before (legacy wrapper):
 ```typescript
-import { googleAppsScriptService } from '../services/googleAppsScript';
+import { legacyService } from '../services/legacyService';
 
-const result = await googleAppsScriptService.getAllPersonnel();
+const result = await legacyService.getAllPersonnel();
 ```
 
 ### After (Supabase):
@@ -194,7 +194,7 @@ export const PersonnelDirectory = () => {
 1. Push your code to GitHub (if not already):
    ```bash
    git add .
-   git commit -m "Migration: Google Apps Script → Supabase + Vercel"
+  git commit -m "Setup: Supabase + Vercel"
    git push origin feature/qol-improvements
    ```
 
@@ -228,7 +228,7 @@ In Vercel project settings:
 ## Phase 6: Migrate Your Data (Coming Soon)
 
 Once everything is working, we'll:
-1. Export data from Google Sheets
+1. Export data from your current source system
 2. Transform to Supabase format
 3. Import into your new database
 

@@ -5,7 +5,7 @@ import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { PageType, ShowWithDetails } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
 

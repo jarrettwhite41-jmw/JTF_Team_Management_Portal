@@ -5,7 +5,7 @@ import { ClassEditModal } from '../components/classes/ClassEditModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { PageType } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService as gasService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'upcoming' | 'in-progress' | 'completed';
 
