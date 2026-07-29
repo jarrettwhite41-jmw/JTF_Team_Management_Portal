@@ -1313,11 +1313,60 @@ class SupabaseService {
 
   async deleteClassOffering(offeringId: number): Promise<ApiResponse<void>> {
     try {
+      // Get enrollment IDs for this offering to cascade-delete dependent records
+      const { data: enrollments, error: enrollErr } = await this.client
+        .from('student_enrollments')
+        .select('enrollment_id')
+        .eq('offering_id', offeringId);
+
+      if (enrollErr) throw enrollErr;
+
+      const enrollmentIds = (enrollments || []).map((e: any) => e.enrollment_id);
+
+      if (enrollmentIds.length > 0) {
+        // Delete student_competencies
+        const { error: compErr } = await this.client
+          .from('student_competencies')
+          .delete()
+          .in('enrollment_id', enrollmentIds);
+        if (compErr) throw compErr;
+
+        // Delete student_progress_notes
+        const { error: notesErr } = await this.client
+          .from('student_progress_notes')
+          .delete()
+          .in('enrollment_id', enrollmentIds);
+        if (notesErr) throw notesErr;
+
+        // Delete class_attendance
+        const { error: attErr } = await this.client
+          .from('class_attendance')
+          .delete()
+          .in('enrollment_id', enrollmentIds);
+        if (attErr) throw attErr;
+      }
+
+      // Delete class_session_logs
+      const { error: logsErr } = await this.client
+        .from('class_session_logs')
+        .delete()
+        .eq('offering_id', offeringId);
+      if (logsErr) throw logsErr;
+
+      // Delete student_enrollments
+      const { error: enrollDeleteErr } = await this.client
+        .from('student_enrollments')
+        .delete()
+        .eq('offering_id', offeringId);
+      if (enrollDeleteErr) throw enrollDeleteErr;
+
+      // Delete the class offering itself
       const { error } = await this.client
         .from('class_offerings')
         .delete()
         .eq('offering_id', offeringId);
       if (error) throw error;
+
       return { success: true };
     } catch (error) {
       console.error('Error deleting class offering:', error);
