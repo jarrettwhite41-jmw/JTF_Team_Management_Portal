@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { PageType, NavigationItem, PortalAccessRole } from '../../types';
 
 interface SidebarProps {
@@ -16,7 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
     if (!role) return false;
     if (role === 'admin' || role === 'manager') return true;
     if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
-    if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops'].includes(page);
+    if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
     if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
     if (role === 'student') return page === 'dashboard';
     return page === 'dashboard';
@@ -65,6 +65,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
         { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
+        { id: 'skills-management', label: 'Skills', icon: '⭐' },
       ] as NavigationItem[],
     },
   ].map(group => ({
