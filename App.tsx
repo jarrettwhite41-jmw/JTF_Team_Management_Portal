@@ -300,42 +300,45 @@ const App: React.FC = () => {
   }
 
   const mobileTopLevelSections: Array<{ id: PageType; label: string; icon: string }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'ðŸ“Š' },
-    { id: 'scheduling', label: 'Schedule', icon: 'ðŸ“…' },
-    { id: 'inventory', label: 'Inventory', icon: 'ðŸ“¦' },
-    { id: 'data-import', label: 'Import Center', icon: 'â¬†ï¸' },
+    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'scheduling', label: 'Schedule', icon: '📅' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
+    { id: 'data-import', label: 'Import Center', icon: '⬆️' },
   ].filter((item) => canAccessPage(userRole, item.id));
 
   const mobileSectionGroups: Array<{ label: string; icon: string; pages: Array<{ id: PageType; label: string; icon: string }> }> = [
     {
       label: 'Personnel',
-      icon: 'ðŸ‘¥',
+      icon: '👥',
       pages: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: 'ðŸ—‚ï¸' },
-        { id: 'cast', label: 'Cast Management', icon: 'ðŸŽ­' },
-        { id: 'bartenders', label: 'Bartenders', icon: 'ðŸº' },
-        { id: 'teacher-management', label: 'Teachers', icon: 'ðŸ§‘â€ðŸ«' },
-        { id: 'director-management', label: 'Directors', icon: 'ðŸŽ¬' },
-        { id: 'portal-access', label: 'Portal Access', icon: 'ðŸ”' },
-        { id: 'special-guests', label: 'Special Guests', icon: 'ðŸŽ¤' },
+        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
+        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
+        { id: 'director-management', label: 'Directors', icon: '🎬' },
+        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'Shows',
-      icon: 'ðŸŽª',
+      icon: '🎪',
       pages: [
-        { id: 'show-management', label: 'Shows', icon: 'ðŸŽ¬' },
-        { id: 'crew', label: 'Crew Assignments', icon: 'ðŸ› ï¸' },
-        { id: 'games', label: 'Games', icon: 'ðŸŽ²' },
+        { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'Classes',
-      icon: 'ðŸ“š',
+      icon: '📚',
       pages: [
-        { id: 'class-management', label: 'Classes', icon: 'ðŸ“˜' },
-        { id: 'student-directory', label: 'Student Directory', icon: 'ðŸŽ“' },
-        { id: 'workshops', label: 'Workshops', icon: 'ðŸ§ ' },
+        { id: 'class-management', label: 'Classes', icon: '📘' },
+        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
+        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
+        { id: 'workshops', label: 'Workshops', icon: '🧠' },
+        { id: 'skills-management', label: 'Skills', icon: '⭐' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
   ].filter((group) => group.pages.length > 0);
@@ -495,7 +498,7 @@ const App: React.FC = () => {
               onClick={() => handleMobileNavigate('data-import')}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
             >
-              <span className="mr-2">â¬†ï¸</span>
+              <span className="mr-2">⬆️</span>
               Import Center
             </button>
           )}
@@ -503,7 +506,7 @@ const App: React.FC = () => {
             onClick={handleSignOut}
             className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-100"
           >
-            <span className="mr-2">â†ª</span>
+            <span className="mr-2">↩️</span>
             Sign Out
           </button>
         </div>
@@ -518,7 +521,7 @@ const App: React.FC = () => {
               currentPage === 'dashboard' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">ðŸ </span>
+            <span className="text-base">🏠</span>
             Home
           </button>
           <button
@@ -527,7 +530,7 @@ const App: React.FC = () => {
               currentPage === 'scheduling' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">ðŸ“…</span>
+            <span className="text-base">📅</span>
             Schedule
           </button>
           <button
@@ -539,7 +542,7 @@ const App: React.FC = () => {
               isMobileSectionsOpen ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">ðŸ§­</span>
+            <span className="text-base">📋</span>
             Sections
           </button>
           <button
@@ -552,7 +555,7 @@ const App: React.FC = () => {
             }`}
             aria-label="Open quick actions"
           >
-            <span className="text-base">âš™ï¸</span>
+            <span className="text-base">⚙️</span>
             Actions
           </button>
         </div>
