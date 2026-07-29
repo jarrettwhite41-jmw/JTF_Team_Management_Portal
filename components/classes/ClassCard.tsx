@@ -1,11 +1,12 @@
-import React from 'react';
+﻿import React from 'react';
 
 interface ClassCardProps {
   classOffering: any;
   onManage: () => void;
+  onDelete?: () => void;
 }
 
-export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage }) => {
+export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage, onDelete }) => {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'upcoming':
@@ -111,13 +112,18 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage })
       </div>
 
       {/* View Details Link */}
-      <div className="mt-4 pt-4 border-t border-gray-100">
+      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
         <button className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center group-hover:translate-x-1 transition-transform">
           Manage Class
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
+        {onDelete && (
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-sm text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );

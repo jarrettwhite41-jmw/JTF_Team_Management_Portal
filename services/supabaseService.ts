@@ -1311,6 +1311,20 @@ class SupabaseService {
     }
   }
 
+  async deleteClassOffering(offeringId: number): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await this.client
+        .from('class_offerings')
+        .delete()
+        .eq('offering_id', offeringId);
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting class offering:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
   async getEnrolledStudents(offeringId: number): Promise<ApiResponse<any[]>> {
     try {
       const { data, error } = await this.client

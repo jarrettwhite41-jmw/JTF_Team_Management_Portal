@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { ClassCard } from '../components/classes/ClassCard';
 import { ClassManagementModal } from '../components/classes/ClassManagementModal';
 import { ClassEditModal } from '../components/classes/ClassEditModal';
@@ -6,6 +6,7 @@ import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { PageType } from '../types';
 import { gasService } from '../services/googleAppsScript';
+import { supabaseService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'upcoming' | 'in-progress' | 'completed';
 
@@ -34,6 +35,8 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
   const [filteredClasses, setFilteredClasses] = useState<ClassOffering[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [instructorFilter, setInstructorFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showNewClassModal, setShowNewClassModal] = useState(false);
@@ -46,7 +49,7 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
 
   useEffect(() => {
     applyFilters();
-  }, [classes, filter, searchTerm]);
+  }, [classes, filter, searchTerm, instructorFilter, levelFilter]);
 
   const loadClasses = async () => {
     setIsLoading(true);
@@ -88,7 +91,23 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
       );
     }
 
+    // Instructor filter
+    if (instructorFilter) { filtered = filtered.filter(c => c.TeacherName === instructorFilter); }
+    // Level filter
+    if (levelFilter) { filtered = filtered.filter(c => c.LevelName === levelFilter); }
     setFilteredClasses(filtered);
+  };
+
+  const handleDeleteClass = async (classOffering: ClassOffering) => {
+    const label = classOffering.LevelName || `Class #${classOffering.OfferingID}`;
+    if (!confirm(`Delete "${label}"? This cannot be undone.`)) return;
+    const res = await supabaseService.deleteClassOffering(classOffering.OfferingID);
+    if (res.success) {
+      setMessage({ type: "success", text: `"${label}" deleted` });
+      loadClasses();
+    } else {
+      setMessage({ type: "error", text: res.error || "Failed to delete class" });
+    }
   };
 
   const getFilterCount = (filterType: FilterType): number => {
@@ -210,23 +229,45 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
           </button>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search classes by name, teacher, or location..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        {/* Search + Instructor + Level */}
+        <div className="flex flex-wrap gap-3">
+          <div className="relative flex-1 min-w-48">
+            <input
+              type="text"
+              placeholder="Search by name, teacher, or location..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <select
+            value={instructorFilter}
+            onChange={(e) => setInstructorFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+            <option value="">All Instructors</option>
+            {Array.from(new Set(classes.map(c => c.TeacherName).filter(Boolean))).sort().map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+          >
+            <option value="">All Levels</option>
+            {Array.from(new Set(classes.map(c => c.LevelName).filter(Boolean))).sort().map(level => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+          {(instructorFilter || levelFilter || searchTerm) && (
+            <button onClick={() => { setInstructorFilter(""); setLevelFilter(""); setSearchTerm(""); }} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -238,6 +279,7 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
               key={classOffering.OfferingID}
               classOffering={classOffering}
               onManage={() => handleManageClass(classOffering)}
+              onDelete={() => handleDeleteClass(classOffering)}
             />
           ))}
         </div>
