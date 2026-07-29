@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PageType, NavigationItem, PortalAccessRole } from '../../types';
 
 interface SidebarProps {
@@ -22,49 +22,49 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
     return page === 'dashboard';
   };
   const topLevelItems: NavigationItem[] = useMemo(() => [
-    { id: 'dashboard', label: 'Dashboard', icon: 'ðŸ“Š' },
-    { id: 'scheduling', label: 'Schedule', icon: 'ðŸ“…' },
-    { id: 'inventory', label: 'Inventory', icon: 'ðŸ“¦' },
+    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'scheduling', label: 'Schedule', icon: '📅' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
   ].filter(item => canAccessItem(roleLabel, item.id)), [roleLabel]);
 
   const managementGroups = useMemo(() => [
     {
       id: 'personnel-management',
       label: 'Personnel Management',
-      icon: 'ðŸ‘¥',
+      icon: '👥',
       defaultPage: 'personnel-management' as PageType,
       children: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: 'ðŸ—‚ï¸' },
-        { id: 'cast', label: 'Cast Management', icon: 'ðŸŽ­' },
-        { id: 'bartenders', label: 'Bartender Management', icon: 'ðŸº' },
-        { id: 'teacher-management', label: 'Teacher Management', icon: 'ðŸ§‘â€ðŸ«' },
-        { id: 'director-management', label: 'Director Management', icon: 'ðŸŽ¬' },
-        { id: 'portal-access', label: 'Portal Access', icon: 'ðŸ”' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: 'ðŸ”§' },
-        { id: 'special-guests', label: 'Special Guests', icon: 'ðŸŽ¤' },
+        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
+        { id: 'director-management', label: 'Director Management', icon: '🎬' },
+        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ] as NavigationItem[],
     },
     {
       id: 'show-management',
       label: 'Show Management',
-      icon: 'ðŸŽª',
+      icon: '🎪',
       defaultPage: 'show-management' as PageType,
       children: [
-        { id: 'show-management', label: 'Shows', icon: 'ðŸŽ¬' },
-        { id: 'crew', label: 'Crew Assignments', icon: 'ðŸ› ï¸' },
-        { id: 'games', label: 'Games', icon: 'ðŸŽ²' },
+        { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ] as NavigationItem[],
     },
     {
       id: 'class-management',
       label: 'Class Management',
-      icon: 'ðŸ“š',
+      icon: '📚',
       defaultPage: 'class-management' as PageType,
       children: [
-        { id: 'class-management', label: 'Classes', icon: 'ðŸ“˜' },
-        { id: 'student-directory', label: 'Student Directory', icon: 'ðŸŽ“' },
-        { id: 'teacher-management', label: 'Teacher Management', icon: 'ðŸ§‘â€ðŸ«' },
-        { id: 'workshops', label: 'Workshops', icon: 'ðŸ§ ' },
+        { id: 'class-management', label: 'Classes', icon: '📘' },
+        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
+        { id: 'workshops', label: 'Workshops', icon: '🧠' },
       ] as NavigationItem[],
     },
   ].map(group => ({
@@ -129,7 +129,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
             <p className="jtf-logo-sub">Team Portal</p>
             <div className="mt-3 h-px bg-gradient-to-r from-red-500 via-amber-400 to-transparent" />
           </div>
-          {/* Close button â€” mobile only */}
+          {/* Close button — mobile only */}
           <button
             onClick={onClose}
             className="md:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ml-2 mt-0.5"
@@ -182,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                       <span className="text-base leading-none">{group.icon}</span>
                       <span className="text-sm font-semibold">{group.label}</span>
                     </span>
-                    <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>â–¾</span>
+                    <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
                   </button>
 
                   {isExpanded && (
@@ -219,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                     : 'jtf-nav-item'
                 }`}
               >
-                <span className="text-lg leading-none">â¬†ï¸</span>
+                <span className="text-lg leading-none">⬆️</span>
                 <span className="text-sm">Import Center</span>
               </button>
             </div>
@@ -242,7 +242,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
               Sign Out
             </button>
           )}
-          <p className="text-xs text-slate-500">Â© {new Date().getFullYear()} Just The Funny</p>
+          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>
         </div>
 
       </div>
