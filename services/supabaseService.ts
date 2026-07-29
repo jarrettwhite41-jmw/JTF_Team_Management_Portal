@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+﻿import { SupabaseClient } from '@supabase/supabase-js';
 import {
   Personnel,
   ShowInformation,
@@ -3154,16 +3154,93 @@ class SupabaseService {
     try {
       const { data, error } = await this.client
         .from('skills')
-        .select(`
-          *,
-          skill_categories(*)
-        `)
+        .select('skill_id, skill_name, description, skill_category_id, skill_categories(category_name, applied_level)')
         .order('skill_name');
 
       if (error) throw error;
-      return { success: true, data: data || [] };
+
+      const mapped = (data || []).map((s: any) => ({
+        SkillID: s.skill_id,
+        SkillName: s.skill_name,
+        Description: s.description || '',
+        SkillCategoryID: s.skill_category_id,
+        CategoryName: s.skill_categories?.category_name || '',
+        AppliedLevel: s.skill_categories?.applied_level || '',
+      }));
+
+      return { success: true, data: mapped };
     } catch (error) {
       console.error('Error fetching skills:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async getSkillCategories(): Promise<ApiResponse<any[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('skill_categories')
+        .select('skill_category_id, category_name, applied_level, description')
+        .order('applied_level')
+        .order('category_name');
+
+      if (error) throw error;
+
+      const mapped = (data || []).map((c: any) => ({
+        SkillCategoryID: c.skill_category_id,
+        CategoryName: c.category_name,
+        AppliedLevel: c.applied_level || '',
+        Description: c.description || '',
+      }));
+
+      return { success: true, data: mapped };
+    } catch (error) {
+      console.error('Error fetching skill categories:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async addSkill(skillName: string, description: string, skillCategoryId: number): Promise<ApiResponse<{ SkillID: number }>> {
+    try {
+      const { data, error } = await this.client
+        .from('skills')
+        .insert({ skill_name: skillName, description, skill_category_id: skillCategoryId })
+        .select('skill_id')
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: { SkillID: data.skill_id } };
+    } catch (error) {
+      console.error('Error adding skill:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateSkill(skillId: number, skillName: string, description: string): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await this.client
+        .from('skills')
+        .update({ skill_name: skillName, description })
+        .eq('skill_id', skillId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating skill:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
+  async deleteSkill(skillId: number): Promise<ApiResponse<void>> {
+    try {
+      const { error } = await this.client
+        .from('skills')
+        .delete()
+        .eq('skill_id', skillId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting skill:', error);
       return { success: false, error: error.toString() };
     }
   }
