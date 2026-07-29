@@ -1,4 +1,4 @@
-// Core Data Types
+﻿// Core Data Types
 export interface Personnel {
   PersonnelID: number;
   FirstName: string;
@@ -419,7 +419,8 @@ export type PageType =
   | 'inventory'
   | 'scheduling'
   | 'student-directory'
-  | 'student-profile';
+  | 'student-profile'
+  | 'skills-management';
 
 export interface NavigationItem {
   id: PageType;

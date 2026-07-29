@@ -34,7 +34,7 @@ const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
-  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management',
 ]);
 
 const getInitialTeamPage = (): PageType => {
@@ -56,12 +56,12 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
     'class-management', 'classes', 'show-management', 'shows', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
-    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile',
+    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management',
   ];
 
   if (role === 'admin' || role === 'manager') return true;
   if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
-  if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops'].includes(page);
+  if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
   if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
   if (role === 'student') return ['dashboard'].includes(page);
 
@@ -249,6 +249,8 @@ const App: React.FC = () => {
           setSelectedStudentId(id);
           navigateToPage('student-profile');
         }} />;
+      case 'skills-management':
+        return <SkillsManagement />;
       default:
         return <Dashboard />;
     }
