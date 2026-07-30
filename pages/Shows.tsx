@@ -5,7 +5,7 @@ import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { PageType, ShowWithDetails } from '../types';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
 
@@ -55,12 +55,12 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     setIsLoading(true);
     try {
       // Try to get enhanced show details first
-      let response = await gasService.getShowsWithDetails();
+      let response = await supabaseService.getShowsWithDetails();
       
       // If the enhanced function fails, fall back to basic getAllShows
       if (!response.success || !response.data) {
         console.log('getShowsWithDetails failed, falling back to getAllShows:', response.error);
-        response = await gasService.getAllShows();
+        response = await supabaseService.getAllShows();
         
         if (response.success && response.data) {
           // Transform basic show data to match ShowWithDetails structure
