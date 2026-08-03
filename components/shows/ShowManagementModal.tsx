@@ -2,7 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Message } from '../common/Message';
 import { ShowEditModal } from './ShowEditModal';
 import { gasService } from '../../services/googleAppsScript';
-import { ShowWithDetails, ShowPerformances, CrewDutyTypes, MasterGame, ShowGame, BartenderWithDetails } from '../../types';
+import { supabaseService } from '../../services/supabaseService';
+import {
+  ShowWithDetails,
+  ShowPerformances,
+  CrewDutyTypes,
+  MasterGame,
+  ShowGame,
+  BartenderWithDetails,
+  CrewAvailability,
+  BartenderSlot,
+} from '../../types';
 
 interface ShowManagementModalProps {
   isOpen: boolean;
@@ -62,6 +72,11 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [masterGames, setMasterGames] = useState<MasterGame[]>([]);
   const [showGames, setShowGames] = useState<EditableShowGame[]>([]);
   const [gameSearch, setGameSearch] = useState('');
+  const [crewAvailabilityRows, setCrewAvailabilityRows] = useState<CrewAvailability[]>([]);
+  const [bartenderSlot, setBartenderSlot] = useState<BartenderSlot | null>(null);
+  const [bartenderCutoffHours, setBartenderCutoffHours] = useState(72);
+  const [selectedBartenderPersonnelId, setSelectedBartenderPersonnelId] = useState('');
+  const [crewDutyLoading, setCrewDutyLoading] = useState(false);
 
   const sortByName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
   const isCompletedShow = useMemo(() => {
@@ -190,6 +205,29 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       } else if (isCompletedShow) {
         setShowGames([createEmptyGame()]);
       }
+
+      const [crewAvailabilityResponse, bartenderSlotResponse, appSettingsResponse] = await Promise.all([
+        supabaseService.getCrewAvailabilityForShow(String(show.ShowID)),
+        supabaseService.getBartenderSlot(String(show.ShowID)),
+        supabaseService.getAppSettings(),
+      ]);
+
+      if (crewAvailabilityResponse.success && crewAvailabilityResponse.data) {
+        setCrewAvailabilityRows(crewAvailabilityResponse.data);
+      }
+
+      if (bartenderSlotResponse.success) {
+        setBartenderSlot(bartenderSlotResponse.data || null);
+        setSelectedBartenderPersonnelId(
+          bartenderSlotResponse.data?.personnel_id ? String(bartenderSlotResponse.data.personnel_id) : '',
+        );
+      }
+
+      if (appSettingsResponse.success && appSettingsResponse.data) {
+        const cutoffSetting = appSettingsResponse.data.find((row) => row.setting_key === 'bartender_bump_cutoff_hours');
+        const parsedCutoff = Number.parseInt(cutoffSetting?.setting_value || '72', 10);
+        setBartenderCutoffHours(Number.isFinite(parsedCutoff) ? parsedCutoff : 72);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -227,6 +265,83 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
       return next;
     });
+  };
+
+  const refreshCrewDutyData = async () => {
+    const [crewAvailabilityResponse, bartenderSlotResponse] = await Promise.all([
+      supabaseService.getCrewAvailabilityForShow(String(show.ShowID)),
+      supabaseService.getBartenderSlot(String(show.ShowID)),
+    ]);
+
+    if (crewAvailabilityResponse.success && crewAvailabilityResponse.data) {
+      setCrewAvailabilityRows(crewAvailabilityResponse.data);
+    }
+
+    if (bartenderSlotResponse.success) {
+      setBartenderSlot(bartenderSlotResponse.data || null);
+      setSelectedBartenderPersonnelId(
+        bartenderSlotResponse.data?.personnel_id ? String(bartenderSlotResponse.data.personnel_id) : '',
+      );
+    }
+  };
+
+  const handleConfirmCrewAvailability = async (availabilityId: string) => {
+    setCrewDutyLoading(true);
+    setMessage(null);
+    try {
+      const response = await supabaseService.confirmCrewSlot(availabilityId);
+      if (!response.success) {
+        setMessage({ type: 'error', text: response.error || 'Failed to confirm crew volunteer.' });
+        return;
+      }
+      await refreshCrewDutyData();
+      setMessage({ type: 'success', text: 'Crew volunteer confirmed.' });
+    } catch {
+      setMessage({ type: 'error', text: 'Unexpected error while confirming crew volunteer.' });
+    } finally {
+      setCrewDutyLoading(false);
+    }
+  };
+
+  const handleToggleBartenderLock = async () => {
+    setCrewDutyLoading(true);
+    setMessage(null);
+    try {
+      const response = await supabaseService.lockBartenderSlot(String(show.ShowID), !(bartenderSlot?.is_locked ?? false));
+      if (!response.success) {
+        setMessage({ type: 'error', text: response.error || 'Failed to update bartender lock state.' });
+        return;
+      }
+      await refreshCrewDutyData();
+      setMessage({ type: 'success', text: `Bartender slot ${(bartenderSlot?.is_locked ?? false) ? 'unlocked' : 'locked'}.` });
+    } catch {
+      setMessage({ type: 'error', text: 'Unexpected error while updating bartender lock state.' });
+    } finally {
+      setCrewDutyLoading(false);
+    }
+  };
+
+  const handleAdminAssignBartender = async () => {
+    if (!selectedBartenderPersonnelId) {
+      setMessage({ type: 'error', text: 'Select a bartender before assigning.' });
+      return;
+    }
+
+    setCrewDutyLoading(true);
+    setMessage(null);
+    try {
+      const response = await supabaseService.adminAssignBartender(String(show.ShowID), selectedBartenderPersonnelId);
+      if (!response.success) {
+        setMessage({ type: 'error', text: response.error || 'Failed to assign bartender slot.' });
+        return;
+      }
+      await refreshCrewDutyData();
+      setMessage({ type: 'success', text: 'Bartender assigned successfully.' });
+    } catch {
+      setMessage({ type: 'error', text: 'Unexpected error while assigning bartender slot.' });
+    } finally {
+      setCrewDutyLoading(false);
+    }
   };
 
   const handleSaveCrew = async () => {
@@ -421,6 +536,25 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     );
   };
 
+  const getCrewRoleVolunteers = (role: CrewAvailability['role']) =>
+    crewAvailabilityRows.filter((row) => row.role === role);
+
+  const getPersonnelName = (personnelId?: number | null) => {
+    if (!personnelId) return 'Unclaimed';
+
+    const option = [...personnelOptions, ...bartenderOptions].find((person) => person.PersonnelID === personnelId);
+    if (option) {
+      return `${option.FirstName || ''} ${option.LastName || ''}`.trim() || 'Assigned';
+    }
+
+    const fallback = crewAvailabilityRows.find((row) => row.personnel_id === personnelId)?.personnel;
+    if (fallback) {
+      return `${fallback.first_name || ''} ${fallback.last_name || ''}`.trim() || 'Assigned';
+    }
+
+    return `Personnel #${personnelId}`;
+  };
+
   if (!isOpen) return null;
 
   const formatDate = (value: Date | string | undefined) => {
@@ -480,6 +614,91 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
             </div>
           ) : activeTab === 'crew' ? (
             <>
+              <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <h3 className="text-sm font-semibold text-gray-900">Crew Duty Volunteer Queue</h3>
+                <p className="mt-1 text-xs text-gray-600">
+                  Admins can confirm one volunteer per role. Confirming a new person in a role automatically clears prior confirmations for that role.
+                </p>
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                  {(['Tech', 'House', 'Box'] as Array<CrewAvailability['role']>).map((role) => {
+                    const volunteers = getCrewRoleVolunteers(role);
+                    return (
+                      <div key={role} className="rounded-lg border border-gray-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-gray-800">{role}</h4>
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{volunteers.length}</span>
+                        </div>
+                        {volunteers.length === 0 ? (
+                          <p className="text-xs text-gray-500">No volunteers yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {volunteers.map((row) => {
+                              const name = `${row.personnel?.first_name || ''} ${row.personnel?.last_name || ''}`.trim() || `Personnel #${row.personnel_id}`;
+                              return (
+                                <div key={row.id} className="rounded-md border border-gray-200 p-2">
+                                  <p className="text-sm font-medium text-gray-800">{name}</p>
+                                  <p className="text-xs text-gray-500">Status: {row.status}</p>
+                                  <button
+                                    onClick={() => handleConfirmCrewAvailability(row.id)}
+                                    disabled={crewDutyLoading || row.status === 'confirmed'}
+                                    className="mt-2 min-h-[40px] rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    {row.status === 'confirmed' ? 'Confirmed' : 'Confirm'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Bartender Slot</h3>
+                    <p className="mt-1 text-xs text-gray-700">Current holder: {getPersonnelName(bartenderSlot?.personnel_id)}</p>
+                    <p className="mt-1 text-xs text-gray-600">Bump window closes {bartenderCutoffHours} hours before show time.</p>
+                    <p className="mt-1 text-xs text-gray-600">Slot status: {bartenderSlot?.is_locked ? 'Locked' : 'Unlocked'}</p>
+                  </div>
+                  <button
+                    onClick={handleToggleBartenderLock}
+                    disabled={crewDutyLoading}
+                    className="min-h-[44px] rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {bartenderSlot?.is_locked ? 'Unlock Slot' : 'Lock Slot'}
+                  </button>
+                </div>
+
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-600">Assign Bartender</label>
+                    <select
+                      value={selectedBartenderPersonnelId}
+                      onChange={(event) => setSelectedBartenderPersonnelId(event.target.value)}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    >
+                      <option value="">Select bartender</option>
+                      {bartenderOptions.map((person) => (
+                        <option key={person.PersonnelID} value={person.PersonnelID}>
+                          {person.FirstName} {person.LastName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={handleAdminAssignBartender}
+                    disabled={crewDutyLoading || !selectedBartenderPersonnelId}
+                    className="min-h-[44px] rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Assign
+                  </button>
+                </div>
+              </div>
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Search Crew Member</label>
                 <input

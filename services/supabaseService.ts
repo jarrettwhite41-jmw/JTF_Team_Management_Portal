@@ -25,6 +25,9 @@ import {
   StudentInfo,
   ClassLevelProgression,
   Bartender,
+  AppSetting,
+  CrewAvailability,
+  BartenderSlot,
   PersonnelDeletionDependencies,
   PortalName,
   PortalAccessRole,
@@ -57,6 +60,7 @@ class SupabaseService {
       director: env.VITE_DIRECTOR_PORTAL_URL?.trim(),
       cast: env.VITE_CAST_PORTAL_URL?.trim(),
       student: env.VITE_STUDENT_PORTAL_URL?.trim(),
+      crew: env.VITE_CREW_PORTAL_URL?.trim(),
     };
 
     const url = configuredUrls[portalName];
@@ -109,6 +113,55 @@ class SupabaseService {
       return String((error as { message: unknown }).message);
     }
     return String(error);
+  }
+
+  private parseShowId(showId: string | number): number {
+    const parsed = typeof showId === 'number' ? showId : Number.parseInt(String(showId), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new Error('Invalid show id.');
+    }
+    return parsed;
+  }
+
+  private parseSettingNumber(value: string | null | undefined, fallback: number): number {
+    const parsed = Number.parseInt(String(value ?? ''), 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private toShowDateTime(showDate: string | null | undefined, showTime: string | null | undefined): Date | null {
+    const date = String(showDate || '').slice(0, 10);
+    if (!date) return null;
+    const time = String(showTime || '').trim() || '00:00:00';
+    const candidate = new Date(`${date}T${time}`);
+    return Number.isNaN(candidate.getTime()) ? null : candidate;
+  }
+
+  private compareBartenderPriority(claimantDate?: string | null, currentDate?: string | null): number {
+    if (!claimantDate && !currentDate) return 0;
+    if (!claimantDate) return -1;
+    if (!currentDate) return 1;
+
+    const claimantTime = new Date(claimantDate).getTime();
+    const currentTime = new Date(currentDate).getTime();
+    if (Number.isNaN(claimantTime) || Number.isNaN(currentTime)) return 0;
+    return claimantTime - currentTime;
+  }
+
+  private async getCurrentPersonnelIdForPortal(portalName: PortalName): Promise<number | null> {
+    const userResult = await this.client.auth.getUser();
+    const authUserId = userResult.data.user?.id;
+    if (!authUserId) return null;
+
+    const { data, error } = await this.client
+      .from('portal_user_access')
+      .select('personnel_id')
+      .eq('auth_user_id', authUserId)
+      .eq('portal_name', portalName)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.personnel_id ?? null;
   }
 
   private toMasterGame(row: any): MasterGame {
@@ -222,6 +275,424 @@ class SupabaseService {
     } catch (error) {
       console.error('Supabase client initialization failed:', error);
       this.client = null as any;
+    }
+  }
+
+  // ========================================================================
+  // APP SETTINGS
+  // ========================================================================
+
+  async getAppSettings(): Promise<ApiResponse<AppSetting[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('app_settings')
+        .select('setting_key, setting_value, description, updated_at')
+        .order('setting_key', { ascending: true });
+
+      if (error) throw error;
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          setting_key: row.setting_key,
+          setting_value: String(row.setting_value ?? ''),
+          description: row.description || '',
+          updated_at: row.updated_at,
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching app settings:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async updateAppSetting(key: string, value: string): Promise<ApiResponse<void>> {
+    try {
+      const normalizedKey = key.trim();
+      const normalizedValue = value.trim();
+
+      if (!normalizedKey || !normalizedValue) {
+        return { success: false, error: 'Setting key and value are required.' };
+      }
+
+      const { error } = await this.client
+        .from('app_settings')
+        .update({ setting_value: normalizedValue, updated_at: new Date().toISOString() })
+        .eq('setting_key', normalizedKey);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating app setting:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  // ========================================================================
+  // CREW DUTY AVAILABILITY + BARTENDER SLOT
+  // ========================================================================
+
+  async getCrewAvailabilityForShow(showId: string): Promise<ApiResponse<CrewAvailability[]>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const { data, error } = await this.client
+        .from('crew_availability')
+        .select('id, show_id, personnel_id, role, status, created_at, updated_at, personnel:personnel_id(first_name,last_name)')
+        .eq('show_id', parsedShowId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          id: row.id,
+          show_id: row.show_id,
+          personnel_id: row.personnel_id,
+          role: row.role,
+          status: row.status,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          personnel: row.personnel
+            ? {
+                first_name: row.personnel.first_name || '',
+                last_name: row.personnel.last_name || '',
+              }
+            : undefined,
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching crew availability:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async upsertCrewAvailability(
+    showId: string,
+    personnelId: string,
+    role: 'Tech' | 'House' | 'Box',
+    status: string,
+  ): Promise<ApiResponse<void>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const parsedPersonnelId = Number.parseInt(personnelId, 10);
+
+      if (!Number.isFinite(parsedPersonnelId) || parsedPersonnelId <= 0) {
+        return { success: false, error: 'Invalid personnel id.' };
+      }
+
+      const normalizedStatus = status as CrewAvailability['status'];
+      if (!['available', 'confirmed', 'not_available'].includes(normalizedStatus)) {
+        return { success: false, error: 'Invalid availability status.' };
+      }
+
+      const { error } = await this.client
+        .from('crew_availability')
+        .upsert(
+          {
+            show_id: parsedShowId,
+            personnel_id: parsedPersonnelId,
+            role,
+            status: normalizedStatus,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'show_id,personnel_id,role' },
+        );
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error upserting crew availability:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async confirmCrewSlot(crewAvailabilityId: string): Promise<ApiResponse<void>> {
+    try {
+      const { data: target, error: targetError } = await this.client
+        .from('crew_availability')
+        .select('id, show_id, role')
+        .eq('id', crewAvailabilityId)
+        .single();
+
+      if (targetError) throw targetError;
+
+      const { error: resetError } = await this.client
+        .from('crew_availability')
+        .update({ status: 'available', updated_at: new Date().toISOString() })
+        .eq('show_id', target.show_id)
+        .eq('role', target.role)
+        .neq('id', crewAvailabilityId)
+        .eq('status', 'confirmed');
+      if (resetError) throw resetError;
+
+      const { error } = await this.client
+        .from('crew_availability')
+        .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+        .eq('id', crewAvailabilityId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error confirming crew slot:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getBartenderSlot(showId: string): Promise<ApiResponse<BartenderSlot | null>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const { data, error } = await this.client
+        .from('bartender_slot')
+        .select('id, show_id, personnel_id, is_locked, claimed_at, updated_at, personnel:personnel_id(first_name,last_name)')
+        .eq('show_id', parsedShowId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return { success: true, data: null };
+
+      return {
+        success: true,
+        data: {
+          id: data.id,
+          show_id: data.show_id,
+          personnel_id: data.personnel_id,
+          is_locked: data.is_locked,
+          claimed_at: data.claimed_at,
+          updated_at: data.updated_at,
+          personnel: data.personnel
+            ? {
+                first_name: data.personnel.first_name || '',
+                last_name: data.personnel.last_name || '',
+              }
+            : undefined,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching bartender slot:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async claimBartenderSlot(showId: string, personnelId: string): Promise<ApiResponse<void>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const parsedPersonnelId = Number.parseInt(personnelId, 10);
+      if (!Number.isFinite(parsedPersonnelId) || parsedPersonnelId <= 0) {
+        return { success: false, error: 'Invalid personnel id.' };
+      }
+
+      const [{ data: settings }, { data: showRow, error: showError }, { data: bartenderRow, error: bartenderError }] = await Promise.all([
+        this.client.from('app_settings').select('setting_key, setting_value').eq('setting_key', 'bartender_bump_cutoff_hours').maybeSingle(),
+        this.client.from('show_information').select('show_date, show_time').eq('show_id', parsedShowId).maybeSingle(),
+        this.client.from('bartenders').select('personnel_id, active').eq('personnel_id', parsedPersonnelId).maybeSingle(),
+      ]);
+
+      if (showError) throw showError;
+      if (!showRow) return { success: false, error: 'Show not found.' };
+      if (bartenderError) throw bartenderError;
+      if (!bartenderRow || bartenderRow.active === false) {
+        return { success: false, error: 'Only active bartenders can claim this slot.' };
+      }
+
+      const cutoffHours = this.parseSettingNumber(settings?.setting_value, 72);
+      const showDateTime = this.toShowDateTime(showRow.show_date, showRow.show_time);
+      if (showDateTime) {
+        const cutoff = new Date(showDateTime);
+        cutoff.setHours(cutoff.getHours() - cutoffHours);
+        if (new Date() >= cutoff) {
+          return { success: false, error: 'Bartender bump window is closed for this show.' };
+        }
+      }
+
+      const slotResult = await this.getBartenderSlot(String(parsedShowId));
+      if (!slotResult.success) {
+        return { success: false, error: slotResult.error || 'Failed to read bartender slot.' };
+      }
+
+      if (!slotResult.data) {
+        const { error: createError } = await this.client
+          .from('bartender_slot')
+          .insert({
+            show_id: parsedShowId,
+            personnel_id: parsedPersonnelId,
+            is_locked: false,
+            claimed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        if (createError) throw createError;
+        return { success: true };
+      }
+
+      if (slotResult.data.is_locked) {
+        return { success: false, error: 'This bartender slot is locked by Team.' };
+      }
+
+      const currentHolderId = slotResult.data.personnel_id;
+      if (currentHolderId === parsedPersonnelId) {
+        return { success: true };
+      }
+
+      if (currentHolderId) {
+        const { data: priorityRows, error: priorityError } = await this.client
+          .from('personnel')
+          .select('personnel_id,last_bartended_date')
+          .in('personnel_id', [parsedPersonnelId, currentHolderId]);
+
+        if (priorityError) throw priorityError;
+
+        const claimantPriority = (priorityRows || []).find((row: any) => row.personnel_id === parsedPersonnelId)?.last_bartended_date;
+        const currentPriority = (priorityRows || []).find((row: any) => row.personnel_id === currentHolderId)?.last_bartended_date;
+        const compare = this.compareBartenderPriority(claimantPriority, currentPriority);
+
+        if (compare > 0) {
+          return {
+            success: false,
+            error: 'You cannot bump the current bartender because they have equal or higher priority.',
+          };
+        }
+      }
+
+      const { error } = await this.client
+        .from('bartender_slot')
+        .update({
+          personnel_id: parsedPersonnelId,
+          claimed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('show_id', parsedShowId)
+        .eq('is_locked', false);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error claiming bartender slot:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async relinquishBartenderSlot(showId: string): Promise<ApiResponse<void>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const currentPersonnelId =
+        (await this.getCurrentPersonnelIdForPortal('cast'))
+        || (await this.getCurrentPersonnelIdForPortal('crew'));
+      if (!currentPersonnelId) {
+        return { success: false, error: 'Unable to resolve your cast or crew profile for this account.' };
+      }
+
+      const [{ data: settings }, { data: showRow, error: showError }] = await Promise.all([
+        this.client.from('app_settings').select('setting_key, setting_value').eq('setting_key', 'bartender_bump_cutoff_hours').maybeSingle(),
+        this.client.from('show_information').select('show_date, show_time').eq('show_id', parsedShowId).maybeSingle(),
+      ]);
+
+      if (showError) throw showError;
+
+      const cutoffHours = this.parseSettingNumber(settings?.setting_value, 72);
+      const showDateTime = this.toShowDateTime(showRow?.show_date, showRow?.show_time);
+      if (showDateTime) {
+        const cutoff = new Date(showDateTime);
+        cutoff.setHours(cutoff.getHours() - cutoffHours);
+        if (new Date() >= cutoff) {
+          return { success: false, error: 'Bartender bump window is closed for this show.' };
+        }
+      }
+
+      const { error } = await this.client
+        .from('bartender_slot')
+        .update({
+          personnel_id: null,
+          claimed_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('show_id', parsedShowId)
+        .eq('personnel_id', currentPersonnelId)
+        .eq('is_locked', false);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error relinquishing bartender slot:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async lockBartenderSlot(showId: string, lock: boolean): Promise<ApiResponse<void>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+
+      const { data: existing, error: existingError } = await this.client
+        .from('bartender_slot')
+        .select('id')
+        .eq('show_id', parsedShowId)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      if (existing) {
+        const { error } = await this.client
+          .from('bartender_slot')
+          .update({ is_locked: lock, updated_at: new Date().toISOString() })
+          .eq('show_id', parsedShowId);
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('bartender_slot')
+          .insert({
+            show_id: parsedShowId,
+            is_locked: lock,
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating bartender lock state:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async adminAssignBartender(showId: string, personnelId: string): Promise<ApiResponse<void>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const parsedPersonnelId = Number.parseInt(personnelId, 10);
+
+      if (!Number.isFinite(parsedPersonnelId) || parsedPersonnelId <= 0) {
+        return { success: false, error: 'Invalid personnel id.' };
+      }
+
+      const { data: existing, error: existingError } = await this.client
+        .from('bartender_slot')
+        .select('id')
+        .eq('show_id', parsedShowId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      if (existing) {
+        const { error } = await this.client
+          .from('bartender_slot')
+          .update({
+            personnel_id: parsedPersonnelId,
+            claimed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('show_id', parsedShowId);
+        if (error) throw error;
+      } else {
+        const { error } = await this.client
+          .from('bartender_slot')
+          .insert({
+            show_id: parsedShowId,
+            personnel_id: parsedPersonnelId,
+            claimed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error assigning bartender slot:', error);
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 

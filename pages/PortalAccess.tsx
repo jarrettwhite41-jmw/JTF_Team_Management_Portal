@@ -10,6 +10,7 @@ const PORTAL_OPTIONS: Array<{ value: PortalName; label: string }> = [
   { value: 'director', label: 'Director Portal' },
   { value: 'cast', label: 'Cast Portal' },
   { value: 'student', label: 'Student Portal' },
+  { value: 'crew', label: 'Crew Portal' },
 ];
 
 const DEFAULT_ROLE_BY_PORTAL: Record<PortalName, PortalAccessRole> = {
@@ -18,6 +19,7 @@ const DEFAULT_ROLE_BY_PORTAL: Record<PortalName, PortalAccessRole> = {
   director: 'director',
   cast: 'cast',
   student: 'student',
+  crew: 'crew',
 };
 
 const ROLE_LABELS: Record<PortalAccessRole, string> = {
@@ -27,6 +29,7 @@ const ROLE_LABELS: Record<PortalAccessRole, string> = {
   teacher: 'Teacher',
   cast: 'Cast',
   student: 'Student',
+  crew: 'Crew',
 };
 
 type AccessStateFilter = 'all' | 'has' | 'none' | 'active' | 'inactive';
@@ -43,11 +46,12 @@ interface PersonAccessRow {
 export const PortalAccess: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [accessRows, setAccessRows] = useState<PortalUserAccess[]>([]);
-  const [rolePersonnelIds, setRolePersonnelIds] = useState<Record<'cast' | 'instructor' | 'director' | 'student', Set<number>>>({
+  const [rolePersonnelIds, setRolePersonnelIds] = useState<Record<'cast' | 'instructor' | 'director' | 'student' | 'crew', Set<number>>>({
     cast: new Set<number>(),
     instructor: new Set<number>(),
     director: new Set<number>(),
     student: new Set<number>(),
+    crew: new Set<number>(),
   });
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,13 +74,14 @@ export const PortalAccess: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [personnelRes, accessRes, castRes, teacherRes, directorRes, studentRes] = await Promise.all([
+      const [personnelRes, accessRes, castRes, teacherRes, directorRes, studentRes, bartendersRes] = await Promise.all([
         supabaseService.getAllPersonnel(),
         supabaseService.getPortalUserAccess(),
         supabaseService.getAllCastMembers(),
         supabaseService.getAllTeachers(),
         supabaseService.getAllDirectors(),
         supabaseService.getAllStudentsWithDetails(),
+        supabaseService.getBartendersWithDetails(),
       ]);
 
       if (personnelRes.success && personnelRes.data) {
@@ -95,6 +100,7 @@ export const PortalAccess: React.FC = () => {
       const teacherIds = new Set<number>();
       const directorIds = new Set<number>();
       const studentIds = new Set<number>();
+      const crewIds = new Set<number>();
 
       if (castRes.success && castRes.data?.data) {
         castRes.data.data.forEach((row: any) => {
@@ -124,11 +130,19 @@ export const PortalAccess: React.FC = () => {
         });
       }
 
+      if (bartendersRes.success && bartendersRes.data) {
+        bartendersRes.data.forEach((row: any) => {
+          const id = Number(row.PersonnelID);
+          if (Number.isFinite(id) && id > 0) crewIds.add(id);
+        });
+      }
+
       setRolePersonnelIds({
         cast: castIds,
         instructor: teacherIds,
         director: directorIds,
         student: studentIds,
+        crew: crewIds,
       });
     } catch {
       setMessage({ type: 'error', text: 'Unexpected error while loading portal access.' });

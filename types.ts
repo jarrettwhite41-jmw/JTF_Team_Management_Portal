@@ -93,6 +93,40 @@ export interface BartenderWithDetails extends Bartender {
   LastShowName?: string;
 }
 
+export interface AppSetting {
+  setting_key: string;
+  setting_value: string;
+  description: string;
+  updated_at: string;
+}
+
+export interface CrewAvailability {
+  id: string;
+  show_id: number;
+  personnel_id: number;
+  role: 'Tech' | 'House' | 'Box';
+  status: 'available' | 'confirmed' | 'not_available';
+  created_at: string;
+  updated_at: string;
+  personnel?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
+export interface BartenderSlot {
+  id: string;
+  show_id: number;
+  personnel_id: number | null;
+  is_locked: boolean;
+  claimed_at: string | null;
+  updated_at: string;
+  personnel?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
 export interface Inventory {
   ItemID: number;
   ItemName: string;
@@ -420,7 +454,8 @@ export type PageType =
   | 'scheduling'
   | 'student-directory'
   | 'student-profile'
-  | 'skills-management';
+  | 'skills-management'
+  | 'settings';
 
 export interface NavigationItem {
   id: PageType;
@@ -428,9 +463,9 @@ export interface NavigationItem {
   icon: string;
 }
 
-export type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student';
+export type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student' | 'crew';
 
-export type PortalAccessRole = 'admin' | 'manager' | 'director' | 'teacher' | 'cast' | 'student';
+export type PortalAccessRole = 'admin' | 'manager' | 'director' | 'teacher' | 'cast' | 'student' | 'crew';
 
 export interface PortalUserAccess {
   AccessID: string;

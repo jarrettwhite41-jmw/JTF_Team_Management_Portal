@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student';
-type PortalRole = 'admin' | 'manager' | 'director' | 'teacher' | 'cast' | 'student';
+type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student' | 'crew';
+type PortalRole = 'admin' | 'manager' | 'director' | 'teacher' | 'cast' | 'student' | 'crew';
 
 interface ProvisionRequest {
   loginEmail: string;
@@ -20,8 +20,8 @@ interface ProvisionRequest {
   personnelId?: number | null;
 }
 
-const PORTAL_NAMES: PortalName[] = ['team', 'instructor', 'director', 'cast', 'student'];
-const PORTAL_ROLES: PortalRole[] = ['admin', 'manager', 'director', 'teacher', 'cast', 'student'];
+const PORTAL_NAMES: PortalName[] = ['team', 'instructor', 'director', 'cast', 'student', 'crew'];
+const PORTAL_ROLES: PortalRole[] = ['admin', 'manager', 'director', 'teacher', 'cast', 'student', 'crew'];
 const TEAM_ADMIN_ROLES = new Set<PortalRole>(['admin', 'manager']);
 
 const json = (status: number, payload: unknown) =>
