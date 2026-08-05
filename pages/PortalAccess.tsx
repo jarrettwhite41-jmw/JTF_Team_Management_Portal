@@ -326,24 +326,6 @@ export const PortalAccess: React.FC = () => {
     setManualPortalRole(DEFAULT_ROLE_BY_PORTAL[value]);
   };
 
-  const ensureDefaultCredentials = async (row: Pick<PortalUserAccess, 'LoginEmail' | 'PortalName' | 'PortalRole'>): Promise<string | null> => {
-    setProvisioningEmail(row.LoginEmail);
-    const provisionResult = await supabaseService.provisionPortalUserCredentials({
-      loginEmail: row.LoginEmail,
-      portalName: row.PortalName,
-      portalRole: row.PortalRole,
-      useDefaultPassword: true,
-      sendResetEmail: false,
-    });
-    setProvisioningEmail(null);
-
-    if (!provisionResult.success || !provisionResult.data) {
-      return provisionResult.error || 'Default password setup failed.';
-    }
-
-    return null;
-  };
-
   const handleSaveManual = async () => {
     const trimmedEmail = loginEmail.trim().toLowerCase();
     if (!trimmedEmail) {
@@ -368,24 +350,9 @@ export const PortalAccess: React.FC = () => {
       return;
     }
 
-    let credentialIssue: string | null = null;
-    if (result.data && !result.data.AuthUserID) {
-      credentialIssue = await ensureDefaultCredentials(result.data);
-    }
-
-    if (credentialIssue) {
-      setMessage({
-        type: 'error',
-        text: `Portal access saved for ${trimmedEmail} on ${manualPortalName} portal, but default password setup failed: ${credentialIssue}`,
-      });
-      await loadData();
-      setIsSaving(false);
-      return;
-    }
-
     setMessage({
       type: 'success',
-      text: `Portal access saved for ${trimmedEmail} on ${manualPortalName} portal${result.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+      text: `Portal access saved for ${trimmedEmail} on ${manualPortalName} portal.`,
     });
     setSelectedPersonnelId('');
     setPersonnelSearchTerm('');
@@ -469,24 +436,9 @@ export const PortalAccess: React.FC = () => {
       return;
     }
 
-    let credentialIssue: string | null = null;
-    if (insertResult.data && !insertResult.data.AuthUserID) {
-      credentialIssue = await ensureDefaultCredentials(insertResult.data);
-    }
-
-    if (credentialIssue) {
-      setMessage({
-        type: 'error',
-        text: `Access granted for ${person.FullName}, but default password setup failed: ${credentialIssue}`,
-      });
-      await loadData();
-      setIsSaving(false);
-      return;
-    }
-
     setMessage({
       type: 'success',
-      text: `${portalFilter} portal access granted for ${person.FullName}${insertResult.data?.AuthUserID ? '.' : ' and default password was set.'}`,
+      text: `${portalFilter} portal access granted for ${person.FullName}.`,
     });
     await loadData();
     setIsSaving(false);

@@ -258,6 +258,12 @@ class SupabaseService {
     );
   }
 
+  private isMissingColumnError(error: unknown, columnName: string): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    const normalizedColumn = columnName.toLowerCase();
+    return message.includes(normalizedColumn) && message.includes('does not exist');
+  }
+
   private async isCastMember(personnelId: number): Promise<boolean> {
     const { data, error } = await this.client
       .from('cast_member_info')
@@ -381,11 +387,46 @@ class SupabaseService {
       const parsedShowId = this.parseShowId(showId);
       const { data, error } = await this.client
         .from('crew_show_availability')
-        .select('id, show_id, personnel_id, status, availability_note, created_at, updated_at, personnel:personnel_id(first_name,last_name)')
+        .select('id, show_id, personnel_id, status, availability_note, preferred_crew_duty, created_at, updated_at, personnel:personnel_id(first_name,last_name)')
         .eq('show_id', parsedShowId)
         .order('created_at', { ascending: true });
 
       if (error) {
+        if (this.isMissingColumnError(error, 'preferred_crew_duty')) {
+          const fallback = await this.client
+            .from('crew_show_availability')
+            .select('id, show_id, personnel_id, status, availability_note, created_at, updated_at, personnel:personnel_id(first_name,last_name)')
+            .eq('show_id', parsedShowId)
+            .order('created_at', { ascending: true });
+
+          if (fallback.error) {
+            if (this.isMissingRelationError(fallback.error, 'crew_show_availability')) {
+              return { success: true, data: [] };
+            }
+            throw fallback.error;
+          }
+
+          return {
+            success: true,
+            data: (fallback.data || []).map((row: any) => ({
+              id: row.id,
+              show_id: row.show_id,
+              personnel_id: row.personnel_id,
+              status: row.status,
+              availability_note: row.availability_note || null,
+              preferred_crew_duty: null,
+              created_at: row.created_at,
+              updated_at: row.updated_at,
+              personnel: row.personnel
+                ? {
+                    first_name: row.personnel.first_name || '',
+                    last_name: row.personnel.last_name || '',
+                  }
+                : undefined,
+            })),
+          };
+        }
+
         if (this.isMissingRelationError(error, 'crew_show_availability')) {
           return { success: true, data: [] };
         }
@@ -400,6 +441,7 @@ class SupabaseService {
           personnel_id: row.personnel_id,
           status: row.status,
           availability_note: row.availability_note || null,
+          preferred_crew_duty: row.preferred_crew_duty || null,
           created_at: row.created_at,
           updated_at: row.updated_at,
           personnel: row.personnel
@@ -552,6 +594,237 @@ class SupabaseService {
     }
   }
 
+  async syncBartenderSlotFromCrewAvailability(showId: string): Promise<ApiResponse<{ updated: boolean; selectedPersonnelId: number | null; reason?: string }>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const nowIso = new Date().toISOString();
+
+      const [{ data: showRow, error: showError }, { data: settings }, { data: slotRow, error: slotError }] = await Promise.all([
+        this.client.from('show_information').select('show_date, show_time').eq('show_id', parsedShowId).maybeSingle(),
+        this.client.from('app_settings').select('setting_key, setting_value').eq('setting_key', 'bartender_bump_cutoff_hours').maybeSingle(),
+        this.client.from('bartender_slot').select('id, personnel_id, is_locked, claimed_at, updated_at').eq('show_id', parsedShowId).maybeSingle(),
+      ]);
+
+      if (showError) throw showError;
+      if (slotError) throw slotError;
+      if (!showRow) {
+        return { success: false, error: 'Show not found.' };
+      }
+
+      if (slotRow?.is_locked) {
+        return { success: true, data: { updated: false, selectedPersonnelId: slotRow.personnel_id ?? null, reason: 'locked' } };
+      }
+
+      const { data: interestedRows, error: interestedError } = await this.client
+        .from('crew_show_availability')
+        .select('personnel_id,status,preferred_crew_duty,updated_at')
+        .eq('show_id', parsedShowId)
+        .eq('status', 'available')
+        .eq('preferred_crew_duty', 'bartender');
+
+      if (interestedError) {
+        if (this.isMissingRelationError(interestedError, 'crew_show_availability') || this.isMissingColumnError(interestedError, 'preferred_crew_duty')) {
+          return { success: true, data: { updated: false, selectedPersonnelId: slotRow?.personnel_id ?? null, reason: 'crew availability schema unavailable' } };
+        }
+        throw interestedError;
+      }
+
+      const interestedIds = Array.from(new Set((interestedRows || [])
+        .map((row: any) => Number(row.personnel_id))
+        .filter((id: number) => Number.isFinite(id) && id > 0)));
+
+      const latestInterestUpdatedAtMs = (interestedRows || []).reduce((latest: number, row: any) => {
+        const ms = row?.updated_at ? new Date(String(row.updated_at)).getTime() : Number.NaN;
+        if (!Number.isFinite(ms)) return latest;
+        return ms > latest ? ms : latest;
+      }, Number.NEGATIVE_INFINITY);
+
+      if (interestedIds.length === 0) {
+        return { success: true, data: { updated: false, selectedPersonnelId: slotRow?.personnel_id ?? null, reason: 'no bartender interest' } };
+      }
+
+      const slotLastChangedMs = slotRow?.updated_at
+        ? new Date(String(slotRow.updated_at)).getTime()
+        : slotRow?.claimed_at
+          ? new Date(String(slotRow.claimed_at)).getTime()
+          : Number.NaN;
+
+      if (slotRow?.personnel_id && Number.isFinite(slotLastChangedMs) && Number.isFinite(latestInterestUpdatedAtMs) && latestInterestUpdatedAtMs <= slotLastChangedMs) {
+        return {
+          success: true,
+          data: {
+            updated: false,
+            selectedPersonnelId: Number(slotRow.personnel_id),
+            reason: 'no new bartender interest since last slot update',
+          },
+        };
+      }
+
+      const { data: bartenderRows, error: bartenderError } = await this.client
+        .from('bartenders')
+        .select('personnel_id,active')
+        .in('personnel_id', interestedIds);
+      if (bartenderError) throw bartenderError;
+
+      const activeBartenderIds = new Set<number>((bartenderRows || [])
+        .filter((row: any) => row.active !== false)
+        .map((row: any) => Number(row.personnel_id))
+        .filter((id: number) => Number.isFinite(id) && id > 0));
+
+      const eligibleIds = interestedIds.filter((id) => activeBartenderIds.has(id));
+      if (eligibleIds.length === 0) {
+        return { success: true, data: { updated: false, selectedPersonnelId: slotRow?.personnel_id ?? null, reason: 'no active bartender candidates' } };
+      }
+
+      const targetShowDate = String(showRow.show_date || '').slice(0, 10);
+      const targetDateMs = targetShowDate ? new Date(`${targetShowDate}T00:00:00`).getTime() : Number.NaN;
+
+      const priorityIds = Array.from(new Set([
+        ...eligibleIds,
+        ...(slotRow?.personnel_id ? [Number(slotRow.personnel_id)] : []),
+      ].filter((id) => Number.isFinite(id) && id > 0)));
+
+      const { data: personnelRows, error: personnelError } = await this.client
+        .from('personnel')
+        .select('personnel_id,last_bartended_date')
+        .in('personnel_id', priorityIds);
+      if (personnelError) throw personnelError;
+
+      const lastBartendedByPersonId = new Map<number, string | null>();
+      (personnelRows || []).forEach((row: any) => {
+        lastBartendedByPersonId.set(Number(row.personnel_id), row.last_bartended_date || null);
+      });
+
+      const priorShowsResult = await this.client
+        .from('show_information')
+        .select('show_id,show_date')
+        .lt('show_date', targetShowDate)
+        .order('show_date', { ascending: false });
+      if (priorShowsResult.error) throw priorShowsResult.error;
+
+      const priorShowIds = (priorShowsResult.data || []).map((row: any) => Number(row.show_id)).filter((id: number) => Number.isFinite(id) && id > 0);
+      const priorShowDateById = new Map<number, string>();
+      (priorShowsResult.data || []).forEach((row: any) => {
+        priorShowDateById.set(Number(row.show_id), String(row.show_date || '').slice(0, 10));
+      });
+
+      const recentAssignedByPersonId = new Map<number, string | null>();
+      if (priorShowIds.length > 0 && priorityIds.length > 0) {
+        const assignmentsResult = await this.client
+          .from('bartender_slot')
+          .select('personnel_id,show_id')
+          .in('personnel_id', priorityIds)
+          .in('show_id', priorShowIds);
+        if (assignmentsResult.error) throw assignmentsResult.error;
+
+        (assignmentsResult.data || []).forEach((row: any) => {
+          const personnelId = Number(row.personnel_id);
+          const showDate = priorShowDateById.get(Number(row.show_id));
+          if (!Number.isFinite(personnelId) || !showDate) return;
+
+          const existing = recentAssignedByPersonId.get(personnelId);
+          if (!existing || showDate > existing) {
+            recentAssignedByPersonId.set(personnelId, showDate);
+          }
+        });
+      }
+
+      const getEffectivePriorityTime = (personnelId: number) => {
+        const historyDate = lastBartendedByPersonId.get(personnelId);
+        const assignedDate = recentAssignedByPersonId.get(personnelId);
+        const historyMs = historyDate ? new Date(historyDate).getTime() : Number.NaN;
+        const assignedMs = assignedDate ? new Date(`${assignedDate}T00:00:00`).getTime() : Number.NaN;
+        if (Number.isNaN(historyMs) && Number.isNaN(assignedMs)) return Number.NEGATIVE_INFINITY;
+        if (Number.isNaN(historyMs)) return assignedMs;
+        if (Number.isNaN(assignedMs)) return historyMs;
+        return Math.max(historyMs, assignedMs);
+      };
+
+      const isBackToBack = (personnelId: number) => {
+        if (!Number.isFinite(targetDateMs)) return false;
+        const recentAssigned = recentAssignedByPersonId.get(personnelId);
+        if (!recentAssigned) return false;
+        const recentMs = new Date(`${recentAssigned}T00:00:00`).getTime();
+        if (!Number.isFinite(recentMs)) return false;
+        const dayMs = 24 * 60 * 60 * 1000;
+        return (targetDateMs - recentMs) > 0 && (targetDateMs - recentMs) <= dayMs;
+      };
+
+      const nonBackToBackExists = eligibleIds.some((id) => !isBackToBack(id));
+
+      const sortedCandidates = [...eligibleIds].sort((a, b) => {
+        const aBackToBack = nonBackToBackExists && isBackToBack(a) ? 1 : 0;
+        const bBackToBack = nonBackToBackExists && isBackToBack(b) ? 1 : 0;
+        if (aBackToBack !== bBackToBack) return aBackToBack - bBackToBack;
+        return getEffectivePriorityTime(a) - getEffectivePriorityTime(b);
+      });
+
+      const bestCandidateId = sortedCandidates[0] ?? null;
+      if (!bestCandidateId) {
+        return { success: true, data: { updated: false, selectedPersonnelId: slotRow?.personnel_id ?? null, reason: 'no eligible bartender candidate' } };
+      }
+
+      const cutoffHours = this.parseSettingNumber(settings?.setting_value, 72);
+      const showDateTime = this.toShowDateTime(showRow.show_date, showRow.show_time);
+      const withinCutoff = (() => {
+        if (!showDateTime) return false;
+        const cutoff = new Date(showDateTime);
+        cutoff.setHours(cutoff.getHours() - cutoffHours);
+        return new Date() >= cutoff;
+      })();
+
+      if (!slotRow) {
+        const { error: createError } = await this.client
+          .from('bartender_slot')
+          .insert({
+            show_id: parsedShowId,
+            personnel_id: bestCandidateId,
+            is_locked: false,
+            claimed_at: nowIso,
+            updated_at: nowIso,
+          });
+        if (createError) throw createError;
+        return { success: true, data: { updated: true, selectedPersonnelId: bestCandidateId } };
+      }
+
+      const currentHolderId = slotRow.personnel_id ? Number(slotRow.personnel_id) : null;
+      if (currentHolderId === bestCandidateId) {
+        return { success: true, data: { updated: false, selectedPersonnelId: currentHolderId } };
+      }
+
+      if (currentHolderId && withinCutoff) {
+        return { success: true, data: { updated: false, selectedPersonnelId: currentHolderId, reason: 'cutoff passed' } };
+      }
+
+      if (currentHolderId) {
+        const currentBackToBack = nonBackToBackExists && isBackToBack(currentHolderId) ? 1 : 0;
+        const bestBackToBack = nonBackToBackExists && isBackToBack(bestCandidateId) ? 1 : 0;
+        const currentScore = [currentBackToBack, getEffectivePriorityTime(currentHolderId)];
+        const bestScore = [bestBackToBack, getEffectivePriorityTime(bestCandidateId)];
+        const bestIsBetter = bestScore[0] < currentScore[0] || (bestScore[0] === currentScore[0] && bestScore[1] < currentScore[1]);
+        if (!bestIsBetter) {
+          return { success: true, data: { updated: false, selectedPersonnelId: currentHolderId, reason: 'current slot holder keeps priority' } };
+        }
+      }
+
+      const { error: updateError } = await this.client
+        .from('bartender_slot')
+        .update({
+          personnel_id: bestCandidateId,
+          claimed_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('show_id', parsedShowId)
+        .eq('is_locked', false);
+      if (updateError) throw updateError;
+
+      return { success: true, data: { updated: true, selectedPersonnelId: bestCandidateId } };
+    } catch (error) {
+      console.error('Error syncing bartender slot from crew availability:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async claimBartenderSlot(showId: string, personnelId: string): Promise<ApiResponse<void>> {
     try {
       const parsedShowId = this.parseShowId(showId);
@@ -621,9 +894,81 @@ class SupabaseService {
 
         const claimantPriority = (priorityRows || []).find((row: any) => row.personnel_id === parsedPersonnelId)?.last_bartended_date;
         const currentPriority = (priorityRows || []).find((row: any) => row.personnel_id === currentHolderId)?.last_bartended_date;
+
+        const targetShowDate = String(showRow.show_date || '').slice(0, 10);
+        const priorShowsResult = await this.client
+          .from('show_information')
+          .select('show_id,show_date')
+          .lt('show_date', targetShowDate)
+          .order('show_date', { ascending: false });
+        if (priorShowsResult.error) throw priorShowsResult.error;
+
+        const priorShowDateById = new Map<number, string>();
+        (priorShowsResult.data || []).forEach((row: any) => {
+          priorShowDateById.set(Number(row.show_id), String(row.show_date || '').slice(0, 10));
+        });
+
+        const priorShowIds = Array.from(priorShowDateById.keys());
+        const assignmentsResult = priorShowIds.length === 0
+          ? { data: [] as any[], error: null }
+          : await this.client
+              .from('bartender_slot')
+              .select('personnel_id,show_id')
+              .in('personnel_id', [parsedPersonnelId, currentHolderId])
+              .in('show_id', priorShowIds);
+        if (assignmentsResult.error) throw assignmentsResult.error;
+
+        let claimantRecentAssigned: string | null = null;
+        let currentRecentAssigned: string | null = null;
+        (assignmentsResult.data || []).forEach((row: any) => {
+          const pid = Number(row.personnel_id);
+          const showDate = priorShowDateById.get(Number(row.show_id));
+          if (!showDate) return;
+          if (pid === parsedPersonnelId && (!claimantRecentAssigned || showDate > claimantRecentAssigned)) {
+            claimantRecentAssigned = showDate;
+          }
+          if (pid === currentHolderId && (!currentRecentAssigned || showDate > currentRecentAssigned)) {
+            currentRecentAssigned = showDate;
+          }
+        });
+
+        const targetDateMs = targetShowDate ? new Date(`${targetShowDate}T00:00:00`).getTime() : Number.NaN;
+        const claimantBackToBack = claimantRecentAssigned
+          ? (() => {
+              const recentMs = new Date(`${claimantRecentAssigned as string}T00:00:00`).getTime();
+              const dayMs = 24 * 60 * 60 * 1000;
+              return Number.isFinite(targetDateMs) && Number.isFinite(recentMs) && (targetDateMs - recentMs) > 0 && (targetDateMs - recentMs) <= dayMs;
+            })()
+          : false;
+        const currentHolderBackToBack = currentRecentAssigned
+          ? (() => {
+              const recentMs = new Date(`${currentRecentAssigned as string}T00:00:00`).getTime();
+              const dayMs = 24 * 60 * 60 * 1000;
+              return Number.isFinite(targetDateMs) && Number.isFinite(recentMs) && (targetDateMs - recentMs) > 0 && (targetDateMs - recentMs) <= dayMs;
+            })()
+          : false;
+
+        const claimantPriorityMs = claimantPriority ? new Date(claimantPriority).getTime() : Number.NaN;
+        const currentPriorityMs = currentPriority ? new Date(currentPriority).getTime() : Number.NaN;
+        const claimantRecentMs = claimantRecentAssigned ? new Date(`${claimantRecentAssigned}T00:00:00`).getTime() : Number.NaN;
+        const currentRecentMs = currentRecentAssigned ? new Date(`${currentRecentAssigned}T00:00:00`).getTime() : Number.NaN;
+        const claimantEffective = Number.isNaN(claimantPriorityMs)
+          ? (Number.isNaN(claimantRecentMs) ? Number.NEGATIVE_INFINITY : claimantRecentMs)
+          : (Number.isNaN(claimantRecentMs) ? claimantPriorityMs : Math.max(claimantPriorityMs, claimantRecentMs));
+        const currentEffective = Number.isNaN(currentPriorityMs)
+          ? (Number.isNaN(currentRecentMs) ? Number.NEGATIVE_INFINITY : currentRecentMs)
+          : (Number.isNaN(currentRecentMs) ? currentPriorityMs : Math.max(currentPriorityMs, currentRecentMs));
+
+        if (claimantBackToBack && !currentHolderBackToBack) {
+          return {
+            success: false,
+            error: 'You cannot take this bartender slot because you already hold the most recent previous bartender assignment.',
+          };
+        }
+
         const compare = this.compareBartenderPriority(claimantPriority, currentPriority);
 
-        if (compare > 0) {
+        if (compare > 0 || claimantEffective > currentEffective) {
           return {
             success: false,
             error: 'You cannot bump the current bartender because they have equal or higher priority.',
