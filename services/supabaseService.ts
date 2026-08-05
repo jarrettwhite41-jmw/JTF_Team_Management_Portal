@@ -1676,7 +1676,41 @@ class SupabaseService {
 
       if (error) throw error;
 
-      const transformed = data?.map((show: any) => ({
+      const showIds = (data || [])
+        .map((show: any) => Number(show.show_id))
+        .filter((id: number) => Number.isFinite(id) && id > 0);
+
+      const bartenderByShowId = new Map<number, number | null>();
+      if (showIds.length > 0) {
+        const { data: bartenderSlots, error: bartenderSlotsError } = await this.client
+          .from('bartender_slot')
+          .select('show_id,personnel_id')
+          .in('show_id', showIds);
+
+        if (bartenderSlotsError) throw bartenderSlotsError;
+
+        (bartenderSlots || []).forEach((row: any) => {
+          const showId = Number(row.show_id);
+          if (!Number.isFinite(showId) || showId <= 0) return;
+          const personnelId = row.personnel_id == null ? null : Number(row.personnel_id);
+          bartenderByShowId.set(showId, Number.isFinite(personnelId as number) && (personnelId as number) > 0 ? (personnelId as number) : null);
+        });
+      }
+
+      const transformed = data?.map((show: any) => {
+          const castMembers = show.show_performances?.map((perf: any) => perf.personnel) || [];
+          const crewMembers = show.crew_duties?.map((crew: any) => crew.personnel) || [];
+          const castCount = Array.isArray(show.show_performances) ? show.show_performances.length : castMembers.length;
+
+          const crewPersonnelIds = new Set<number>((show.crew_duties || [])
+            .map((crew: any) => Number(crew?.personnel_id))
+            .filter((id: number) => Number.isFinite(id) && id > 0));
+
+          const bartenderPersonnelId = bartenderByShowId.get(Number(show.show_id)) || null;
+          const crewCount = (Array.isArray(show.crew_duties) ? show.crew_duties.length : crewMembers.length)
+            + (bartenderPersonnelId && !crewPersonnelIds.has(bartenderPersonnelId) ? 1 : 0);
+
+          return {
           ShowID: show.show_id,
           ShowDate: show.show_date,
           ShowTime: show.show_time,
@@ -1688,9 +1722,12 @@ class SupabaseService {
           DirectorName: show.directors?.personnel
             ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
             : '',
-          CastMembers: show.show_performances?.map((perf: any) => perf.personnel) || [],
-          CrewMembers: show.crew_duties?.map((crew: any) => crew.personnel) || [],
-      })) || [];
+          CastMembers: castMembers,
+          CrewMembers: crewMembers,
+          CastCount: castCount,
+          CrewCount: crewCount,
+      };
+      }) || [];
 
       return { success: true, data: transformed };
     } catch (error) {

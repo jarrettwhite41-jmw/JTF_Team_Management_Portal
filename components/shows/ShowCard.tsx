@@ -9,6 +9,8 @@ interface ShowCardProps {
 
 export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
   const [gamesPlayed, setGamesPlayed] = useState<ShowGame[]>([]);
+  const castCount = show.CastCount ?? show.CastMembers?.length ?? 0;
+  const crewCount = show.CrewCount ?? show.CrewMembers?.length ?? 0;
 
   const formatDate = (value: Date | string | undefined) => {
     if (!value) return 'TBD';
@@ -110,10 +112,10 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
 
       <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
         <div className="rounded-lg bg-blue-50 px-3 py-2 text-blue-700">
-          Cast: <span className="font-semibold">{show.CastMembers?.length || 0}</span>
+          Cast: <span className="font-semibold">{castCount}</span>
         </div>
         <div className="rounded-lg bg-gray-50 px-3 py-2 text-gray-700">
-          Crew: <span className="font-semibold">{show.CrewMembers?.length || 0}</span>
+          Crew: <span className="font-semibold">{crewCount}</span>
         </div>
       </div>
 

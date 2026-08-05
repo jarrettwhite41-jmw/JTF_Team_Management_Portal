@@ -303,6 +303,8 @@ export interface ShowWithDetails extends ShowInformation {
   ShowTypeName?: string;
   CastMembers?: PersonnelWithDetails[];
   CrewMembers?: PersonnelWithDetails[];
+  CastCount?: number;
+  CrewCount?: number;
 }
 
 export interface ClassWithDetails extends ClassOfferings {
