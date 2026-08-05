@@ -10,7 +10,8 @@ import {
   MasterGame,
   ShowGame,
   BartenderWithDetails,
-  CrewAvailability,
+  CrewShowAvailability,
+  PerformerSelectionAvailability,
   BartenderSlot,
 } from '../../types';
 
@@ -72,7 +73,8 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [masterGames, setMasterGames] = useState<MasterGame[]>([]);
   const [showGames, setShowGames] = useState<EditableShowGame[]>([]);
   const [gameSearch, setGameSearch] = useState('');
-  const [crewAvailabilityRows, setCrewAvailabilityRows] = useState<CrewAvailability[]>([]);
+  const [crewShowAvailabilityRows, setCrewShowAvailabilityRows] = useState<CrewShowAvailability[]>([]);
+  const [performerAvailabilityRows, setPerformerAvailabilityRows] = useState<PerformerSelectionAvailability[]>([]);
   const [bartenderSlot, setBartenderSlot] = useState<BartenderSlot | null>(null);
   const [bartenderCutoffHours, setBartenderCutoffHours] = useState(72);
   const [selectedBartenderPersonnelId, setSelectedBartenderPersonnelId] = useState('');
@@ -104,12 +106,13 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse, bartendersResponse] = await Promise.all([
+      const [castResponse, performancesResponse, crewResponse, dutyTypesResponse, bartendersResponse, personnelResponse] = await Promise.all([
         gasService.getAllCastMembers(),
         gasService.getShowPerformances(show.ShowID),
         gasService.getShowCrew(show.ShowID),
         gasService.getAllCrewDutyTypes(),
         gasService.getBartendersWithDetails(),
+        supabaseService.getAllPersonnel(),
       ]);
 
       const [gamesResponse, showGamesResponse] = isCompletedShow
@@ -124,6 +127,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       const crewRows = Array.isArray(crewResponse.data) ? crewResponse.data : (crewResponse.data as any)?.data || [];
       const dutyTypeRows = Array.isArray(dutyTypesResponse.data) ? dutyTypesResponse.data : (dutyTypesResponse.data as any)?.data || [];
       const bartenderRows = Array.isArray(bartendersResponse.data) ? bartendersResponse.data : (bartendersResponse.data as any)?.data || [];
+      const personnelRows = personnelResponse.success && personnelResponse.data ? personnelResponse.data : [];
 
       if (castResponse.success) {
         const mappedCast = castRows.map((member: any) => ({
@@ -159,7 +163,16 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         setCurrentCrew(mappedCrew);
       }
 
-      if (castResponse.success) {
+      if (personnelRows.length > 0) {
+        const mappedPersonnel = personnelRows.map((person: any) => ({
+          PersonnelID: person.PersonnelID,
+          FirstName: person.FirstName,
+          LastName: person.LastName,
+          PrimaryEmail: person.PrimaryEmail,
+        }));
+        mappedPersonnel.sort((a: PersonnelOption, b: PersonnelOption) => sortByName(`${a.FirstName || ''} ${a.LastName || ''}`.trim(), `${b.FirstName || ''} ${b.LastName || ''}`.trim()));
+        setPersonnelOptions(mappedPersonnel);
+      } else if (castResponse.success) {
         const mappedPersonnel = castRows.map((member: any) => ({
           PersonnelID: member.PersonnelID,
           FirstName: member.FirstName,
@@ -206,14 +219,19 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         setShowGames([createEmptyGame()]);
       }
 
-      const [crewAvailabilityResponse, bartenderSlotResponse, appSettingsResponse] = await Promise.all([
-        supabaseService.getCrewAvailabilityForShow(String(show.ShowID)),
+      const [crewAvailabilityResponse, performerAvailabilityResponse, bartenderSlotResponse, appSettingsResponse] = await Promise.all([
+        supabaseService.getCrewShowAvailabilityForShow(String(show.ShowID)),
+        supabaseService.getPerformerSelectionAvailabilityForShow(String(show.ShowID)),
         supabaseService.getBartenderSlot(String(show.ShowID)),
         supabaseService.getAppSettings(),
       ]);
 
       if (crewAvailabilityResponse.success && crewAvailabilityResponse.data) {
-        setCrewAvailabilityRows(crewAvailabilityResponse.data);
+        setCrewShowAvailabilityRows(crewAvailabilityResponse.data);
+      }
+
+      if (performerAvailabilityResponse.success && performerAvailabilityResponse.data) {
+        setPerformerAvailabilityRows(performerAvailabilityResponse.data);
       }
 
       if (bartenderSlotResponse.success) {
@@ -246,6 +264,35 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return map;
   }, [personnelOptions, bartenderOptions]);
 
+  const crewAvailabilityByPersonnelId = useMemo(() => {
+    const map = new Map<number, CrewShowAvailability['status']>();
+    crewShowAvailabilityRows.forEach((row) => {
+      map.set(row.personnel_id, row.status);
+    });
+    return map;
+  }, [crewShowAvailabilityRows]);
+
+  const performerAvailabilityByPersonnelId = useMemo(() => {
+    const map = new Map<number, PerformerSelectionAvailability['availability_status']>();
+    performerAvailabilityRows.forEach((row) => {
+      map.set(row.personnel_id, row.availability_status);
+    });
+    return map;
+  }, [performerAvailabilityRows]);
+
+  const getCrewPriority = (status?: CrewShowAvailability['status']) => {
+    if (status === 'available') return 0;
+    if (status === 'not_available') return 2;
+    return 1;
+  };
+
+  const getPerformerPriority = (status?: PerformerSelectionAvailability['availability_status']) => {
+    if (status === 'available') return 0;
+    if (status === 'alternate') return 1;
+    if (status === 'not_available') return 3;
+    return 2;
+  };
+
   const toggleCast = (castMemberId: number) => {
     setSelectedCastIds(prev => {
       const next = new Set(prev);
@@ -268,13 +315,18 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   };
 
   const refreshCrewDutyData = async () => {
-    const [crewAvailabilityResponse, bartenderSlotResponse] = await Promise.all([
-      supabaseService.getCrewAvailabilityForShow(String(show.ShowID)),
+    const [crewAvailabilityResponse, performerAvailabilityResponse, bartenderSlotResponse] = await Promise.all([
+      supabaseService.getCrewShowAvailabilityForShow(String(show.ShowID)),
+      supabaseService.getPerformerSelectionAvailabilityForShow(String(show.ShowID)),
       supabaseService.getBartenderSlot(String(show.ShowID)),
     ]);
 
     if (crewAvailabilityResponse.success && crewAvailabilityResponse.data) {
-      setCrewAvailabilityRows(crewAvailabilityResponse.data);
+      setCrewShowAvailabilityRows(crewAvailabilityResponse.data);
+    }
+
+    if (performerAvailabilityResponse.success && performerAvailabilityResponse.data) {
+      setPerformerAvailabilityRows(performerAvailabilityResponse.data);
     }
 
     if (bartenderSlotResponse.success) {
@@ -282,24 +334,6 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       setSelectedBartenderPersonnelId(
         bartenderSlotResponse.data?.personnel_id ? String(bartenderSlotResponse.data.personnel_id) : '',
       );
-    }
-  };
-
-  const handleConfirmCrewAvailability = async (availabilityId: string) => {
-    setCrewDutyLoading(true);
-    setMessage(null);
-    try {
-      const response = await supabaseService.confirmCrewSlot(availabilityId);
-      if (!response.success) {
-        setMessage({ type: 'error', text: response.error || 'Failed to confirm crew volunteer.' });
-        return;
-      }
-      await refreshCrewDutyData();
-      setMessage({ type: 'success', text: 'Crew volunteer confirmed.' });
-    } catch {
-      setMessage({ type: 'error', text: 'Unexpected error while confirming crew volunteer.' });
-    } finally {
-      setCrewDutyLoading(false);
     }
   };
 
@@ -514,7 +548,14 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (isBartender || !selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
-    );
+    ).sort((a, b) => {
+      const priorityDiff = getCrewPriority(crewAvailabilityByPersonnelId.get(a.PersonnelID)) - getCrewPriority(crewAvailabilityByPersonnelId.get(b.PersonnelID));
+      if (priorityDiff !== 0) return priorityDiff;
+
+      const aName = `${a.FirstName || ''} ${a.LastName || ''}`.trim();
+      const bName = `${b.FirstName || ''} ${b.LastName || ''}`.trim();
+      return sortByName(aName, bName);
+    });
   };
 
   const getAvailableCastMembers = () => {
@@ -523,7 +564,11 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     return availableCast.filter(member => 
       !crewPersonnelIds.has(member.PersonnelID) &&
       (!query || member.FullName.toLowerCase().includes(query) || member.PrimaryEmail.toLowerCase().includes(query))
-    );
+    ).sort((a, b) => {
+      const priorityDiff = getPerformerPriority(performerAvailabilityByPersonnelId.get(a.PersonnelID)) - getPerformerPriority(performerAvailabilityByPersonnelId.get(b.PersonnelID));
+      if (priorityDiff !== 0) return priorityDiff;
+      return sortByName(a.FullName, b.FullName);
+    });
   };
 
   const getFilteredMasterGames = (selectedGameId?: number | null) => {
@@ -536,8 +581,22 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     );
   };
 
-  const getCrewRoleVolunteers = (role: CrewAvailability['role']) =>
-    crewAvailabilityRows.filter((row) => row.role === role);
+  const getCrewAvailabilityStatusLabel = (status?: CrewShowAvailability['status']) => {
+    if (status === 'available') return 'Crew Available';
+    if (status === 'not_available') return 'Crew Not Available';
+    return 'No Crew Response';
+  };
+
+  const sortedCrewAvailabilityRows = useMemo(() => {
+    return [...crewShowAvailabilityRows].sort((a, b) => {
+      const priorityDiff = getCrewPriority(a.status) - getCrewPriority(b.status);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      const aName = `${a.personnel?.first_name || ''} ${a.personnel?.last_name || ''}`.trim();
+      const bName = `${b.personnel?.first_name || ''} ${b.personnel?.last_name || ''}`.trim();
+      return sortByName(aName, bName);
+    });
+  }, [crewShowAvailabilityRows]);
 
   const getPersonnelName = (personnelId?: number | null) => {
     if (!personnelId) return 'Unclaimed';
@@ -547,7 +606,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       return `${option.FirstName || ''} ${option.LastName || ''}`.trim() || 'Assigned';
     }
 
-    const fallback = crewAvailabilityRows.find((row) => row.personnel_id === personnelId)?.personnel;
+    const fallback = crewShowAvailabilityRows.find((row) => row.personnel_id === personnelId)?.personnel;
     if (fallback) {
       return `${fallback.first_name || ''} ${fallback.last_name || ''}`.trim() || 'Assigned';
     }
@@ -615,41 +674,22 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           ) : activeTab === 'crew' ? (
             <>
               <div className="mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <h3 className="text-sm font-semibold text-gray-900">Crew Duty Volunteer Queue</h3>
+                <h3 className="text-sm font-semibold text-gray-900">Crew Availability Queue</h3>
                 <p className="mt-1 text-xs text-gray-600">
-                  Admins can confirm one volunteer per role. Confirming a new person in a role automatically clears prior confirmations for that role.
+                  People marked as crew-available are prioritized in duty dropdowns below. You can still assign anyone manually.
                 </p>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-                  {(['Tech', 'House', 'Box'] as Array<CrewAvailability['role']>).map((role) => {
-                    const volunteers = getCrewRoleVolunteers(role);
+                <div className="mt-3 space-y-2">
+                  {sortedCrewAvailabilityRows.length === 0 ? (
+                    <p className="text-xs text-gray-500">No crew availability responses yet.</p>
+                  ) : sortedCrewAvailabilityRows.map((row) => {
+                    const name = `${row.personnel?.first_name || ''} ${row.personnel?.last_name || ''}`.trim() || `Personnel #${row.personnel_id}`;
                     return (
-                      <div key={role} className="rounded-lg border border-gray-200 bg-white p-3">
-                        <div className="mb-2 flex items-center justify-between">
-                          <h4 className="text-sm font-semibold text-gray-800">{role}</h4>
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">{volunteers.length}</span>
-                        </div>
-                        {volunteers.length === 0 ? (
-                          <p className="text-xs text-gray-500">No volunteers yet.</p>
-                        ) : (
-                          <div className="space-y-2">
-                            {volunteers.map((row) => {
-                              const name = `${row.personnel?.first_name || ''} ${row.personnel?.last_name || ''}`.trim() || `Personnel #${row.personnel_id}`;
-                              return (
-                                <div key={row.id} className="rounded-md border border-gray-200 p-2">
-                                  <p className="text-sm font-medium text-gray-800">{name}</p>
-                                  <p className="text-xs text-gray-500">Status: {row.status}</p>
-                                  <button
-                                    onClick={() => handleConfirmCrewAvailability(row.id)}
-                                    disabled={crewDutyLoading || row.status === 'confirmed'}
-                                    className="mt-2 min-h-[40px] rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    {row.status === 'confirmed' ? 'Confirmed' : 'Confirm'}
-                                  </button>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                      <div key={row.id} className="rounded-md border border-gray-200 bg-white p-2">
+                        <p className="text-sm font-medium text-gray-800">{name}</p>
+                        <p className="text-xs text-gray-500">Status: {getCrewAvailabilityStatusLabel(row.status)}</p>
+                        {row.availability_note ? (
+                          <p className="mt-1 text-xs text-gray-500">Note: {row.availability_note}</p>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -721,7 +761,19 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                         <label className="block text-sm font-medium text-gray-700 mb-1">{dutyType.DutyName}</label>
                         <select value={assignedPersonnelId || ''} onChange={(e) => handleCrewAssignmentChange(dutyType.CrewDutyTypeID, e.target.value)} disabled={isLoading} className={`w-full rounded-lg border px-3 py-2 ${isExternalBartender ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-gray-300'}`}>
                           <option value="">Unassigned</option>
-                          {availablePersonnel.map(person => <option key={person.PersonnelID} value={person.PersonnelID}>{person.FirstName} {person.LastName}</option>)}
+                          {availablePersonnel.map(person => {
+                            const crewStatus = crewAvailabilityByPersonnelId.get(person.PersonnelID);
+                            const suffix = crewStatus === 'available'
+                              ? ' • Crew available'
+                              : crewStatus === 'not_available'
+                                ? ' • Crew not available'
+                                : '';
+                            return (
+                              <option key={person.PersonnelID} value={person.PersonnelID}>
+                                {person.FirstName} {person.LastName}{suffix}
+                              </option>
+                            );
+                          })}
                         </select>
                         {isExternalBartender && (
                           <p className="mt-2 text-xs text-sky-700">This bartender is not in the cast roster.</p>
@@ -863,12 +915,31 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {getAvailableCastMembers().map(member => (
+                {getAvailableCastMembers().map(member => {
+                const performerStatus = performerAvailabilityByPersonnelId.get(member.PersonnelID);
+                const crewStatus = crewAvailabilityByPersonnelId.get(member.PersonnelID);
+                return (
                 <label key={member.CastMemberID} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedCastIds.has(member.PersonnelID) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'}`}>
                   <input type="checkbox" checked={selectedCastIds.has(member.PersonnelID)} onChange={() => toggleCast(member.PersonnelID)} className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
-                  <div className="min-w-0"><div className="font-medium text-gray-900">{member.FullName}</div><div className="text-xs text-gray-500">{member.PrimaryEmail}</div></div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-gray-900">{member.FullName}</div>
+                    <div className="text-xs text-gray-500">{member.PrimaryEmail}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {performerStatus === 'available' || performerStatus === 'alternate' ? (
+                        <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                          Wants Cast
+                        </span>
+                      ) : null}
+                      {crewStatus === 'available' ? (
+                        <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700">
+                          Crew Available
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </label>
-              ))}
+              );
+              })}
             </div>
             <div className="mt-6 flex justify-end border-t border-gray-200 pt-4">
               <button onClick={handleSaveCrew} disabled={isLoading} className="rounded-lg bg-primary-600 px-6 py-2 text-white hover:bg-primary-700 disabled:opacity-50">

@@ -114,6 +114,26 @@ export interface CrewAvailability {
   };
 }
 
+export interface CrewShowAvailability {
+  id: string;
+  show_id: number;
+  personnel_id: number;
+  status: 'available' | 'not_available';
+  availability_note: string | null;
+  created_at: string;
+  updated_at: string;
+  personnel?: {
+    first_name: string;
+    last_name: string;
+  };
+}
+
+export interface PerformerSelectionAvailability {
+  personnel_id: number;
+  availability_status: 'available' | 'not_available' | 'alternate' | null;
+  availability_note: string | null;
+}
+
 export interface BartenderSlot {
   id: string;
   show_id: number;

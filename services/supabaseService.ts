@@ -27,7 +27,9 @@ import {
   Bartender,
   AppSetting,
   CrewAvailability,
+  CrewShowAvailability,
   BartenderSlot,
+  PerformerSelectionAvailability,
   PersonnelDeletionDependencies,
   PortalName,
   PortalAccessRole,
@@ -247,6 +249,15 @@ class SupabaseService {
     );
   }
 
+  private isMissingRelationError(error: unknown, tableName: string): boolean {
+    const message = this.getErrorMessage(error).toLowerCase();
+    const normalizedTable = tableName.toLowerCase();
+    return (
+      message.includes(`relation "${normalizedTable}" does not exist`)
+      || (message.includes(normalizedTable) && message.includes('does not exist'))
+    );
+  }
+
   private async isCastMember(personnelId: number): Promise<boolean> {
     const { data, error } = await this.client
       .from('cast_member_info')
@@ -361,6 +372,75 @@ class SupabaseService {
       };
     } catch (error) {
       console.error('Error fetching crew availability:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getCrewShowAvailabilityForShow(showId: string): Promise<ApiResponse<CrewShowAvailability[]>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const { data, error } = await this.client
+        .from('crew_show_availability')
+        .select('id, show_id, personnel_id, status, availability_note, created_at, updated_at, personnel:personnel_id(first_name,last_name)')
+        .eq('show_id', parsedShowId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (this.isMissingRelationError(error, 'crew_show_availability')) {
+          return { success: true, data: [] };
+        }
+        throw error;
+      }
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          id: row.id,
+          show_id: row.show_id,
+          personnel_id: row.personnel_id,
+          status: row.status,
+          availability_note: row.availability_note || null,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          personnel: row.personnel
+            ? {
+                first_name: row.personnel.first_name || '',
+                last_name: row.personnel.last_name || '',
+              }
+            : undefined,
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching crew show availability:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getPerformerSelectionAvailabilityForShow(showId: string): Promise<ApiResponse<PerformerSelectionAvailability[]>> {
+    try {
+      const parsedShowId = this.parseShowId(showId);
+      const { data, error } = await this.client
+        .from('show_availability')
+        .select('personnel_id,availability_status,availability_note')
+        .eq('show_id', parsedShowId);
+
+      if (error) {
+        if (this.isMissingRelationError(error, 'show_availability')) {
+          return { success: true, data: [] };
+        }
+        throw error;
+      }
+
+      return {
+        success: true,
+        data: (data || []).map((row: any) => ({
+          personnel_id: Number(row.personnel_id),
+          availability_status: row.availability_status || null,
+          availability_note: row.availability_note || null,
+        })),
+      };
+    } catch (error) {
+      console.error('Error fetching performer selection availability:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }
@@ -870,7 +950,20 @@ class SupabaseService {
       }
 
       return { success: true, data };
-    } catch (error) {
+    } catch (error: unknown) {
+      const context = (error as { context?: Response } | null)?.context;
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json() as { error?: string; message?: string; details?: string };
+          const functionError = payload.error || payload.message || payload.details;
+          if (typeof functionError === 'string' && functionError.trim()) {
+            return { success: false, error: functionError.trim() };
+          }
+        } catch {
+          // Fall through to generic error mapping when response is not JSON.
+        }
+      }
+
       console.error('Error provisioning portal credentials:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
