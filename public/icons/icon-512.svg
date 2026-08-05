@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="JTF Team">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a0808" />
-      <stop offset="100%" stop-color="#7f1d1d" />
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bg)" />
-  <text x="256" y="246" text-anchor="middle" fill="#ef4444" font-family="Inter, Arial, sans-serif" font-size="144" font-weight="800" letter-spacing="4">JTF</text>
-  <text x="256" y="336" text-anchor="middle" fill="#eab308" font-family="Inter, Arial, sans-serif" font-size="58" font-weight="700" letter-spacing="9">TEAM</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Just The Funny Team Portal">
+  <rect width="512" height="512" fill="#ffffff" />
+  <g transform="translate(26 110) rotate(-13 230 132)">
+    <polygon points="0,100 218,48 218,258 0,306" fill="#000000" />
+    <polygon points="206,72 466,52 466,248 206,268" fill="#000000" />
+    <rect x="178" y="84" width="112" height="190" fill="#ffffff" />
+
+    <text x="24" y="206" fill="#ffffff" font-family="Impact, Arial Black, sans-serif" font-size="104" font-weight="900" letter-spacing="1">JUST</text>
+    <text x="292" y="208" fill="#ffffff" font-family="Impact, Arial Black, sans-serif" font-size="122" font-weight="900" letter-spacing="1">FUNNY</text>
+    <text x="234" y="178" fill="#000000" font-family="Impact, Arial Black, sans-serif" font-size="82" font-weight="900" text-anchor="middle" transform="rotate(-90 234 178)">the</text>
+  </g>
 </svg>
