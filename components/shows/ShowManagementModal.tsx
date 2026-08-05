@@ -79,12 +79,15 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
   const [bartenderCutoffHours, setBartenderCutoffHours] = useState(72);
   const [selectedBartenderPersonnelId, setSelectedBartenderPersonnelId] = useState('');
   const [crewDutyLoading, setCrewDutyLoading] = useState(false);
+  const [bartenderDutyTypeIds, setBartenderDutyTypeIds] = useState<Set<number>>(new Set());
 
   const getDutyUniquenessKey = (dutyName: string) => {
     const normalized = dutyName.trim().toLowerCase();
     if (normalized.includes('bartender') || normalized === 'bar') return 'bartender';
     return normalized;
   };
+
+  const isBartenderDutyName = (dutyName: string) => getDutyUniquenessKey(dutyName) === 'bartender';
 
   const sortByName = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base' });
   const isCompletedShow = useMemo(() => {
@@ -207,6 +210,12 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
 
       if (dutyTypesResponse.success) {
+        const bartenderTypeIds = new Set<number>((dutyTypeRows || [])
+          .filter((dutyType: CrewDutyTypes) => isBartenderDutyName(String(dutyType.DutyName || '')))
+          .map((dutyType: CrewDutyTypes) => Number(dutyType.CrewDutyTypeID))
+          .filter((id: number) => Number.isFinite(id) && id > 0));
+        setBartenderDutyTypeIds(bartenderTypeIds);
+
         const seenDutyKeys = new Set<string>();
         const dedupedDutyTypes = (dutyTypeRows || []).filter((dutyType: CrewDutyTypes) => {
           const key = getDutyUniquenessKey(String(dutyType.DutyName || ''));
@@ -258,9 +267,46 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
 
       if (bartenderSlotResponse.success) {
-        setBartenderSlot(bartenderSlotResponse.data || null);
+        let resolvedSlot = bartenderSlotResponse.data || null;
+
+        const legacyBartenderAssignment = crewRows.find((row: any) =>
+          isBartenderDutyName(String(row.DutyName || '')) && Number(row.PersonnelID) > 0,
+        );
+
+        if ((!resolvedSlot || !resolvedSlot.personnel_id) && legacyBartenderAssignment?.PersonnelID) {
+          const backfillResponse = await supabaseService.adminAssignBartender(
+            String(show.ShowID),
+            String(legacyBartenderAssignment.PersonnelID),
+          );
+
+          if (backfillResponse.success) {
+            const refreshedSlotResponse = await supabaseService.getBartenderSlot(String(show.ShowID));
+            if (refreshedSlotResponse.success) {
+              resolvedSlot = refreshedSlotResponse.data || null;
+            }
+          }
+        }
+
+        if ((!resolvedSlot || !resolvedSlot.personnel_id) && legacyBartenderAssignment?.PersonnelID) {
+          const fallbackName = legacyBartenderAssignment.FullName || `${legacyBartenderAssignment.FirstName || ''} ${legacyBartenderAssignment.LastName || ''}`.trim();
+          const [firstName = '', ...rest] = String(fallbackName || '').trim().split(/\s+/);
+          resolvedSlot = {
+            id: `legacy-${show.ShowID}`,
+            show_id: show.ShowID,
+            personnel_id: Number(legacyBartenderAssignment.PersonnelID),
+            is_locked: false,
+            claimed_at: null,
+            updated_at: new Date().toISOString(),
+            personnel: {
+              first_name: firstName,
+              last_name: rest.join(' '),
+            },
+          };
+        }
+
+        setBartenderSlot(resolvedSlot);
         setSelectedBartenderPersonnelId(
-          bartenderSlotResponse.data?.personnel_id ? String(bartenderSlotResponse.data.personnel_id) : '',
+          resolvedSlot?.personnel_id ? String(resolvedSlot.personnel_id) : '',
         );
       }
 
@@ -422,6 +468,9 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
       }
 
       const assignmentsToRemove = currentCrew.filter((crew) => {
+        if (isBartenderDutyName(String(crew.DutyName || ''))) {
+          return false;
+        }
         const nextPersonnelId = crewAssignments.get(crew.CrewDutyTypeID);
         return !nextPersonnelId || nextPersonnelId !== crew.PersonnelID;
       });
@@ -434,6 +483,9 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
 
       const assignmentsToAdd = Array.from(crewAssignments.entries())
         .filter(([dutyTypeId, personnelId]) => {
+          if (bartenderDutyTypeIds.has(dutyTypeId)) {
+            return false;
+          }
           const existingAssignment = currentCrew.find((crew) => crew.CrewDutyTypeID === dutyTypeId);
           return !existingAssignment || existingAssignment.PersonnelID !== personnelId;
         });
@@ -560,7 +612,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
         DutyName: dutyType.DutyName,
       }];
     });
-  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew, castPersonnelIds]);
+  }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew]);
 
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();

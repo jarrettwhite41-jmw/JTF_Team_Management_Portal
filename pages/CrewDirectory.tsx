@@ -36,10 +36,36 @@ export const CrewDirectory: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dutyFilter, setDutyFilter] = useState<string>('all');
   const [showFilter, setShowFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('all');
+  const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'grid' | 'grouped' | 'byShow'>('grid');
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const parseDateLocal = (value?: string | null): Date | null => {
+    if (!value || value === 'N/A') return null;
+    const raw = String(value).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const year = Number(raw.slice(0, 4));
+      const month = Number(raw.slice(5, 7)) - 1;
+      const day = Number(raw.slice(8, 10));
+      const date = new Date(year, month, day);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const fallback = new Date(value);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  };
+
+  const toDateKey = (value?: string | null): string => {
+    const parsed = parseDateLocal(value);
+    if (!parsed) return '';
+    const year = parsed.getFullYear();
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const day = String(parsed.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   useEffect(() => {
     loadCrewMembers();
@@ -62,8 +88,24 @@ export const CrewDirectory: React.FC = () => {
     if (showFilter !== 'all') {
       filtered = filtered.filter(m => (m.ShowName || '') === showFilter);
     }
+
+    if (dateFilter !== 'all') {
+      filtered = filtered.filter(m => toDateKey(m.ShowDate || m.LastShowDate || '') === dateFilter);
+    }
+
+    filtered = [...filtered].sort((a, b) => {
+      const aDate = parseDateLocal(a.ShowDate || a.LastShowDate || '')?.getTime() ?? Number.NEGATIVE_INFINITY;
+      const bDate = parseDateLocal(b.ShowDate || b.LastShowDate || '')?.getTime() ?? Number.NEGATIVE_INFINITY;
+      const dateDiff = dateSortOrder === 'asc' ? aDate - bDate : bDate - aDate;
+      if (dateDiff !== 0) return dateDiff;
+
+      const aName = `${a.FirstName || ''} ${a.LastName || a.Lastname || ''}`.trim();
+      const bName = `${b.FirstName || ''} ${b.LastName || b.Lastname || ''}`.trim();
+      return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+    });
+
     setFilteredCrewMembers(filtered);
-  }, [crewMembers, searchTerm, dutyFilter, showFilter]);
+  }, [crewMembers, searchTerm, dutyFilter, showFilter, dateFilter, dateSortOrder]);
 
   const loadCrewMembers = async () => {
     setIsLoading(true);
@@ -89,9 +131,13 @@ export const CrewDirectory: React.FC = () => {
   const uniqueCrewCount = new Set(crewMembers.map(m => m.PersonnelID).filter(Boolean)).size;
 
   // Unique show dates sorted chronologically
-  const getDateKey = (m: CrewMemberWithDetails) => m.ShowDate || m.LastShowDate || '';
+  const getDateKey = (m: CrewMemberWithDetails) => toDateKey(m.ShowDate || m.LastShowDate || '');
   const uniqueShowDates = Array.from(new Set(crewMembers.map(getDateKey).filter(Boolean)))
-    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    .sort((a, b) => {
+      const aTime = parseDateLocal(a)?.getTime() ?? Number.POSITIVE_INFINITY;
+      const bTime = parseDateLocal(b)?.getTime() ?? Number.POSITIVE_INFINITY;
+      return aTime - bTime;
+    });
 
   // Map each show date to a stable color index
   const showColorMap = useMemo(() => {
@@ -131,8 +177,8 @@ export const CrewDirectory: React.FC = () => {
 
   const formatDate = (dateString?: string) => {
     if (!dateString || dateString === 'N/A') return 'N/A';
-    try { return new Date(dateString).toLocaleDateString(); }
-    catch { return dateString; }
+    const date = parseDateLocal(dateString);
+    return date ? date.toLocaleDateString() : dateString;
   };
 
   const getDisplayName = (m: CrewMemberWithDetails) =>
@@ -206,6 +252,28 @@ export const CrewDirectory: React.FC = () => {
           {uniqueShows.map(show => (
             <option key={show} value={show}>{show}</option>
           ))}
+        </select>
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm"
+          aria-label="Filter by show date"
+          title="Filter by show date"
+        >
+          <option value="all">All Dates</option>
+          {uniqueShowDates.map(date => (
+            <option key={date} value={date}>{formatDate(date)}</option>
+          ))}
+        </select>
+        <select
+          value={dateSortOrder}
+          onChange={(e) => setDateSortOrder(e.target.value as 'asc' | 'desc')}
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-sm"
+          aria-label="Sort by show date"
+          title="Sort by show date"
+        >
+          <option value="desc">Date: Newest First</option>
+          <option value="asc">Date: Oldest First</option>
         </select>
         <div className="flex rounded-lg border border-gray-300 overflow-hidden">
           <button

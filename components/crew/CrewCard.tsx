@@ -21,11 +21,14 @@ export const CrewCard: React.FC<CrewCardProps> = ({ crewMember, onClick, showCol
 
   const formatDate = (dateString: string) => {
     if (!dateString || dateString === 'N/A') return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
+    const raw = String(dateString).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const date = new Date(Number(raw.slice(0, 4)), Number(raw.slice(5, 7)) - 1, Number(raw.slice(8, 10)));
+      return Number.isNaN(date.getTime()) ? dateString : date.toLocaleDateString();
     }
+
+    const parsed = new Date(dateString);
+    return Number.isNaN(parsed.getTime()) ? dateString : parsed.toLocaleDateString();
   };
 
   const defaultBadge = 'bg-gray-100 text-gray-600 border-gray-200';
