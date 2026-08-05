@@ -120,7 +120,7 @@ export interface CrewShowAvailability {
   personnel_id: number;
   status: 'available' | 'not_available';
   availability_note: string | null;
-  preferred_crew_duty: 'bartender' | 'tech' | 'house' | 'box' | null;
+  preferred_crew_duty: 'bartender' | null;
   created_at: string;
   updated_at: string;
   personnel?: {
