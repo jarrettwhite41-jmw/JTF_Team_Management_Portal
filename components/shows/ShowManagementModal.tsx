@@ -614,6 +614,23 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     });
   }, [allPersonnelById, crewAssignments, crewDutyTypes, currentCrew]);
 
+  const allDisplayedCrewAssignments = useMemo(() => {
+    const rows = [...countedCrewAssignments];
+    if (bartenderSlot?.personnel_id) {
+      const bartenderFromOptions = allPersonnelById.get(bartenderSlot.personnel_id);
+      const bartenderName = bartenderFromOptions
+        ? `${bartenderFromOptions.FirstName || ''} ${bartenderFromOptions.LastName || ''}`.trim()
+        : `${bartenderSlot.personnel?.first_name || ''} ${bartenderSlot.personnel?.last_name || ''}`.trim() || `Personnel #${bartenderSlot.personnel_id}`;
+
+      rows.push({
+        PersonnelID: bartenderSlot.personnel_id,
+        FullName: bartenderName,
+        DutyName: 'Bartender',
+      });
+    }
+    return rows;
+  }, [countedCrewAssignments, bartenderSlot, allPersonnelById]);
+
   const getAvailablePersonnelForDuty = (dutyTypeId: number) => {
     const assignedIds = getAssignedPersonnelIds();
     const selectedCastIds = getSelectedCastPersonnelIds();
@@ -658,7 +675,9 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     );
   };
 
-  const getCrewAvailabilityStatusLabel = (status?: CrewShowAvailability['status']) => {
+  const getCrewAvailabilityStatusLabel = (row: CrewShowAvailability) => {
+    if (row.status === 'available' && row.preferred_crew_duty === 'bartender') return 'Optional Bartender';
+    const status = row.status;
     if (status === 'available') return 'Crew Available';
     if (status === 'not_available') return 'Crew Not Available';
     return 'No Crew Response';
@@ -731,7 +750,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           <div className="flex gap-4">
             <button onClick={() => setActiveTab('details')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'details' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Details</button>
             <button onClick={() => setActiveTab('cast')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'cast' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Cast ({castCounts.selected})</button>
-            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({countedCrewAssignments.length})</button>
+            <button onClick={() => setActiveTab('crew')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'crew' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Crew ({allDisplayedCrewAssignments.length})</button>
             {isCompletedShow && <button onClick={() => setActiveTab('games')} className={`pb-3 px-2 font-medium border-b-2 transition-colors ${activeTab === 'games' ? 'border-primary-600 text-primary-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>Games ({showGames.filter(game => game.gameId || game.customName.trim()).length})</button>}
           </div>
         </div>
@@ -746,7 +765,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).length > 0 ? availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FullName}</span>) : 'No cast assigned'}</div></div>
-              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{countedCrewAssignments.length > 0 ? countedCrewAssignments.map((member, index) => <span key={`${member.PersonnelID}-${member.DutyName}-${index}`} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{allDisplayedCrewAssignments.length > 0 ? allDisplayedCrewAssignments.map((member, index) => <span key={`${member.PersonnelID}-${member.DutyName}-${index}`} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
             </div>
           ) : activeTab === 'crew' ? (
             <>
@@ -763,7 +782,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                     return (
                       <div key={row.id} className="rounded-md border border-gray-200 bg-white p-2">
                         <p className="text-sm font-medium text-gray-800">{name}</p>
-                        <p className="text-xs text-gray-500">Status: {getCrewAvailabilityStatusLabel(row.status)}</p>
+                        <p className="text-xs text-gray-500">Status: {getCrewAvailabilityStatusLabel(row)}</p>
                         {row.availability_note ? (
                           <p className="mt-1 text-xs text-gray-500">Note: {row.availability_note}</p>
                         ) : null}
