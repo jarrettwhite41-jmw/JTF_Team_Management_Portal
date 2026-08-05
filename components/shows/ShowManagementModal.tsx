@@ -214,7 +214,9 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
           seenDutyKeys.add(key);
           return true;
         });
-        setCrewDutyTypes(dedupedDutyTypes);
+
+        // Bartender is managed exclusively by the dedicated gold slot UI.
+        setCrewDutyTypes(dedupedDutyTypes.filter((dutyType) => getDutyUniquenessKey(String(dutyType.DutyName || '')) !== 'bartender'));
       }
 
       if (gamesResponse.success) {
@@ -305,17 +307,6 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     if (status === 'available') return 0;
     if (status === 'not_available') return 2;
     return 1;
-  };
-
-  const getCrewPreferredDutyLabel = (preferredDuty?: CrewShowAvailability['preferred_crew_duty']) => {
-    if (preferredDuty === 'bartender') return 'Bartender';
-    return 'No Preference';
-  };
-
-  const normalizeCrewDutyName = (dutyName: string): CrewShowAvailability['preferred_crew_duty'] => {
-    const normalized = dutyName.trim().toLowerCase();
-    if (normalized.includes('bartender') || normalized === 'bar') return 'bartender';
-    return null;
   };
 
   const getPerformerPriority = (status?: PerformerSelectionAvailability['availability_status']) => {
@@ -577,20 +568,12 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
     const currentAssignment = crewAssignments.get(dutyTypeId);
     const query = crewSearch.trim().toLowerCase();
     const isBartender = isBartenderDuty(dutyTypeId);
-    const dutyName = crewDutyTypes.find(type => type.CrewDutyTypeID === dutyTypeId)?.DutyName || '';
-    const normalizedDuty = normalizeCrewDutyName(dutyName);
     const sourceOptions = isBartender ? bartenderOptions : personnelOptions;
     return sourceOptions.filter(p => 
       (!assignedIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (isBartender || !selectedCastIds.has(p.PersonnelID) || p.PersonnelID === currentAssignment) &&
       (!query || `${p.FirstName || ''} ${p.LastName || ''}`.toLowerCase().includes(query))
     ).sort((a, b) => {
-      const aPreferredDuty = crewShowAvailabilityRows.find((row) => row.personnel_id === a.PersonnelID)?.preferred_crew_duty || null;
-      const bPreferredDuty = crewShowAvailabilityRows.find((row) => row.personnel_id === b.PersonnelID)?.preferred_crew_duty || null;
-      const aPrefersThisDuty = normalizedDuty && aPreferredDuty === normalizedDuty ? 0 : 1;
-      const bPrefersThisDuty = normalizedDuty && bPreferredDuty === normalizedDuty ? 0 : 1;
-      if (aPrefersThisDuty !== bPrefersThisDuty) return aPrefersThisDuty - bPrefersThisDuty;
-
       const priorityDiff = getCrewPriority(crewAvailabilityByPersonnelId.get(a.PersonnelID)) - getCrewPriority(crewAvailabilityByPersonnelId.get(b.PersonnelID));
       if (priorityDiff !== 0) return priorityDiff;
 
@@ -729,7 +712,6 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                       <div key={row.id} className="rounded-md border border-gray-200 bg-white p-2">
                         <p className="text-sm font-medium text-gray-800">{name}</p>
                         <p className="text-xs text-gray-500">Status: {getCrewAvailabilityStatusLabel(row.status)}</p>
-                        <p className="text-xs text-gray-500">Preferred Duty: {getCrewPreferredDutyLabel(row.preferred_crew_duty)}</p>
                         {row.availability_note ? (
                           <p className="mt-1 text-xs text-gray-500">Note: {row.availability_note}</p>
                         ) : null}
@@ -806,10 +788,6 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                           <option value="">Unassigned</option>
                           {availablePersonnel.map(person => {
                             const crewStatus = crewAvailabilityByPersonnelId.get(person.PersonnelID);
-                            const preferredDuty = crewShowAvailabilityRows.find((row) => row.personnel_id === person.PersonnelID)?.preferred_crew_duty;
-                            const dutyName = crewDutyTypes.find((type) => type.CrewDutyTypeID === dutyType.CrewDutyTypeID)?.DutyName || '';
-                            const normalizedDuty = normalizeCrewDutyName(dutyName);
-                            const preferredDutyMatch = normalizedDuty && preferredDuty === normalizedDuty;
                             const suffix = crewStatus === 'available'
                               ? ' • Crew available'
                               : crewStatus === 'not_available'
@@ -817,7 +795,7 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
                                 : '';
                             return (
                               <option key={person.PersonnelID} value={person.PersonnelID}>
-                                {person.FirstName} {person.LastName}{preferredDutyMatch ? ' • Bartender interested' : ''}{suffix}
+                                {person.FirstName} {person.LastName}{suffix}
                               </option>
                             );
                           })}
