@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { gasService } from '../services/googleAppsScript';
+import { supabaseService } from '../services/supabaseService';
 import { Personnel, SpecialGuest, Workshop, WorkshopRegistration } from '../types';
 
 type FilterType = 'all' | 'upcoming' | 'completed' | 'canceled';
@@ -112,8 +112,8 @@ const WorkshopEditModal: React.FC<WorkshopEditModalProps> = ({ isOpen, workshop,
       };
 
       const response = workshop
-        ? await gasService.updateWorkshop(workshop.WorkshopID, payload)
-        : await gasService.createWorkshop(payload);
+        ? await supabaseService.updateWorkshop(workshop.WorkshopID, payload)
+        : await supabaseService.createWorkshop(payload);
 
       if (response.success) {
         setMessage({ type: 'success', text: workshop ? 'Workshop updated successfully' : 'Workshop created successfully' });
@@ -292,10 +292,10 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
       setIsLoading(true);
       try {
         const [registrationResponse, personnelResponse, castResponse, studentResponse] = await Promise.all([
-          gasService.getWorkshopRegistrations(workshop.WorkshopID),
-          gasService.getAllPersonnel(),
-          gasService.getAllCastMembers(),
-          gasService.getAllStudentsWithDetails(),
+          supabaseService.getWorkshopRegistrations(workshop.WorkshopID),
+          supabaseService.getAllPersonnel(),
+          supabaseService.getAllCastMembers(),
+          supabaseService.getAllStudentsWithDetails(),
         ]);
 
         if (registrationResponse.success && registrationResponse.data) {
@@ -344,7 +344,7 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
 
   const refreshRegistrations = async () => {
     if (!workshop) return;
-    const response = await gasService.getWorkshopRegistrations(workshop.WorkshopID);
+    const response = await supabaseService.getWorkshopRegistrations(workshop.WorkshopID);
     if (response.success && response.data) {
       setRegistrations(response.data || []);
       onUpdated();
@@ -354,7 +354,7 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
   const handleAdd = async () => {
     if (!workshop || !selectedPersonnelId) return;
     setMessage(null);
-    const response = await gasService.registerPersonnelForWorkshop(workshop.WorkshopID, Number(selectedPersonnelId));
+    const response = await supabaseService.registerPersonnelForWorkshop(workshop.WorkshopID, Number(selectedPersonnelId));
     if (response.success) {
       setSelectedPersonnelId('');
       setMessage({ type: 'success', text: 'Participant added' });
@@ -365,7 +365,7 @@ const WorkshopRegistrationsModal: React.FC<WorkshopRegistrationsModalProps> = ({
   };
 
   const handleRemove = async (registrationId: number) => {
-    const response = await gasService.removeWorkshopRegistration(registrationId);
+    const response = await supabaseService.removeWorkshopRegistration(registrationId);
     if (response.success) {
       await refreshRegistrations();
     }
@@ -504,7 +504,7 @@ export const Workshops: React.FC = () => {
   const loadWorkshops = async () => {
     setIsLoading(true);
     try {
-      const response = await gasService.getAllWorkshops();
+      const response = await supabaseService.getAllWorkshops();
       if (response.success && response.data) {
         setWorkshops(response.data || []);
       } else {
@@ -519,9 +519,9 @@ export const Workshops: React.FC = () => {
 
   const loadOptions = async () => {
     const [roomsResponse, personnelResponse, specialGuestsResponse] = await Promise.all([
-      gasService.getAllRooms(),
-      gasService.getAllPersonnel(),
-      gasService.getAllSpecialGuests(),
+      supabaseService.getAllRooms(),
+      supabaseService.getAllPersonnel(),
+      supabaseService.getAllSpecialGuests(),
     ]);
 
     if (roomsResponse.success) {
@@ -553,7 +553,7 @@ export const Workshops: React.FC = () => {
   const handleDeleteWorkshop = async (workshop: Workshop) => {
     if (!confirm(`Delete workshop "${workshop.Title}"?`)) return;
 
-    const response = await gasService.deleteWorkshop(workshop.WorkshopID);
+    const response = await supabaseService.deleteWorkshop(workshop.WorkshopID);
     if (response.success) {
       setMessage({ type: 'success', text: 'Workshop deleted' });
       await loadWorkshops();

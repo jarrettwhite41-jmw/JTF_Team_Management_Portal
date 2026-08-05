@@ -5,6 +5,15 @@
     },
     {
         "path": "../JTF_Instructor_Portal"
+    },
+    {
+        "path": "../JTF_Portal_Hub"
+    },
+    {
+        "path": "../JTF_Directors_Portal"
+    },
+    {
+        "path": "../JTF_Cast_Portal"
     }
 ],
 "settings": {}
