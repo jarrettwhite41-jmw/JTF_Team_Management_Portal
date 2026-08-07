@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { StudentWithDetails, Personnel } from '../types';
@@ -13,6 +13,8 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Inactive' | 'Graduated'>('All');
+  const [levelFilter, setLevelFilter] = useState<string>('All');
+  const [enrollmentFilter, setEnrollmentFilter] = useState<'All' | 'Has Active Enrollments' | 'No Active Enrollments'>('All');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // Add student modal state
@@ -110,13 +112,34 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
     }
   };
 
+  const levelOptions = useMemo(() => {
+    const levels = new Set<string>();
+    students.forEach((student) => {
+      if (student.CurrentLevelName && student.CurrentLevelName.trim() !== '') {
+        levels.add(student.CurrentLevelName.trim());
+      }
+    });
+    return ['All', ...Array.from(levels).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
+  }, [students]);
+
   const filteredStudents = students.filter(student => {
+    const normalizedQuery = searchTerm.trim().toLowerCase();
     const matchesSearch = (
-      `${student.FirstName} ${student.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase()))
+      normalizedQuery === ''
+      || `${student.FirstName} ${student.LastName}`.toLowerCase().includes(normalizedQuery)
+      || (student.PrimaryEmail && student.PrimaryEmail.toLowerCase().includes(normalizedQuery))
     );
     const matchesFilter = filterStatus === 'All' || student.StudentStatus === filterStatus;
-    return matchesSearch && matchesFilter;
+    const matchesLevel = levelFilter === 'All' || (student.CurrentLevelName || '').trim() === levelFilter;
+    const activeEnrollments = Number(student.ActiveEnrollments || 0);
+    const matchesEnrollment =
+      enrollmentFilter === 'All'
+        ? true
+        : enrollmentFilter === 'Has Active Enrollments'
+        ? activeEnrollments > 0
+        : activeEnrollments === 0;
+
+    return matchesSearch && matchesFilter && matchesLevel && matchesEnrollment;
   });
 
   const availablePersonnel = allPersonnel.filter(p => {
@@ -165,24 +188,57 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
         </div>
       )}
 
-      <div className="mb-4 sm:mb-6 flex flex-wrap gap-3">
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-          className="flex-1 max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        />
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        >
-          <option value="All">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-          <option value="Graduated">Graduated</option>
-        </select>
+      <div className="mb-6 rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search by name or email..."
+            value={searchTerm}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="All">All Status</option>
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Graduated">Graduated</option>
+          </select>
+          <select
+            value={levelFilter}
+            onChange={(e) => setLevelFilter(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            {levelOptions.map((level) => (
+              <option key={level} value={level}>{level === 'All' ? 'All Levels' : level}</option>
+            ))}
+          </select>
+          <select
+            value={enrollmentFilter}
+            onChange={(e) => setEnrollmentFilter(e.target.value as typeof enrollmentFilter)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="All">All Enrollment States</option>
+            <option value="Has Active Enrollments">Has Active Enrollments</option>
+            <option value="No Active Enrollments">No Active Enrollments</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setFilterStatus('All');
+              setLevelFilter('All');
+              setEnrollmentFilter('All');
+            }}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Clear Filters
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-gray-600">Showing {filteredStudents.length} of {students.length} students</p>
       </div>
 
       {isLoading ? (

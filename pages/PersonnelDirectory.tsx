@@ -11,7 +11,8 @@ export const PersonnelDirectory: React.FC = () => {
   const [filteredPersonnel, setFilteredPersonnel] = useState<PersonnelWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showInactive, setShowInactive] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'cast' | 'crew' | 'teacher' | 'director' | 'unassigned'>('all');
   const [selectedPerson, setSelectedPerson] = useState<Personnel | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>('view');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -44,15 +45,35 @@ export const PersonnelDirectory: React.FC = () => {
 
   useEffect(() => {
     const filtered = personnel.filter(person => {
-      const isVisibleByStatus = showInactive || person.IsActive !== false;
-      const matchesSearch =
-        `${person.FirstName} ${person.LastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        person.PrimaryEmail.toLowerCase().includes(searchTerm.toLowerCase());
+      const isActive = person.IsActive !== false;
+      const isVisibleByStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'active'
+          ? isActive
+          : !isActive;
 
-      return isVisibleByStatus && matchesSearch;
+      const matchesRole = (() => {
+        if (roleFilter === 'all') return true;
+        if (roleFilter === 'student') return person.isStudent === true;
+        if (roleFilter === 'cast') return person.isCastMember === true;
+        if (roleFilter === 'crew') return person.isCrewMember === true;
+        if (roleFilter === 'teacher') return person.isTeacher === true;
+        if (roleFilter === 'director') return person.isDirector === true;
+        return !person.isStudent && !person.isCastMember && !person.isCrewMember && !person.isTeacher && !person.isDirector;
+      })();
+
+      const normalizedQuery = searchTerm.trim().toLowerCase();
+      const matchesSearch =
+        normalizedQuery === ''
+          || `${person.FirstName} ${person.LastName}`.toLowerCase().includes(normalizedQuery)
+          || person.PrimaryEmail.toLowerCase().includes(normalizedQuery)
+          || (person.PrimaryPhone || '').toLowerCase().includes(normalizedQuery);
+
+      return isVisibleByStatus && matchesRole && matchesSearch;
     });
     setFilteredPersonnel(filtered);
-  }, [personnel, searchTerm, showInactive]);
+  }, [personnel, searchTerm, statusFilter, roleFilter]);
 
   const loadPersonnel = async () => {
     setIsLoading(true);
@@ -225,24 +246,52 @@ export const PersonnelDirectory: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-6">
+      <div className="mb-6 rounded-xl border bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <input
             type="text"
-            placeholder="Search by name or email..."
+            placeholder="Search by name, email, or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
-            />
-            Show Inactive
-          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Filter by active status"
+          >
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+            <option value="all">All Status</option>
+          </select>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Filter by role"
+          >
+            <option value="all">All Roles</option>
+            <option value="student">Students</option>
+            <option value="cast">Cast</option>
+            <option value="crew">Crew</option>
+            <option value="teacher">Teachers</option>
+            <option value="director">Directors</option>
+            <option value="unassigned">No Role Tags</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setStatusFilter('active');
+              setRoleFilter('all');
+            }}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Clear Filters
+          </button>
         </div>
+        <p className="mt-2 text-sm text-gray-600">Showing {filteredPersonnel.length} of {personnel.length} personnel records</p>
       </div>
 
       {isLoading ? (

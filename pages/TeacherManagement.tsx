@@ -29,6 +29,8 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
   const [teachers, setTeachers] = useState<TeacherRecord[]>([]);
   const [castMembers, setCastMembers] = useState<CastRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [emailFilter, setEmailFilter] = useState<'all' | 'with_email' | 'missing_email'>('all');
+  const [nameInitialFilter, setNameInitialFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
@@ -109,14 +111,38 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
     }
   };
 
+  const nameInitialOptions = useMemo(() => {
+    const initials = new Set<string>();
+    teachers.forEach((teacher) => {
+      const lastName = (teacher.LastName || '').trim();
+      const firstName = (teacher.FirstName || '').trim();
+      const source = lastName || firstName;
+      if (source) initials.add(source.charAt(0).toUpperCase());
+    });
+
+    return ['all', ...Array.from(initials).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))];
+  }, [teachers]);
+
   const filteredTeachers = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    if (!query) return teachers;
+
     return teachers.filter((teacher) => {
       const fullName = `${teacher.FirstName || ''} ${teacher.LastName || ''}`.toLowerCase();
-      return fullName.includes(query) || (teacher.PrimaryEmail || '').toLowerCase().includes(query);
+      const hasEmail = (teacher.PrimaryEmail || '').trim() !== '';
+      const initialSource = ((teacher.LastName || '').trim() || (teacher.FirstName || '').trim()).charAt(0).toUpperCase();
+
+      const matchesSearch = query === '' || fullName.includes(query) || (teacher.PrimaryEmail || '').toLowerCase().includes(query);
+      const matchesEmail =
+        emailFilter === 'all'
+          ? true
+          : emailFilter === 'with_email'
+          ? hasEmail
+          : !hasEmail;
+      const matchesInitial = nameInitialFilter === 'all' || initialSource === nameInitialFilter;
+
+      return matchesSearch && matchesEmail && matchesInitial;
     });
-  }, [teachers, searchTerm]);
+  }, [teachers, searchTerm, emailFilter, nameInitialFilter]);
 
   const availableCastMembers = useMemo(() => {
     const assignedPersonnelIds = new Set(teachers.map((teacher) => teacher.PersonnelID));
@@ -177,14 +203,51 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
         </div>
       )}
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search teachers by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        />
+      <div className="mb-6 rounded-xl border bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            placeholder="Search teachers by name or email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          />
+          <select
+            value={emailFilter}
+            onChange={(e) => setEmailFilter(e.target.value as typeof emailFilter)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Filter by email availability"
+          >
+            <option value="all">All Email States</option>
+            <option value="with_email">With Email</option>
+            <option value="missing_email">Missing Email</option>
+          </select>
+          <select
+            value={nameInitialFilter}
+            onChange={(e) => setNameInitialFilter(e.target.value)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Filter by last-name initial"
+          >
+            <option value="all">All Initials</option>
+            {nameInitialOptions
+              .filter((option) => option !== 'all')
+              .map((initial) => (
+                <option key={initial} value={initial}>{initial}</option>
+              ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('');
+              setEmailFilter('all');
+              setNameInitialFilter('all');
+            }}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Clear Filters
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-gray-600">Showing {filteredTeachers.length} of {teachers.length} teachers</p>
       </div>
 
       <div className="space-y-3 md:hidden">
