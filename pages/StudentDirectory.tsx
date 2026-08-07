@@ -15,6 +15,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Inactive' | 'Graduated'>('All');
   const [levelFilter, setLevelFilter] = useState<string>('All');
   const [enrollmentFilter, setEnrollmentFilter] = useState<'All' | 'Has Active Enrollments' | 'No Active Enrollments'>('All');
+  const [nameSort, setNameSort] = useState<'az' | 'za'>('az');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // Add student modal state
@@ -140,6 +141,10 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
         : activeEnrollments === 0;
 
     return matchesSearch && matchesFilter && matchesLevel && matchesEnrollment;
+  }).sort((a, b) => {
+    const aName = `${a.LastName || ''} ${a.FirstName || ''}`.trim().toLowerCase();
+    const bName = `${b.LastName || ''} ${b.FirstName || ''}`.trim().toLowerCase();
+    return nameSort === 'az' ? aName.localeCompare(bName) : bName.localeCompare(aName);
   });
 
   const availablePersonnel = allPersonnel.filter(p => {
@@ -225,6 +230,14 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
             <option value="Has Active Enrollments">Has Active Enrollments</option>
             <option value="No Active Enrollments">No Active Enrollments</option>
           </select>
+          <select
+            value={nameSort}
+            onChange={(e) => setNameSort(e.target.value as typeof nameSort)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="az">Sort Name A-Z</option>
+            <option value="za">Sort Name Z-A</option>
+          </select>
           <button
             type="button"
             onClick={() => {
@@ -232,6 +245,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
               setFilterStatus('All');
               setLevelFilter('All');
               setEnrollmentFilter('All');
+              setNameSort('az');
             }}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >

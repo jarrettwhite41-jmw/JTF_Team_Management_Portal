@@ -13,6 +13,7 @@ export const PersonnelDirectory: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [roleFilter, setRoleFilter] = useState<'all' | 'student' | 'cast' | 'crew' | 'teacher' | 'director' | 'unassigned'>('all');
+  const [nameSort, setNameSort] = useState<'az' | 'za'>('az');
   const [selectedPerson, setSelectedPerson] = useState<Personnel | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>('view');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -72,8 +73,14 @@ export const PersonnelDirectory: React.FC = () => {
 
       return isVisibleByStatus && matchesRole && matchesSearch;
     });
+    filtered.sort((a, b) => {
+      const aName = `${a.LastName || ''} ${a.FirstName || ''}`.trim().toLowerCase();
+      const bName = `${b.LastName || ''} ${b.FirstName || ''}`.trim().toLowerCase();
+      return nameSort === 'az' ? aName.localeCompare(bName) : bName.localeCompare(aName);
+    });
+
     setFilteredPersonnel(filtered);
-  }, [personnel, searchTerm, statusFilter, roleFilter]);
+  }, [personnel, searchTerm, statusFilter, roleFilter, nameSort]);
 
   const loadPersonnel = async () => {
     setIsLoading(true);
@@ -279,12 +286,22 @@ export const PersonnelDirectory: React.FC = () => {
             <option value="director">Directors</option>
             <option value="unassigned">No Role Tags</option>
           </select>
+          <select
+            value={nameSort}
+            onChange={(e) => setNameSort(e.target.value as typeof nameSort)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Sort by name"
+          >
+            <option value="az">Sort Name A-Z</option>
+            <option value="za">Sort Name Z-A</option>
+          </select>
           <button
             type="button"
             onClick={() => {
               setSearchTerm('');
               setStatusFilter('active');
               setRoleFilter('all');
+              setNameSort('az');
             }}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >

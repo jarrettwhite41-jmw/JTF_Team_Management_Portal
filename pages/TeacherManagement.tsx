@@ -31,6 +31,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
   const [searchTerm, setSearchTerm] = useState('');
   const [emailFilter, setEmailFilter] = useState<'all' | 'with_email' | 'missing_email'>('all');
   const [nameInitialFilter, setNameInitialFilter] = useState<string>('all');
+  const [nameSort, setNameSort] = useState<'az' | 'za'>('az');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedPersonnelId, setSelectedPersonnelId] = useState('');
@@ -141,8 +142,12 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
       const matchesInitial = nameInitialFilter === 'all' || initialSource === nameInitialFilter;
 
       return matchesSearch && matchesEmail && matchesInitial;
+    }).sort((a, b) => {
+      const aName = `${a.LastName || ''} ${a.FirstName || ''}`.trim().toLowerCase();
+      const bName = `${b.LastName || ''} ${b.FirstName || ''}`.trim().toLowerCase();
+      return nameSort === 'az' ? aName.localeCompare(bName) : bName.localeCompare(aName);
     });
-  }, [teachers, searchTerm, emailFilter, nameInitialFilter]);
+  }, [teachers, searchTerm, emailFilter, nameInitialFilter, nameSort]);
 
   const availableCastMembers = useMemo(() => {
     const assignedPersonnelIds = new Set(teachers.map((teacher) => teacher.PersonnelID));
@@ -235,12 +240,22 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({ onNavigate
                 <option key={initial} value={initial}>{initial}</option>
               ))}
           </select>
+          <select
+            value={nameSort}
+            onChange={(e) => setNameSort(e.target.value as typeof nameSort)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            title="Sort by name"
+          >
+            <option value="az">Sort Name A-Z</option>
+            <option value="za">Sort Name Z-A</option>
+          </select>
           <button
             type="button"
             onClick={() => {
               setSearchTerm('');
               setEmailFilter('all');
               setNameInitialFilter('all');
+              setNameSort('az');
             }}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
           >
