@@ -199,7 +199,104 @@ const App: React.FC = () => {
 
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard onNavigate={navigateToPage} />;
+        return (
+          <>
+            <div className="md:hidden">
+              <div className="bg-slate-100 p-4 pb-20">
+                <div className="rounded-2xl bg-slate-900 px-4 py-3 text-white shadow-lg">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-300">JTF Team</p>
+                  <h1 className="mt-1 text-2xl font-bold">Team</h1>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleMobileNavigate('dashboard')}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm"
+                  >
+                    <span className="block text-[11px] uppercase tracking-[0.14em] text-slate-500">Dashboard</span>
+                    <span className="mt-2 block text-lg font-semibold text-slate-800">Home</span>
+                  </button>
+                  <button
+                    onClick={() => handleMobileNavigate('show-management')}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-left shadow-sm"
+                  >
+                    <span className="block text-[11px] uppercase tracking-[0.14em] text-slate-500">Shows</span>
+                    <span className="mt-2 block text-lg font-semibold text-slate-800">Shows</span>
+                  </button>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-lg font-bold text-slate-800">Needs attention</h2>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Open</p>
+                      <div className="mt-1 text-3xl font-bold text-slate-900">12</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Gap</p>
+                      <div className="mt-1 text-3xl font-bold text-slate-900">4</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-lg font-bold text-slate-800">Show pipeline</h2>
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-slate-800">Midnight Run</p>
+                          <p className="mt-1 text-sm text-slate-500">Sep 18 • 8:00 PM</p>
+                        </div>
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-700">Waiting</span>
+                      </div>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">Director</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-slate-800">Guest Workshop</p>
+                          <p className="mt-1 text-sm text-slate-500">Sep 20 • 2:00 PM</p>
+                        </div>
+                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">Confirmed</span>
+                      </div>
+                      <p className="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">Staffed</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-lg font-bold text-slate-800">Quick tasks</h2>
+                  <div className="mt-3 space-y-2">
+                    <button
+                      onClick={() => handleMobileNavigate('show-management')}
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left"
+                    >
+                      <div>
+                        <p className="text-base font-semibold text-slate-800">Assign director</p>
+                        <p className="text-sm text-slate-500">Show</p>
+                      </div>
+                      <span className="text-sm font-semibold text-amber-600">Action</span>
+                    </button>
+                    <button
+                      onClick={() => handleMobileNavigate('cast')}
+                      className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-left"
+                    >
+                      <div>
+                        <p className="text-base font-semibold text-slate-800">Update availability</p>
+                        <p className="text-sm text-slate-500">Cast</p>
+                      </div>
+                      <span className="text-sm font-semibold text-emerald-600">Ready</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:block">
+              <Dashboard onNavigate={navigateToPage} />
+            </div>
+          </>
+        );
       case 'personnel-management':
       case 'personnel':
         return <PersonnelDirectory />;
@@ -521,46 +618,43 @@ const App: React.FC = () => {
         <div className="mx-auto grid h-16 max-w-2xl grid-cols-4 px-2">
           <button
             onClick={() => handleMobileNavigate('dashboard')}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
               currentPage === 'dashboard' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">🏠</span>
+            <span className="text-lg">🏠</span>
             Home
           </button>
           <button
-            onClick={() => handleMobileNavigate('scheduling')}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
-              currentPage === 'scheduling' ? 'text-primary-600' : 'text-slate-500'
+            onClick={() => handleMobileNavigate('show-management')}
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+              currentPage === 'show-management' || currentPage === 'shows' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">📅</span>
-            Schedule
+            <span className="text-lg">🎬</span>
+            Shows
           </button>
           <button
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              setIsMobileSectionsOpen((prev) => !prev);
-            }}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
-              isMobileSectionsOpen ? 'text-primary-600' : 'text-slate-500'
+            onClick={() => handleMobileNavigate('personnel-management')}
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+              currentPage === 'personnel-management' || currentPage === 'personnel' || currentPage === 'cast' || currentPage === 'crew' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-base">📋</span>
-            Sections
+            <span className="text-lg">👥</span>
+            Staff
           </button>
           <button
             onClick={() => {
               setIsMobileSectionsOpen(false);
               setIsMobileActionsOpen((prev) => !prev);
             }}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
               isMobileActionsOpen ? 'text-primary-600' : 'text-slate-500'
             }`}
             aria-label="Open quick actions"
           >
-            <span className="text-base">⚙️</span>
-            Actions
+            <span className="text-lg">⋯</span>
+            More
           </button>
         </div>
       </nav>
