@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { PersonnelDirectory } from './pages/PersonnelDirectory';
@@ -303,46 +303,46 @@ const App: React.FC = () => {
   }
 
   const mobileTopLevelSections: Array<{ id: PageType; label: string; icon: string }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'ðŸ“Š' },
-    { id: 'scheduling', label: 'Schedule', icon: 'ðŸ“…' },
-    { id: 'inventory', label: 'Inventory', icon: 'ðŸ“¦' },
-    { id: 'data-import', label: 'Import Center', icon: 'â¬†ï¸' },
+    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'scheduling', label: 'Schedule', icon: '📅' },
+    { id: 'inventory', label: 'Inventory', icon: '📦' },
+    { id: 'data-import', label: 'Import Center', icon: '⬆️' },
   ].filter((item) => canAccessPage(userRole, item.id));
 
   const mobileSectionGroups: Array<{ label: string; icon: string; pages: Array<{ id: PageType; label: string; icon: string }> }> = [
     {
       label: 'Personnel',
-      icon: 'ðŸ‘¥',
+      icon: '👥',
       pages: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: 'ðŸ—‚ï¸' },
-        { id: 'cast', label: 'Cast Management', icon: 'ðŸŽ­' },
-        { id: 'bartenders', label: 'Bartenders', icon: 'ðŸº' },
-        { id: 'teacher-management', label: 'Teachers', icon: 'ðŸ§‘â€ðŸ«' },
-        { id: 'director-management', label: 'Directors', icon: 'ðŸŽ¬' },
-        { id: 'portal-access', label: 'Portal Access', icon: 'ðŸ”' },
-        { id: 'settings', label: 'Settings', icon: 'âš™ï¸' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: 'ðŸ”§' },
-        { id: 'special-guests', label: 'Special Guests', icon: 'ðŸŽ¤' },
+        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
+        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
+        { id: 'director-management', label: 'Directors', icon: '🎬' },
+        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'settings', label: 'Settings', icon: '⚙️' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'Shows',
-      icon: 'ðŸŽª',
+      icon: '🎪',
       pages: [
-        { id: 'show-management', label: 'Shows', icon: 'ðŸŽ¬' },
-        { id: 'crew', label: 'Crew Assignments', icon: 'ðŸ› ï¸' },
-        { id: 'games', label: 'Games', icon: 'ðŸŽ²' },
+        { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'Classes',
-      icon: 'ðŸ“š',
+      icon: '📚',
       pages: [
-        { id: 'class-management', label: 'Classes', icon: 'ðŸ“˜' },
-        { id: 'student-directory', label: 'Student Directory', icon: 'ðŸŽ“' },
-        { id: 'teacher-management', label: 'Teachers', icon: 'ðŸ§‘â€ðŸ«' },
-        { id: 'workshops', label: 'Workshops', icon: 'ðŸ§ ' },
-        { id: 'skills-management', label: 'Skills', icon: 'â­' },
+        { id: 'class-management', label: 'Classes', icon: '📘' },
+        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
+        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
+        { id: 'workshops', label: 'Workshops', icon: '🧠' },
+        { id: 'skills-management', label: 'Skills', icon: '⭐' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
   ].filter((group) => group.pages.length > 0);
@@ -358,7 +358,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex w-full h-full min-h-0 min-w-0 bg-slate-100 overflow-hidden">
-      { /* TEAM-LAYOUT-CHECK-2026 */ }
       <Sidebar
         currentPage={currentPage}
         onNavigate={(page) => {
@@ -425,26 +424,21 @@ const App: React.FC = () => {
           </button>
         </div>
 
-                {mobileTopLevelSections.length > 0 && (
-          <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Quick access</p>
-                <h3 className="text-sm font-semibold text-slate-800">Sections</h3>
-              </div>
-            </div>
+        {mobileTopLevelSections.length > 0 && (
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Quick Access</h3>
             <div className="grid grid-cols-2 gap-2">
               {mobileTopLevelSections.map((item) => (
                 <button
                   key={`quick-${item.id}`}
                   onClick={() => handleMobileNavigate(item.id)}
-                  className={`rounded-xl border px-3 py-2 text-left text-sm font-medium transition ${
+                  className={`rounded-lg px-3 py-2 text-left text-sm ${
                     currentPage === item.id
-                      ? 'border-primary-600 bg-primary-600 text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  <span className="mr-2 inline-block text-base">{item.icon}</span>
+                  <span className="mr-2">{item.icon}</span>
                   {item.label}
                 </button>
               ))}
@@ -454,23 +448,23 @@ const App: React.FC = () => {
 
         <div className="space-y-3">
           {mobileSectionGroups.map((group) => (
-            <section key={group.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <h3 className="mb-2 flex items-center text-sm font-semibold text-slate-700">
-                <span className="mr-2 text-base">{group.icon}</span>
+            <section key={group.label} className="rounded-xl border border-slate-200 bg-white p-3">
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">
+                <span className="mr-2">{group.icon}</span>
                 {group.label}
               </h3>
-              <div className="space-y-1.5">
+              <div className="grid grid-cols-1 gap-1.5">
                 {group.pages.map((item) => (
                   <button
                     key={`group-${group.label}-${item.id}`}
                     onClick={() => handleMobileNavigate(item.id)}
-                    className={`flex w-full items-center rounded-xl border px-3 py-2 text-left text-sm transition ${
+                    className={`rounded-lg px-3 py-2 text-left text-sm ${
                       currentPage === item.id
-                        ? 'border-primary-200 bg-primary-50 text-primary-700'
-                        : 'border-transparent text-slate-700 hover:bg-slate-50'
+                        ? 'bg-primary-50 text-primary-700 border border-primary-200'
+                        : 'text-slate-700 hover:bg-slate-50 border border-transparent'
                     }`}
                   >
-                    <span className="mr-2 text-base">{item.icon}</span>
+                    <span className="mr-2">{item.icon}</span>
                     {item.label}
                   </button>
                 ))}
@@ -480,16 +474,14 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {/* Mobile actions sheet (replaces sidebar usage on phone) */}
       <div
-        className={`fixed inset-x-0 bottom-16 z-50 max-h-[60vh] overflow-y-auto rounded-t-3xl border border-slate-200 bg-white p-4 shadow-[0_-12px_32px_rgba(15,23,42,0.12)] transition-transform duration-300 md:hidden ${
+        className={`fixed inset-x-0 bottom-16 z-50 max-h-[55vh] overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl transition-transform duration-300 md:hidden ${
           isMobileActionsOpen ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
         <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Account</p>
-            <h2 className="text-base font-semibold text-slate-800">Quick Actions</h2>
-          </div>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">Quick Actions</h2>
           <button
             onClick={() => setIsMobileActionsOpen(false)}
             className="rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
@@ -498,50 +490,51 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Signed In</p>
-          <p className="mt-1 truncate text-sm font-semibold text-slate-800">{sessionEmail || 'Team user'}</p>
-          <p className="mt-0.5 text-xs uppercase tracking-[0.14em] text-slate-500">Role: {userRole}</p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Signed In</p>
+          <p className="mt-1 truncate text-sm font-medium text-slate-700">{sessionEmail || 'Team user'}</p>
+          <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">Role: {userRole}</p>
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-2">
           {canAccessPage(userRole, 'data-import') && (
             <button
               onClick={() => handleMobileNavigate('data-import')}
-              className="flex w-full items-center rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
             >
-              <span className="mr-2 text-base">📥</span>
+              <span className="mr-2">⬆️</span>
               Import Center
             </button>
           )}
           <button
             onClick={handleSignOut}
-            className="flex w-full items-center rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-left text-sm font-medium text-red-700 hover:bg-red-100"
+            className="w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-100"
           >
-            <span className="mr-2 text-base">🚪</span>
+            <span className="mr-2">↩️</span>
             Sign Out
           </button>
         </div>
       </div>
 
+      {/* Mobile bottom navigation */}
       <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden">
         <div className="mx-auto grid h-16 max-w-2xl grid-cols-4 px-2">
           <button
             onClick={() => handleMobileNavigate('dashboard')}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
               currentPage === 'dashboard' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-lg">🏠</span>
+            <span className="text-base">🏠</span>
             Home
           </button>
           <button
             onClick={() => handleMobileNavigate('scheduling')}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
               currentPage === 'scheduling' ? 'text-primary-600' : 'text-slate-500'
             }`}
           >
-            <span className="text-lg">📅</span>
+            <span className="text-base">📅</span>
             Schedule
           </button>
           <button
@@ -549,12 +542,11 @@ const App: React.FC = () => {
               setIsMobileMenuOpen(false);
               setIsMobileSectionsOpen((prev) => !prev);
             }}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
               isMobileSectionsOpen ? 'text-primary-600' : 'text-slate-500'
             }`}
-            aria-label="Open sections"
           >
-            <span className="text-lg">📂</span>
+            <span className="text-base">📋</span>
             Sections
           </button>
           <button
@@ -562,12 +554,12 @@ const App: React.FC = () => {
               setIsMobileSectionsOpen(false);
               setIsMobileActionsOpen((prev) => !prev);
             }}
-            className={`flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium ${
+            className={`flex flex-col items-center justify-center gap-0.5 rounded-lg text-xs font-medium ${
               isMobileActionsOpen ? 'text-primary-600' : 'text-slate-500'
             }`}
             aria-label="Open quick actions"
           >
-            <span className="text-lg">⚙️</span>
+            <span className="text-base">⚙️</span>
             Actions
           </button>
         </div>
