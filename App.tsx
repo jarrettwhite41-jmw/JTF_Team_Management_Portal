@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { Dashboard } from './pages/Dashboard';
 import { PersonnelDirectory } from './pages/PersonnelDirectory';
@@ -358,6 +358,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex w-full h-full min-h-0 min-w-0 bg-slate-100 overflow-hidden">
+      { /* TEAM-LAYOUT-CHECK-2026 */ }
       <Sidebar
         currentPage={currentPage}
         onNavigate={(page) => {
