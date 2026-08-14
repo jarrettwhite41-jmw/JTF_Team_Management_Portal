@@ -29,41 +29,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
 
   const managementGroups = useMemo(() => [
     {
-      id: 'show-management',
-      label: 'Shows & Production',
-      icon: '🎭',
-      defaultPage: 'show-management' as PageType,
-      children: [
-        { id: 'show-management', label: 'Shows', icon: '🎬' },
-        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
-        { id: 'cast', label: 'Cast Management', icon: '🎭' },
-        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
-        { id: 'games', label: 'Games', icon: '🎲' },
-      ] as NavigationItem[],
-    },
-    {
-      id: 'people-management',
-      label: 'People & Staffing',
+      id: 'personnel-management',
+      label: 'Personnel Management',
       icon: '👥',
       defaultPage: 'personnel-management' as PageType,
       children: [
         { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
         { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'director-management', label: 'Director Management', icon: '🎬' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
         { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
         { id: 'settings', label: 'Settings', icon: '⚙️' },
         { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
+      ] as NavigationItem[],
+    },
+    {
+      id: 'show-management',
+      label: 'Show Management',
+      icon: '🎪',
+      defaultPage: 'show-management' as PageType,
+      children: [
+        { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'games', label: 'Games', icon: '🎲' },
       ] as NavigationItem[],
     },
     {
       id: 'class-management',
-      label: 'Classes & Education',
-      icon: '📘',
+      label: 'Class Management',
+      icon: '📚',
       defaultPage: 'class-management' as PageType,
       children: [
         { id: 'class-management', label: 'Classes', icon: '📘' },
         { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
         { id: 'skills-management', label: 'Skills', icon: '⭐' },
       ] as NavigationItem[],
@@ -71,7 +72,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
   ].map(group => ({
     ...group,
     children: group.children.filter(child => canAccessItem(roleLabel, child.id)),
-  })).filter(group => group.children.length > 0), [roleLabel]);  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+  })).filter(group => group.children.length > 0), [roleLabel]);
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(managementGroups.map((group) => group.id))
   );
 

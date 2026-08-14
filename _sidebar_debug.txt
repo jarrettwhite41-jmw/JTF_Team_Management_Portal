@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { PageType, NavigationItem, PortalAccessRole } from '../../types';
 
 interface SidebarProps {
@@ -22,56 +22,59 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
     return page === 'dashboard';
   };
   const topLevelItems: NavigationItem[] = useMemo(() => [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'scheduling', label: 'Schedule', icon: '📅' },
-    { id: 'inventory', label: 'Inventory', icon: '📦' },
+    { id: 'dashboard', label: 'Dashboard', icon: '??' },
+    { id: 'scheduling', label: 'Schedule', icon: '??' },
+    { id: 'inventory', label: 'Inventory', icon: '??' },
   ].filter(item => canAccessItem(roleLabel, item.id)), [roleLabel]);
 
   const managementGroups = useMemo(() => [
     {
-      id: 'show-management',
-      label: 'Shows & Production',
-      icon: '🎭',
-      defaultPage: 'show-management' as PageType,
+      id: 'personnel-management',
+      label: 'Personnel Management',
+      icon: '??',
+      defaultPage: 'personnel-management' as PageType,
       children: [
-        { id: 'show-management', label: 'Shows', icon: '🎬' },
-        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
-        { id: 'cast', label: 'Cast Management', icon: '🎭' },
-        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
-        { id: 'games', label: 'Games', icon: '🎲' },
+        { id: 'personnel-management', label: 'Personnel Directory', icon: '???' },
+        { id: 'cast', label: 'Cast Management', icon: '??' },
+        { id: 'bartenders', label: 'Bartender Management', icon: '??' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '?????' },
+        { id: 'director-management', label: 'Director Management', icon: '??' },
+        { id: 'portal-access', label: 'Portal Access', icon: '??' },
+        { id: 'settings', label: 'Settings', icon: '??' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '??' },
+        { id: 'special-guests', label: 'Special Guests', icon: '??' },
       ] as NavigationItem[],
     },
     {
-      id: 'people-management',
-      label: 'People & Staffing',
-      icon: '👥',
-      defaultPage: 'personnel-management' as PageType,
+      id: 'show-management',
+      label: 'Show Management',
+      icon: '??',
+      defaultPage: 'show-management' as PageType,
       children: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
-        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
-        { id: 'director-management', label: 'Director Management', icon: '🎬' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
-        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
-        { id: 'settings', label: 'Settings', icon: '⚙️' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'show-management', label: 'Shows', icon: '??' },
+        { id: 'crew', label: 'Crew Assignments', icon: '???' },
+        { id: 'games', label: 'Games', icon: '??' },
       ] as NavigationItem[],
     },
     {
       id: 'class-management',
-      label: 'Classes & Education',
-      icon: '📘',
+      label: 'Class Management',
+      icon: '??',
       defaultPage: 'class-management' as PageType,
       children: [
-        { id: 'class-management', label: 'Classes', icon: '📘' },
-        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
-        { id: 'workshops', label: 'Workshops', icon: '🧠' },
-        { id: 'skills-management', label: 'Skills', icon: '⭐' },
+        { id: 'class-management', label: 'Classes', icon: '??' },
+        { id: 'student-directory', label: 'Student Directory', icon: '??' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '?????' },
+        { id: 'workshops', label: 'Workshops', icon: '??' },
+        { id: 'skills-management', label: 'Skills', icon: '?' },
       ] as NavigationItem[],
     },
   ].map(group => ({
     ...group,
     children: group.children.filter(child => canAccessItem(roleLabel, child.id)),
-  })).filter(group => group.children.length > 0), [roleLabel]);  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+  })).filter(group => group.children.length > 0), [roleLabel]);
+
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     new Set(managementGroups.map((group) => group.id))
   );
 
@@ -128,7 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
             <p className="jtf-logo-sub">Team Portal</p>
             <div className="mt-3 h-px bg-gradient-to-r from-red-500 via-amber-400 to-transparent" />
           </div>
-          {/* Close button — mobile only */}
+          {/* Close button � mobile only */}
           <button
             onClick={onClose}
             className="md:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ml-2 mt-0.5"
@@ -181,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                       <span className="text-base leading-none">{group.icon}</span>
                       <span className="text-sm font-semibold">{group.label}</span>
                     </span>
-                    <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
+                    <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>?</span>
                   </button>
 
                   {isExpanded && (
@@ -218,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                     : 'jtf-nav-item'
                 }`}
               >
-                <span className="text-lg leading-none">⬆️</span>
+                <span className="text-lg leading-none">??</span>
                 <span className="text-sm">Import Center</span>
               </button>
             </div>
@@ -241,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
               Sign Out
             </button>
           )}
-          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>
+          <p className="text-xs text-slate-500">� {new Date().getFullYear()} Just The Funny</p>
         </div>
 
       </div>
