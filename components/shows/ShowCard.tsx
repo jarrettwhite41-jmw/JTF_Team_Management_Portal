@@ -63,6 +63,8 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
     }
   };
 
+  const isJtfPresents = show.ProgramCategory === 'jtf_presents' || String(show.ShowTypeName || '').trim().toLowerCase() === 'jtf presents';
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-3">
@@ -74,6 +76,16 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
           <p className="text-sm text-gray-600">
             Director: {show.DirectorName || 'TBD'}
           </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${isJtfPresents ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-700'}`}>
+              {isJtfPresents ? 'JTF Presents' : 'Standard'}
+            </span>
+            {isJtfPresents && show.AttendanceEstimate != null && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                Est. attendance: {show.AttendanceEstimate}
+              </span>
+            )}
+          </div>
         </div>
         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(show.Status)}`}>
           {show.Status}
@@ -118,6 +130,13 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
           Crew: <span className="font-semibold">{crewCount}</span>
         </div>
       </div>
+
+      {isJtfPresents && show.Notes && (
+        <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-sm text-indigo-900">
+          <div className="font-medium text-indigo-800">Show Notes</div>
+          <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-indigo-900">{show.Notes}</div>
+        </div>
+      )}
 
       {isCompletedShow && (
         <div className="mb-4">

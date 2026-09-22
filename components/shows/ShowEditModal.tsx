@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Message } from '../common/Message';
 import { gasService } from '../../services/googleAppsScript';
-import { ShowInformation, ShowWithDetails } from '../../types';
+import { ProgramCategory, ShowInformation, ShowWithDetails } from '../../types';
 
 interface ShowEditModalProps {
   isOpen: boolean;
@@ -35,6 +35,9 @@ const emptyForm = {
   DirectorID: '',
   Venue: '',
   Status: 'Scheduled' as ShowInformation['Status'],
+  ProgramCategory: 'standard' as ProgramCategory,
+  AttendanceEstimate: '',
+  Notes: '',
 };
 
 const toDateInputValue = (value: Date | string | undefined) => {
@@ -57,6 +60,12 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const inferCategoryFromTypeId = (showTypeId: string): ProgramCategory => {
+    const selectedType = showTypes.find(type => String(type.ShowTypeID) === String(showTypeId));
+    const typeName = String(selectedType?.ShowTypeName || '').trim().toLowerCase();
+    return typeName === 'jtf presents' ? 'jtf_presents' : 'standard';
+  };
 
   const toErrorText = (error: unknown): string => {
     if (typeof error === 'string') return error;
@@ -118,6 +127,9 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
         DirectorID: String(show.DirectorID || ''),
         Venue: show.Venue || '',
         Status: show.Status || 'Scheduled',
+        ProgramCategory: show.ProgramCategory === 'jtf_presents' ? 'jtf_presents' : 'standard',
+        AttendanceEstimate: show.AttendanceEstimate == null ? '' : String(show.AttendanceEstimate),
+        Notes: show.Notes || '',
       });
     } else {
       setForm(emptyForm);
@@ -126,6 +138,27 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    if (name === 'ShowTypeID') {
+      const inferredCategory = inferCategoryFromTypeId(value);
+      setForm(prev => ({ ...prev, ShowTypeID: value, ProgramCategory: inferredCategory }));
+      return;
+    }
+
+    if (name === 'ProgramCategory') {
+      setForm(prev => ({ ...prev, ProgramCategory: value as ProgramCategory }));
+      return;
+    }
+
+    if (name === 'AttendanceEstimate') {
+      setForm(prev => ({ ...prev, AttendanceEstimate: value }));
+      return;
+    }
+
+    if (name === 'Notes') {
+      setForm(prev => ({ ...prev, Notes: value }));
+      return;
+    }
+
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -142,6 +175,12 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
         DirectorID: form.DirectorID ? Number(form.DirectorID) : null,
         Venue: form.Venue.trim(),
         Status: form.Status,
+        ProgramCategory: form.ProgramCategory,
+        WorkflowProfile: form.ProgramCategory === 'jtf_presents' ? 'jtf_presents' : 'default',
+        AttendanceEstimate: form.ProgramCategory === 'jtf_presents' && form.AttendanceEstimate !== ''
+          ? Number(form.AttendanceEstimate)
+          : null,
+        Notes: form.ProgramCategory === 'jtf_presents' ? form.Notes.trim() : null,
       };
 
       const response = show
@@ -248,6 +287,21 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Program Category</label>
+                  <select
+                    name="ProgramCategory"
+                    value={form.ProgramCategory}
+                    onChange={handleChange}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="jtf_presents">JTF Presents</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Director</label>
                   <select
                     name="DirectorID"
@@ -261,6 +315,18 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
                         {director.FirstName} {director.LastName}
                       </option>
                     ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    name="Status"
+                    value={form.Status}
+                    onChange={handleChange}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Canceled">Canceled</option>
                   </select>
                 </div>
               </div>
@@ -284,18 +350,33 @@ export const ShowEditModal: React.FC<ShowEditModalProps> = ({ isOpen, show, onCl
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  name="Status"
-                  value={form.Status}
-                  onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Canceled">Canceled</option>
-                </select>
-              </div>
+              {form.ProgramCategory === 'jtf_presents' && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Attendance Estimate</label>
+                    <input
+                      type="number"
+                      min="0"
+                      name="AttendanceEstimate"
+                      value={form.AttendanceEstimate}
+                      onChange={handleChange}
+                      placeholder="Expected audience size"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Show Notes</label>
+                    <textarea
+                      name="Notes"
+                      value={form.Notes}
+                      onChange={handleChange}
+                      rows={4}
+                      placeholder="Add JTF Presents-specific context, reminders, or staging notes"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary-500 focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+              )}
             </>
           )}
         </form>

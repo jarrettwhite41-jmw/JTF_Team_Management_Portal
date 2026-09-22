@@ -764,6 +764,14 @@ export const ShowManagementModal: React.FC<ShowManagementModalProps> = ({ isOpen
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Show Time</div><div className="text-gray-900">{show.ShowTime}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Status</div><div className="text-gray-900">{show.Status}</div></div>
               <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Venue</div><div className="text-gray-900">{show.Venue}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Program Category</div><div className="text-gray-900">{show.ProgramCategory === 'jtf_presents' ? 'JTF Presents' : 'Standard'}</div></div>
+              <div className="rounded-lg border border-gray-200 p-4"><div className="font-medium text-gray-500">Workflow Profile</div><div className="text-gray-900">{show.WorkflowProfile === 'jtf_presents' ? 'JTF Presents' : 'Default'}</div></div>
+              {show.ProgramCategory === 'jtf_presents' && (
+                <>
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4"><div className="font-medium text-gray-500">Attendance Estimate</div><div className="text-gray-900">{show.AttendanceEstimate ?? 'Not set'}</div></div>
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Show Notes</div><div className="mt-2 whitespace-pre-wrap text-gray-900">{show.Notes || 'No notes added'}</div></div>
+                </>
+              )}
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Cast Members</div><div className="mt-2 text-gray-900">{availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).length > 0 ? availableCast.filter(m => selectedCastIds.has(m.PersonnelID)).map((member, index) => <span key={index} className="mr-2 inline-block rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">{member.FullName}</span>) : 'No cast assigned'}</div></div>
               <div className="rounded-lg border border-gray-200 p-4 sm:col-span-2"><div className="font-medium text-gray-500">Crew Members</div><div className="mt-2 text-gray-900">{allDisplayedCrewAssignments.length > 0 ? allDisplayedCrewAssignments.map((member, index) => <span key={`${member.PersonnelID}-${member.DutyName}-${index}`} className="mr-2 inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700">{member.FullName} ({member.DutyName})</span>) : 'No crew assigned'}</div></div>
             </div>

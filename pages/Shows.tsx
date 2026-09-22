@@ -4,10 +4,11 @@ import { ShowEditModal } from '../components/shows/ShowEditModal';
 import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { PageType, ShowWithDetails } from '../types';
+import { PageType, ProgramCategory, ShowWithDetails } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
+type CategoryFilterType = 'all' | ProgramCategory;
 
 interface ShowsProps {
   onNavigate?: (page: PageType) => void;
@@ -17,6 +18,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
   const [filteredShows, setFilteredShows] = useState<ShowWithDetails[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showEditorOpen, setShowEditorOpen] = useState(false);
@@ -49,7 +51,20 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     applyFilters();
-  }, [shows, filter]);
+  }, [shows, filter, categoryFilter]);
+
+  const getProgramCategory = (show: ShowWithDetails): ProgramCategory => {
+    if (show.ProgramCategory === 'jtf_presents') {
+      return 'jtf_presents';
+    }
+
+    const typeName = String(show.ShowTypeName || '').trim().toLowerCase();
+    if (typeName === 'jtf presents') {
+      return 'jtf_presents';
+    }
+
+    return 'standard';
+  };
 
   const loadShows = async () => {
     setIsLoading(true);
@@ -68,7 +83,8 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
             ...show,
             ShowTypeName: `Type ${show.ShowTypeID}`,
             DirectorName: 'TBD',
-            CastMembers: []
+            CastMembers: [],
+            ProgramCategory: 'standard' as ProgramCategory,
           }));
           setShows(enhancedShows);
         } else {
@@ -99,6 +115,10 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
       filtered = filtered.filter(s => getComputedStatus(s) === statusMap[filter]);
     }
 
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(s => getProgramCategory(s) === categoryFilter);
+    }
+
     setFilteredShows(filtered);
   };
 
@@ -112,6 +132,14 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     };
     return shows.filter(s => getComputedStatus(s) === statusMap[filterType]).length;
   };
+
+  const getCategoryFilterCount = (target: CategoryFilterType): number => {
+    if (target === 'all') return shows.length;
+    return shows.filter(s => getProgramCategory(s) === target).length;
+  };
+
+  const filteredJtfShows = filteredShows.filter(show => getProgramCategory(show) === 'jtf_presents');
+  const filteredStandardShows = filteredShows.filter(show => getProgramCategory(show) === 'standard');
 
   const handleManageCast = (show: ShowWithDetails) => {
     setSelectedShow(show);
@@ -173,6 +201,39 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
       <div className="mb-4 sm:mb-6 space-y-4">
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => setCategoryFilter('all')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              categoryFilter === 'all'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            All Programs ({getCategoryFilterCount('all')})
+          </button>
+          <button
+            onClick={() => setCategoryFilter('jtf_presents')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              categoryFilter === 'jtf_presents'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            JTF Presents ({getCategoryFilterCount('jtf_presents')})
+          </button>
+          <button
+            onClick={() => setCategoryFilter('standard')}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              categoryFilter === 'standard'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Standard ({getCategoryFilterCount('standard')})
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               filter === 'all'
@@ -215,15 +276,69 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredShows.map((show) => (
-          <ShowCard
-            key={show.ShowID}
-            show={show}
-            onManageCast={() => handleManageCast(show)}
-          />
-        ))}
-      </div>
+      {categoryFilter === 'all' ? (
+        <div className="space-y-8">
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">JTF Presents</h2>
+                <p className="text-sm text-gray-500">Dedicated shows with attendance estimates and notes-first planning.</p>
+              </div>
+              <span className="text-sm font-medium text-indigo-700">{filteredJtfShows.length} show{filteredJtfShows.length === 1 ? '' : 's'}</span>
+            </div>
+            {filteredJtfShows.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredJtfShows.map((show) => (
+                  <ShowCard
+                    key={show.ShowID}
+                    show={show}
+                    onManageCast={() => handleManageCast(show)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">
+                No JTF Presents shows found.
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Standard Shows</h2>
+                <p className="text-sm text-gray-500">All remaining production and recurring show entries.</p>
+              </div>
+              <span className="text-sm font-medium text-gray-700">{filteredStandardShows.length} show{filteredStandardShows.length === 1 ? '' : 's'}</span>
+            </div>
+            {filteredStandardShows.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {filteredStandardShows.map((show) => (
+                  <ShowCard
+                    key={show.ShowID}
+                    show={show}
+                    onManageCast={() => handleManageCast(show)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">
+                No standard shows found.
+              </div>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredShows.map((show) => (
+            <ShowCard
+              key={show.ShowID}
+              show={show}
+              onManageCast={() => handleManageCast(show)}
+            />
+          ))}
+        </div>
+      )}
 
       <ShowEditModal
         isOpen={showEditorOpen}

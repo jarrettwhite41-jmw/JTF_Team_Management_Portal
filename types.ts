@@ -10,6 +10,9 @@ export interface Personnel {
   IsActive?: boolean;
 }
 
+export type ProgramCategory = 'standard' | 'jtf_presents';
+export type WorkflowProfile = 'default' | 'jtf_presents';
+
 export interface ShowInformation {
   ShowID: number;
   ShowDate: Date | string;
@@ -18,6 +21,10 @@ export interface ShowInformation {
   DirectorID: number | null;
   Venue: string;
   Status: 'Scheduled' | 'Canceled';
+  ProgramCategory?: ProgramCategory;
+  WorkflowProfile?: WorkflowProfile;
+  AttendanceEstimate?: number | null;
+  Notes?: string | null;
 }
 
 export interface ClassOfferings {
@@ -301,6 +308,8 @@ export interface CrewMemberWithDetails extends CrewDuties {
 export interface ShowWithDetails extends ShowInformation {
   DirectorName?: string;
   ShowTypeName?: string;
+  ProgramCategory?: ProgramCategory;
+  WorkflowProfile?: WorkflowProfile;
   CastMembers?: PersonnelWithDetails[];
   CrewMembers?: PersonnelWithDetails[];
   CastCount?: number;

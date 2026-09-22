@@ -50,6 +50,40 @@ const getSupabaseClient = () => {
 class SupabaseService {
   private client: SupabaseClient;
 
+  private normalizeProgramCategory(rawValue: unknown, showTypeName?: string): 'standard' | 'jtf_presents' {
+    const normalized = String(rawValue || '').trim().toLowerCase();
+    if (normalized === 'jtf_presents') {
+      return 'jtf_presents';
+    }
+
+    const normalizedTypeName = String(showTypeName || '').trim().toLowerCase();
+    if (normalizedTypeName === 'jtf presents') {
+      return 'jtf_presents';
+    }
+
+    return 'standard';
+  }
+
+  private normalizeWorkflowProfile(rawValue: unknown, category: 'standard' | 'jtf_presents'): 'default' | 'jtf_presents' {
+    const normalized = String(rawValue || '').trim().toLowerCase();
+    if (normalized === 'jtf_presents') {
+      return 'jtf_presents';
+    }
+    if (normalized === 'default') {
+      return 'default';
+    }
+    return category === 'jtf_presents' ? 'jtf_presents' : 'default';
+  }
+
+  private normalizeAttendanceEstimate(rawValue: unknown): number | null {
+    if (rawValue == null || rawValue === '') {
+      return null;
+    }
+
+    const parsedValue = Number(rawValue);
+    return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : null;
+  }
+
   private getPortalResetRedirectUrl(portalName?: PortalName): { url?: string; error?: string } {
     if (!portalName) {
       return { url: window.location.origin };
@@ -1650,6 +1684,10 @@ class SupabaseService {
         DirectorID: show.director_id,
         Venue: show.venue,
         Status: show.status,
+        ProgramCategory: this.normalizeProgramCategory(show.program_category),
+        WorkflowProfile: this.normalizeWorkflowProfile(show.workflow_profile, this.normalizeProgramCategory(show.program_category)),
+        AttendanceEstimate: this.normalizeAttendanceEstimate(show.attendance_estimate),
+        Notes: show.notes ?? null,
       })) || [];
 
       return { success: true, data: transformed };
@@ -1710,6 +1748,9 @@ class SupabaseService {
           const crewCount = (Array.isArray(show.crew_duties) ? show.crew_duties.length : crewMembers.length)
             + (bartenderPersonnelId && !crewPersonnelIds.has(bartenderPersonnelId) ? 1 : 0);
 
+          const category = this.normalizeProgramCategory(show.program_category, show.show_types?.show_type_name || '');
+          const workflowProfile = this.normalizeWorkflowProfile(show.workflow_profile, category);
+
           return {
           ShowID: show.show_id,
           ShowDate: show.show_date,
@@ -1719,6 +1760,10 @@ class SupabaseService {
           Venue: show.venue,
           Status: show.status,
           ShowTypeName: show.show_types?.show_type_name || '',
+          ProgramCategory: category,
+          WorkflowProfile: workflowProfile,
+          AttendanceEstimate: this.normalizeAttendanceEstimate(show.attendance_estimate),
+          Notes: show.notes ?? null,
           DirectorName: show.directors?.personnel
             ? `${show.directors.personnel.first_name || ''} ${show.directors.personnel.last_name || ''}`.trim()
             : '',
@@ -1740,21 +1785,49 @@ class SupabaseService {
     try {
       const parsedDirectorId = Number(show.DirectorID);
       const directorId = Number.isFinite(parsedDirectorId) && parsedDirectorId > 0 ? parsedDirectorId : null;
+      const category = this.normalizeProgramCategory(show.ProgramCategory, undefined);
+      const workflowProfile = this.normalizeWorkflowProfile(show.WorkflowProfile, category);
 
-      const { data, error } = await this.client
+      const insertPayload = {
+        show_date: show.ShowDate,
+        show_time: show.ShowTime,
+        show_type_id: show.ShowTypeID,
+        director_id: directorId,
+        venue: show.Venue,
+        status: show.Status,
+        program_category: category,
+        workflow_profile: workflowProfile,
+        attendance_estimate: show.AttendanceEstimate ?? null,
+        notes: show.Notes ?? null,
+      };
+
+      let { data, error } = await this.client
         .from('show_information')
-        .insert([
-          {
-            show_date: show.ShowDate,
-            show_time: show.ShowTime,
-            show_type_id: show.ShowTypeID,
-            director_id: directorId,
-            venue: show.Venue,
-            status: show.Status,
-          },
-        ])
+        .insert([insertPayload])
         .select()
         .single();
+
+      if (error && (this.isMissingColumnError(error, 'program_category') || this.isMissingColumnError(error, 'workflow_profile'))) {
+        const fallbackResult = await this.client
+          .from('show_information')
+          .insert([
+            {
+              show_date: show.ShowDate,
+              show_time: show.ShowTime,
+              show_type_id: show.ShowTypeID,
+              director_id: directorId,
+              venue: show.Venue,
+              status: show.Status,
+              attendance_estimate: show.AttendanceEstimate ?? null,
+              notes: show.Notes ?? null,
+            },
+          ])
+          .select()
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
       return { success: true, data };
@@ -1992,13 +2065,41 @@ class SupabaseService {
       }
       if (show.Venue) updates.venue = show.Venue;
       if (show.Status) updates.status = show.Status;
+      if (show.ProgramCategory) {
+        updates.program_category = this.normalizeProgramCategory(show.ProgramCategory, undefined);
+      }
+      if (show.WorkflowProfile) {
+        updates.workflow_profile = this.normalizeWorkflowProfile(show.WorkflowProfile, this.normalizeProgramCategory(show.ProgramCategory, undefined));
+      }
+      if ('AttendanceEstimate' in show) {
+        updates.attendance_estimate = this.normalizeAttendanceEstimate(show.AttendanceEstimate);
+      }
+      if ('Notes' in show) {
+        updates.notes = show.Notes ?? null;
+      }
 
-      const { data, error } = await this.client
+      let { data, error } = await this.client
         .from('show_information')
         .update(updates)
         .eq('show_id', showId)
         .select()
         .single();
+
+      if (error && (this.isMissingColumnError(error, 'program_category') || this.isMissingColumnError(error, 'workflow_profile'))) {
+        const fallbackUpdates = { ...updates };
+        delete fallbackUpdates.program_category;
+        delete fallbackUpdates.workflow_profile;
+
+        const fallbackResult = await this.client
+          .from('show_information')
+          .update(fallbackUpdates)
+          .eq('show_id', showId)
+          .select()
+          .single();
+
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (error) throw error;
       return { success: true, data };
