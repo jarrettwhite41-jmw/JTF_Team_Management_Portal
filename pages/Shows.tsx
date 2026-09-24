@@ -24,6 +24,8 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [showEditorOpen, setShowEditorOpen] = useState(false);
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
+  const [visibleShowCount, setVisibleShowCount] = useState<number | 'all'>(4);
+  const [showPastShows, setShowPastShows] = useState(false);
   const [jtfRequests, setJtfRequests] = useState<JtfPresentsRequest[]>([]);
   const [jtfOpenDates, setJtfOpenDates] = useState<JtfPresentsOpenDate[]>([]);
   const [jtfWorkflowLoading, setJtfWorkflowLoading] = useState(true);
@@ -229,8 +231,18 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     }
   };
 
-  const filteredJtfShows = filteredShows.filter(show => getProgramCategory(show) === 'jtf_presents');
-  const filteredStandardShows = filteredShows.filter(show => getProgramCategory(show) === 'standard');
+  const sortByMostRecent = (items: ShowWithDetails[]) => [...items].sort((a, b) => {
+    const aDate = new Date(String(a.ShowDate || '').slice(0, 10)).getTime();
+    const bDate = new Date(String(b.ShowDate || '').slice(0, 10)).getTime();
+    if (Number.isNaN(aDate) && Number.isNaN(bDate)) return 0;
+    if (Number.isNaN(aDate)) return 1;
+    if (Number.isNaN(bDate)) return -1;
+    return bDate - aDate;
+  });
+
+  const visibleLimit = visibleShowCount === 'all' ? Number.MAX_SAFE_INTEGER : visibleShowCount;
+  const filteredJtfShows = sortByMostRecent(filteredShows.filter(show => getProgramCategory(show) === 'jtf_presents')).slice(0, showPastShows ? Number.MAX_SAFE_INTEGER : visibleLimit);
+  const filteredStandardShows = sortByMostRecent(filteredShows.filter(show => getProgramCategory(show) === 'standard')).slice(0, showPastShows ? Number.MAX_SAFE_INTEGER : visibleLimit);
 
   const handleManageCast = (show: ShowWithDetails) => {
     setSelectedShow(show);
@@ -434,6 +446,28 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
           </div>
         </div>
       </section>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">Recent view</label>
+        <select
+          value={String(visibleShowCount)}
+          onChange={(event) => setVisibleShowCount(event.target.value === 'all' ? 'all' : Number(event.target.value))}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+        >
+          <option value="4">4 shows</option>
+          <option value="6">6 shows</option>
+          <option value="8">8 shows</option>
+          <option value="12">12 shows</option>
+          <option value="all">All shows</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => setShowPastShows((current) => !current)}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+        >
+          {showPastShows ? 'Hide older shows' : 'Show older shows'}
+        </button>
+      </div>
 
       {/* Filters */}
       <div className="mb-4 sm:mb-6 space-y-4">
