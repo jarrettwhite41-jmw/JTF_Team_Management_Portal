@@ -4,7 +4,7 @@ import { ShowEditModal } from '../components/shows/ShowEditModal';
 import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { PageType, ProgramCategory, ShowWithDetails } from '../types';
+import { PageType, ProgramCategory, JtfPresentsOpenDate, JtfPresentsRequest, ShowWithDetails } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
@@ -24,6 +24,12 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [showEditorOpen, setShowEditorOpen] = useState(false);
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
+  const [jtfRequests, setJtfRequests] = useState<JtfPresentsRequest[]>([]);
+  const [jtfOpenDates, setJtfOpenDates] = useState<JtfPresentsOpenDate[]>([]);
+  const [jtfWorkflowLoading, setJtfWorkflowLoading] = useState(true);
+  const [jtfWorkflowSaving, setJtfWorkflowSaving] = useState(false);
+  const [jtfSlotDate, setJtfSlotDate] = useState('');
+  const [jtfSlotNote, setJtfSlotNote] = useState('');
 
   const getComputedStatus = (show: ShowWithDetails): 'Next Up' | 'Upcoming' | 'Completed' => {
     const rawDate = String(show.ShowDate || '').slice(0, 10);
@@ -47,6 +53,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     loadShows();
+    loadJtfWorkflow();
   }, []);
 
   useEffect(() => {
@@ -138,6 +145,90 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     return shows.filter(s => getProgramCategory(s) === target).length;
   };
 
+  const loadJtfWorkflow = async () => {
+    setJtfWorkflowLoading(true);
+    try {
+      const [requestsResponse, openDatesResponse] = await Promise.all([
+        supabaseService.getJtfPresentsRequests(),
+        supabaseService.getJtfPresentsOpenDates(),
+      ]);
+
+      if (requestsResponse.success && requestsResponse.data) {
+        setJtfRequests(requestsResponse.data);
+      } else {
+        setJtfRequests([]);
+      }
+
+      if (openDatesResponse.success && openDatesResponse.data) {
+        setJtfOpenDates(openDatesResponse.data);
+      } else {
+        setJtfOpenDates([]);
+      }
+    } catch (error) {
+      console.error('Error loading JTF Presents workflow:', error);
+      setMessage({ type: 'error', text: 'Error loading JTF Presents workflow' });
+    } finally {
+      setJtfWorkflowLoading(false);
+    }
+  };
+
+  const handleApproveJtfRequest = async (requestId: string) => {
+    setJtfWorkflowSaving(true);
+    try {
+      const response = await supabaseService.approveJtfPresentsRequest(requestId);
+      if (!response.success) {
+        throw new Error(response.error || 'Unable to approve request');
+      }
+
+      setMessage({ type: 'success', text: 'JTF Presents request approved and converted into a show.' });
+      await Promise.all([loadShows(), loadJtfWorkflow()]);
+    } catch (error) {
+      console.error('Error approving JTF Presents request:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to approve request' });
+    } finally {
+      setJtfWorkflowSaving(false);
+    }
+  };
+
+  const handleRejectJtfRequest = async (requestId: string) => {
+    const rejectionNote = window.prompt('Optional rejection note');
+    setJtfWorkflowSaving(true);
+    try {
+      const response = await supabaseService.rejectJtfPresentsRequest(requestId, null, rejectionNote || undefined);
+      if (!response.success) {
+        throw new Error(response.error || 'Unable to reject request');
+      }
+
+      setMessage({ type: 'success', text: 'JTF Presents request rejected.' });
+      await loadJtfWorkflow();
+    } catch (error) {
+      console.error('Error rejecting JTF Presents request:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to reject request' });
+    } finally {
+      setJtfWorkflowSaving(false);
+    }
+  };
+
+  const handleSaveJtfSlot = async (slotDate: string, isOpen: boolean, note?: string | null) => {
+    setJtfWorkflowSaving(true);
+    try {
+      const response = await supabaseService.upsertJtfPresentsOpenDate(slotDate, isOpen, note || null, null);
+      if (!response.success) {
+        throw new Error(response.error || 'Unable to save slot');
+      }
+
+      setMessage({ type: 'success', text: `JTF Presents slot ${isOpen ? 'opened' : 'closed'} for ${slotDate}.` });
+      setJtfSlotDate('');
+      setJtfSlotNote('');
+      await loadJtfWorkflow();
+    } catch (error) {
+      console.error('Error saving JTF Presents slot:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Unable to save slot' });
+    } finally {
+      setJtfWorkflowSaving(false);
+    }
+  };
+
   const filteredJtfShows = filteredShows.filter(show => getProgramCategory(show) === 'jtf_presents');
   const filteredStandardShows = filteredShows.filter(show => getProgramCategory(show) === 'standard');
 
@@ -196,6 +287,153 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
           />
         </div>
       )}
+
+      <section className="mb-6 rounded-xl border border-indigo-200 bg-indigo-50 p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">JTF Presents Workflow</h2>
+            <p className="text-sm text-gray-600">Review cast requests and manage the Friday slots they can request from.</p>
+          </div>
+          <span className="text-sm font-medium text-indigo-700">
+            {jtfWorkflowLoading ? 'Loading...' : `${jtfRequests.length} requests / ${jtfOpenDates.length} slots`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <div className="rounded-lg border border-white/70 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="font-semibold text-gray-900">Pending Requests</h3>
+              <span className="text-xs font-medium text-gray-500">Cast-submitted proposals</span>
+            </div>
+            {jtfWorkflowLoading ? (
+              <div className="text-sm text-gray-500">Loading requests...</div>
+            ) : jtfRequests.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
+                No pending JTF Presents requests.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[28rem] overflow-auto pr-1">
+                {jtfRequests.map((request) => (
+                  <article key={request.RequestID} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{request.RequestedShowName}</h4>
+                        <p className="text-xs text-gray-500">Requested for {request.RequestedShowDate}</p>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                        {request.RequestStatus}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.RequestedShowDetails}</p>
+                    {request.RequestedPerformers && <p className="mt-2 text-xs text-gray-600">Performers: {request.RequestedPerformers}</p>}
+                    {request.RequestedTech && <p className="text-xs text-gray-600">Tech: {request.RequestedTech}</p>}
+                    {request.RequestedCrewNotes && <p className="text-xs text-gray-600">Crew: {request.RequestedCrewNotes}</p>}
+                    <p className="mt-2 text-xs text-gray-500">Submitted {new Date(request.CreatedAt).toLocaleString()}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleApproveJtfRequest(request.RequestID)}
+                        disabled={jtfWorkflowSaving}
+                        className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRejectJtfRequest(request.RequestID)}
+                        disabled={jtfWorkflowSaving}
+                        className="px-3 py-2 rounded-lg bg-white text-sm text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-white/70 bg-white p-4 shadow-sm space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-semibold text-gray-900">Friday Slots</h3>
+              <span className="text-xs font-medium text-gray-500">Open dates available to request</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <label className="sm:col-span-1 text-sm font-medium text-gray-700">
+                Date
+                <input
+                  type="date"
+                  value={jtfSlotDate}
+                  onChange={(event) => setJtfSlotDate(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="sm:col-span-2 text-sm font-medium text-gray-700">
+                Note
+                <input
+                  type="text"
+                  value={jtfSlotNote}
+                  onChange={(event) => setJtfSlotNote(event.target.value)}
+                  placeholder="Optional note about the slot"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void handleSaveJtfSlot(jtfSlotDate, true, jtfSlotNote)}
+                disabled={jtfWorkflowSaving || !jtfSlotDate}
+                className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-60"
+              >
+                Open Slot
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveJtfSlot(jtfSlotDate, false, jtfSlotNote)}
+                disabled={jtfWorkflowSaving || !jtfSlotDate}
+                className="px-3 py-2 rounded-lg bg-white text-sm text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-60"
+              >
+                Close Slot
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-[22rem] overflow-auto pr-1">
+              {jtfWorkflowLoading ? (
+                <div className="text-sm text-gray-500">Loading slots...</div>
+              ) : jtfOpenDates.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
+                  No Friday slots have been configured yet.
+                </div>
+              ) : (
+                jtfOpenDates.map((slot) => (
+                  <div key={slot.SlotDate} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                    <div>
+                      <p className="font-medium text-gray-900">{slot.SlotDate}</p>
+                      <p className="text-xs text-gray-500">{slot.Note || 'No note added'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${slot.IsOpen ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700'}`}>
+                        {slot.IsOpen ? 'Open' : 'Closed'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveJtfSlot(slot.SlotDate, !slot.IsOpen, slot.Note)}
+                        disabled={jtfWorkflowSaving}
+                        className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs text-gray-700 hover:bg-white disabled:opacity-60"
+                      >
+                        {slot.IsOpen ? 'Close' : 'Reopen'}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Filters */}
       <div className="mb-4 sm:mb-6 space-y-4">

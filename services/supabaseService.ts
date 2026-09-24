@@ -36,6 +36,8 @@ import {
   PortalUserAccess,
   PortalCredentialProvisionInput,
   PortalCredentialProvisionResult,
+  JtfPresentsOpenDate,
+  JtfPresentsRequest,
 } from '../types';
 import { isSupabaseConfigured, supabase as sharedSupabaseClient } from './supabaseClient';
 
@@ -82,6 +84,39 @@ class SupabaseService {
 
     const parsedValue = Number(rawValue);
     return Number.isFinite(parsedValue) && parsedValue >= 0 ? parsedValue : null;
+  }
+
+  private mapJtfPresentsOpenDate(row: any): JtfPresentsOpenDate {
+    return {
+      SlotDate: String(row.slot_date || ''),
+      IsOpen: Boolean(row.is_open),
+      Note: row.note ?? null,
+      OpenedByPersonnelID: row.opened_by_personnel_id ?? null,
+      OpenedAt: row.opened_at ?? null,
+      ClosedAt: row.closed_at ?? null,
+    };
+  }
+
+  private mapJtfPresentsRequest(row: any): JtfPresentsRequest {
+    return {
+      RequestID: String(row.request_id || ''),
+      RequestedByPersonnelID: Number(row.requested_by_personnel_id),
+      RequestedShowName: String(row.requested_show_name || ''),
+      RequestedShowDate: String(row.requested_show_date || ''),
+      RequestedShowDetails: String(row.requested_show_details || ''),
+      RequestedPerformers: row.requested_performers ?? null,
+      RequestedTech: row.requested_tech ?? null,
+      RequestedCrewNotes: row.requested_crew_notes ?? null,
+      RequestStatus: row.request_status,
+      ApprovedShowID: row.approved_show_id ?? null,
+      ApprovedByPersonnelID: row.approved_by_personnel_id ?? null,
+      ApprovedAt: row.approved_at ?? null,
+      RejectedByPersonnelID: row.rejected_by_personnel_id ?? null,
+      RejectedAt: row.rejected_at ?? null,
+      RejectionNote: row.rejection_note ?? null,
+      CreatedAt: row.created_at,
+      UpdatedAt: row.updated_at,
+    };
   }
 
   private getPortalResetRedirectUrl(portalName?: PortalName): { url?: string; error?: string } {
@@ -2106,6 +2141,183 @@ class SupabaseService {
     } catch (error) {
       console.error('Error updating show:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  async getJtfPresentsOpenDates(): Promise<ApiResponse<JtfPresentsOpenDate[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('jtf_presents_open_dates')
+        .select('*')
+        .order('slot_date', { ascending: true });
+
+      if (error) {
+        if (this.isMissingRelationError(error, 'jtf_presents_open_dates')) {
+          return { success: true, data: [] };
+        }
+        throw error;
+      }
+
+      return { success: true, data: (data ?? []).map(row => this.mapJtfPresentsOpenDate(row)) };
+    } catch (error) {
+      console.error('Error fetching JTF Presents open dates:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async upsertJtfPresentsOpenDate(slotDate: string, isOpen: boolean, note?: string | null, personnelId?: number | null): Promise<ApiResponse<JtfPresentsOpenDate>> {
+    try {
+      const payload = {
+        slot_date: slotDate,
+        is_open: isOpen,
+        note: note ?? null,
+        opened_by_personnel_id: isOpen ? (personnelId ?? null) : null,
+        opened_at: isOpen ? new Date().toISOString() : null,
+        closed_at: isOpen ? null : new Date().toISOString(),
+      };
+
+      const { data, error } = await this.client
+        .from('jtf_presents_open_dates')
+        .upsert(payload, { onConflict: 'slot_date' })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data: this.mapJtfPresentsOpenDate(data) };
+    } catch (error) {
+      console.error('Error upserting JTF Presents open date:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getJtfPresentsRequests(): Promise<ApiResponse<JtfPresentsRequest[]>> {
+    try {
+      const { data, error } = await this.client
+        .from('jtf_presents_requests')
+        .select('*')
+        .in('request_status', ['pending', 'needs_changes'])
+        .order('requested_show_date', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        if (this.isMissingRelationError(error, 'jtf_presents_requests')) {
+          return { success: true, data: [] };
+        }
+        throw error;
+      }
+
+      return { success: true, data: (data ?? []).map(row => this.mapJtfPresentsRequest(row)) };
+    } catch (error) {
+      console.error('Error fetching JTF Presents requests:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async approveJtfPresentsRequest(requestId: string, approverPersonnelId?: number | null): Promise<ApiResponse<ShowInformation>> {
+    try {
+      const { data: requestRow, error: requestError } = await this.client
+        .from('jtf_presents_requests')
+        .select('*')
+        .eq('request_id', requestId)
+        .single();
+
+      if (requestError) throw requestError;
+      if (!requestRow || requestRow.request_status !== 'pending') {
+        return { success: false, error: 'Only pending requests can be approved.' };
+      }
+
+      const { data: showTypeRow, error: showTypeError } = await this.client
+        .from('show_types')
+        .select('show_type_id')
+        .ilike('show_type_name', 'JTF Presents')
+        .maybeSingle();
+
+      if (showTypeError) throw showTypeError;
+      if (!showTypeRow?.show_type_id) {
+        return { success: false, error: 'JTF Presents show type is missing from the database.' };
+      }
+
+      const showPayload = {
+        show_date: requestRow.requested_show_date,
+        show_time: null,
+        show_type_id: showTypeRow.show_type_id,
+        director_id: null,
+        venue: requestRow.requested_show_name,
+        status: 'Scheduled',
+        cast_signup_enabled: false,
+        cast_signup_deadline_at: null,
+        program_category: 'jtf_presents',
+        workflow_profile: 'jtf_presents',
+        attendance_estimate: null,
+        notes: [
+          `Request details: ${requestRow.requested_show_details}`,
+          requestRow.requested_performers ? `Performers: ${requestRow.requested_performers}` : null,
+          requestRow.requested_tech ? `Tech: ${requestRow.requested_tech}` : null,
+          requestRow.requested_crew_notes ? `Crew notes: ${requestRow.requested_crew_notes}` : null,
+        ].filter(Boolean).join('\n\n'),
+      };
+
+      const { data: createdShow, error: createError } = await this.client
+        .from('show_information')
+        .insert([showPayload])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      const { error: updateError } = await this.client
+        .from('jtf_presents_requests')
+        .update({
+          request_status: 'approved',
+          approved_show_id: createdShow.show_id,
+          approved_by_personnel_id: approverPersonnelId ?? null,
+          approved_at: new Date().toISOString(),
+        })
+        .eq('request_id', requestId);
+
+      if (updateError) throw updateError;
+
+      return {
+        success: true,
+        data: {
+          ShowID: createdShow.show_id,
+          ShowDate: createdShow.show_date,
+          ShowTime: createdShow.show_time,
+          ShowTypeID: createdShow.show_type_id,
+          DirectorID: createdShow.director_id,
+          Venue: createdShow.venue,
+          Status: createdShow.status,
+          CastSignupEnabled: createdShow.cast_signup_enabled,
+          CastSignupDeadlineAt: createdShow.cast_signup_deadline_at,
+          ProgramCategory: 'jtf_presents',
+          WorkflowProfile: 'jtf_presents',
+          AttendanceEstimate: createdShow.attendance_estimate,
+          Notes: createdShow.notes,
+        },
+      };
+    } catch (error) {
+      console.error('Error approving JTF Presents request:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async rejectJtfPresentsRequest(requestId: string, approverPersonnelId?: number | null, rejectionNote?: string): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await this.client
+        .from('jtf_presents_requests')
+        .update({
+          request_status: 'rejected',
+          rejected_by_personnel_id: approverPersonnelId ?? null,
+          rejected_at: new Date().toISOString(),
+          rejection_note: rejectionNote?.trim() || null,
+        })
+        .eq('request_id', requestId);
+
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error rejecting JTF Presents request:', error);
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 

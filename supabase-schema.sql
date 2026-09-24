@@ -123,6 +123,8 @@ CREATE TABLE show_information (
   director_id INT,
   venue VARCHAR(255),
   status VARCHAR(50) DEFAULT 'Scheduled',
+  cast_signup_enabled BOOLEAN DEFAULT TRUE,
+  cast_signup_deadline_at TIMESTAMP,
   program_category VARCHAR(50) NOT NULL DEFAULT 'standard',
   workflow_profile VARCHAR(50) NOT NULL DEFAULT 'default',
   attendance_estimate INT,
@@ -152,6 +154,42 @@ CREATE TABLE crew_duties (
   FOREIGN KEY (show_id) REFERENCES show_information(show_id),
   FOREIGN KEY (personnel_id) REFERENCES personnel(personnel_id),
   FOREIGN KEY (crew_duty_type_id) REFERENCES crew_duty_types(crew_duty_type_id)
+);
+
+CREATE TABLE jtf_presents_open_dates (
+  slot_date DATE PRIMARY KEY,
+  is_open BOOLEAN NOT NULL DEFAULT FALSE,
+  note TEXT,
+  opened_by_personnel_id INT,
+  opened_at TIMESTAMP,
+  closed_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (opened_by_personnel_id) REFERENCES personnel(personnel_id)
+);
+
+CREATE TABLE jtf_presents_requests (
+  request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  requested_by_personnel_id INT NOT NULL,
+  requested_show_name TEXT NOT NULL,
+  requested_show_date DATE NOT NULL,
+  requested_show_details TEXT NOT NULL,
+  requested_performers TEXT,
+  requested_tech TEXT,
+  requested_crew_notes TEXT,
+  request_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+  approved_show_id INT,
+  approved_by_personnel_id INT,
+  approved_at TIMESTAMP,
+  rejected_by_personnel_id INT,
+  rejected_at TIMESTAMP,
+  rejection_note TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (requested_by_personnel_id) REFERENCES personnel(personnel_id),
+  FOREIGN KEY (approved_show_id) REFERENCES show_information(show_id),
+  FOREIGN KEY (approved_by_personnel_id) REFERENCES personnel(personnel_id),
+  FOREIGN KEY (rejected_by_personnel_id) REFERENCES personnel(personnel_id)
 );
 
 -- ============================================================================

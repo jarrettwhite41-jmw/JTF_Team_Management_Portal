@@ -21,6 +21,8 @@ export interface ShowInformation {
   DirectorID: number | null;
   Venue: string;
   Status: 'Scheduled' | 'Canceled';
+  CastSignupEnabled?: boolean;
+  CastSignupDeadlineAt?: string | null;
   ProgramCategory?: ProgramCategory;
   WorkflowProfile?: WorkflowProfile;
   AttendanceEstimate?: number | null;
@@ -314,6 +316,37 @@ export interface ShowWithDetails extends ShowInformation {
   CrewMembers?: PersonnelWithDetails[];
   CastCount?: number;
   CrewCount?: number;
+}
+
+export type JtfPresentsRequestStatus = 'pending' | 'approved' | 'rejected' | 'needs_changes';
+
+export interface JtfPresentsOpenDate {
+  SlotDate: string;
+  IsOpen: boolean;
+  Note?: string | null;
+  OpenedByPersonnelID?: number | null;
+  OpenedAt?: string | null;
+  ClosedAt?: string | null;
+}
+
+export interface JtfPresentsRequest {
+  RequestID: string;
+  RequestedByPersonnelID: number;
+  RequestedShowName: string;
+  RequestedShowDate: string;
+  RequestedShowDetails: string;
+  RequestedPerformers?: string | null;
+  RequestedTech?: string | null;
+  RequestedCrewNotes?: string | null;
+  RequestStatus: JtfPresentsRequestStatus;
+  ApprovedShowID?: number | null;
+  ApprovedByPersonnelID?: number | null;
+  ApprovedAt?: string | null;
+  RejectedByPersonnelID?: number | null;
+  RejectedAt?: string | null;
+  RejectionNote?: string | null;
+  CreatedAt: string;
+  UpdatedAt: string;
 }
 
 export interface ClassWithDetails extends ClassOfferings {
