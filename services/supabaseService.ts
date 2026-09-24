@@ -1877,6 +1877,21 @@ class SupabaseService {
 
   async deleteShow(showId: number): Promise<ApiResponse<{ deleted: boolean }>> {
     try {
+      // If this show was linked to a JTF Presents request, update the request status
+      try {
+        await this.client
+          .from('jtf_presents_requests')
+          .update({
+            request_status: 'rejected',
+            rejection_note: 'Show was removed from schedule by Team Management',
+            approved_show_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('approved_show_id', showId);
+      } catch (reqUpdateErr) {
+        console.warn('Could not update linked jtf_presents_requests during show deletion:', reqUpdateErr);
+      }
+
       const { error: performancesError } = await this.client
         .from('show_performances')
         .delete()
