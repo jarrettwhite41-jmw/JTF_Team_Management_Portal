@@ -105,6 +105,9 @@ class SupabaseService {
       RequestedShowDate: String(row.requested_show_date || ''),
       RequestedShowDetails: String(row.requested_show_details || ''),
       RequestedPerformers: row.requested_performers ?? null,
+      RequestedPerformerPersonnelIDs: Array.isArray(row.requested_performer_personnel_ids)
+        ? row.requested_performer_personnel_ids.map(Number).filter(Number.isFinite)
+        : null,
       RequestedTech: row.requested_tech ?? null,
       RequestedCrewNotes: row.requested_crew_notes ?? null,
       RequestStatus: row.request_status,
@@ -2264,6 +2267,63 @@ class SupabaseService {
         .single();
 
       if (createError) throw createError;
+
+      // Assign the requested cast members to show_performances
+      try {
+        let performerPersonnelIds: number[] = [];
+
+        // 1. First preference: exact IDs if stored on the request
+        if (Array.isArray((requestRow as any).requested_performer_personnel_ids)) {
+          performerPersonnelIds = (requestRow as any).requested_performer_personnel_ids
+            .map(Number)
+            .filter((id: number) => Number.isFinite(id) && id > 0);
+        }
+
+        // 2. Fallback: parse names from requested_performers string if IDs are not present
+        if (performerPersonnelIds.length === 0 && requestRow.requested_performers) {
+          const names = String(requestRow.requested_performers)
+            .split(',')
+            .map((s: string) => s.trim().toLowerCase())
+            .filter(Boolean);
+
+          if (names.length > 0) {
+            const { data: allPersonnel } = await this.client
+              .from('personnel')
+              .select('personnel_id, first_name, last_name');
+
+            if (Array.isArray(allPersonnel)) {
+              for (const name of names) {
+                const match = allPersonnel.find((p: any) => {
+                  const full = `${p.first_name || ''} ${p.last_name || ''}`.trim().toLowerCase();
+                  return full === name;
+                });
+                if (match?.personnel_id) {
+                  performerPersonnelIds.push(Number(match.personnel_id));
+                }
+              }
+            }
+          }
+        }
+
+        if (performerPersonnelIds.length > 0) {
+          const uniqueIds = Array.from(new Set(performerPersonnelIds));
+          const performanceRows = uniqueIds.map((pid: number) => ({
+            show_id: createdShow.show_id,
+            personnel_id: pid,
+            role: 'Cast Member',
+          }));
+
+          const { error: perfError } = await this.client
+            .from('show_performances')
+            .insert(performanceRows);
+
+          if (perfError) {
+            console.warn('Could not auto-insert show_performances for approved JTF Presents show:', perfError);
+          }
+        }
+      } catch (castAssignError) {
+        console.warn('Failed while assigning cast members for approved JTF Presents show:', castAssignError);
+      }
 
       const { error: updateError } = await this.client
         .from('jtf_presents_requests')

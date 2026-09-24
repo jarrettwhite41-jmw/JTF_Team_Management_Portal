@@ -336,6 +336,7 @@ export interface JtfPresentsRequest {
   RequestedShowDate: string;
   RequestedShowDetails: string;
   RequestedPerformers?: string | null;
+  RequestedPerformerPersonnelIDs?: number[] | null;
   RequestedTech?: string | null;
   RequestedCrewNotes?: string | null;
   RequestStatus: JtfPresentsRequestStatus;
