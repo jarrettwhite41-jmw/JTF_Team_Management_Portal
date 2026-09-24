@@ -24,6 +24,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [showEditorOpen, setShowEditorOpen] = useState(false);
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
+  const [showSearch, setShowSearch] = useState('');
   const [visibleShowCount, setVisibleShowCount] = useState<number | 'all'>(4);
   const [showPastShows, setShowPastShows] = useState(false);
   const [jtfRequests, setJtfRequests] = useState<JtfPresentsRequest[]>([]);
@@ -60,7 +61,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     applyFilters();
-  }, [shows, filter, categoryFilter]);
+  }, [shows, filter, categoryFilter, showSearch]);
 
   const getProgramCategory = (show: ShowWithDetails): ProgramCategory => {
     if (show.ProgramCategory === 'jtf_presents') {
@@ -112,6 +113,23 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
   const applyFilters = () => {
     let filtered = [...shows];
+
+    const normalizedSearch = showSearch.trim().toLowerCase();
+    if (normalizedSearch) {
+      filtered = filtered.filter((show) => {
+        const searchableFields = [
+          show.ShowTypeName,
+          show.Venue,
+          show.DirectorName,
+          show.Status,
+          show.ShowDate,
+          show.Notes,
+        ];
+        return searchableFields.some((field) =>
+          String(field ?? '').toLowerCase().includes(normalizedSearch),
+        );
+      });
+    }
 
     // Apply status filter
     if (filter !== 'all') {
@@ -448,25 +466,37 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
       </section>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <label className="text-sm font-medium text-gray-700">Recent view</label>
-        <select
-          value={String(visibleShowCount)}
-          onChange={(event) => setVisibleShowCount(event.target.value === 'all' ? 'all' : Number(event.target.value))}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
-        >
-          <option value="4">4 shows</option>
-          <option value="6">6 shows</option>
-          <option value="8">8 shows</option>
-          <option value="12">12 shows</option>
-          <option value="all">All shows</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => setShowPastShows((current) => !current)}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-        >
-          {showPastShows ? 'Hide older shows' : 'Show older shows'}
-        </button>
+        <div className="min-w-[220px] flex-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">Search shows</label>
+          <input
+            type="search"
+            value={showSearch}
+            onChange={(event) => setShowSearch(event.target.value)}
+            placeholder="Search by name, venue, date, or director"
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm font-medium text-gray-700">Recent view</label>
+          <select
+            value={String(visibleShowCount)}
+            onChange={(event) => setVisibleShowCount(event.target.value === 'all' ? 'all' : Number(event.target.value))}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+          >
+            <option value="4">4 shows</option>
+            <option value="6">6 shows</option>
+            <option value="8">8 shows</option>
+            <option value="12">12 shows</option>
+            <option value="all">All shows</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowPastShows((current) => !current)}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            {showPastShows ? 'Hide older shows' : 'Show older shows'}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
