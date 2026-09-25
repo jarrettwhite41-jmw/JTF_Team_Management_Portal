@@ -2240,50 +2240,76 @@ class SupabaseService {
         .single();
 
       if (requestError) throw requestError;
-      if (!requestRow || requestRow.request_status !== 'pending') {
-        return { success: false, error: 'Only pending requests can be approved.' };
+      if (!requestRow || (requestRow.request_status !== 'pending' && requestRow.request_status !== 'needs_changes')) {
+        return { success: false, error: 'Only pending or needs_changes requests can be approved.' };
       }
 
-      const { data: showTypeRow, error: showTypeError } = await this.client
-        .from('show_types')
-        .select('show_type_id')
-        .ilike('show_type_name', 'JTF Presents')
-        .maybeSingle();
+      const showNotes = [
+        `Request details: ${requestRow.requested_show_details}`,
+        requestRow.requested_performers ? `Performers: ${requestRow.requested_performers}` : null,
+        requestRow.requested_tech ? `Tech: ${requestRow.requested_tech}` : null,
+        requestRow.requested_crew_notes ? `Crew notes: ${requestRow.requested_crew_notes}` : null,
+      ].filter(Boolean).join('\n\n');
 
-      if (showTypeError) throw showTypeError;
-      if (!showTypeRow?.show_type_id) {
-        return { success: false, error: 'JTF Presents show type is missing from the database.' };
+      let targetShowId: number;
+      let targetShowData: any;
+
+      if (requestRow.approved_show_id) {
+        // Show already exists (modified approved show). Update the existing show information
+        const { data: updatedShow, error: updateShowError } = await this.client
+          .from('show_information')
+          .update({
+            show_date: requestRow.requested_show_date,
+            venue: requestRow.requested_show_name,
+            notes: showNotes,
+          })
+          .eq('show_id', requestRow.approved_show_id)
+          .select()
+          .single();
+
+        if (updateShowError) throw updateShowError;
+        targetShowId = requestRow.approved_show_id;
+        targetShowData = updatedShow;
+      } else {
+        // Create new show
+        const { data: showTypeRow, error: showTypeError } = await this.client
+          .from('show_types')
+          .select('show_type_id')
+          .ilike('show_type_name', 'JTF Presents')
+          .maybeSingle();
+
+        if (showTypeError) throw showTypeError;
+        if (!showTypeRow?.show_type_id) {
+          return { success: false, error: 'JTF Presents show type is missing from the database.' };
+        }
+
+        const showPayload = {
+          show_date: requestRow.requested_show_date,
+          show_time: null,
+          show_type_id: showTypeRow.show_type_id,
+          director_id: null,
+          venue: requestRow.requested_show_name,
+          status: 'Scheduled',
+          cast_signup_enabled: false,
+          cast_signup_deadline_at: null,
+          program_category: 'jtf_presents',
+          workflow_profile: 'jtf_presents',
+          attendance_estimate: null,
+          notes: showNotes,
+        };
+
+        const { data: createdShow, error: createError } = await this.client
+          .from('show_information')
+          .insert([showPayload])
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        targetShowId = createdShow.show_id;
+        targetShowData = createdShow;
       }
 
-      const showPayload = {
-        show_date: requestRow.requested_show_date,
-        show_time: null,
-        show_type_id: showTypeRow.show_type_id,
-        director_id: null,
-        venue: requestRow.requested_show_name,
-        status: 'Scheduled',
-        cast_signup_enabled: false,
-        cast_signup_deadline_at: null,
-        program_category: 'jtf_presents',
-        workflow_profile: 'jtf_presents',
-        attendance_estimate: null,
-        notes: [
-          `Request details: ${requestRow.requested_show_details}`,
-          requestRow.requested_performers ? `Performers: ${requestRow.requested_performers}` : null,
-          requestRow.requested_tech ? `Tech: ${requestRow.requested_tech}` : null,
-          requestRow.requested_crew_notes ? `Crew notes: ${requestRow.requested_crew_notes}` : null,
-        ].filter(Boolean).join('\n\n'),
-      };
-
-      const { data: createdShow, error: createError } = await this.client
-        .from('show_information')
-        .insert([showPayload])
-        .select()
-        .single();
-
-      if (createError) throw createError;
-
-      // Assign the requested cast members to show_performances
+      // Assign / sync the requested cast members to show_performances
       try {
         let performerPersonnelIds: number[] = [];
 
@@ -2321,9 +2347,17 @@ class SupabaseService {
         }
 
         if (performerPersonnelIds.length > 0) {
+          // If updating an existing show, replace previous assignments
+          if (requestRow.approved_show_id) {
+            await this.client
+              .from('show_performances')
+              .delete()
+              .eq('show_id', targetShowId);
+          }
+
           const uniqueIds = Array.from(new Set(performerPersonnelIds));
           const performanceRows = uniqueIds.map((pid: number) => ({
-            show_id: createdShow.show_id,
+            show_id: targetShowId,
             personnel_id: pid,
             role: 'Cast Member',
           }));
@@ -2344,9 +2378,10 @@ class SupabaseService {
         .from('jtf_presents_requests')
         .update({
           request_status: 'approved',
-          approved_show_id: createdShow.show_id,
+          approved_show_id: targetShowId,
           approved_by_personnel_id: approverPersonnelId ?? null,
           approved_at: new Date().toISOString(),
+          rejection_note: null,
         })
         .eq('request_id', requestId);
 
@@ -2355,19 +2390,19 @@ class SupabaseService {
       return {
         success: true,
         data: {
-          ShowID: createdShow.show_id,
-          ShowDate: createdShow.show_date,
-          ShowTime: createdShow.show_time,
-          ShowTypeID: createdShow.show_type_id,
-          DirectorID: createdShow.director_id,
-          Venue: createdShow.venue,
-          Status: createdShow.status,
-          CastSignupEnabled: createdShow.cast_signup_enabled,
-          CastSignupDeadlineAt: createdShow.cast_signup_deadline_at,
+          ShowID: targetShowData.show_id,
+          ShowDate: targetShowData.show_date,
+          ShowTime: targetShowData.show_time,
+          ShowTypeID: targetShowData.show_type_id,
+          DirectorID: targetShowData.director_id,
+          Venue: targetShowData.venue,
+          Status: targetShowData.status,
+          CastSignupEnabled: targetShowData.cast_signup_enabled,
+          CastSignupDeadlineAt: targetShowData.cast_signup_deadline_at,
           ProgramCategory: 'jtf_presents',
           WorkflowProfile: 'jtf_presents',
-          AttendanceEstimate: createdShow.attendance_estimate,
-          Notes: createdShow.notes,
+          AttendanceEstimate: targetShowData.attendance_estimate,
+          Notes: targetShowData.notes,
         },
       };
     } catch (error) {
