@@ -530,7 +530,7 @@ export interface NavigationItem {
   icon: string;
 }
 
-export type TicketingPlatform = 'eventbrite' | 'ticketweb' | 'box_office';
+export type TicketingPlatform = 'eventbrite' | 'ticketweb' | 'squarespace' | 'box_office';
 
 export interface TicketingIntegration {
   IntegrationID: number;
@@ -539,6 +539,8 @@ export interface TicketingIntegration {
   ApiSecret?: string;
   OrganizationId?: string;
   VenueId?: string;
+  SiteId?: string;
+  StoreUrl?: string;
   IsActive: boolean;
   LastSyncedAt?: string | null;
   SyncStatus: 'idle' | 'syncing' | 'success' | 'error';
@@ -592,6 +594,9 @@ export interface ShowTicketingSummary {
   EventbriteSold: number;
   EventbriteRevenue: number;
   EventbriteEventUrl?: string;
+  SquarespaceSold: number;
+  SquarespaceRevenue: number;
+  SquarespaceEventUrl?: string;
   DoorWalkupCount: number;
   DoorWalkupRevenue: number;
   CheckedInCount: number;
@@ -609,6 +614,8 @@ export interface TicketingOverviewStats {
   ticketWebSold: number;
   eventbriteRevenue: number;
   eventbriteSold: number;
+  squarespaceRevenue: number;
+  squarespaceSold: number;
   doorRevenue: number;
   doorSold: number;
   upcomingShowsCount: number;

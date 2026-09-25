@@ -1,14 +1,16 @@
 -- Migration: 20260925_add_ticketing_system.sql
 -- Enables TicketWeb and Eventbrite integration, sales tracking, capacity management, and door reconciliation.
 
--- 1. Integration Settings Table for TicketWeb and Eventbrite credentials
+-- 1. Integration Settings Table for TicketWeb, Eventbrite, and Squarespace credentials
 CREATE TABLE IF NOT EXISTS ticketing_integrations (
   integration_id SERIAL PRIMARY KEY,
-  platform VARCHAR(50) NOT NULL UNIQUE, -- 'eventbrite', 'ticketweb'
+  platform VARCHAR(50) NOT NULL UNIQUE, -- 'eventbrite', 'ticketweb', 'squarespace'
   api_key TEXT,
   api_secret TEXT,
   organization_id TEXT,
   venue_id TEXT,
+  site_id TEXT,
+  store_url TEXT,
   is_active BOOLEAN DEFAULT FALSE,
   last_synced_at TIMESTAMP WITH TIME ZONE,
   sync_status VARCHAR(50) DEFAULT 'idle', -- 'idle', 'syncing', 'success', 'error'
@@ -18,18 +20,19 @@ CREATE TABLE IF NOT EXISTS ticketing_integrations (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed defaults for both platforms if not present
+-- Seed defaults for platforms if not present
 INSERT INTO ticketing_integrations (platform, is_active, sync_status)
 VALUES 
   ('eventbrite', false, 'idle'),
-  ('ticketweb', false, 'idle')
+  ('ticketweb', false, 'idle'),
+  ('squarespace', false, 'idle')
 ON CONFLICT (platform) DO NOTHING;
 
 -- 2. Show Ticketing Links Table (links JTF Show to external platform events)
 CREATE TABLE IF NOT EXISTS show_ticketing (
   ticket_link_id SERIAL PRIMARY KEY,
   show_id INT NOT NULL REFERENCES show_information(show_id) ON DELETE CASCADE,
-  platform VARCHAR(50) NOT NULL, -- 'eventbrite', 'ticketweb', 'box_office'
+  platform VARCHAR(50) NOT NULL, -- 'eventbrite', 'ticketweb', 'squarespace', 'box_office'
   external_event_id TEXT,
   external_event_url TEXT,
   total_capacity INT DEFAULT 100,
@@ -52,7 +55,7 @@ CREATE TABLE IF NOT EXISTS show_ticketing (
 CREATE TABLE IF NOT EXISTS show_ticket_tiers (
   tier_id SERIAL PRIMARY KEY,
   show_id INT NOT NULL REFERENCES show_information(show_id) ON DELETE CASCADE,
-  platform VARCHAR(50) NOT NULL, -- 'eventbrite', 'ticketweb', 'door'
+  platform VARCHAR(50) NOT NULL, -- 'eventbrite', 'ticketweb', 'squarespace', 'door'
   tier_name VARCHAR(100) NOT NULL,
   price NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   capacity INT DEFAULT 50,

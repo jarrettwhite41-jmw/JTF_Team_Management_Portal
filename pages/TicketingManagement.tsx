@@ -10,6 +10,7 @@ import {
 import { ticketingService } from '../services/ticketingService';
 
 type TabView = 'shows' | 'analytics' | 'boxoffice' | 'settings';
+type PlatformFilter = 'all' | 'ticketweb' | 'eventbrite' | 'squarespace';
 
 export const TicketingManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabView>('shows');
@@ -23,6 +24,7 @@ export const TicketingManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'sold_out' | 'paused'>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
+  const [platformView, setPlatformView] = useState<PlatformFilter>('all');
 
   // Quick edit modal
   const [editingShow, setEditingShow] = useState<ShowTicketingSummary | null>(null);
@@ -31,6 +33,7 @@ export const TicketingManagement: React.FC = () => {
   const [editStatus, setEditStatus] = useState<'open' | 'paused' | 'sold_out' | 'closed'>('open');
   const [editTWUrl, setEditTWUrl] = useState('');
   const [editEBUrl, setEditEBUrl] = useState('');
+  const [editSQUrl, setEditSQUrl] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Door Reconcile State
@@ -45,6 +48,9 @@ export const TicketingManagement: React.FC = () => {
   const [ebOrgId, setEbOrgId] = useState('');
   const [twApiKey, setTwApiKey] = useState('');
   const [twVenueId, setTwVenueId] = useState('');
+  const [sqApiKey, setSqApiKey] = useState('');
+  const [sqSiteId, setSqSiteId] = useState('');
+  const [sqStoreUrl, setSqStoreUrl] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const loadAllData = async () => {
@@ -65,6 +71,7 @@ export const TicketingManagement: React.FC = () => {
         setIntegrations(intRes.data);
         const eb = intRes.data.find((i) => i.Platform === 'eventbrite');
         const tw = intRes.data.find((i) => i.Platform === 'ticketweb');
+        const sq = intRes.data.find((i) => i.Platform === 'squarespace');
         if (eb) {
           setEbApiKey(eb.ApiKey || '');
           setEbOrgId(eb.OrganizationId || '');
@@ -72,6 +79,11 @@ export const TicketingManagement: React.FC = () => {
         if (tw) {
           setTwApiKey(tw.ApiKey || '');
           setTwVenueId(tw.VenueId || '');
+        }
+        if (sq) {
+          setSqApiKey(sq.ApiKey || '');
+          setSqSiteId(sq.SiteId || '');
+          setSqStoreUrl(sq.StoreUrl || '');
         }
       }
     } catch (err: any) {
@@ -111,18 +123,26 @@ export const TicketingManagement: React.FC = () => {
     if (!editingShow) return;
     setIsSavingEdit(true);
     try {
-      await ticketingService.updateShowCapacity(editingShow.ShowID, 'ticketweb', {
-        totalCapacity: editCapacity,
-        heldCount: editHeld,
-        ticketStatus: editStatus,
-        externalEventUrl: editTWUrl,
-      });
-      await ticketingService.updateShowCapacity(editingShow.ShowID, 'eventbrite', {
-        totalCapacity: editCapacity,
-        heldCount: editHeld,
-        ticketStatus: editStatus,
-        externalEventUrl: editEBUrl,
-      });
+      await Promise.all([
+        ticketingService.updateShowCapacity(editingShow.ShowID, 'ticketweb', {
+          totalCapacity: editCapacity,
+          heldCount: editHeld,
+          ticketStatus: editStatus,
+          externalEventUrl: editTWUrl,
+        }),
+        ticketingService.updateShowCapacity(editingShow.ShowID, 'eventbrite', {
+          totalCapacity: editCapacity,
+          heldCount: editHeld,
+          ticketStatus: editStatus,
+          externalEventUrl: editEBUrl,
+        }),
+        ticketingService.updateShowCapacity(editingShow.ShowID, 'squarespace', {
+          totalCapacity: editCapacity,
+          heldCount: editHeld,
+          ticketStatus: editStatus,
+          externalEventUrl: editSQUrl,
+        }),
+      ]);
 
       setMessage({ type: 'success', text: `Capacity & status updated for Show #${editingShow.ShowID}.` });
       setEditingShow(null);
@@ -179,6 +199,13 @@ export const TicketingManagement: React.FC = () => {
           VenueId: twVenueId,
           IsActive: Boolean(twApiKey),
         }),
+        ticketingService.saveIntegration({
+          Platform: 'squarespace',
+          ApiKey: sqApiKey,
+          SiteId: sqSiteId,
+          StoreUrl: sqStoreUrl,
+          IsActive: Boolean(sqApiKey || sqStoreUrl),
+        }),
       ]);
 
       setMessage({ type: 'success', text: 'Ticketing API settings saved successfully.' });
@@ -212,9 +239,14 @@ export const TicketingManagement: React.FC = () => {
       if (timeFilter === 'upcoming' && s.ShowDate < today) return false;
       if (timeFilter === 'past' && s.ShowDate >= today) return false;
 
+      // Platform isolation filter (when isolating individual platform)
+      if (platformView === 'ticketweb' && s.TicketWebSold === 0 && !s.TicketWebEventUrl) return false;
+      if (platformView === 'eventbrite' && s.EventbriteSold === 0 && !s.EventbriteEventUrl) return false;
+      if (platformView === 'squarespace' && s.SquarespaceSold === 0 && !s.SquarespaceEventUrl) return false;
+
       return true;
     });
-  }, [summaries, searchQuery, statusFilter, timeFilter]);
+  }, [summaries, searchQuery, statusFilter, timeFilter, platformView]);
 
   if (isLoading) {
     return (
@@ -234,17 +266,17 @@ export const TicketingManagement: React.FC = () => {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ticketing & Sales Management</h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Real-time multi-platform sales, inventory capacities, and box-office reconciliation for TicketWeb & Eventbrite.
+            Real-time multi-platform sales, inventory capacities, and box-office reconciliation across TicketWeb, Eventbrite, and Squarespace.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 text-xs">
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span className="font-semibold text-slate-700">TicketWeb & Eventbrite Active</span>
+            <span className="font-semibold text-slate-700">TicketWeb, Eventbrite & Squarespace</span>
           </div>
 
           <button
@@ -261,54 +293,121 @@ export const TicketingManagement: React.FC = () => {
 
       {message && <Message type={message.type} text={message.text} onDismiss={() => setMessage(null)} />}
 
-      {/* KPI Overview Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+      {/* KPI Overview Cards with Individual Platform Selectors */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+        {/* Total Gross */}
+        <div
+          onClick={() => {
+            setActiveTab('shows');
+            setPlatformView('all');
+          }}
+          className={`cursor-pointer transition-all p-4 rounded-xl border shadow-sm col-span-2 md:col-span-1 ${
+            platformView === 'all'
+              ? 'bg-slate-900 text-white border-slate-900 ring-2 ring-slate-400'
+              : 'bg-white border-slate-200 hover:border-slate-400'
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Gross Sales</p>
-            <span className="text-emerald-600 text-base font-bold">💵</span>
+            <p className={`text-xs font-semibold uppercase tracking-wider ${platformView === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
+              Total Gross
+            </p>
+            <span className="text-emerald-400 font-bold">💵</span>
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">${stats.totalGrossRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-            <span className="text-emerald-700 font-medium">TW: ${stats.ticketWebRevenue.toLocaleString()}</span>
-            <span>•</span>
-            <span className="text-orange-700 font-medium">EB: ${stats.eventbriteRevenue.toLocaleString()}</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tickets Sold</p>
-            <span className="text-blue-600 text-base font-bold">🎟️</span>
-          </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{stats.totalTicketsSold.toLocaleString()}</p>
-          <p className="text-xs text-slate-500 mt-2">
-            Capacity: <span className="font-medium text-slate-700">{stats.totalCapacity.toLocaleString()}</span> seats
+          <p className={`text-2xl font-black mt-2 ${platformView === 'all' ? 'text-white' : 'text-slate-900'}`}>
+            ${stats.totalGrossRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
+          <p className={`text-xs mt-1.5 ${platformView === 'all' ? 'text-slate-300' : 'text-slate-500'}`}>
+            {stats.totalTicketsSold.toLocaleString()} total tickets ({stats.overallFillRate}% full)
           </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        {/* TicketWeb Box */}
+        <div
+          onClick={() => {
+            setActiveTab('shows');
+            setPlatformView(platformView === 'ticketweb' ? 'all' : 'ticketweb');
+          }}
+          className={`cursor-pointer transition-all p-4 rounded-xl border shadow-sm ${
+            platformView === 'ticketweb'
+              ? 'bg-blue-50/90 border-blue-500 ring-2 ring-blue-300'
+              : 'bg-white border-slate-200 hover:border-blue-300'
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Overall Fill Rate</p>
-            <span className="text-indigo-600 text-base font-bold">📈</span>
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-blue-600 inline-block"></span> TicketWeb
+            </p>
+            <span className="text-[10px] font-semibold text-blue-600 bg-blue-100/70 px-1.5 py-0.5 rounded">
+              {platformView === 'ticketweb' ? 'Viewing' : 'View'}
+            </span>
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{stats.overallFillRate}%</p>
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${stats.overallFillRate >= 80 ? 'bg-emerald-500' : stats.overallFillRate >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
-              style={{ width: `${Math.min(100, stats.overallFillRate)}%` }}
-            />
-          </div>
+          <p className="text-xl font-black text-slate-900 mt-2">${stats.ticketWebRevenue.toLocaleString()}</p>
+          <p className="text-xs text-slate-500 mt-1.5">
+            <span className="font-semibold text-slate-700">{stats.ticketWebSold}</span> tickets sold
+          </p>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+        {/* Eventbrite Box */}
+        <div
+          onClick={() => {
+            setActiveTab('shows');
+            setPlatformView(platformView === 'eventbrite' ? 'all' : 'eventbrite');
+          }}
+          className={`cursor-pointer transition-all p-4 rounded-xl border shadow-sm ${
+            platformView === 'eventbrite'
+              ? 'bg-orange-50/90 border-orange-500 ring-2 ring-orange-300'
+              : 'bg-white border-slate-200 hover:border-orange-300'
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Box Office & Door</p>
-            <span className="text-purple-600 text-base font-bold">🚪</span>
+            <p className="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-orange-500 inline-block"></span> Eventbrite
+            </p>
+            <span className="text-[10px] font-semibold text-orange-600 bg-orange-100/70 px-1.5 py-0.5 rounded">
+              {platformView === 'eventbrite' ? 'Viewing' : 'View'}
+            </span>
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">${stats.doorRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-          <p className="text-xs text-slate-500 mt-2">
-            Walk-up Admissions: <span className="font-medium text-slate-700">{stats.doorSold} tickets</span>
+          <p className="text-xl font-black text-slate-900 mt-2">${stats.eventbriteRevenue.toLocaleString()}</p>
+          <p className="text-xs text-slate-500 mt-1.5">
+            <span className="font-semibold text-slate-700">{stats.eventbriteSold}</span> tickets sold
+          </p>
+        </div>
+
+        {/* Squarespace Box */}
+        <div
+          onClick={() => {
+            setActiveTab('shows');
+            setPlatformView(platformView === 'squarespace' ? 'all' : 'squarespace');
+          }}
+          className={`cursor-pointer transition-all p-4 rounded-xl border shadow-sm ${
+            platformView === 'squarespace'
+              ? 'bg-zinc-100 border-zinc-600 ring-2 ring-zinc-300'
+              : 'bg-white border-slate-200 hover:border-zinc-400'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-slate-900 inline-block"></span> Squarespace
+            </p>
+            <span className="text-[10px] font-semibold text-slate-700 bg-slate-200/80 px-1.5 py-0.5 rounded">
+              {platformView === 'squarespace' ? 'Viewing' : 'View'}
+            </span>
+          </div>
+          <p className="text-xl font-black text-slate-900 mt-2">${stats.squarespaceRevenue.toLocaleString()}</p>
+          <p className="text-xs text-slate-500 mt-1.5">
+            <span className="font-semibold text-slate-700">{stats.squarespaceSold}</span> tickets sold
+          </p>
+        </div>
+
+        {/* Box Office / Door */}
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm col-span-2 md:col-span-1">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Door Walk-ups</p>
+            <span className="text-purple-600 font-bold">🚪</span>
+          </div>
+          <p className="text-xl font-black text-slate-900 mt-2">${stats.doorRevenue.toLocaleString()}</p>
+          <p className="text-xs text-slate-500 mt-1.5">
+            <span className="font-semibold text-slate-700">{stats.doorSold}</span> walk-up tickets
           </p>
         </div>
       </div>
@@ -390,6 +489,38 @@ export const TicketingManagement: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
+              {/* Platform view switcher pills */}
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setPlatformView('all')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'all' ? 'bg-white shadow-xs text-slate-900 font-bold' : 'text-slate-600'}`}
+                >
+                  All Platforms
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlatformView('ticketweb')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'ticketweb' ? 'bg-blue-600 text-white font-bold shadow-xs' : 'text-slate-600'}`}
+                >
+                  TicketWeb
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlatformView('eventbrite')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'eventbrite' ? 'bg-orange-600 text-white font-bold shadow-xs' : 'text-slate-600'}`}
+                >
+                  Eventbrite
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlatformView('squarespace')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'squarespace' ? 'bg-slate-900 text-white font-bold shadow-xs' : 'text-slate-600'}`}
+                >
+                  Squarespace
+                </button>
+              </div>
+
               {/* Time filter */}
               <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
                 <button
@@ -404,7 +535,7 @@ export const TicketingManagement: React.FC = () => {
                   onClick={() => setTimeFilter('past')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${timeFilter === 'past' ? 'bg-white shadow-xs text-slate-900' : 'text-slate-600'}`}
                 >
-                  Past Shows
+                  Past
                 </button>
                 <button
                   type="button"
@@ -438,10 +569,21 @@ export const TicketingManagement: React.FC = () => {
                     <th className="py-3 px-4">Date & Time</th>
                     <th className="py-3 px-4">Show & Venue</th>
                     <th className="py-3 px-4">Sales Progress</th>
-                    <th className="py-3 px-4 text-center">TicketWeb</th>
-                    <th className="py-3 px-4 text-center">Eventbrite</th>
-                    <th className="py-3 px-4 text-center">Door Walk-ups</th>
-                    <th className="py-3 px-4 text-right">Gross Rev</th>
+                    {(platformView === 'all' || platformView === 'ticketweb') && (
+                      <th className="py-3 px-4 text-center bg-blue-50/40">TicketWeb</th>
+                    )}
+                    {(platformView === 'all' || platformView === 'eventbrite') && (
+                      <th className="py-3 px-4 text-center bg-orange-50/40">Eventbrite</th>
+                    )}
+                    {(platformView === 'all' || platformView === 'squarespace') && (
+                      <th className="py-3 px-4 text-center bg-zinc-50/60">Squarespace</th>
+                    )}
+                    {platformView === 'all' && (
+                      <th className="py-3 px-4 text-center">Door Walk-ups</th>
+                    )}
+                    <th className="py-3 px-4 text-right">
+                      {platformView === 'all' ? 'Gross Rev' : `${platformView.toUpperCase()} Rev`}
+                    </th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -449,13 +591,22 @@ export const TicketingManagement: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredShows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-slate-500">
+                      <td colSpan={10} className="py-8 text-center text-slate-500">
                         No shows match the selected filters.
                       </td>
                     </tr>
                   ) : (
                     filteredShows.map((show) => {
                       const fillPct = show.TotalCapacity > 0 ? Math.round((show.TotalSold / show.TotalCapacity) * 100) : 0;
+                      const displayedRev =
+                        platformView === 'ticketweb'
+                          ? show.TicketWebRevenue
+                          : platformView === 'eventbrite'
+                          ? show.EventbriteRevenue
+                          : platformView === 'squarespace'
+                          ? show.SquarespaceRevenue
+                          : show.TotalGrossRevenue;
+
                       return (
                         <tr key={show.ShowID} className="hover:bg-slate-50/60 transition-colors">
                           <td className="py-3.5 px-4 whitespace-nowrap">
@@ -487,46 +638,70 @@ export const TicketingManagement: React.FC = () => {
                           </td>
 
                           {/* TicketWeb */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                            <div className="font-semibold text-slate-800">{show.TicketWebSold} sold</div>
-                            <div className="text-xs text-slate-500">${show.TicketWebRevenue}</div>
-                            {show.TicketWebEventUrl && (
-                              <a
-                                href={show.TicketWebEventUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-block mt-0.5 text-[11px] text-blue-600 hover:underline"
-                              >
-                                View TW ↗
-                              </a>
-                            )}
-                          </td>
+                          {(platformView === 'all' || platformView === 'ticketweb') && (
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap bg-blue-50/20">
+                              <div className="font-semibold text-blue-900">{show.TicketWebSold} sold</div>
+                              <div className="text-xs text-slate-500">${show.TicketWebRevenue}</div>
+                              {show.TicketWebEventUrl && (
+                                <a
+                                  href={show.TicketWebEventUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-block mt-0.5 text-[11px] text-blue-600 hover:underline font-medium"
+                                >
+                                  View TW ↗
+                                </a>
+                              )}
+                            </td>
+                          )}
 
                           {/* Eventbrite */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                            <div className="font-semibold text-slate-800">{show.EventbriteSold} sold</div>
-                            <div className="text-xs text-slate-500">${show.EventbriteRevenue}</div>
-                            {show.EventbriteEventUrl && (
-                              <a
-                                href={show.EventbriteEventUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-block mt-0.5 text-[11px] text-orange-600 hover:underline"
-                              >
-                                View EB ↗
-                              </a>
-                            )}
-                          </td>
+                          {(platformView === 'all' || platformView === 'eventbrite') && (
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap bg-orange-50/20">
+                              <div className="font-semibold text-orange-950">{show.EventbriteSold} sold</div>
+                              <div className="text-xs text-slate-500">${show.EventbriteRevenue}</div>
+                              {show.EventbriteEventUrl && (
+                                <a
+                                  href={show.EventbriteEventUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-block mt-0.5 text-[11px] text-orange-600 hover:underline font-medium"
+                                >
+                                  View EB ↗
+                                </a>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Squarespace */}
+                          {(platformView === 'all' || platformView === 'squarespace') && (
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap bg-zinc-50/40">
+                              <div className="font-semibold text-slate-900">{show.SquarespaceSold} sold</div>
+                              <div className="text-xs text-slate-500">${show.SquarespaceRevenue}</div>
+                              {show.SquarespaceEventUrl && (
+                                <a
+                                  href={show.SquarespaceEventUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-block mt-0.5 text-[11px] text-slate-800 hover:underline font-medium"
+                                >
+                                  View SQ ↗
+                                </a>
+                              )}
+                            </td>
+                          )}
 
                           {/* Door Walk-up */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                            <div className="font-semibold text-purple-700">{show.DoorWalkupCount} sold</div>
-                            <div className="text-xs text-slate-500">${show.DoorWalkupRevenue}</div>
-                          </td>
+                          {platformView === 'all' && (
+                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                              <div className="font-semibold text-purple-700">{show.DoorWalkupCount} sold</div>
+                              <div className="text-xs text-slate-500">${show.DoorWalkupRevenue}</div>
+                            </td>
+                          )}
 
-                          {/* Total Gross */}
+                          {/* Revenue */}
                           <td className="py-3.5 px-4 text-right font-bold text-slate-900 whitespace-nowrap">
-                            ${show.TotalGrossRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            ${displayedRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                           </td>
 
                           {/* Status Badge */}
@@ -564,6 +739,7 @@ export const TicketingManagement: React.FC = () => {
                                   setEditStatus(show.TicketStatus);
                                   setEditTWUrl(show.TicketWebEventUrl || '');
                                   setEditEBUrl(show.EventbriteEventUrl || '');
+                                  setEditSQUrl(show.SquarespaceEventUrl || '');
                                 }}
                                 className="px-2.5 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
                               >
@@ -638,6 +814,26 @@ export const TicketingManagement: React.FC = () => {
                       className="h-full bg-orange-500 rounded-full"
                       style={{
                         width: `${stats.totalGrossRevenue > 0 ? (stats.eventbriteRevenue / stats.totalGrossRevenue) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Squarespace */}
+                <div>
+                  <div className="flex justify-between text-xs font-semibold mb-1">
+                    <span className="flex items-center gap-1.5 text-slate-800">
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-900 inline-block"></span> Squarespace
+                    </span>
+                    <span className="text-slate-800">
+                      ${stats.squarespaceRevenue.toLocaleString()} ({stats.squarespaceSold} tickets)
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="h-full bg-slate-900 rounded-full"
+                      style={{
+                        width: `${stats.totalGrossRevenue > 0 ? (stats.squarespaceRevenue / stats.totalGrossRevenue) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -729,7 +925,7 @@ export const TicketingManagement: React.FC = () => {
                   <div className="space-y-1 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100">
                     <div className="flex justify-between">
                       <span>Online Presold:</span>
-                      <span className="font-semibold">{show.TicketWebSold + show.EventbriteSold}</span>
+                      <span className="font-semibold">{show.TicketWebSold + show.EventbriteSold + show.SquarespaceSold}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Walk-ups at Door:</span>
@@ -835,6 +1031,46 @@ export const TicketingManagement: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Squarespace Credentials */}
+            <div className="pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🌐</span>
+                <h4 className="font-bold text-slate-900 text-sm">Squarespace Commerce API</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">API Key</label>
+                  <input
+                    type="password"
+                    value={sqApiKey}
+                    onChange={(e) => setSqApiKey(e.target.value)}
+                    placeholder="e.g. sq_live_api_key..."
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Site / Store Identifier</label>
+                  <input
+                    type="text"
+                    value={sqSiteId}
+                    onChange={(e) => setSqSiteId(e.target.value)}
+                    placeholder="e.g. justthefunny-stage"
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Storefront Tickets URL</label>
+                  <input
+                    type="url"
+                    value={sqStoreUrl}
+                    onChange={(e) => setSqStoreUrl(e.target.value)}
+                    placeholder="https://justthefunny.com/tickets"
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end">
@@ -906,9 +1142,9 @@ export const TicketingManagement: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">TicketWeb Direct Link</label>
+                  <label className="block font-semibold text-slate-700 mb-1">TicketWeb Link</label>
                   <input
                     type="url"
                     value={editTWUrl}
@@ -918,12 +1154,22 @@ export const TicketingManagement: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Eventbrite Direct Link</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Eventbrite Link</label>
                   <input
                     type="url"
                     value={editEBUrl}
                     onChange={(e) => setEditEBUrl(e.target.value)}
                     placeholder="https://www.eventbrite.com/..."
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Squarespace Link</label>
+                  <input
+                    type="url"
+                    value={editSQUrl}
+                    onChange={(e) => setEditSQUrl(e.target.value)}
+                    placeholder="https://justthefunny.com/..."
                     className="w-full p-2 border border-slate-200 rounded-lg text-xs"
                   />
                 </div>
@@ -975,7 +1221,7 @@ export const TicketingManagement: React.FC = () => {
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center">
                 <span className="text-slate-600">Online Presale Total:</span>
                 <span className="font-bold text-slate-900 text-sm">
-                  {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold} tickets
+                  {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold + reconcileShow.SquarespaceSold} tickets
                 </span>
               </div>
 
