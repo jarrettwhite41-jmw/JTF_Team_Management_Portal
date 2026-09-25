@@ -509,6 +509,7 @@ export type PageType =
   | 'class-management'
   | 'shows'
   | 'show-management'
+  | 'ticketing'
   | 'workshops'
   | 'special-guests'
   | 'teacher-management'
@@ -527,6 +528,91 @@ export interface NavigationItem {
   id: PageType;
   label: string;
   icon: string;
+}
+
+export type TicketingPlatform = 'eventbrite' | 'ticketweb' | 'box_office';
+
+export interface TicketingIntegration {
+  IntegrationID: number;
+  Platform: TicketingPlatform;
+  ApiKey?: string;
+  ApiSecret?: string;
+  OrganizationId?: string;
+  VenueId?: string;
+  IsActive: boolean;
+  LastSyncedAt?: string | null;
+  SyncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  SyncError?: string | null;
+  Settings?: Record<string, any>;
+}
+
+export interface ShowTicketing {
+  TicketLinkId: number;
+  ShowID: number;
+  Platform: TicketingPlatform;
+  ExternalEventId?: string;
+  ExternalEventUrl?: string;
+  TotalCapacity: number;
+  SoldCount: number;
+  HeldCount: number;
+  GrossRevenue: number;
+  Currency: string;
+  TicketStatus: 'open' | 'paused' | 'sold_out' | 'closed';
+  DoorWalkupCount: number;
+  DoorWalkupRevenue: number;
+  CheckedInCount: number;
+  LastSyncedAt?: string | null;
+}
+
+export interface ShowTicketTier {
+  TierId: number;
+  ShowID: number;
+  Platform: TicketingPlatform;
+  TierName: string;
+  Price: number;
+  Capacity: number;
+  SoldCount: number;
+  IsAvailable: boolean;
+}
+
+export interface ShowTicketingSummary {
+  ShowID: number;
+  ShowDate: string;
+  ShowTime: string;
+  ShowTypeName: string;
+  Venue: string;
+  Status: string;
+  TotalCapacity: number;
+  TotalSold: number;
+  TotalHeld: number;
+  TotalGrossRevenue: number;
+  TicketWebSold: number;
+  TicketWebRevenue: number;
+  TicketWebEventUrl?: string;
+  EventbriteSold: number;
+  EventbriteRevenue: number;
+  EventbriteEventUrl?: string;
+  DoorWalkupCount: number;
+  DoorWalkupRevenue: number;
+  CheckedInCount: number;
+  RemainingCapacity: number;
+  TicketStatus: 'open' | 'paused' | 'sold_out' | 'closed';
+  PlatformsLinked: TicketingPlatform[];
+}
+
+export interface TicketingOverviewStats {
+  totalGrossRevenue: number;
+  totalTicketsSold: number;
+  totalCapacity: number;
+  overallFillRate: number;
+  ticketWebRevenue: number;
+  ticketWebSold: number;
+  eventbriteRevenue: number;
+  eventbriteSold: number;
+  doorRevenue: number;
+  doorSold: number;
+  upcomingShowsCount: number;
+  soldOutShowsCount: number;
 }
 
 export type PortalName = 'team' | 'instructor' | 'director' | 'cast' | 'student' | 'crew';

@@ -15,7 +15,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
   const canAccessItem = (role: PortalAccessRole | null | undefined, page: PageType): boolean => {
     if (!role) return false;
     if (role === 'admin' || role === 'manager') return true;
-    if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
+    if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'ticketing', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
     if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
     if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
     if (role === 'student') return page === 'dashboard';
@@ -35,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
       defaultPage: 'show-management' as PageType,
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
         { id: 'cast', label: 'Cast Management', icon: '🎭' },
         { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },

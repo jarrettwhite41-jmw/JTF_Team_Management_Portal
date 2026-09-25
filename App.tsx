@@ -7,6 +7,7 @@ import { CrewDirectory } from './pages/CrewDirectory';
 import { BartendersPage } from './pages/BartendersPage';
 import { ClassRegistration } from './pages/ClassRegistration';
 import { Shows } from './pages/Shows';
+import { TicketingManagement } from './pages/TicketingManagement';
 import { Games } from './pages/Games';
 import { Workshops } from './pages/Workshops';
 import { SpecialGuests } from './pages/SpecialGuests';
@@ -33,7 +34,7 @@ const HUB_URL = (import.meta.env.VITE_PORTAL_HUB_URL as string | undefined)?.tri
 
 const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
-  'class-management', 'classes', 'show-management', 'shows', 'workshops',
+  'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
   'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'settings',
 ]);
@@ -55,13 +56,13 @@ const getInitialSelectedStudent = (): number | null => {
 const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
   const adminPages: PageType[] = [
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
-    'class-management', 'classes', 'show-management', 'shows', 'games', 'workshops',
+    'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
     'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'settings',
   ];
 
   if (role === 'admin' || role === 'manager') return true;
-  if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
+  if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'ticketing', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
   if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
   if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
   if (role === 'student') return ['dashboard'].includes(page);
@@ -221,6 +222,8 @@ const App: React.FC = () => {
       case 'show-management':
       case 'shows':
         return <Shows onNavigate={navigateToPage} />;
+      case 'ticketing':
+        return <TicketingManagement />;
       case 'games':
         return <Games />;
       case 'workshops':
