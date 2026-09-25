@@ -318,7 +318,7 @@ export interface ShowWithDetails extends ShowInformation {
   CrewCount?: number;
 }
 
-export type JtfPresentsRequestStatus = 'pending' | 'approved' | 'rejected' | 'needs_changes';
+export type JtfPresentsRequestStatus = 'pending' | 'approved' | 'rejected' | 'needs_changes' | 'cancelled';
 
 export interface JtfPresentsOpenDate {
   SlotDate: string;
