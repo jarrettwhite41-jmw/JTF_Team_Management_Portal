@@ -30,6 +30,7 @@ export const TicketingManagement: React.FC = () => {
   const [editingShow, setEditingShow] = useState<ShowTicketingSummary | null>(null);
   const [editCapacity, setEditCapacity] = useState<number>(100);
   const [editHeld, setEditHeld] = useState<number>(0);
+  const [editAutoBalance, setEditAutoBalance] = useState<boolean>(true);
   const [editStatus, setEditStatus] = useState<'open' | 'paused' | 'sold_out' | 'closed'>('open');
   const [editTWUrl, setEditTWUrl] = useState('');
   const [editEBUrl, setEditEBUrl] = useState('');
@@ -129,22 +130,34 @@ export const TicketingManagement: React.FC = () => {
           heldCount: editHeld,
           ticketStatus: editStatus,
           externalEventUrl: editTWUrl,
+          autoBalanceEnabled: editAutoBalance,
         }),
         ticketingService.updateShowCapacity(editingShow.ShowID, 'eventbrite', {
           totalCapacity: editCapacity,
           heldCount: editHeld,
           ticketStatus: editStatus,
           externalEventUrl: editEBUrl,
+          autoBalanceEnabled: editAutoBalance,
         }),
         ticketingService.updateShowCapacity(editingShow.ShowID, 'square', {
           totalCapacity: editCapacity,
           heldCount: editHeld,
           ticketStatus: editStatus,
           externalEventUrl: editSQUrl,
+          autoBalanceEnabled: editAutoBalance,
         }),
       ]);
 
-      setMessage({ type: 'success', text: `Capacity & status updated for Show #${editingShow.ShowID}.` });
+      if (editAutoBalance) {
+        await ticketingService.autoBalanceShowPlatforms(
+          editingShow.ShowID,
+          editCapacity,
+          editHeld,
+          editAutoBalance
+        );
+      }
+
+      setMessage({ type: 'success', text: `Capacity & live auto-balance updated for Show #${editingShow.ShowID}.` });
       setEditingShow(null);
       await loadAllData();
     } catch (err: any) {
@@ -373,7 +386,7 @@ export const TicketingManagement: React.FC = () => {
           </p>
         </div>
 
-        {/* Square Box */}
+        {/* Square (Door Sales) Box */}
         <div
           onClick={() => {
             setActiveTab('shows');
@@ -387,7 +400,7 @@ export const TicketingManagement: React.FC = () => {
         >
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-slate-900 inline-block"></span> Square
+              <span className="h-2 w-2 rounded-full bg-slate-900 inline-block"></span> Square (Door POS)
             </p>
             <span className="text-[10px] font-semibold text-slate-700 bg-slate-200/80 px-1.5 py-0.5 rounded">
               {platformView === 'square' ? 'Viewing' : 'View'}
@@ -395,7 +408,7 @@ export const TicketingManagement: React.FC = () => {
           </div>
           <p className="text-xl font-black text-slate-900 mt-2">${stats.squareRevenue.toLocaleString()}</p>
           <p className="text-xs text-slate-500 mt-1.5">
-            <span className="font-semibold text-slate-700">{stats.squareSold}</span> tickets sold
+            <span className="font-semibold text-slate-700">{stats.squareSold}</span> door POS tickets
           </p>
         </div>
 
@@ -517,7 +530,7 @@ export const TicketingManagement: React.FC = () => {
                   onClick={() => setPlatformView('square')}
                   className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'square' ? 'bg-slate-900 text-white font-bold shadow-xs' : 'text-slate-600'}`}
                 >
-                  Square
+                  Square (Door POS)
                 </button>
               </div>
 
@@ -576,10 +589,10 @@ export const TicketingManagement: React.FC = () => {
                       <th className="py-3 px-4 text-center bg-orange-50/40">Eventbrite</th>
                     )}
                     {(platformView === 'all' || platformView === 'square') && (
-                      <th className="py-3 px-4 text-center bg-zinc-50/60">Square</th>
+                      <th className="py-3 px-4 text-center bg-zinc-50/60">Square (Door POS)</th>
                     )}
                     {platformView === 'all' && (
-                      <th className="py-3 px-4 text-center">Door Walk-ups</th>
+                      <th className="py-3 px-4 text-center">Door Cash Walk-ups</th>
                     )}
                     <th className="py-3 px-4 text-right">
                       {platformView === 'all' ? 'Gross Rev' : `${platformView.toUpperCase()} Rev`}
@@ -632,8 +645,13 @@ export const TicketingManagement: React.FC = () => {
                                 style={{ width: `${Math.min(100, fillPct)}%` }}
                               />
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-1">
-                              {show.RemainingCapacity} remaining ({show.TotalHeld} held)
+                            <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                              <span>{show.RemainingCapacity} remaining ({show.TotalHeld} held)</span>
+                              {show.AutoBalanceEnabled !== false && (
+                                <span className="inline-flex items-center px-1 py-0.2 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-800">
+                                  Auto-balanced
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -673,11 +691,11 @@ export const TicketingManagement: React.FC = () => {
                             </td>
                           )}
 
-                          {/* Square */}
+                          {/* Square (Door POS) */}
                           {(platformView === 'all' || platformView === 'square') && (
                             <td className="py-3.5 px-4 text-center whitespace-nowrap bg-zinc-50/40">
                               <div className="font-semibold text-slate-900">{show.SquareSold} sold</div>
-                              <div className="text-xs text-slate-500">${show.SquareRevenue}</div>
+                              <div className="text-xs text-slate-500">${show.SquareRevenue} (POS)</div>
                               {show.SquareEventUrl && (
                                 <a
                                   href={show.SquareEventUrl}
@@ -736,6 +754,7 @@ export const TicketingManagement: React.FC = () => {
                                   setEditingShow(show);
                                   setEditCapacity(show.TotalCapacity);
                                   setEditHeld(show.TotalHeld);
+                                  setEditAutoBalance(show.AutoBalanceEnabled ?? true);
                                   setEditStatus(show.TicketStatus);
                                   setEditTWUrl(show.TicketWebEventUrl || '');
                                   setEditEBUrl(show.EventbriteEventUrl || '');
@@ -819,11 +838,11 @@ export const TicketingManagement: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Square */}
+                {/* Square (Door Sales) */}
                 <div>
                   <div className="flex justify-between text-xs font-semibold mb-1">
                     <span className="flex items-center gap-1.5 text-slate-800">
-                      <span className="h-2.5 w-2.5 rounded-full bg-slate-900 inline-block"></span> Square
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-900 inline-block"></span> Square (Door POS)
                     </span>
                     <span className="text-slate-800">
                       ${stats.squareRevenue.toLocaleString()} ({stats.squareSold} tickets)
@@ -839,11 +858,11 @@ export const TicketingManagement: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Door / Box Office */}
+                {/* Door Cash / Manual Walk-up */}
                 <div>
                   <div className="flex justify-between text-xs font-semibold mb-1">
                     <span className="flex items-center gap-1.5 text-purple-700">
-                      <span className="h-2.5 w-2.5 rounded-full bg-purple-600 inline-block"></span> Box Office / Door Walk-ups
+                      <span className="h-2.5 w-2.5 rounded-full bg-purple-600 inline-block"></span> Door Cash Walk-ups
                     </span>
                     <span className="text-slate-800">
                       ${stats.doorRevenue.toLocaleString()} ({stats.doorSold} tickets)
@@ -1108,13 +1127,36 @@ export const TicketingManagement: React.FC = () => {
 
             <div className="space-y-4 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Total Venue Capacity (Seats)</label>
+                <label className="block font-semibold text-slate-700 mb-1">Total Venue Capacity (Pooled Ticket Limit)</label>
                 <input
                   type="number"
                   value={editCapacity}
                   onChange={(e) => setEditCapacity(Number(e.target.value))}
                   className="w-full p-2 border border-slate-200 rounded-lg text-sm font-semibold"
                 />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Shared capacity ceiling (e.g. 50 seats).
+                </p>
+              </div>
+
+              {/* Real-time autobalance toggle */}
+              <div className="bg-blue-50/70 border border-blue-200 rounded-lg p-3">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editAutoBalance}
+                    onChange={(e) => setEditAutoBalance(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="block font-bold text-slate-900 text-xs">
+                      ⚡ Enable Shared Pool Auto-Balance
+                    </span>
+                    <span className="block text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                      Whenever a ticket sells on any channel (Eventbrite, TicketWeb, or Square door POS), all platforms auto-decrement together so they always show the same remaining available seats (e.g. 50 → 49).
+                    </span>
+                  </div>
+                </label>
               </div>
 
               <div>
@@ -1218,15 +1260,29 @@ export const TicketingManagement: React.FC = () => {
             </div>
 
             <div className="space-y-4 text-xs">
-              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                <span className="text-slate-600">Online Presale Total:</span>
-                <span className="font-bold text-slate-900 text-sm">
-                  {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold + reconcileShow.SquareSold} tickets
-                </span>
+              <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Online Presale (TicketWeb + Eventbrite):</span>
+                  <span className="font-bold text-slate-900">
+                    {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold} tickets
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Square Door POS Presale / Walk-up:</span>
+                  <span className="font-bold text-slate-900">
+                    {reconcileShow.SquareSold} tickets (${reconcileShow.SquareRevenue})
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-slate-800 font-semibold border-t border-slate-200 pt-1">
+                  <span>Combined Tickets Sold:</span>
+                  <span className="font-black text-blue-700">
+                    {reconcileShow.TotalSold} tickets
+                  </span>
+                </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Door Walk-up Admissions (Cash / Card)</label>
+                <label className="block font-semibold text-slate-700 mb-1">Door Cash Walk-up Admissions</label>
                 <input
                   type="number"
                   min="0"

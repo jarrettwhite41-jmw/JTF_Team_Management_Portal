@@ -605,6 +605,7 @@ export interface ShowTicketingSummary {
   RemainingCapacity: number;
   TicketStatus: 'open' | 'paused' | 'sold_out' | 'closed';
   PlatformsLinked: TicketingPlatform[];
+  AutoBalanceEnabled?: boolean;
 }
 
 export interface TicketingOverviewStats {

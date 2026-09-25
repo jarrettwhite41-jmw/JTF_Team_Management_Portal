@@ -172,6 +172,9 @@ class TicketingService {
         )
           status = 'paused';
 
+        const autoBalance =
+          tw?.auto_balance_enabled ?? eb?.auto_balance_enabled ?? sq?.auto_balance_enabled ?? true;
+
         return {
           ShowID: sid,
           ShowDate: String(show.show_date || ''),
@@ -198,6 +201,7 @@ class TicketingService {
           RemainingCapacity: remaining,
           TicketStatus: status,
           PlatformsLinked: platforms,
+          AutoBalanceEnabled: Boolean(autoBalance),
         };
       });
 
@@ -219,6 +223,7 @@ class TicketingService {
       heldCount?: number;
       ticketStatus?: 'open' | 'paused' | 'sold_out' | 'closed';
       externalEventUrl?: string;
+      autoBalanceEnabled?: boolean;
     }
   ): Promise<ApiResponse<boolean>> {
     if (!isSupabaseConfigured()) {
@@ -235,6 +240,7 @@ class TicketingService {
       if (updates.heldCount !== undefined) payload.held_count = updates.heldCount;
       if (updates.ticketStatus !== undefined) payload.ticket_status = updates.ticketStatus;
       if (updates.externalEventUrl !== undefined) payload.external_event_url = updates.externalEventUrl;
+      if (updates.autoBalanceEnabled !== undefined) payload.auto_balance_enabled = updates.autoBalanceEnabled;
 
       const { error } = await supabase
         .from('show_ticketing')
@@ -242,6 +248,76 @@ class TicketingService {
 
       if (error) throw error;
       return { success: true, data: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Auto-balances ticket availability across all online platforms (TicketWeb, Eventbrite, Square)
+   * based on a unified show capacity ceiling minus combined tickets sold.
+   *
+   * E.g. If total limit is 50, and 1 ticket sells on Eventbrite, all platforms calculate
+   * and display 49 available tickets (remaining pooled capacity).
+   */
+  async autoBalanceShowPlatforms(
+    showId: number,
+    sharedCapacity: number,
+    heldCount: number,
+    autoBalanceEnabled: boolean = true
+  ): Promise<ApiResponse<{ availablePerPlatform: number; remainingTotal: number }>> {
+    if (!isSupabaseConfigured()) {
+      return {
+        success: true,
+        data: { availablePerPlatform: sharedCapacity, remainingTotal: sharedCapacity },
+      };
+    }
+
+    try {
+      // 1. Fetch current sales across all platforms for this show
+      const { data: records, error: fetchErr } = await supabase
+        .from('show_ticketing')
+        .select('platform, sold_count, door_walkup_count')
+        .eq('show_id', showId);
+
+      if (fetchErr) throw fetchErr;
+
+      let totalSold = 0;
+      (records || []).forEach((r) => {
+        const sold = Number(r.sold_count || 0);
+        const door = Number(r.door_walkup_count || 0);
+        totalSold += Math.max(sold, door);
+      });
+
+      const remainingAvailable = Math.max(0, sharedCapacity - totalSold - heldCount);
+      const newStatus = remainingAvailable === 0 ? 'sold_out' : 'open';
+
+      // 2. Broadcast the shared capacity and auto-balance status to each active platform
+      const platforms: TicketingPlatform[] = ['ticketweb', 'eventbrite', 'square'];
+      const updates = platforms.map((p) =>
+        supabase.from('show_ticketing').upsert(
+          {
+            show_id: showId,
+            platform: p,
+            total_capacity: sharedCapacity,
+            held_count: heldCount,
+            ticket_status: newStatus,
+            auto_balance_enabled: autoBalanceEnabled,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'show_id,platform' }
+        )
+      );
+
+      await Promise.all(updates);
+
+      return {
+        success: true,
+        data: {
+          availablePerPlatform: remainingAvailable,
+          remainingTotal: remainingAvailable,
+        },
+      };
     } catch (err: any) {
       return { success: false, error: err.message };
     }

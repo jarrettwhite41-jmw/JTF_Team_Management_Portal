@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS show_ticketing (
   door_walkup_count INT DEFAULT 0,
   door_walkup_revenue NUMERIC(10, 2) DEFAULT 0.00,
   checked_in_count INT DEFAULT 0,
+  auto_balance_enabled BOOLEAN DEFAULT TRUE, -- Automatically syncs remaining pooled capacity across TicketWeb, Eventbrite, Square
   last_synced_at TIMESTAMP WITH TIME ZONE,
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
