@@ -128,7 +128,7 @@ class TicketingService {
 
         const tw = links.find((l) => l.platform === 'ticketweb');
         const eb = links.find((l) => l.platform === 'eventbrite');
-        const sq = links.find((l) => l.platform === 'squarespace');
+        const sq = links.find((l) => l.platform === 'square');
         const box = links.find((l) => l.platform === 'box_office');
 
         const twSold = Number(tw?.sold_count || 0);
@@ -160,7 +160,7 @@ class TicketingService {
         const platforms: TicketingPlatform[] = [];
         if (tw) platforms.push('ticketweb');
         if (eb) platforms.push('eventbrite');
-        if (sq) platforms.push('squarespace');
+        if (sq) platforms.push('square');
         if (box) platforms.push('box_office');
 
         let status: 'open' | 'paused' | 'sold_out' | 'closed' = 'open';
@@ -189,9 +189,9 @@ class TicketingService {
           EventbriteSold: ebSold,
           EventbriteRevenue: ebRev,
           EventbriteEventUrl: eb?.external_event_url,
-          SquarespaceSold: sqSold,
-          SquarespaceRevenue: sqRev,
-          SquarespaceEventUrl: sq?.external_event_url,
+          SquareSold: sqSold,
+          SquareRevenue: sqRev,
+          SquareEventUrl: sq?.external_event_url,
           DoorWalkupCount: doorSold,
           DoorWalkupRevenue: doorRev,
           CheckedInCount: checkedIn,
@@ -310,7 +310,7 @@ class TicketingService {
       const getPlatformName = (p?: TicketingPlatform) => {
         if (p === 'eventbrite') return 'Eventbrite';
         if (p === 'ticketweb') return 'TicketWeb';
-        if (p === 'squarespace') return 'Squarespace';
+        if (p === 'square') return 'Square';
         return 'all platforms';
       };
 
@@ -320,7 +320,7 @@ class TicketingService {
           syncedShows: 12,
           message: platform
             ? `Successfully refreshed ${getPlatformName(platform)} data.`
-            : 'Successfully synced all events across TicketWeb, Eventbrite, and Squarespace.',
+            : 'Successfully synced all events across TicketWeb, Eventbrite, and Square.',
         },
       };
     } catch (err: any) {
@@ -339,8 +339,8 @@ class TicketingService {
     let ticketWebSold = 0;
     let eventbriteRevenue = 0;
     let eventbriteSold = 0;
-    let squarespaceRevenue = 0;
-    let squarespaceSold = 0;
+    let squareRevenue = 0;
+    let squareSold = 0;
     let doorRevenue = 0;
     let doorSold = 0;
     let soldOutShowsCount = 0;
@@ -359,8 +359,8 @@ class TicketingService {
       eventbriteRevenue += s.EventbriteRevenue;
       eventbriteSold += s.EventbriteSold;
 
-      squarespaceRevenue += s.SquarespaceRevenue;
-      squarespaceSold += s.SquarespaceSold;
+      squareRevenue += s.SquareRevenue;
+      squareSold += s.SquareSold;
 
       doorRevenue += s.DoorWalkupRevenue;
       doorSold += s.DoorWalkupCount;
@@ -385,8 +385,8 @@ class TicketingService {
       ticketWebSold,
       eventbriteRevenue,
       eventbriteSold,
-      squarespaceRevenue,
-      squarespaceSold,
+      squareRevenue,
+      squareSold,
       doorRevenue,
       doorSold,
       upcomingShowsCount,
@@ -419,10 +419,10 @@ class TicketingService {
       },
       {
         IntegrationID: 3,
-        Platform: 'squarespace',
+        Platform: 'square',
         ApiKey: 'sq_live_api_key_sample',
-        SiteId: 'justthefunny-stage',
-        StoreUrl: 'https://justthefunny.com/tickets',
+        LocationId: 'L_JTF_MAINSTAGE',
+        ApplicationId: 'sq0idp-sample-app',
         IsActive: true,
         LastSyncedAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
         SyncStatus: 'success',
@@ -459,15 +459,15 @@ class TicketingService {
         EventbriteSold: ebSold,
         EventbriteRevenue: ebSold * 20,
         EventbriteEventUrl: 'https://www.eventbrite.com',
-        SquarespaceSold: sqSold,
-        SquarespaceRevenue: sqSold * 20,
-        SquarespaceEventUrl: 'https://justthefunny.com/tickets',
+        SquareSold: sqSold,
+        SquareRevenue: sqSold * 20,
+        SquareEventUrl: 'https://squareup.com/store/justthefunny',
         DoorWalkupCount: doorSold,
         DoorWalkupRevenue: doorSold * 20,
         CheckedInCount: Math.floor(totalSold * 0.8),
         RemainingCapacity: remaining,
         TicketStatus: remaining === 0 ? 'sold_out' : 'open',
-        PlatformsLinked: ['ticketweb', 'eventbrite', 'squarespace', 'box_office'],
+        PlatformsLinked: ['ticketweb', 'eventbrite', 'square', 'box_office'],
       };
     });
   }
@@ -498,15 +498,15 @@ class TicketingService {
         EventbriteSold: 25,
         EventbriteRevenue: 500.0,
         EventbriteEventUrl: 'https://www.eventbrite.com/e/101',
-        SquarespaceSold: 20,
-        SquarespaceRevenue: 400.0,
-        SquarespaceEventUrl: 'https://justthefunny.com/tickets/show-101',
+        SquareSold: 20,
+        SquareRevenue: 400.0,
+        SquareEventUrl: 'https://squareup.com/store/justthefunny/item/101',
         DoorWalkupCount: 4,
         DoorWalkupRevenue: 80.0,
         CheckedInCount: 0,
         RemainingCapacity: 2,
         TicketStatus: 'open',
-        PlatformsLinked: ['ticketweb', 'eventbrite', 'squarespace', 'box_office'],
+        PlatformsLinked: ['ticketweb', 'eventbrite', 'square', 'box_office'],
       },
       {
         ShowID: 102,
@@ -525,15 +525,15 @@ class TicketingService {
         EventbriteSold: 30,
         EventbriteRevenue: 600.0,
         EventbriteEventUrl: 'https://www.eventbrite.com/e/102',
-        SquarespaceSold: 20,
-        SquarespaceRevenue: 400.0,
-        SquarespaceEventUrl: 'https://justthefunny.com/tickets/show-102',
+        SquareSold: 20,
+        SquareRevenue: 400.0,
+        SquareEventUrl: 'https://squareup.com/store/justthefunny/item/102',
         DoorWalkupCount: 0,
         DoorWalkupRevenue: 0.0,
         CheckedInCount: 0,
         RemainingCapacity: 0,
         TicketStatus: 'sold_out',
-        PlatformsLinked: ['ticketweb', 'eventbrite', 'squarespace'],
+        PlatformsLinked: ['ticketweb', 'eventbrite', 'square'],
       },
       {
         ShowID: 103,
@@ -552,15 +552,15 @@ class TicketingService {
         EventbriteSold: 16,
         EventbriteRevenue: 320.0,
         EventbriteEventUrl: 'https://www.eventbrite.com/e/103',
-        SquarespaceSold: 14,
-        SquarespaceRevenue: 280.0,
-        SquarespaceEventUrl: 'https://justthefunny.com/tickets/show-103',
+        SquareSold: 14,
+        SquareRevenue: 280.0,
+        SquareEventUrl: 'https://squareup.com/store/justthefunny/item/103',
         DoorWalkupCount: 0,
         DoorWalkupRevenue: 0.0,
         CheckedInCount: 0,
         RemainingCapacity: 50,
         TicketStatus: 'open',
-        PlatformsLinked: ['ticketweb', 'eventbrite', 'squarespace'],
+        PlatformsLinked: ['ticketweb', 'eventbrite', 'square'],
       },
       {
         ShowID: 104,
@@ -577,14 +577,14 @@ class TicketingService {
         TicketWebRevenue: 960.0,
         EventbriteSold: 24,
         EventbriteRevenue: 480.0,
-        SquarespaceSold: 18,
-        SquarespaceRevenue: 360.0,
+        SquareSold: 18,
+        SquareRevenue: 360.0,
         DoorWalkupCount: 8,
         DoorWalkupRevenue: 160.0,
         CheckedInCount: 94,
         RemainingCapacity: 0,
         TicketStatus: 'closed',
-        PlatformsLinked: ['ticketweb', 'eventbrite', 'squarespace', 'box_office'],
+        PlatformsLinked: ['ticketweb', 'eventbrite', 'square', 'box_office'],
       },
     ];
   }

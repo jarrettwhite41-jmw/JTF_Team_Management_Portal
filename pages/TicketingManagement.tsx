@@ -10,7 +10,7 @@ import {
 import { ticketingService } from '../services/ticketingService';
 
 type TabView = 'shows' | 'analytics' | 'boxoffice' | 'settings';
-type PlatformFilter = 'all' | 'ticketweb' | 'eventbrite' | 'squarespace';
+type PlatformFilter = 'all' | 'ticketweb' | 'eventbrite' | 'square';
 
 export const TicketingManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabView>('shows');
@@ -49,8 +49,8 @@ export const TicketingManagement: React.FC = () => {
   const [twApiKey, setTwApiKey] = useState('');
   const [twVenueId, setTwVenueId] = useState('');
   const [sqApiKey, setSqApiKey] = useState('');
-  const [sqSiteId, setSqSiteId] = useState('');
-  const [sqStoreUrl, setSqStoreUrl] = useState('');
+  const [sqLocationId, setSqLocationId] = useState('');
+  const [sqAppId, setSqAppId] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   const loadAllData = async () => {
@@ -71,7 +71,7 @@ export const TicketingManagement: React.FC = () => {
         setIntegrations(intRes.data);
         const eb = intRes.data.find((i) => i.Platform === 'eventbrite');
         const tw = intRes.data.find((i) => i.Platform === 'ticketweb');
-        const sq = intRes.data.find((i) => i.Platform === 'squarespace');
+        const sq = intRes.data.find((i) => i.Platform === 'square');
         if (eb) {
           setEbApiKey(eb.ApiKey || '');
           setEbOrgId(eb.OrganizationId || '');
@@ -82,8 +82,8 @@ export const TicketingManagement: React.FC = () => {
         }
         if (sq) {
           setSqApiKey(sq.ApiKey || '');
-          setSqSiteId(sq.SiteId || '');
-          setSqStoreUrl(sq.StoreUrl || '');
+          setSqLocationId(sq.LocationId || '');
+          setSqAppId(sq.ApplicationId || '');
         }
       }
     } catch (err: any) {
@@ -136,7 +136,7 @@ export const TicketingManagement: React.FC = () => {
           ticketStatus: editStatus,
           externalEventUrl: editEBUrl,
         }),
-        ticketingService.updateShowCapacity(editingShow.ShowID, 'squarespace', {
+        ticketingService.updateShowCapacity(editingShow.ShowID, 'square', {
           totalCapacity: editCapacity,
           heldCount: editHeld,
           ticketStatus: editStatus,
@@ -200,11 +200,11 @@ export const TicketingManagement: React.FC = () => {
           IsActive: Boolean(twApiKey),
         }),
         ticketingService.saveIntegration({
-          Platform: 'squarespace',
+          Platform: 'square',
           ApiKey: sqApiKey,
-          SiteId: sqSiteId,
-          StoreUrl: sqStoreUrl,
-          IsActive: Boolean(sqApiKey || sqStoreUrl),
+          LocationId: sqLocationId,
+          ApplicationId: sqAppId,
+          IsActive: Boolean(sqApiKey || sqLocationId),
         }),
       ]);
 
@@ -242,7 +242,7 @@ export const TicketingManagement: React.FC = () => {
       // Platform isolation filter (when isolating individual platform)
       if (platformView === 'ticketweb' && s.TicketWebSold === 0 && !s.TicketWebEventUrl) return false;
       if (platformView === 'eventbrite' && s.EventbriteSold === 0 && !s.EventbriteEventUrl) return false;
-      if (platformView === 'squarespace' && s.SquarespaceSold === 0 && !s.SquarespaceEventUrl) return false;
+      if (platformView === 'square' && s.SquareSold === 0 && !s.SquareEventUrl) return false;
 
       return true;
     });
@@ -266,7 +266,7 @@ export const TicketingManagement: React.FC = () => {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ticketing & Sales Management</h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Real-time multi-platform sales, inventory capacities, and box-office reconciliation across TicketWeb, Eventbrite, and Squarespace.
+            Real-time multi-platform sales, inventory capacities, and box-office reconciliation across TicketWeb, Eventbrite, and Square.
           </p>
         </div>
 
@@ -276,7 +276,7 @@ export const TicketingManagement: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span className="font-semibold text-slate-700">TicketWeb, Eventbrite & Squarespace</span>
+            <span className="font-semibold text-slate-700">TicketWeb, Eventbrite & Square</span>
           </div>
 
           <button
@@ -373,29 +373,29 @@ export const TicketingManagement: React.FC = () => {
           </p>
         </div>
 
-        {/* Squarespace Box */}
+        {/* Square Box */}
         <div
           onClick={() => {
             setActiveTab('shows');
-            setPlatformView(platformView === 'squarespace' ? 'all' : 'squarespace');
+            setPlatformView(platformView === 'square' ? 'all' : 'square');
           }}
           className={`cursor-pointer transition-all p-4 rounded-xl border shadow-sm ${
-            platformView === 'squarespace'
+            platformView === 'square'
               ? 'bg-zinc-100 border-zinc-600 ring-2 ring-zinc-300'
               : 'bg-white border-slate-200 hover:border-zinc-400'
           }`}
         >
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-slate-900 inline-block"></span> Squarespace
+              <span className="h-2 w-2 rounded-full bg-slate-900 inline-block"></span> Square
             </p>
             <span className="text-[10px] font-semibold text-slate-700 bg-slate-200/80 px-1.5 py-0.5 rounded">
-              {platformView === 'squarespace' ? 'Viewing' : 'View'}
+              {platformView === 'square' ? 'Viewing' : 'View'}
             </span>
           </div>
-          <p className="text-xl font-black text-slate-900 mt-2">${stats.squarespaceRevenue.toLocaleString()}</p>
+          <p className="text-xl font-black text-slate-900 mt-2">${stats.squareRevenue.toLocaleString()}</p>
           <p className="text-xs text-slate-500 mt-1.5">
-            <span className="font-semibold text-slate-700">{stats.squarespaceSold}</span> tickets sold
+            <span className="font-semibold text-slate-700">{stats.squareSold}</span> tickets sold
           </p>
         </div>
 
@@ -514,10 +514,10 @@ export const TicketingManagement: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPlatformView('squarespace')}
-                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'squarespace' ? 'bg-slate-900 text-white font-bold shadow-xs' : 'text-slate-600'}`}
+                  onClick={() => setPlatformView('square')}
+                  className={`px-2.5 py-1 rounded-md font-medium transition-colors ${platformView === 'square' ? 'bg-slate-900 text-white font-bold shadow-xs' : 'text-slate-600'}`}
                 >
-                  Squarespace
+                  Square
                 </button>
               </div>
 
@@ -575,8 +575,8 @@ export const TicketingManagement: React.FC = () => {
                     {(platformView === 'all' || platformView === 'eventbrite') && (
                       <th className="py-3 px-4 text-center bg-orange-50/40">Eventbrite</th>
                     )}
-                    {(platformView === 'all' || platformView === 'squarespace') && (
-                      <th className="py-3 px-4 text-center bg-zinc-50/60">Squarespace</th>
+                    {(platformView === 'all' || platformView === 'square') && (
+                      <th className="py-3 px-4 text-center bg-zinc-50/60">Square</th>
                     )}
                     {platformView === 'all' && (
                       <th className="py-3 px-4 text-center">Door Walk-ups</th>
@@ -603,8 +603,8 @@ export const TicketingManagement: React.FC = () => {
                           ? show.TicketWebRevenue
                           : platformView === 'eventbrite'
                           ? show.EventbriteRevenue
-                          : platformView === 'squarespace'
-                          ? show.SquarespaceRevenue
+                          : platformView === 'square'
+                          ? show.SquareRevenue
                           : show.TotalGrossRevenue;
 
                       return (
@@ -673,14 +673,14 @@ export const TicketingManagement: React.FC = () => {
                             </td>
                           )}
 
-                          {/* Squarespace */}
-                          {(platformView === 'all' || platformView === 'squarespace') && (
+                          {/* Square */}
+                          {(platformView === 'all' || platformView === 'square') && (
                             <td className="py-3.5 px-4 text-center whitespace-nowrap bg-zinc-50/40">
-                              <div className="font-semibold text-slate-900">{show.SquarespaceSold} sold</div>
-                              <div className="text-xs text-slate-500">${show.SquarespaceRevenue}</div>
-                              {show.SquarespaceEventUrl && (
+                              <div className="font-semibold text-slate-900">{show.SquareSold} sold</div>
+                              <div className="text-xs text-slate-500">${show.SquareRevenue}</div>
+                              {show.SquareEventUrl && (
                                 <a
-                                  href={show.SquarespaceEventUrl}
+                                  href={show.SquareEventUrl}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-block mt-0.5 text-[11px] text-slate-800 hover:underline font-medium"
@@ -739,7 +739,7 @@ export const TicketingManagement: React.FC = () => {
                                   setEditStatus(show.TicketStatus);
                                   setEditTWUrl(show.TicketWebEventUrl || '');
                                   setEditEBUrl(show.EventbriteEventUrl || '');
-                                  setEditSQUrl(show.SquarespaceEventUrl || '');
+                                  setEditSQUrl(show.SquareEventUrl || '');
                                 }}
                                 className="px-2.5 py-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
                               >
@@ -819,21 +819,21 @@ export const TicketingManagement: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Squarespace */}
+                {/* Square */}
                 <div>
                   <div className="flex justify-between text-xs font-semibold mb-1">
                     <span className="flex items-center gap-1.5 text-slate-800">
-                      <span className="h-2.5 w-2.5 rounded-full bg-slate-900 inline-block"></span> Squarespace
+                      <span className="h-2.5 w-2.5 rounded-full bg-slate-900 inline-block"></span> Square
                     </span>
                     <span className="text-slate-800">
-                      ${stats.squarespaceRevenue.toLocaleString()} ({stats.squarespaceSold} tickets)
+                      ${stats.squareRevenue.toLocaleString()} ({stats.squareSold} tickets)
                     </span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                     <div
                       className="h-full bg-slate-900 rounded-full"
                       style={{
-                        width: `${stats.totalGrossRevenue > 0 ? (stats.squarespaceRevenue / stats.totalGrossRevenue) * 100 : 0}%`,
+                        width: `${stats.totalGrossRevenue > 0 ? (stats.squareRevenue / stats.totalGrossRevenue) * 100 : 0}%`,
                       }}
                     />
                   </div>
@@ -925,7 +925,7 @@ export const TicketingManagement: React.FC = () => {
                   <div className="space-y-1 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100">
                     <div className="flex justify-between">
                       <span>Online Presold:</span>
-                      <span className="font-semibold">{show.TicketWebSold + show.EventbriteSold + show.SquarespaceSold}</span>
+                      <span className="font-semibold">{show.TicketWebSold + show.EventbriteSold + show.SquareSold}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Walk-ups at Door:</span>
@@ -1032,40 +1032,40 @@ export const TicketingManagement: React.FC = () => {
               </div>
             </div>
 
-            {/* Squarespace Credentials */}
+            {/* Square Credentials */}
             <div className="pt-5 space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg">🌐</span>
-                <h4 className="font-bold text-slate-900 text-sm">Squarespace Commerce API</h4>
+                <span className="text-lg">🟩</span>
+                <h4 className="font-bold text-slate-900 text-sm">Square Payments & Orders API</h4>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">API Key</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Square Access Token</label>
                   <input
                     type="password"
                     value={sqApiKey}
                     onChange={(e) => setSqApiKey(e.target.value)}
-                    placeholder="e.g. sq_live_api_key..."
+                    placeholder="e.g. sq0atp-sample-token..."
                     className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Site / Store Identifier</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Location ID</label>
                   <input
                     type="text"
-                    value={sqSiteId}
-                    onChange={(e) => setSqSiteId(e.target.value)}
-                    placeholder="e.g. justthefunny-stage"
+                    value={sqLocationId}
+                    onChange={(e) => setSqLocationId(e.target.value)}
+                    placeholder="e.g. L_JTF_MAINSTAGE"
                     className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Storefront Tickets URL</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Application ID</label>
                   <input
-                    type="url"
-                    value={sqStoreUrl}
-                    onChange={(e) => setSqStoreUrl(e.target.value)}
-                    placeholder="https://justthefunny.com/tickets"
+                    type="text"
+                    value={sqAppId}
+                    onChange={(e) => setSqAppId(e.target.value)}
+                    placeholder="e.g. sq0idp-..."
                     className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
@@ -1164,7 +1164,7 @@ export const TicketingManagement: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Squarespace Link</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Square Link</label>
                   <input
                     type="url"
                     value={editSQUrl}
@@ -1221,7 +1221,7 @@ export const TicketingManagement: React.FC = () => {
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 flex justify-between items-center">
                 <span className="text-slate-600">Online Presale Total:</span>
                 <span className="font-bold text-slate-900 text-sm">
-                  {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold + reconcileShow.SquarespaceSold} tickets
+                  {reconcileShow.TicketWebSold + reconcileShow.EventbriteSold + reconcileShow.SquareSold} tickets
                 </span>
               </div>
 
