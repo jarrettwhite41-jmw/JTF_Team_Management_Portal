@@ -21,10 +21,15 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex items-center justify-center bg-zinc-50 p-6">
-      <div className="w-full max-w-md bg-white rounded-xl border shadow-card p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Team Portal Login</h1>
-        <p className="text-sm text-gray-500 mb-6">Sign in with your assigned team account.</p>
+    <div className="h-screen w-screen flex items-center justify-center bg-slate-100 p-6">
+      <div className="w-full max-w-md bg-white rounded-xl border border-slate-200 shadow-xl p-8">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="bg-slate-900 rounded-lg p-3 mb-4 w-full flex justify-center">
+            <img src="/logo.png" alt="Just The Funny" className="h-10 w-auto object-contain" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Team Portal Login</h1>
+          <p className="text-sm text-slate-500">Sign in with your assigned team account.</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

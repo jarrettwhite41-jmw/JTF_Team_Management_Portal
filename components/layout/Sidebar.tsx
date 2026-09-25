@@ -122,11 +122,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
         ].join(' ')}
       >
         {/* Brand Header */}
-        <div className="px-5 pt-6 pb-5 flex items-start justify-between border-b border-white/10">
-          <div>
-            <span className="jtf-logo-text">Just The Funny</span>
+        <div className="px-5 pt-5 pb-4 flex items-start justify-between border-b border-white/10">
+          <div className="flex flex-col">
+            <img src="/logo.png" alt="Just The Funny" className="h-9 w-auto object-contain max-w-[170px]" />
             <p className="jtf-logo-sub">Team Portal</p>
-            <div className="mt-3 h-px bg-gradient-to-r from-red-500 via-amber-400 to-transparent" />
           </div>
           {/* Close button — mobile only */}
           <button
