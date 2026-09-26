@@ -997,26 +997,35 @@ export const TicketingManagement: React.FC = () => {
                 <span className="text-lg">🎟️</span>
                 <h4 className="font-bold text-slate-900 text-sm">Eventbrite API (v3)</h4>
               </div>
+              <p className="text-xs text-slate-500">
+                Connected to <strong>Just The Funny</strong> on Eventbrite. Uses the <strong>Private token</strong> for API data synchronization.
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Private OAuth Token</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Private Token <span className="text-slate-400 font-normal">(OAuth Bearer)</span>
+                  </label>
                   <input
                     type="password"
                     value={ebApiKey}
                     onChange={(e) => setEbApiKey(e.target.value)}
-                    placeholder="e.g. 7XYZABC..."
-                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                    placeholder="e.g. 4HOMUKNEB..."
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 font-mono"
                   />
+                  <span className="text-[10px] text-slate-400">From the "Private token" field in your Eventbrite App</span>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Organization ID</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Organization ID <span className="text-slate-400 font-normal">(Auto-detected: 3005193862152)</span>
+                  </label>
                   <input
                     type="text"
                     value={ebOrgId}
                     onChange={(e) => setEbOrgId(e.target.value)}
-                    placeholder="e.g. 1098273645"
-                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500"
+                    placeholder="3005193862152"
+                    className="w-full text-xs p-2.5 border border-slate-200 rounded-lg focus:ring-1 focus:ring-blue-500 font-mono"
                   />
+                  <span className="text-[10px] text-slate-400">Numeric Organization ID for Just The Funny</span>
                 </div>
               </div>
             </div>
