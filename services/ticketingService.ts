@@ -495,109 +495,18 @@ class TicketingService {
       // ==========================================
       if ((!platform || platform === 'square') && sqConfig?.ApiKey && sqConfig.LocationId) {
         try {
-          const sqHeaders = {
-            Authorization: `Bearer ${sqConfig.ApiKey}`,
-            'Content-Type': 'application/json',
-          };
-          const locId = sqConfig.LocationId.trim();
-
-          // Query completed Square POS orders from the last 90 days
-          const startSearchDate = new Date();
-          startSearchDate.setDate(startSearchDate.getDate() - 90);
-
-          const sqRes = await fetch('https://connect.squareup.com/v2/orders/search', {
+          // Invoke the secure Supabase Edge Function to avoid client-side browser CORS restrictions
+          const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('sync-square-sales', {
             method: 'POST',
-            headers: sqHeaders,
-            body: JSON.stringify({
-              location_ids: [locId],
-              query: {
-                filter: {
-                  state_filter: { states: ['COMPLETED'] },
-                  date_time_filter: {
-                    created_at: {
-                      start_at: startSearchDate.toISOString(),
-                    },
-                  },
-                },
-              },
-              limit: 250,
-            }),
           });
 
-          if (!sqRes.ok) {
-            const errBody = await sqRes.text();
-            throw new Error(`Square API returned ${sqRes.status}: ${errBody}`);
+          if (edgeErr) {
+            throw edgeErr;
           }
 
-          const sqData = await sqRes.json();
-          const orders: any[] = sqData.orders || [];
-
-          // Group ticket sales by show date (convert UTC timestamp to local Eastern YYYY-MM-DD)
-          const doorSalesByDate: Record<string, { tickets: number; revenue: number }> = {};
-
-          orders.forEach((o) => {
-            if (!o.created_at) return;
-            // Format order timestamp into local US Eastern date (America/New_York)
-            const orderDateStr = new Intl.DateTimeFormat('en-CA', {
-              timeZone: 'America/New_York',
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-            }).format(new Date(o.created_at));
-
-            o.line_items?.forEach((item: any) => {
-              const name = (item.name || '').toLowerCase();
-              // Filter for tickets/admissions, ignore concessions and class tuition
-              const isAdmission =
-                (name.includes('show') ||
-                  name.includes('fnl') ||
-                  name.includes('mainstage') ||
-                  name.includes('spotlight') ||
-                  name.includes('deathmatch') ||
-                  name.includes('presents') ||
-                  name.includes('ticket') ||
-                  name.includes('pass')) &&
-                !name.includes('class') &&
-                !name.includes('tuition');
-
-              if (isAdmission) {
-                if (!doorSalesByDate[orderDateStr]) {
-                  doorSalesByDate[orderDateStr] = { tickets: 0, revenue: 0 };
-                }
-                const qty = Number(item.quantity || 1);
-                const amt = Number(item.total_money?.amount || 0) / 100;
-                doorSalesByDate[orderDateStr].tickets += qty;
-                doorSalesByDate[orderDateStr].revenue += amt;
-              }
-            });
-          });
-
-          // Match each date to scheduled shows and upsert into show_ticketing
-          for (const [dateStr, agg] of Object.entries(doorSalesByDate)) {
-            const matchingShow = (shows || []).find((s) => s.show_date === dateStr);
-            if (!matchingShow) continue;
-
-            await supabase.from('show_ticketing').upsert(
-              {
-                show_id: matchingShow.show_id,
-                platform: 'square',
-                door_walkup_count: agg.tickets,
-                door_walkup_revenue: Math.round(agg.revenue * 100) / 100,
-                sold_count: agg.tickets,
-                gross_revenue: Math.round(agg.revenue * 100) / 100,
-                ticket_status: 'open',
-                updated_at: now,
-              },
-              { onConflict: 'show_id,platform' }
-            );
-
-            syncedCount++;
+          if (edgeData?.syncedShows) {
+            syncedCount += Number(edgeData.syncedShows);
           }
-
-          await supabase
-            .from('ticketing_integrations')
-            .update({ last_synced_at: now, sync_status: 'success', sync_error: null })
-            .eq('platform', 'square');
         } catch (sqErr: any) {
           console.error('Square sync error:', sqErr);
           await supabase
