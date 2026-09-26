@@ -32,6 +32,8 @@ class TicketingService {
         ApiSecret: row.api_secret || '',
         OrganizationId: row.organization_id || '',
         VenueId: row.venue_id || '',
+        LocationId: row.location_id || '',
+        ApplicationId: row.application_id || '',
         IsActive: Boolean(row.is_active),
         LastSyncedAt: row.last_synced_at,
         SyncStatus: row.sync_status || 'idle',
@@ -363,42 +365,253 @@ class TicketingService {
   }
 
   /**
-   * Triggers a live sync with TicketWeb and Eventbrite APIs.
-   * If API keys are present, talks to external endpoints; otherwise performs safe reconciliation.
+   * Triggers a live sync with Eventbrite and Square APIs.
+   * If credentials are saved, fetches live orders and attendees from Eventbrite and
+   * door sales from Square, matching them to shows in show_information and persisting to show_ticketing.
    */
   async triggerPlatformSync(platform?: TicketingPlatform): Promise<ApiResponse<{ syncedShows: number; message: string }>> {
-    // In production, this can call an Edge Function or fetch the Eventbrite API (https://www.eventbriteapi.com/v3/users/me/events/)
-    // and TicketWeb feeds. We simulate a responsive sync with audit feedback.
+    if (!isSupabaseConfigured()) {
+      return {
+        success: true,
+        data: {
+          syncedShows: 0,
+          message: 'Supabase is not configured; running in mock mode.',
+        },
+      };
+    }
+
     try {
-      await new Promise((resolve) => setTimeout(resolve, 850));
+      const integrationsRes = await this.getIntegrations();
+      const integrations = integrationsRes.data || [];
+      const ebConfig = integrations.find((i) => i.Platform === 'eventbrite');
+      const sqConfig = integrations.find((i) => i.Platform === 'square');
 
+      // Fetch all scheduled shows from Supabase to match by date
+      const { data: shows, error: showsErr } = await supabase
+        .from('show_information')
+        .select('show_id, show_date, show_time, venue, show_types(show_type_name)')
+        .order('show_date', { ascending: false });
+
+      if (showsErr) throw showsErr;
+
+      let syncedCount = 0;
       const now = new Date().toISOString();
-      if (isSupabaseConfigured()) {
-        const query = supabase
-          .from('ticketing_integrations')
-          .update({ last_synced_at: now, sync_status: 'success', sync_error: null });
 
-        if (platform) {
-          await query.eq('platform', platform);
-        } else {
-          await query;
+      // ==========================================
+      // 1. LIVE EVENTBRITE SYNC
+      // ==========================================
+      if ((!platform || platform === 'eventbrite') && ebConfig?.ApiKey && ebConfig.OrganizationId) {
+        try {
+          const ebHeaders = { Authorization: `Bearer ${ebConfig.ApiKey}` };
+          const orgId = ebConfig.OrganizationId.trim();
+
+          // Fetch organization events
+          const ebEventsRes = await fetch(
+            `https://www.eventbriteapi.com/v3/organizations/${orgId}/events/?status=all&page_size=100`,
+            { headers: ebHeaders }
+          );
+
+          if (!ebEventsRes.ok) {
+            const errBody = await ebEventsRes.text();
+            throw new Error(`Eventbrite API returned ${ebEventsRes.status}: ${errBody}`);
+          }
+
+          const ebEventsData = await ebEventsRes.json();
+          const ebEvents: any[] = ebEventsData.events || [];
+
+          // Map events by their local YYYY-MM-DD date
+          for (const ev of ebEvents) {
+            const evLocalDate = ev.start?.local ? ev.start.local.substring(0, 10) : null;
+            if (!evLocalDate) continue;
+
+            // Find matching show in Supabase by date
+            const matchingShow = (shows || []).find((s) => s.show_date === evLocalDate);
+            if (!matchingShow) continue;
+
+            // Fetch order/attendee numbers for this specific event
+            let soldCount = 0;
+            let grossRevenue = 0;
+
+            try {
+              const ordersRes = await fetch(
+                `https://www.eventbriteapi.com/v3/events/${ev.id}/orders/`,
+                { headers: ebHeaders }
+              );
+              if (ordersRes.ok) {
+                const ordersJson = await ordersRes.json();
+                (ordersJson.orders || []).forEach((o: any) => {
+                  grossRevenue += Number(o.costs?.gross?.major_value || 0);
+                });
+              }
+
+              // Fetch attendees for true ticket count
+              const attendeesRes = await fetch(
+                `https://www.eventbriteapi.com/v3/events/${ev.id}/attendees/`,
+                { headers: ebHeaders }
+              );
+              if (attendeesRes.ok) {
+                const attendeesJson = await attendeesRes.json();
+                soldCount = attendeesJson.attendees?.length || 0;
+              }
+            } catch (fetchErr) {
+              console.warn(`Could not fetch orders for Eventbrite event ${ev.id}:`, fetchErr);
+            }
+
+            // Upsert into show_ticketing
+            await supabase.from('show_ticketing').upsert(
+              {
+                show_id: matchingShow.show_id,
+                platform: 'eventbrite',
+                external_event_id: String(ev.id),
+                external_event_url: ev.url || '',
+                total_capacity: ev.capacity || 100,
+                sold_count: soldCount,
+                gross_revenue: Math.round(grossRevenue * 100) / 100,
+                ticket_status: ev.status === 'completed' ? 'closed' : 'open',
+                updated_at: now,
+              },
+              { onConflict: 'show_id,platform' }
+            );
+
+            syncedCount++;
+          }
+
+          // Mark integration as successful
+          await supabase
+            .from('ticketing_integrations')
+            .update({ last_synced_at: now, sync_status: 'success', sync_error: null })
+            .eq('platform', 'eventbrite');
+        } catch (ebErr: any) {
+          console.error('Eventbrite sync error:', ebErr);
+          await supabase
+            .from('ticketing_integrations')
+            .update({ last_synced_at: now, sync_status: 'error', sync_error: ebErr.message })
+            .eq('platform', 'eventbrite');
         }
       }
 
-      const getPlatformName = (p?: TicketingPlatform) => {
-        if (p === 'eventbrite') return 'Eventbrite';
-        if (p === 'ticketweb') return 'TicketWeb';
-        if (p === 'square') return 'Square';
-        return 'all platforms';
-      };
+      // ==========================================
+      // 2. LIVE SQUARE DOOR POS SYNC
+      // ==========================================
+      if ((!platform || platform === 'square') && sqConfig?.ApiKey && sqConfig.LocationId) {
+        try {
+          const sqHeaders = {
+            Authorization: `Bearer ${sqConfig.ApiKey}`,
+            'Content-Type': 'application/json',
+          };
+          const locId = sqConfig.LocationId.trim();
+
+          // Query completed Square POS orders from the last 90 days
+          const startSearchDate = new Date();
+          startSearchDate.setDate(startSearchDate.getDate() - 90);
+
+          const sqRes = await fetch('https://connect.squareup.com/v2/orders/search', {
+            method: 'POST',
+            headers: sqHeaders,
+            body: JSON.stringify({
+              location_ids: [locId],
+              query: {
+                filter: {
+                  state_filter: { states: ['COMPLETED'] },
+                  date_time_filter: {
+                    created_at: {
+                      start_at: startSearchDate.toISOString(),
+                    },
+                  },
+                },
+              },
+              limit: 250,
+            }),
+          });
+
+          if (!sqRes.ok) {
+            const errBody = await sqRes.text();
+            throw new Error(`Square API returned ${sqRes.status}: ${errBody}`);
+          }
+
+          const sqData = await sqRes.json();
+          const orders: any[] = sqData.orders || [];
+
+          // Group ticket sales by show date (convert UTC timestamp to local Eastern YYYY-MM-DD)
+          const doorSalesByDate: Record<string, { tickets: number; revenue: number }> = {};
+
+          orders.forEach((o) => {
+            if (!o.created_at) return;
+            // Format order timestamp into local US Eastern date (America/New_York)
+            const orderDateStr = new Intl.DateTimeFormat('en-CA', {
+              timeZone: 'America/New_York',
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+            }).format(new Date(o.created_at));
+
+            o.line_items?.forEach((item: any) => {
+              const name = (item.name || '').toLowerCase();
+              // Filter for tickets/admissions, ignore concessions and class tuition
+              const isAdmission =
+                (name.includes('show') ||
+                  name.includes('fnl') ||
+                  name.includes('mainstage') ||
+                  name.includes('spotlight') ||
+                  name.includes('deathmatch') ||
+                  name.includes('presents') ||
+                  name.includes('ticket') ||
+                  name.includes('pass')) &&
+                !name.includes('class') &&
+                !name.includes('tuition');
+
+              if (isAdmission) {
+                if (!doorSalesByDate[orderDateStr]) {
+                  doorSalesByDate[orderDateStr] = { tickets: 0, revenue: 0 };
+                }
+                const qty = Number(item.quantity || 1);
+                const amt = Number(item.total_money?.amount || 0) / 100;
+                doorSalesByDate[orderDateStr].tickets += qty;
+                doorSalesByDate[orderDateStr].revenue += amt;
+              }
+            });
+          });
+
+          // Match each date to scheduled shows and upsert into show_ticketing
+          for (const [dateStr, agg] of Object.entries(doorSalesByDate)) {
+            const matchingShow = (shows || []).find((s) => s.show_date === dateStr);
+            if (!matchingShow) continue;
+
+            await supabase.from('show_ticketing').upsert(
+              {
+                show_id: matchingShow.show_id,
+                platform: 'square',
+                door_walkup_count: agg.tickets,
+                door_walkup_revenue: Math.round(agg.revenue * 100) / 100,
+                sold_count: agg.tickets,
+                gross_revenue: Math.round(agg.revenue * 100) / 100,
+                ticket_status: 'open',
+                updated_at: now,
+              },
+              { onConflict: 'show_id,platform' }
+            );
+
+            syncedCount++;
+          }
+
+          await supabase
+            .from('ticketing_integrations')
+            .update({ last_synced_at: now, sync_status: 'success', sync_error: null })
+            .eq('platform', 'square');
+        } catch (sqErr: any) {
+          console.error('Square sync error:', sqErr);
+          await supabase
+            .from('ticketing_integrations')
+            .update({ last_synced_at: now, sync_status: 'error', sync_error: sqErr.message })
+            .eq('platform', 'square');
+        }
+      }
 
       return {
         success: true,
         data: {
-          syncedShows: 12,
-          message: platform
-            ? `Successfully refreshed ${getPlatformName(platform)} data.`
-            : 'Successfully synced all events across TicketWeb, Eventbrite, and Square.',
+          syncedShows: syncedCount,
+          message: `Live sync completed. Updated ${syncedCount} show platform records from Eventbrite & Square.`,
         },
       };
     } catch (err: any) {
