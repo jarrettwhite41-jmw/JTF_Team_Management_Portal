@@ -64,6 +64,8 @@ class TicketingService {
             api_secret: integration.ApiSecret,
             organization_id: integration.OrganizationId,
             venue_id: integration.VenueId,
+            location_id: integration.LocationId,
+            application_id: integration.ApplicationId,
             is_active: integration.IsActive,
             settings: integration.Settings || {},
             updated_at: new Date().toISOString(),
