@@ -308,42 +308,43 @@ const App: React.FC = () => {
   const mobileTopLevelSections: Array<{ id: PageType; label: string; icon: string }> = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
+    { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
     { id: 'data-import', label: 'Import Center', icon: '⬆️' },
   ].filter((item) => canAccessPage(userRole, item.id));
 
   const mobileSectionGroups: Array<{ label: string; icon: string; pages: Array<{ id: PageType; label: string; icon: string }> }> = [
     {
-      label: 'Personnel',
-      icon: '👥',
-      pages: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
-        { id: 'cast', label: 'Cast Management', icon: '🎭' },
-        { id: 'bartenders', label: 'Bartenders', icon: '🍺' },
-        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
-        { id: 'director-management', label: 'Directors', icon: '🎬' },
-        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
-        { id: 'settings', label: 'Settings', icon: '⚙️' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
-      ].filter((item) => canAccessPage(userRole, item.id)),
-    },
-    {
-      label: 'Shows',
-      icon: '🎪',
+      label: 'Shows & Production',
+      icon: '🎭',
       pages: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'cast', label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
         { id: 'games', label: 'Games', icon: '🎲' },
       ].filter((item) => canAccessPage(userRole, item.id)),
     },
     {
-      label: 'Classes',
-      icon: '📚',
+      label: 'People & Staffing',
+      icon: '👥',
+      pages: [
+        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
+        { id: 'director-management', label: 'Director Management', icon: '🎬' },
+        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
+        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'settings', label: 'Settings', icon: '⚙️' },
+        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+      ].filter((item) => canAccessPage(userRole, item.id)),
+    },
+    {
+      label: 'Classes & Education',
+      icon: '📘',
       pages: [
         { id: 'class-management', label: 'Classes', icon: '📘' },
         { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
-        { id: 'teacher-management', label: 'Teachers', icon: '🧑‍🏫' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
         { id: 'skills-management', label: 'Skills', icon: '⭐' },
       ].filter((item) => canAccessPage(userRole, item.id)),
