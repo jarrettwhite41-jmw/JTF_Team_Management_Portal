@@ -96,8 +96,16 @@ Deno.serve(async (req) => {
     const sqData = await sqRes.json();
     const orders: any[] = sqData.orders || [];
 
-    // 4. Aggregate ticket sales by local Eastern show date (America/New_York)
-    const doorSalesByDate: Record<string, { tickets: number; revenue: number }> = {};
+    // 4. Aggregate ticket sales by local Eastern show date and match by name/time when multiple shows exist
+    // doorSales: key = `${orderDateStr}_${showTypeId || 'any'}` or date matching
+    const parseMinutes = (timeStr?: string): number | null => {
+      if (!timeStr) return null;
+      const m = timeStr.match(/(\d{1,2}):(\d{2})/);
+      return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+    };
+
+    // Store admissions per show_id
+    const showSalesMap: Record<number, { tickets: number; revenue: number }> = {};
 
     orders.forEach((o: any) => {
       if (!o.created_at) return;
@@ -107,6 +115,18 @@ Deno.serve(async (req) => {
         month: '2-digit',
         day: '2-digit',
       }).format(new Date(o.created_at));
+
+      // Get order time in minutes for time matching
+      const orderTimeStr = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(o.created_at));
+      const orderMinutes = parseMinutes(orderTimeStr);
+
+      const candidateShows = (shows || []).filter((s: any) => s.show_date === orderDateStr);
+      if (candidateShows.length === 0) return;
 
       o.line_items?.forEach((item: any) => {
         const name = (item.name || '').toLowerCase();
@@ -122,14 +142,50 @@ Deno.serve(async (req) => {
           !name.includes('class') &&
           !name.includes('tuition');
 
-        if (isAdmission) {
-          if (!doorSalesByDate[orderDateStr]) {
-            doorSalesByDate[orderDateStr] = { tickets: 0, revenue: 0 };
+        if (!isAdmission) return;
+
+        const qty = Number(item.quantity || 1);
+        const amt = Number(item.total_money?.amount || 0) / 100;
+
+        let targetShow = candidateShows[0];
+
+        // If multiple shows on this date, pick best match by name & time
+        if (candidateShows.length > 1) {
+          let bestScore = -1;
+          for (const s of candidateShows) {
+            let score = 0;
+            const typeName = (s.show_types?.show_type_name || '').toLowerCase();
+            const venue = (s.venue || '').toLowerCase();
+
+            if (name.includes('spotlight') && venue.includes('spotlight')) score += 30;
+            if (name.includes('mainstage') && venue.includes('main')) score += 30;
+            if (name.includes('fnl') && (typeName.includes('fnl') || typeName.includes('friday'))) score += 40;
+            if (name.includes('big show') && typeName.includes('big')) score += 40;
+            if (name.includes('presents') && typeName.includes('presents')) score += 40;
+            if (name.includes('spanish') && (typeName.includes('spanish') || typeName.includes('dale'))) score += 40;
+            if (name.includes('death') && typeName.includes('death')) score += 40;
+            if (name.includes('musical') && typeName.includes('musical')) score += 40;
+
+            const showMinutes = parseMinutes(s.show_time);
+            if (orderMinutes !== null && showMinutes !== null) {
+              const diff = Math.abs(orderMinutes - showMinutes);
+              if (diff <= 60) score += 20;
+              else if (diff <= 120) score += 10;
+            }
+
+            if (score > bestScore) {
+              bestScore = score;
+              targetShow = s;
+            }
           }
-          const qty = Number(item.quantity || 1);
-          const amt = Number(item.total_money?.amount || 0) / 100;
-          doorSalesByDate[orderDateStr].tickets += qty;
-          doorSalesByDate[orderDateStr].revenue += amt;
+        }
+
+        if (targetShow) {
+          if (!showSalesMap[targetShow.show_id]) {
+            showSalesMap[targetShow.show_id] = { tickets: 0, revenue: 0 };
+          }
+          showSalesMap[targetShow.show_id].tickets += qty;
+          showSalesMap[targetShow.show_id].revenue += amt;
         }
       });
     });
@@ -138,13 +194,11 @@ Deno.serve(async (req) => {
     let syncedCount = 0;
     const now = new Date().toISOString();
 
-    for (const [dateStr, agg] of Object.entries(doorSalesByDate)) {
-      const matchingShow = (shows || []).find((s: any) => s.show_date === dateStr);
-      if (!matchingShow) continue;
-
+    for (const [showIdStr, agg] of Object.entries(showSalesMap)) {
+      const showId = parseInt(showIdStr, 10);
       const { error: upsertErr } = await supabase.from('show_ticketing').upsert(
         {
-          show_id: matchingShow.show_id,
+          show_id: showId,
           platform: 'square',
           door_walkup_count: agg.tickets,
           door_walkup_revenue: Math.round(agg.revenue * 100) / 100,
@@ -170,7 +224,7 @@ Deno.serve(async (req) => {
     return json(200, {
       success: true,
       syncedShows: syncedCount,
-      matchedDates: Object.keys(doorSalesByDate).length,
+      matchedShows: Object.keys(showSalesMap).length,
       message: `Square sync successful: updated ${syncedCount} shows from door sales.`,
     });
   } catch (err: any) {

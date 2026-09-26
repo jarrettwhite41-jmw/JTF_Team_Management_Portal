@@ -419,13 +419,105 @@ class TicketingService {
           const ebEventsData = await ebEventsRes.json();
           const ebEvents: any[] = ebEventsData.events || [];
 
-          // Map events by their local YYYY-MM-DD date
+          // Helper to normalize show names for matching
+          const normalizeTitle = (t?: string) =>
+            (t || '')
+              .toLowerCase()
+              .replace(/[^a-z0-9]/g, '');
+
+          // Helper to parse HH:MM from time or ISO string
+          const parseMinutes = (timeOrIso?: string): number | null => {
+            if (!timeOrIso) return null;
+            // Matches "21:30" or "2026-09-25T21:30:00"
+            const match = timeOrIso.match(/(\d{1,2}):(\d{2})/);
+            if (!match) return null;
+            return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+          };
+
+          // Map events by date, time, and name to find the best match
           for (const ev of ebEvents) {
             const evLocalDate = ev.start?.local ? ev.start.local.substring(0, 10) : null;
             if (!evLocalDate) continue;
 
-            // Find matching show in Supabase by date
-            const matchingShow = (shows || []).find((s) => s.show_date === evLocalDate);
+            // Find all candidate shows on this date
+            const dateShows = (shows || []).filter((s) => s.show_date === evLocalDate);
+            if (dateShows.length === 0) continue;
+
+            let matchingShow: any = null;
+
+            if (dateShows.length === 1) {
+              matchingShow = dateShows[0];
+            } else {
+              // Multiple shows on this date: score by name match and start time
+              const evNameNorm = normalizeTitle(ev.name?.text);
+              const evMinutes = parseMinutes(ev.start?.local);
+
+              let bestScore = -1;
+              for (const s of dateShows) {
+                let score = 0;
+                const showTypeNameNorm = normalizeTitle(s.show_types?.show_type_name);
+
+                // Check title inclusion
+                if (showTypeNameNorm && evNameNorm) {
+                  if (
+                    evNameNorm.includes(showTypeNameNorm) ||
+                    showTypeNameNorm.includes(evNameNorm)
+                  ) {
+                    score += 50;
+                  }
+                  // Common synonyms / abbreviations
+                  if (
+                    (showTypeNameNorm.includes('fnl') || showTypeNameNorm.includes('fridaynight')) &&
+                    evNameNorm.includes('fridaynight')
+                  ) {
+                    score += 40;
+                  }
+                  if (
+                    (showTypeNameNorm.includes('bigshow') || showTypeNameNorm.includes('thebigshow')) &&
+                    evNameNorm.includes('bigshow')
+                  ) {
+                    score += 40;
+                  }
+                  if (
+                    (showTypeNameNorm.includes('spanish') || showTypeNameNorm.includes('dale')) &&
+                    (evNameNorm.includes('spanish') || evNameNorm.includes('dale') || evNameNorm.includes('impro'))
+                  ) {
+                    score += 40;
+                  }
+                  if (
+                    showTypeNameNorm.includes('death') &&
+                    evNameNorm.includes('death')
+                  ) {
+                    score += 40;
+                  }
+                  if (
+                    showTypeNameNorm.includes('musical') &&
+                    evNameNorm.includes('musical')
+                  ) {
+                    score += 40;
+                  }
+                }
+
+                // Check time proximity
+                const showMinutes = parseMinutes(s.show_time);
+                if (evMinutes !== null && showMinutes !== null) {
+                  const diffMinutes = Math.abs(evMinutes - showMinutes);
+                  if (diffMinutes === 0) {
+                    score += 30;
+                  } else if (diffMinutes <= 30) {
+                    score += 20;
+                  } else if (diffMinutes <= 60) {
+                    score += 10;
+                  }
+                }
+
+                if (score > bestScore) {
+                  bestScore = score;
+                  matchingShow = s;
+                }
+              }
+            }
+
             if (!matchingShow) continue;
 
             // Fetch order/attendee numbers for this specific event

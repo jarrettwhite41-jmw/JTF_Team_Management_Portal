@@ -3250,7 +3250,7 @@ class SupabaseService {
       const { data, error } = await this.client
         .from('show_types')
         .select('*')
-        .order('show_type_name');
+        .order('show_type_id');
 
       if (error) throw error;
 
@@ -3263,6 +3263,58 @@ class SupabaseService {
     } catch (error) {
       console.error('Error fetching show types:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  async updateShowType(showTypeId: number, showTypeName: string): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await this.client
+        .from('show_types')
+        .update({ show_type_name: showTypeName })
+        .eq('show_type_id', showTypeId);
+
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error updating show type:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async createShowType(showTypeName: string): Promise<ApiResponse<ShowTypes>> {
+    try {
+      const { data, error } = await this.client
+        .from('show_types')
+        .insert({ show_type_name: showTypeName })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return {
+        success: true,
+        data: {
+          ShowTypeID: data.show_type_id,
+          ShowTypeName: data.show_type_name,
+        },
+      };
+    } catch (error) {
+      console.error('Error creating show type:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  async deleteShowType(showTypeId: number): Promise<ApiResponse<boolean>> {
+    try {
+      const { error } = await this.client
+        .from('show_types')
+        .delete()
+        .eq('show_type_id', showTypeId);
+
+      if (error) throw error;
+      return { success: true, data: true };
+    } catch (error) {
+      console.error('Error deleting show type:', error);
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
 
