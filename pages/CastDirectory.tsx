@@ -26,6 +26,7 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [nameSortOrder, setNameSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedCastMember, setSelectedCastMember] = useState<CastMemberWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -793,6 +794,28 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
           <option value="asc">Name: A to Z</option>
           <option value="desc">Name: Z to A</option>
         </select>
+
+        {/* View Mode Toggle: Spreadsheet Table vs Cards */}
+        <div className="inline-flex rounded-lg border border-gray-300 bg-gray-100 p-0.5 sm:ml-auto">
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            ☵ Table
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            ☷ Cards
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -820,6 +843,107 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
           >
             Reload
           </button>
+        </div>
+      ) : viewMode === 'table' ? (
+        /* Dense Spreadsheet-style Table View */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="py-3 px-4">Cast Member</th>
+                  <th className="py-3 px-4">Email</th>
+                  <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-center">Flags</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredCastMembers.map((castMember) => {
+                  const displayName = `${castMember.FirstName || ''} ${castMember.LastName || (castMember as any).Lastname || ''}`.trim() || 'Unnamed';
+                  const isOutOfTown = Boolean(castMember.OutOfTown);
+                  const isLimited = Boolean(castMember.LimitedInactive);
+
+                  return (
+                    <tr
+                      key={`${castMember.PerformanceID}-${castMember.CastMemberID}`}
+                      className="hover:bg-purple-50/40 transition-colors cursor-pointer"
+                      onClick={() => handleCastMemberClick(castMember)}
+                    >
+                      <td className="py-3 px-4 font-semibold text-gray-900 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                            {castMember.FirstName?.charAt(0) || 'C'}
+                          </div>
+                          <span>{displayName}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs">
+                        {castMember.PrimaryEmail || '—'}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs">
+                        {castMember.PrimaryPhone || '—'}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            castMember.Status === 'Active'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : castMember.Status === 'Out of Town'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {castMember.Status || 'Active'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap text-xs">
+                        {isOutOfTown && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 mr-1 border border-amber-200">
+                            ✈️ Out of Town
+                          </span>
+                        )}
+                        {isLimited && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                            ⏸ Limited
+                          </span>
+                        )}
+                        {!isOutOfTown && !isLimited && (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCastMemberClick(castMember);
+                            }}
+                            className="px-2.5 py-1 text-xs font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 rounded transition-colors"
+                          >
+                            Status
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveClick(castMember);
+                            }}
+                            className="px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                            title="Remove from cast"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
