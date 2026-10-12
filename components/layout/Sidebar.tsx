@@ -9,9 +9,21 @@ interface SidebarProps {
   onSignOut?: () => void;
   isOpen?: boolean;
   onClose?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleLabel, currentUserEmail, onSignOut, isOpen = false, onClose }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentPage,
+  onNavigate,
+  roleLabel,
+  currentUserEmail,
+  onSignOut,
+  isOpen = false,
+  onClose,
+  isCollapsed = false,
+  onToggleCollapse,
+}) => {
   const canAccessItem = (role: PortalAccessRole | null | undefined, page: PageType): boolean => {
     if (!role) return false;
     if (role === 'admin' || role === 'manager') return true;
@@ -116,46 +128,77 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
       <div
         className={[
           'jtf-sidebar flex flex-col shadow-xl',
-          'fixed inset-y-0 left-0 z-50 w-64',
-          'transition-transform duration-300 ease-in-out',
+          'fixed inset-y-0 left-0 z-50',
+          isCollapsed ? 'w-16' : 'w-64',
+          'transition-all duration-300 ease-in-out',
           'md:relative md:inset-auto md:z-auto md:h-full md:flex-shrink-0 md:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full',
         ].join(' ')}
       >
         {/* Brand Header */}
-        <div className="px-5 pt-5 pb-4 flex items-start justify-between border-b border-white/10">
-          <div className="flex flex-col">
-            <img src="/logo.png" alt="Just The Funny" className="h-9 w-auto object-contain max-w-[170px]" />
-            <p className="jtf-logo-sub">Team Portal</p>
+        <div className={`px-4 pt-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} border-b border-white/10`}>
+          {!isCollapsed ? (
+            <div className="flex flex-col min-w-0">
+              <img src="/logo.png" alt="Just The Funny" className="h-8 w-auto object-contain max-w-[150px]" />
+              <p className="jtf-logo-sub">Team Portal</p>
+            </div>
+          ) : (
+            <span className="text-xl font-black text-blue-400">JTF</span>
+          )}
+
+          <div className="flex items-center gap-1">
+            {/* Collapse toggle button — visible on tablet/desktop/landscape */}
+            {onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className={`w-4 h-4 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+
+            {/* Close button — mobile only */}
+            <button
+              onClick={onClose}
+              className="md:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0"
+              aria-label="Close menu"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          {/* Close button — mobile only */}
-          <button
-            onClick={onClose}
-            className="md:hidden p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 ml-2 mt-0.5"
-            aria-label="Close menu"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 pt-4 overflow-y-auto">
-          <p className="jtf-nav-label">Navigation</p>
+        <nav className="flex-1 p-2 pt-3 overflow-y-auto overflow-x-hidden">
+          {!isCollapsed && <p className="jtf-nav-label">Navigation</p>}
           <ul className="space-y-0.5 mb-3">
             {topLevelItems.map((item) => (
               <li key={item.id}>
                 <button
                   onClick={() => handleNavigate(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                  title={isCollapsed ? item.label : undefined}
+                  className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'gap-3 px-3'} py-2.5 rounded-lg text-left transition-all duration-150 ${
                     currentPage === item.id
                       ? 'jtf-nav-active'
                       : 'jtf-nav-item'
                   }`}
                 >
                   <span className="text-lg leading-none">{item.icon}</span>
-                  <span className="text-sm font-medium">{item.label}</span>
+                  {!isCollapsed && <span className="text-sm font-medium truncate">{item.label}</span>}
                 </button>
               </li>
             ))}
@@ -165,6 +208,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
             {managementGroups.map((group) => {
               const isExpanded = expandedGroups.has(group.id);
               const hasActiveChild = group.children.some((item) => item.id === currentPage);
+
+              if (isCollapsed) {
+                // Collapsed: show icon for default page or first active child
+                return (
+                  <div key={group.id} className="flex justify-center">
+                    <button
+                      onClick={() => handleNavigate(group.defaultPage)}
+                      title={group.label}
+                      className={`p-2.5 rounded-lg transition-colors ${
+                        hasActiveChild ? 'jtf-nav-active' : 'jtf-nav-item hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{group.icon}</span>
+                    </button>
+                  </div>
+                );
+              }
 
               return (
                 <div key={group.id} className="rounded-lg border border-slate-800/80 overflow-hidden">
@@ -177,9 +237,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                       hasActiveChild ? 'jtf-nav-active-soft' : 'jtf-nav-item'
                     }`}
                   >
-                    <span className="flex items-center gap-3">
+                    <span className="flex items-center gap-3 min-w-0">
                       <span className="text-base leading-none">{group.icon}</span>
-                      <span className="text-sm font-semibold">{group.label}</span>
+                      <span className="text-sm font-semibold truncate">{group.label}</span>
                     </span>
                     <span className={`text-xs transition-transform ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
                   </button>
@@ -197,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
                             }`}
                           >
                             <span className="text-sm leading-none">{item.icon}</span>
-                            <span className="text-xs font-medium">{item.label}</span>
+                            <span className="text-xs font-medium truncate">{item.label}</span>
                           </button>
                         </li>
                       ))}
@@ -209,25 +269,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
           </div>
 
           {canAccessItem(roleLabel, 'data-import') && (
-            <div className="mt-4 pt-4 border-t border-white/10">
+            <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center' : ''}`}>
               <button
                 onClick={() => handleNavigate('data-import')}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 ${
+                title={isCollapsed ? 'Import Center' : undefined}
+                className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'w-full gap-3 px-3'} py-2.5 rounded-lg text-left transition-all duration-150 ${
                   currentPage === 'data-import'
                     ? 'jtf-nav-active font-semibold'
                     : 'jtf-nav-item'
                 }`}
               >
                 <span className="text-lg leading-none">⬆️</span>
-                <span className="text-sm">Import Center</span>
+                {!isCollapsed && <span className="text-sm truncate">Import Center</span>}
               </button>
             </div>
           )}
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-white/10">
-          {(currentUserEmail || roleLabel) && (
+        <div className={`px-3 py-3 border-t border-white/10 ${isCollapsed ? 'text-center' : ''}`}>
+          {!isCollapsed && (currentUserEmail || roleLabel) && (
             <div className="mb-2">
               {currentUserEmail && <p className="text-xs text-slate-300 truncate">{currentUserEmail}</p>}
               {roleLabel && <p className="text-[11px] uppercase tracking-wide text-slate-500">Role: {roleLabel}</p>}
@@ -236,12 +297,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, roleL
           {onSignOut && (
             <button
               onClick={onSignOut}
-              className="w-full mb-2 px-3 py-2 rounded-lg text-sm text-slate-200 border border-slate-700 hover:bg-slate-800"
+              title={isCollapsed ? 'Sign Out' : undefined}
+              className={`mb-2 rounded-lg text-slate-200 border border-slate-700 hover:bg-slate-800 transition-colors ${
+                isCollapsed ? 'p-2 inline-flex justify-center' : 'w-full px-3 py-2 text-sm'
+              }`}
             >
-              Sign Out
+              {isCollapsed ? '↩️' : 'Sign Out'}
             </button>
           )}
-          <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>
+          {!isCollapsed && <p className="text-xs text-slate-500">© {new Date().getFullYear()} Just The Funny</p>}
         </div>
 
       </div>

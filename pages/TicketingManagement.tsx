@@ -573,9 +573,10 @@ export const TicketingManagement: React.FC = () => {
             </div>
           </div>
 
-          {/* Show Inventory Table */}
+          {/* Show Inventory Table (Desktop) / Cards (Mobile) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Desktop / Landscape Table View */}
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -783,6 +784,171 @@ export const TicketingManagement: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View (Optimized for Small Screens) */}
+            <div className="block sm:hidden divide-y divide-slate-100">
+              {filteredShows.length === 0 ? (
+                <div className="py-8 text-center text-slate-500 text-sm">
+                  No shows match the selected filters.
+                </div>
+              ) : (
+                filteredShows.map((show) => {
+                  const fillPct = show.TotalCapacity > 0 ? Math.round((show.TotalSold / show.TotalCapacity) * 100) : 0;
+                  const displayedRev =
+                    platformView === 'ticketweb'
+                      ? show.TicketWebRevenue
+                      : platformView === 'eventbrite'
+                      ? show.EventbriteRevenue
+                      : platformView === 'square'
+                      ? show.SquareRevenue
+                      : show.TotalGrossRevenue;
+
+                  return (
+                    <div key={show.ShowID} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                      {/* Header: Title, Date, Status */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 text-base leading-snug truncate">{show.ShowTypeName}</h4>
+                          <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                            <span className="font-medium text-slate-700">📅 {show.ShowDate}</span>
+                            <span>⏰ {show.ShowTime.slice(0, 5)}</span>
+                            <span>📍 {show.Venue}</span>
+                          </div>
+                        </div>
+                        <span
+                          className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap flex-shrink-0 ${
+                            show.TicketStatus === 'sold_out'
+                              ? 'bg-red-100 text-red-800'
+                              : show.TicketStatus === 'paused'
+                              ? 'bg-amber-100 text-amber-800'
+                              : show.TicketStatus === 'closed'
+                              ? 'bg-slate-100 text-slate-600'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}
+                        >
+                          {show.TicketStatus === 'sold_out'
+                            ? 'Sold Out'
+                            : show.TicketStatus === 'paused'
+                            ? 'Paused'
+                            : show.TicketStatus === 'closed'
+                            ? 'Closed'
+                            : 'Open'}
+                        </span>
+                      </div>
+
+                      {/* Capacity Progress Bar */}
+                      <div>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-bold text-slate-800">
+                            {show.TotalSold} / {show.TotalCapacity} Sold ({fillPct}%)
+                          </span>
+                          <span className="text-slate-500">{show.RemainingCapacity} remaining</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              fillPct >= 95 ? 'bg-red-500' : fillPct >= 75 ? 'bg-amber-500' : 'bg-blue-600'
+                            }`}
+                            style={{ width: `${Math.min(100, fillPct)}%` }}
+                          />
+                        </div>
+                        {show.AutoBalanceEnabled !== false && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800">
+                              ⚡ Auto-balanced
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Multi-Platform Sales Mini Breakdown */}
+                      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                        <div className="bg-white p-2 rounded border border-slate-100">
+                          <div className="flex items-center justify-between font-semibold text-orange-950">
+                            <span>🎟️ Eventbrite</span>
+                            <span>{show.EventbriteSold} sold</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">${show.EventbriteRevenue}</div>
+                          {show.EventbriteEventUrl && (
+                            <a
+                              href={show.EventbriteEventUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-orange-600 hover:underline block mt-0.5"
+                            >
+                              Link ↗
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-slate-100">
+                          <div className="flex items-center justify-between font-semibold text-slate-900">
+                            <span>💳 Square POS</span>
+                            <span>{show.SquareSold} sold</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">${show.SquareRevenue}</div>
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-slate-100">
+                          <div className="flex items-center justify-between font-semibold text-blue-900">
+                            <span>🎫 TicketWeb</span>
+                            <span>{show.TicketWebSold} sold</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">${show.TicketWebRevenue}</div>
+                        </div>
+
+                        <div className="bg-white p-2 rounded border border-slate-100">
+                          <div className="flex items-center justify-between font-semibold text-purple-700">
+                            <span>🚪 Door Cash</span>
+                            <span>{show.DoorWalkupCount} sold</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">${show.DoorWalkupRevenue}</div>
+                        </div>
+                      </div>
+
+                      {/* Footer: Revenue & Action Buttons */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div>
+                          <span className="text-[11px] text-slate-500 block">Total Revenue</span>
+                          <span className="font-bold text-base text-slate-900">
+                            ${displayedRev.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingShow(show);
+                              setEditCapacity(show.TotalCapacity);
+                              setEditHeld(show.TotalHeld);
+                              setEditAutoBalance(show.AutoBalanceEnabled ?? true);
+                              setEditStatus(show.TicketStatus);
+                              setEditTWUrl(show.TicketWebEventUrl || '');
+                              setEditEBUrl(show.EventbriteEventUrl || '');
+                              setEditSQUrl(show.SquareEventUrl || '');
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                          >
+                            Manage
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReconcileShow(show);
+                              setDoorWalkups(show.DoorWalkupCount);
+                              setCheckedInCount(show.CheckedInCount);
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors"
+                          >
+                            Door
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
