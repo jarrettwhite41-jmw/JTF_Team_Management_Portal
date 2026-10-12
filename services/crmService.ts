@@ -205,17 +205,23 @@ export const crmService = {
   async getStudentCredits(studentId?: number) {
     let query = supabase
       .from('student_credit_ledger')
-      .select('*, student_info(FirstName, LastName)')
+      .select('*, student_info(student_id, personnel(first_name, last_name))')
       .order('created_at', { ascending: false });
 
     if (studentId) query = query.eq('student_id', studentId);
 
     const { data, error } = await query;
     if (error) throw error;
-    return (data || []).map((c: any) => ({
-      ...c,
-      student_name: c.student_info ? `${c.student_info.FirstName || ''} ${c.student_info.LastName || ''}`.trim() : `Student #${c.student_id}`,
-    }));
+    return (data || []).map((c: any) => {
+      const studentPersonnel = c.student_info?.personnel;
+      const studentName = studentPersonnel
+        ? `${studentPersonnel.first_name || ''} ${studentPersonnel.last_name || ''}`.trim()
+        : `Student #${c.student_id}`;
+      return {
+        ...c,
+        student_name: studentName,
+      };
+    });
   },
 
   async addStudentCredit(credit: Omit<StudentCreditItem, 'credit_id'>) {
@@ -232,16 +238,36 @@ export const crmService = {
   async getClassMakeupRequests() {
     const { data, error } = await supabase
       .from('class_makeup_requests')
-      .select('*, student_info(FirstName, LastName), orig:original_offering_id(OfferingName), target:target_offering_id(OfferingName)')
+      .select(`
+        *,
+        student_info(
+          student_id,
+          personnel(first_name, last_name)
+        ),
+        orig:original_offering_id(
+          offering_id,
+          class_levels(level_name)
+        ),
+        target:target_offering_id(
+          offering_id,
+          class_levels(level_name)
+        )
+      `)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []).map((m: any) => ({
-      ...m,
-      student_name: m.student_info ? `${m.student_info.FirstName || ''} ${m.student_info.LastName || ''}`.trim() : `Student #${m.student_id}`,
-      original_class_name: m.orig?.OfferingName || `Class #${m.original_offering_id}`,
-      target_class_name: m.target?.OfferingName || 'To Be Assigned',
-    }));
+    return (data || []).map((m: any) => {
+      const studentPersonnel = m.student_info?.personnel;
+      const studentName = studentPersonnel
+        ? `${studentPersonnel.first_name || ''} ${studentPersonnel.last_name || ''}`.trim()
+        : `Student #${m.student_id}`;
+      return {
+        ...m,
+        student_name: studentName,
+        original_class_name: m.orig?.class_levels?.level_name || `Class #${m.original_offering_id}`,
+        target_class_name: m.target?.class_levels?.level_name || 'To Be Assigned',
+      };
+    });
   },
 
   async updateMakeupRequestStatus(makeupId: number, status: ClassMakeupRequest['status']) {
@@ -294,7 +320,7 @@ export const crmService = {
   async getCommunicationLogs(category?: string) {
     let query = supabase
       .from('communication_logs')
-      .select('*, patrons(first_name, last_name, email), personnel(FirstName, LastName, PrimaryEmail)')
+      .select('*, patrons(first_name, last_name, email), personnel(first_name, last_name, primary_email)')
       .order('created_at', { ascending: false });
 
     if (category && category !== 'all') query = query.eq('category', category);
@@ -303,7 +329,7 @@ export const crmService = {
     if (error) throw error;
     return (data || []).map((log: any) => {
       const patronName = log.patrons ? `${log.patrons.first_name || ''} ${log.patrons.last_name || ''}`.trim() : null;
-      const personnelName = log.personnel ? `${log.personnel.FirstName || ''} ${log.personnel.LastName || ''}`.trim() : null;
+      const personnelName = log.personnel ? `${log.personnel.first_name || ''} ${log.personnel.last_name || ''}`.trim() : null;
       return {
         ...log,
         customer_name: patronName || personnelName || 'Anonymous Customer',
