@@ -60,25 +60,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: '👥',
       defaultPage: 'personnel-management' as PageType,
       children: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
-        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
-        { id: 'director-management', label: 'Director Management', icon: '🎬' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
-        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
+        { id: 'personnel-management', label: 'Company Roster', icon: '🗂️' },
+        { id: 'teacher-management', label: 'Instructors', icon: '🧑‍🏫' },
+        { id: 'director-management', label: 'Show Directors', icon: '🎬' },
+        { id: 'special-guests', label: 'Guest Artists', icon: '🎤' },
+        { id: 'portal-access', label: 'User Roles & Logins', icon: '🔐' },
         { id: 'settings', label: 'Settings', icon: '⚙️' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
+        { id: 'account-recovery', label: 'Account Help', icon: '🔧' },
       ] as NavigationItem[],
     },
     {
       id: 'class-management',
-      label: 'Classes & Education',
+      label: 'Classes & Conservatory',
       icon: '📘',
       defaultPage: 'class-management' as PageType,
       children: [
-        { id: 'class-management', label: 'Classes', icon: '📘' },
+        { id: 'class-management', label: 'Class Offerings', icon: '📘' },
         { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },
-        { id: 'skills-management', label: 'Skills', icon: '⭐' },
+        { id: 'skills-management', label: 'Curriculum & Skills', icon: '⭐' },
       ] as NavigationItem[],
     },
   ].map(group => ({
@@ -272,15 +272,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className={`mt-4 pt-4 border-t border-white/10 ${isCollapsed ? 'flex justify-center' : ''}`}>
               <button
                 onClick={() => handleNavigate('data-import')}
-                title={isCollapsed ? 'Import Center' : undefined}
+                title={isCollapsed ? 'Spreadsheet Roster Upload' : undefined}
                 className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'w-full gap-3 px-3'} py-2.5 rounded-lg text-left transition-all duration-150 ${
                   currentPage === 'data-import'
                     ? 'jtf-nav-active font-semibold'
                     : 'jtf-nav-item'
                 }`}
               >
-                <span className="text-lg leading-none">⬆️</span>
-                {!isCollapsed && <span className="text-sm truncate">Import Center</span>}
+                <span className="text-lg leading-none">📊</span>
+                {!isCollapsed && <span className="text-sm truncate">Spreadsheet Import</span>}
               </button>
             </div>
           )}

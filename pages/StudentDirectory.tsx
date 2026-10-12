@@ -16,6 +16,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   const [levelFilter, setLevelFilter] = useState<string>('All');
   const [enrollmentFilter, setEnrollmentFilter] = useState<'All' | 'Has Active Enrollments' | 'No Active Enrollments'>('All');
   const [nameSort, setNameSort] = useState<'az' | 'za'>('az');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   
   // Add student modal state
@@ -251,6 +252,27 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
           >
             Clear Filters
           </button>
+          {/* View Mode Toggle: Spreadsheet Table vs Cards */}
+          <div className="inline-flex rounded-lg border border-gray-300 bg-gray-100 p-0.5 ml-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                viewMode === 'table' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ☵ Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                viewMode === 'cards' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              ☷ Cards
+            </button>
+          </div>
         </div>
         <p className="mt-2 text-sm text-gray-600">Showing {filteredStudents.length} of {students.length} students</p>
       </div>
@@ -266,6 +288,67 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
           >
             Reload
           </button>
+        </div>
+      ) : viewMode === 'table' ? (
+        /* Dense Spreadsheet-style Table View */
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="py-3 px-4">Student Name</th>
+                  <th className="py-3 px-4">Email</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Current Level</th>
+                  <th className="py-3 px-4 text-center">Completed</th>
+                  <th className="py-3 px-4">Student Since</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredStudents.map((student) => (
+                  <tr
+                    key={student.StudentID}
+                    className="hover:bg-blue-50/50 transition-colors cursor-pointer"
+                    onClick={() => onNavigateToStudent && onNavigateToStudent(student.StudentID!)}
+                  >
+                    <td className="py-3 px-4 font-semibold text-gray-900 whitespace-nowrap">
+                      {student.FirstName} {student.LastName}
+                    </td>
+                    <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs">
+                      {student.PrimaryEmail || '—'}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getStatusBadgeClass(student.StudentStatus)}`}>
+                        {student.StudentStatus || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-gray-700 whitespace-nowrap">
+                      {student.CurrentLevelName || '—'}
+                    </td>
+                    <td className="py-3 px-4 text-center font-semibold text-gray-800 whitespace-nowrap">
+                      {student.ClassesCompleted || 0}
+                    </td>
+                    <td className="py-3 px-4 text-gray-500 whitespace-nowrap text-xs">
+                      {student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNavigateToStudent && onNavigateToStudent(student.StudentID!);
+                        }}
+                        className="px-2.5 py-1 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-600 rounded transition-colors"
+                      >
+                        Profile →
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
