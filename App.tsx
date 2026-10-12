@@ -21,6 +21,7 @@ import { PortalAccess } from './pages/PortalAccess';
 import { DataImport } from './pages/DataImport';
 import { AccountRecovery } from './pages/AccountRecovery';
 import { Settings } from './pages/Settings';
+import { OperationsCRM } from './pages/OperationsCRM';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
 import { Loader } from './components/common/Loader';
@@ -36,7 +37,7 @@ const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
-  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'settings',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'crm-operations', 'settings',
 ]);
 
 const getInitialTeamPage = (): PageType => {
@@ -256,6 +257,8 @@ const App: React.FC = () => {
         }} />;
       case 'skills-management':
         return <SkillsManagement />;
+      case 'crm-operations':
+        return <OperationsCRM />;
       case 'settings':
         return <Settings />;
       default:

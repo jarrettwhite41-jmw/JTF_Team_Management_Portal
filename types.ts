@@ -522,6 +522,7 @@ export type PageType =
   | 'student-directory'
   | 'student-profile'
   | 'skills-management'
+  | 'crm-operations'
   | 'settings';
 
 export interface NavigationItem {

@@ -27,8 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const canAccessItem = (role: PortalAccessRole | null | undefined, page: PageType): boolean => {
     if (!role) return false;
     if (role === 'admin' || role === 'manager') return true;
-    if (role === 'director') return ['dashboard', 'scheduling', 'show-management', 'shows', 'ticketing', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
-    if (role === 'teacher') return ['dashboard', 'scheduling', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
+    if (role === 'director') return ['dashboard', 'scheduling', 'crm-operations', 'show-management', 'shows', 'ticketing', 'crew', 'cast', 'special-guests', 'director-management'].includes(page);
+    if (role === 'teacher') return ['dashboard', 'scheduling', 'crm-operations', 'class-management', 'classes', 'student-directory', 'student-profile', 'teacher-management', 'workshops', 'skills-management'].includes(page);
     if (role === 'cast') return ['dashboard', 'scheduling', 'cast', 'shows', 'show-management'].includes(page);
     if (role === 'student') return page === 'dashboard';
     return page === 'dashboard';
@@ -36,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const topLevelItems: NavigationItem[] = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
+    { id: 'crm-operations', label: 'Theater CRM & Ops', icon: '🏢' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },
   ].filter(item => canAccessItem(roleLabel, item.id)), [roleLabel]);
 

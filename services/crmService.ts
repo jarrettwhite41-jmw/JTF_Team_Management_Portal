@@ -1,0 +1,323 @@
+import { supabase } from './supabaseClient';
+
+export interface SpaceBooking {
+  booking_id?: number;
+  room_id: number;
+  room_name?: string;
+  booking_title: string;
+  booking_type: 'show' | 'rehearsal' | 'class' | 'workshop' | 'rental' | 'maintenance' | 'special_event';
+  start_time: string;
+  end_time: string;
+  status: 'draft' | 'hold' | 'confirmed' | 'completed' | 'canceled';
+  show_id?: number | null;
+  offering_id?: number | null;
+  notes?: string;
+  created_at?: string;
+}
+
+export interface TicketRefundRequest {
+  refund_request_id?: number;
+  order_id: number;
+  show_id: number;
+  show_name?: string;
+  patron_id?: number | null;
+  refund_type: 'full' | 'partial' | 'store_credit';
+  refund_amount: number;
+  reason: string;
+  status: 'requested' | 'approved' | 'processed' | 'rejected';
+  customer_name?: string;
+  customer_email?: string;
+  platform?: string;
+  requested_by_email?: string;
+  approved_by_email?: string;
+  gateway_refund_id?: string;
+  created_at?: string;
+}
+
+export interface StudentCreditItem {
+  credit_id?: number;
+  student_id: number;
+  student_name?: string;
+  amount: number;
+  credit_type: 'prorated_drop' | 'class_cancellation' | 'administrative_grant' | 'redemption' | 'refund_to_card';
+  description: string;
+  offering_id?: number | null;
+  created_by_email?: string;
+  created_at?: string;
+}
+
+export interface ClassMakeupRequest {
+  makeup_request_id?: number;
+  student_id: number;
+  student_name?: string;
+  original_offering_id: number;
+  original_class_name?: string;
+  original_session_date: string;
+  target_offering_id?: number | null;
+  target_class_name?: string;
+  target_session_date?: string | null;
+  status: 'pending' | 'approved' | 'attended' | 'canceled' | 'rejected';
+  reason?: string;
+  created_at?: string;
+}
+
+export interface VenueRental {
+  rental_id?: number;
+  organization_name?: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone?: string;
+  event_type: string;
+  room_id?: number | null;
+  room_name?: string;
+  event_start: string;
+  event_end: string;
+  rental_rate: number;
+  deposit_amount: number;
+  deposit_paid: boolean;
+  insurance_cert_on_file: boolean;
+  tech_requirements?: string;
+  status: 'inquiry' | 'quoted' | 'contract_signed' | 'deposit_received' | 'confirmed' | 'completed' | 'canceled';
+  created_at?: string;
+}
+
+export interface CommunicationLog {
+  log_id?: number;
+  patron_id?: number | null;
+  personnel_id?: number | null;
+  customer_name?: string;
+  channel: 'email' | 'phone' | 'square' | 'eventbrite' | 'in_person' | 'chat';
+  category: 'ticketing' | 'class_credit' | 'makeup_request' | 'venue_rental' | 'complaint' | 'general';
+  direction: 'inbound' | 'outbound';
+  subject: string;
+  body: string;
+  staff_email?: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'archived';
+  created_at?: string;
+}
+
+export const crmService = {
+  // ── Space Bookings & Conflict Prevention ──────────────────────────────
+  async getAllRooms() {
+    const { data, error } = await supabase.from('rooms').select('*').order('room_id', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getSpaceBookings(startDate?: string, endDate?: string) {
+    let query = supabase
+      .from('space_bookings')
+      .select('*, rooms(room_name)')
+      .order('start_time', { ascending: true });
+
+    if (startDate) query = query.gte('start_time', startDate);
+    if (endDate) query = query.lte('end_time', endDate);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map((b: any) => ({
+      ...b,
+      room_name: b.rooms?.room_name || `Room #${b.room_id}`,
+    }));
+  },
+
+  async createSpaceBooking(booking: Omit<SpaceBooking, 'booking_id'>) {
+    const { data, error } = await supabase
+      .from('space_bookings')
+      .insert([booking])
+      .select('*, rooms(room_name)')
+      .single();
+
+    if (error) {
+      if (error.message?.includes('exclude_room_time_overlap') || error.code === '23P01') {
+        throw new Error('Scheduling conflict! This space is already reserved for an overlapping event.');
+      }
+      throw error;
+    }
+    return data;
+  },
+
+  async updateSpaceBookingStatus(bookingId: number, status: SpaceBooking['status']) {
+    const { data, error } = await supabase
+      .from('space_bookings')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('booking_id', bookingId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Ticket Refund Requests & Orders ───────────────────────────────────
+  async getRefundRequests() {
+    const { data, error } = await supabase
+      .from('ticket_refund_requests')
+      .select('*, ticket_orders(customer_name, customer_email, platform), show_information(venue)')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((r: any) => ({
+      ...r,
+      customer_name: r.ticket_orders?.customer_name || 'Patron',
+      customer_email: r.ticket_orders?.customer_email || '—',
+      platform: r.ticket_orders?.platform || 'Direct',
+    }));
+  },
+
+  async createRefundRequest(request: Omit<TicketRefundRequest, 'refund_request_id'>) {
+    const { data, error } = await supabase
+      .from('ticket_refund_requests')
+      .insert([request])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateRefundRequestStatus(
+    refundRequestId: number,
+    status: 'approved' | 'processed' | 'rejected',
+    approvedByEmail: string,
+    gatewayRefundId?: string
+  ) {
+    const updates: any = {
+      status,
+      approved_by_email: approvedByEmail,
+      updated_at: new Date().toISOString(),
+    };
+    if (status === 'approved') updates.approved_at = new Date().toISOString();
+    if (status === 'processed') {
+      updates.processed_at = new Date().toISOString();
+      if (gatewayRefundId) updates.gateway_refund_id = gatewayRefundId;
+    }
+
+    const { data, error } = await supabase
+      .from('ticket_refund_requests')
+      .update(updates)
+      .eq('refund_request_id', refundRequestId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Student Tuition Credits ───────────────────────────────────────────
+  async getStudentCredits(studentId?: number) {
+    let query = supabase
+      .from('student_credit_ledger')
+      .select('*, student_info(FirstName, LastName)')
+      .order('created_at', { ascending: false });
+
+    if (studentId) query = query.eq('student_id', studentId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map((c: any) => ({
+      ...c,
+      student_name: c.student_info ? `${c.student_info.FirstName || ''} ${c.student_info.LastName || ''}`.trim() : `Student #${c.student_id}`,
+    }));
+  },
+
+  async addStudentCredit(credit: Omit<StudentCreditItem, 'credit_id'>) {
+    const { data, error } = await supabase
+      .from('student_credit_ledger')
+      .insert([credit])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Class Makeups ─────────────────────────────────────────────────────
+  async getClassMakeupRequests() {
+    const { data, error } = await supabase
+      .from('class_makeup_requests')
+      .select('*, student_info(FirstName, LastName), orig:original_offering_id(OfferingName), target:target_offering_id(OfferingName)')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((m: any) => ({
+      ...m,
+      student_name: m.student_info ? `${m.student_info.FirstName || ''} ${m.student_info.LastName || ''}`.trim() : `Student #${m.student_id}`,
+      original_class_name: m.orig?.OfferingName || `Class #${m.original_offering_id}`,
+      target_class_name: m.target?.OfferingName || 'To Be Assigned',
+    }));
+  },
+
+  async updateMakeupRequestStatus(makeupId: number, status: ClassMakeupRequest['status']) {
+    const { data, error } = await supabase
+      .from('class_makeup_requests')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('makeup_request_id', makeupId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Venue Rentals & Private Events ────────────────────────────────────
+  async getVenueRentals() {
+    const { data, error } = await supabase
+      .from('venue_rentals')
+      .select('*, rooms(room_name)')
+      .order('event_start', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map((r: any) => ({
+      ...r,
+      room_name: r.rooms?.room_name || 'Unassigned Stage',
+    }));
+  },
+
+  async createVenueRental(rental: Omit<VenueRental, 'rental_id'>) {
+    const { data, error } = await supabase
+      .from('venue_rentals')
+      .insert([rental])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateVenueRentalStatus(rentalId: number, status: VenueRental['status']) {
+    const { data, error } = await supabase
+      .from('venue_rentals')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('rental_id', rentalId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ── Centralized Customer Communications Log ───────────────────────────
+  async getCommunicationLogs(category?: string) {
+    let query = supabase
+      .from('communication_logs')
+      .select('*, patrons(first_name, last_name, email), personnel(FirstName, LastName, PrimaryEmail)')
+      .order('created_at', { ascending: false });
+
+    if (category && category !== 'all') query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []).map((log: any) => {
+      const patronName = log.patrons ? `${log.patrons.first_name || ''} ${log.patrons.last_name || ''}`.trim() : null;
+      const personnelName = log.personnel ? `${log.personnel.FirstName || ''} ${log.personnel.LastName || ''}`.trim() : null;
+      return {
+        ...log,
+        customer_name: patronName || personnelName || 'Anonymous Customer',
+      };
+    });
+  },
+
+  async createCommunicationLog(log: Omit<CommunicationLog, 'log_id'>) {
+    const { data, error } = await supabase
+      .from('communication_logs')
+      .insert([log])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
