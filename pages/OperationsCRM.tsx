@@ -39,6 +39,23 @@ export const OperationsCRM: React.FC = () => {
 
   // Venue Rentals state
   const [rentals, setRentals] = useState<VenueRental[]>([]);
+  const [isAddRentalOpen, setIsAddRentalOpen] = useState(false);
+  const [newRental, setNewRental] = useState({
+    contact_name: '',
+    organization_name: '',
+    contact_email: '',
+    contact_phone: '',
+    event_type: 'Corporate Workshop',
+    room_id: 1,
+    event_start: '',
+    event_end: '',
+    rental_rate: 500,
+    deposit_amount: 150,
+    deposit_paid: false,
+    insurance_cert_on_file: false,
+    tech_requirements: '',
+    status: 'inquiry' as VenueRental['status'],
+  });
 
   // Communications state
   const [commLogs, setCommLogs] = useState<CommunicationLog[]>([]);
@@ -72,8 +89,12 @@ export const OperationsCRM: React.FC = () => {
         const wpData = await crmService.getStudentWelcomePackageStatus();
         setWelcomePackages(wpData);
       } else if (tab === 'rentals') {
-        const renData = await crmService.getVenueRentals();
+        const [renData, rData] = await Promise.all([crmService.getVenueRentals(), crmService.getAllRooms()]);
         setRentals(renData);
+        setRooms(rData);
+        if (rData.length > 0 && !newRental.room_id) {
+          setNewRental((prev) => ({ ...prev, room_id: rData[0].room_id }));
+        }
       } else if (tab === 'communications') {
         const comData = await crmService.getCommunicationLogs(commFilter);
         setCommLogs(comData);
@@ -140,6 +161,23 @@ export const OperationsCRM: React.FC = () => {
       loadTabData('rentals');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error updating rental status.' });
+    }
+  };
+
+  const handleCreateRental = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await crmService.createVenueRental({
+        ...newRental,
+        room_id: Number(newRental.room_id),
+        rental_rate: Number(newRental.rental_rate),
+        deposit_amount: Number(newRental.deposit_amount),
+      });
+      setMessage({ type: 'success', text: 'Venue rental booking created successfully!' });
+      setIsAddRentalOpen(false);
+      loadTabData('rentals');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error creating rental booking.' });
     }
   };
 
@@ -581,9 +619,19 @@ export const OperationsCRM: React.FC = () => {
           {/* TAB 5: VENUE RENTALS */}
           {activeTab === 'rentals' && (
             <div className="space-y-4">
-              <p className="text-sm text-slate-600">
-                Track external private bookings, corporate workshops, film shoots, and deposit milestones.
-              </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  Track external private bookings, corporate workshops, film shoots, performances, and deposit milestones.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsAddRentalOpen(true)}
+                  className="px-3 py-1.5 bg-blue-600 text-white font-semibold text-xs rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap self-start sm:self-auto"
+                >
+                  + Add Rental / Gig
+                </button>
+              </div>
+
               {rentals.length === 0 ? (
                 <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                   No venue rentals or private events scheduled.
@@ -609,35 +657,72 @@ export const OperationsCRM: React.FC = () => {
                             <td className="py-3 px-4">
                               <div className="font-semibold text-slate-900">{ren.contact_name}</div>
                               <div className="text-xs text-slate-500">{ren.organization_name || ren.contact_email}</div>
+                              {ren.contact_phone && <div className="text-[11px] text-slate-400">{ren.contact_phone}</div>}
                             </td>
-                            <td className="py-3 px-4 text-xs font-medium text-slate-800">{ren.event_type}</td>
-                            <td className="py-3 px-4 text-xs text-slate-700 font-medium">🏛️ {ren.room_name}</td>
-                            <td className="py-3 px-4 text-xs text-slate-600">{new Date(ren.event_start).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-xs font-semibold text-slate-900">
+                            <td className="py-3 px-4 text-xs font-medium text-slate-800">
+                              <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-slate-800">{ren.event_type}</span>
+                              {ren.tech_requirements && (
+                                <div className="text-[11px] text-slate-500 mt-1 max-w-xs truncate" title={ren.tech_requirements}>
+                                  Tech: {ren.tech_requirements}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-xs text-slate-700 font-medium whitespace-nowrap">🏛️ {ren.room_name}</td>
+                            <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
+                              <div>{new Date(ren.event_start).toLocaleDateString()}</div>
+                              <div className="text-[11px] text-slate-400">
+                                {new Date(ren.event_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(ren.event_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-xs font-semibold text-slate-900 whitespace-nowrap">
                               <div>${ren.rental_rate}</div>
-                              <div className="text-[11px] text-slate-500">Deposit: ${ren.deposit_amount} ({ren.deposit_paid ? 'Paid' : 'Unpaid'})</div>
+                              <div className="text-[11px] text-slate-500">
+                                Deposit: ${ren.deposit_amount} ({ren.deposit_paid ? '✓ Paid' : 'Unpaid'})
+                              </div>
                             </td>
-                            <td className="py-3 px-4">
+                            <td className="py-3 px-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
                                   ren.status === 'confirmed'
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : ren.status === 'contract_signed'
                                     ? 'bg-blue-100 text-blue-800'
+                                    : ren.status === 'deposit_received'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : ren.status === 'completed'
+                                    ? 'bg-slate-100 text-slate-800'
                                     : 'bg-amber-100 text-amber-800'
                                 }`}
                               >
-                                {ren.status}
+                                {ren.status.replace('_', ' ')}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right">
+                            <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
                               {ren.status === 'inquiry' && (
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateRentalStatus(ren.rental_id!, 'contract_signed')}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100"
+                                  className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100"
                                 >
                                   Sign Contract
+                                </button>
+                              )}
+                              {ren.status === 'contract_signed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRentalStatus(ren.rental_id!, 'confirmed')}
+                                  className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
+                                >
+                                  Confirm
+                                </button>
+                              )}
+                              {ren.status === 'confirmed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateRentalStatus(ren.rental_id!, 'completed')}
+                                  className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100"
+                                >
+                                  Complete
                                 </button>
                               )}
                             </td>
@@ -804,6 +889,202 @@ export const OperationsCRM: React.FC = () => {
                   className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-semibold text-white hover:bg-blue-700"
                 >
                   Confirm Reservation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Venue Rental / Gig */}
+      {isAddRentalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-lg text-slate-900">Add Rental / Gig Booking</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddRentalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRental} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Sarah Jenkins"
+                    value={newRental.contact_name}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, contact_name: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Company / Org</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Acme Corp / Private Party"
+                    value={newRental.organization_name}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, organization_name: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Email *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="sarah@example.com"
+                    value={newRental.contact_email}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, contact_email: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="305-555-0199"
+                    value={newRental.contact_phone}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, contact_phone: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Event / Gig Type</label>
+                  <select
+                    value={newRental.event_type}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, event_type: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  >
+                    <option value="Corporate Workshop">Corporate Workshop / Training</option>
+                    <option value="Private Improv Show">Private Improv Show (Gig)</option>
+                    <option value="Film / Video Shoot">Film / Video Shoot</option>
+                    <option value="Stage Rental">Stage / Theater Rental</option>
+                    <option value="Birthday / Celebration">Birthday / Celebration</option>
+                    <option value="Audition / Rehearsal">Audition / External Rehearsal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Assigned Space</label>
+                  <select
+                    value={newRental.room_id}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, room_id: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  >
+                    {rooms.map((r) => (
+                      <option key={r.room_id} value={r.room_id}>
+                        {r.room_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Event Start Time *</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newRental.event_start}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, event_start: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Event End Time *</label>
+                  <input
+                    type="datetime-local"
+                    required
+                    value={newRental.event_end}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, event_end: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Rental Rate ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newRental.rental_rate}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, rental_rate: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Deposit Amount ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newRental.deposit_amount}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, deposit_amount: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-6 py-1 text-xs text-slate-700">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newRental.deposit_paid}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, deposit_paid: e.target.checked }))}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Deposit Paid</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newRental.insurance_cert_on_file}
+                    onChange={(e) => setNewRental((prev) => ({ ...prev, insurance_cert_on_file: e.target.checked }))}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Insurance Certificate On File</span>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tech & Catering Requirements</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Wireless microphones, stage lighting preset, projector, bar service..."
+                  value={newRental.tech_requirements}
+                  onChange={(e) => setNewRental((prev) => ({ ...prev, tech_requirements: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsAddRentalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 rounded-lg text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  Save Rental Booking
                 </button>
               </div>
             </form>
