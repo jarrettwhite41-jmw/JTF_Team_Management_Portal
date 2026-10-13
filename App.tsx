@@ -25,6 +25,8 @@ import { OperationsCRM, CRMTab } from './pages/OperationsCRM';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
 import { Loader } from './components/common/Loader';
+import { ContextualHelpDrawer } from './components/common/ContextualHelpDrawer';
+import { TEAM_PORTAL_GUIDE_DATA } from './constants/portalGuides';
 import { authService } from './services/authService';
 import { isSupabaseConfigured } from './services/supabaseClient';
 import { PageType, PortalAccessRole } from './types';
@@ -80,6 +82,7 @@ const App: React.FC = () => {
   const [isMobileSectionsOpen, setIsMobileSectionsOpen] = useState(false);
   const [isMobileActionsOpen, setIsMobileActionsOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [sessionUserId, setSessionUserId] = useState<string | null>(null);
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
@@ -439,11 +442,36 @@ const App: React.FC = () => {
             >
               Refresh
             </button>
+            <button
+              onClick={() => setIsHelpOpen(true)}
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 flex items-center gap-1 transition-colors shadow-sm"
+              title="Open Portal Help & Explanations"
+            >
+              <span>💡</span>
+              <span className="hidden sm:inline">Help & Guide</span>
+            </button>
           </div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">{currentPage.replace(/-/g, ' ')}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs uppercase tracking-wide text-slate-500">{currentPage.replace(/-/g, ' ')}</p>
+          </div>
         </div>
         {renderPage()}
       </main>
+
+      {/* Contextual Help Drawer */}
+      <ContextualHelpDrawer
+        guideData={{
+          ...TEAM_PORTAL_GUIDE_DATA,
+          currentSectionKey: currentPage,
+        }}
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+        onSelectSection={(key) => {
+          if (TEAM_PAGE_SET.has(key as PageType)) {
+            navigateToPage(key as PageType);
+          }
+        }}
+      />
 
       {/* Mobile sections sheet for nested navigation */}
       <div
