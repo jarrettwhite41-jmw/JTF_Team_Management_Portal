@@ -6,6 +6,10 @@ export interface GuideSection {
   description: string;
   tips?: string[];
   workflow?: string[];
+  crossPortalImpact?: {
+    portal: string;
+    description: string;
+  }[];
 }
 
 export interface PortalGuideData {
@@ -119,7 +123,6 @@ export const ContextualHelpDrawer: React.FC<ContextualHelpDrawerProps> = ({
                 key={key}
                 onClick={() => {
                   setSelectedKey(key);
-                  if (onSelectSection) onSelectSection(key);
                 }}
                 className={`px-2.5 py-1 text-xs font-medium rounded-md whitespace-nowrap transition-all flex items-center gap-1.5 ${
                   isViewing
@@ -206,6 +209,26 @@ export const ContextualHelpDrawer: React.FC<ContextualHelpDrawerProps> = ({
                       </li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* Cross-Portal Impact (Theater Ecosystem Connectedness) */}
+              {currentSection.crossPortalImpact && currentSection.crossPortalImpact.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-2 flex items-center gap-1.5">
+                    <span>🔄</span> How This Affects Other Portals
+                  </h4>
+                  <div className="space-y-2 text-xs">
+                    {currentSection.crossPortalImpact.map((impact, idx) => (
+                      <div key={idx} className="bg-indigo-50/60 border border-indigo-100/80 rounded-lg p-2.5">
+                        <div className="font-semibold text-indigo-900 flex items-center gap-1.5 mb-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 inline-block" />
+                          <span>{impact.portal}</span>
+                        </div>
+                        <p className="text-slate-700 leading-relaxed pl-3">{impact.description}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </>

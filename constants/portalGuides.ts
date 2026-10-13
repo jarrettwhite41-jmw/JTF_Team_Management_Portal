@@ -41,6 +41,16 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
         'Google Sheets webhooks automatically populate rentals and contact messages in real time.',
         'Double-booking prevention stops conflicting space reservations on the same stage.',
       ],
+      crossPortalImpact: [
+        {
+          portal: 'Master Schedule & Instructors',
+          description: 'Confirmed space reservations instantly block room slots, preventing instructors or directors from double-booking classrooms or stages.',
+        },
+        {
+          portal: 'Instructor Portal (Makeups)',
+          description: 'Approved class makeup vouchers allow instructors to verify student attendance without penalizing normal cohort caps.',
+        },
+      ],
     },
     scheduling: {
       title: 'Master Schedule',
@@ -70,6 +80,16 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       tips: [
         'Shows published here automatically appear on the Cast and Director portals for performer call-times and setlists.',
       ],
+      crossPortalImpact: [
+        {
+          portal: 'Directors Portal',
+          description: 'Assigning a director gives them instant access in their portal to view performer availability, build the show setlist, and assign stage chores.',
+        },
+        {
+          portal: 'Cast & Crew Portal',
+          description: 'Published show dates immediately appear on performer calendars and trigger monthly availability submission deadlines.',
+        },
+      ],
     },
     'class-management': {
       title: 'Classes & Conservatory',
@@ -85,6 +105,16 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       tips: [
         'Newly enrolled Level 1 students automatically trigger a welcome package signature requirement in the CRM.',
       ],
+      crossPortalImpact: [
+        {
+          portal: 'Instructor Portal',
+          description: 'Creating a class and assigning a teacher instantly populates the teacher’s dashboard and generates weekly attendance rosters.',
+        },
+        {
+          portal: 'Operations CRM',
+          description: 'New Level 1 student enrollments automatically open an "Unsigned Welcome Package" compliance item in the CRM.',
+        },
+      ],
     },
     'student-directory': {
       title: 'Student Directory',
@@ -99,6 +129,12 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       tips: [
         'Use the student profile to quickly see which welcome package documents have been completed.',
       ],
+      crossPortalImpact: [
+        {
+          portal: 'Instructor Portal',
+          description: 'Attendance marks and private student evaluations recorded by instructors sync directly into the student’s permanent company record here.',
+        },
+      ],
     },
     'personnel-management': {
       title: 'Company Roster',
@@ -112,6 +148,16 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       ],
       tips: [
         'Keeping contact information and emails up to date ensures login access and automated notifications function correctly.',
+      ],
+      crossPortalImpact: [
+        {
+          portal: 'Portal Access & Hub',
+          description: 'Enabling Cast, Director, or Instructor status here grants corresponding permission in the database, allowing users to enter those respective portals.',
+        },
+        {
+          portal: 'Directors Portal Lineups',
+          description: 'Only members flagged as active Cast or Crew appear in the Director’s performer pool when assembling weekend show rosters.',
+        },
       ],
     },
     inventory: {
