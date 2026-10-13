@@ -2754,6 +2754,8 @@ class SupabaseService {
           status,
           student_info(
             personnel_id,
+            welcome_package_signed,
+            welcome_package_signed_at,
             personnel(
               first_name,
               last_name,
@@ -2777,6 +2779,8 @@ class SupabaseService {
         PrimaryPhone: row.student_info?.personnel?.primary_phone || '',
         EnrollmentDate: row.enrollment_date,
         CompletionStatus: row.status || 'Active',
+        WelcomePackageSigned: Boolean(row.student_info?.welcome_package_signed),
+        WelcomePackageSignedAt: row.student_info?.welcome_package_signed_at,
       }));
 
       return { success: true, data: rows };

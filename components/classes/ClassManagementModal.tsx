@@ -24,6 +24,8 @@ interface Student {
   EnrollmentID?: number;
   EnrollmentDate?: string;
   CompletionStatus?: string;
+  WelcomePackageSigned?: boolean;
+  WelcomePackageSignedAt?: string | null;
 }
 
 type Tab = 'roster' | 'attendance' | 'skills' | 'notes' | 'enrolled' | 'add';
@@ -1078,6 +1080,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Date</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Welcome Pkg</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -1093,6 +1096,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-600">{student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {student.WelcomePackageSigned ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                              ✓ Signed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                              ⏳ Pending
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <select
