@@ -661,9 +661,17 @@ export const OperationsCRM: React.FC = () => {
                             </td>
                             <td className="py-3 px-4 text-xs font-medium text-slate-800">
                               <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-slate-800">{ren.event_type}</span>
+                              {ren.guest_count && (
+                                <div className="text-[11px] text-slate-500 mt-0.5">👥 {ren.guest_count} guests</div>
+                              )}
                               {ren.tech_requirements && (
                                 <div className="text-[11px] text-slate-500 mt-1 max-w-xs truncate" title={ren.tech_requirements}>
                                   Tech: {ren.tech_requirements}
+                                </div>
+                              )}
+                              {ren.notes && (
+                                <div className="text-[11px] text-slate-400 mt-0.5 max-w-xs truncate" title={ren.notes}>
+                                  {ren.notes}
                                 </div>
                               )}
                             </td>

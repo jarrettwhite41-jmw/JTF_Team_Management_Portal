@@ -77,6 +77,11 @@ export interface VenueRental {
   deposit_paid: boolean;
   insurance_cert_on_file: boolean;
   tech_requirements?: string;
+  guest_count?: number | null;
+  preferred_date?: string | null;
+  start_time_estimate?: string | null;
+  referral_source?: string | null;
+  notes?: string | null;
   status: 'inquiry' | 'quoted' | 'contract_signed' | 'deposit_received' | 'confirmed' | 'completed' | 'canceled';
   created_at?: string;
 }
