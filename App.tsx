@@ -21,7 +21,7 @@ import { PortalAccess } from './pages/PortalAccess';
 import { DataImport } from './pages/DataImport';
 import { AccountRecovery } from './pages/AccountRecovery';
 import { Settings } from './pages/Settings';
-import { OperationsCRM } from './pages/OperationsCRM';
+import { OperationsCRM, CRMTab } from './pages/OperationsCRM';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
 import { Loader } from './components/common/Loader';
@@ -73,6 +73,7 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>(getInitialTeamPage);
+  const [crmInitialTab, setCrmInitialTab] = useState<CRMTab>('scheduling');
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(getInitialSelectedStudent);
   const [pageHistory, setPageHistory] = useState<PageType[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -258,11 +259,20 @@ const App: React.FC = () => {
       case 'skills-management':
         return <SkillsManagement />;
       case 'crm-operations':
-        return <OperationsCRM />;
+        return <OperationsCRM initialTab={crmInitialTab} />;
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard onNavigate={navigateToPage} />;
+        return (
+          <Dashboard
+            onNavigate={(page, extra) => {
+              if (page === 'crm-operations' && extra?.crmTab) {
+                setCrmInitialTab(extra.crmTab);
+              }
+              navigateToPage(page);
+            }}
+          />
+        );
     }
   };
 

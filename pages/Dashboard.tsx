@@ -4,6 +4,7 @@ import { Loader } from '../components/common/Loader';
 import { DashboardStats, ClassEnrollmentEntry, NextShowInfo, PageType } from '../types';
 import { gasService } from '../services/googleAppsScript';
 import { crmService } from '../services/crmService';
+import { CRMTab } from './OperationsCRM';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ function formatShowDate(dateStr: Date | string | undefined): string {
 // ── Main Dashboard component ──────────────────────────────────────────────────
 
 interface DashboardProps {
-  onNavigate?: (page: PageType) => void;
+  onNavigate?: (page: PageType, extra?: { crmTab?: CRMTab }) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
@@ -180,7 +181,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <div 
-              onClick={() => onNavigate?.('crm-operations')}
+              onClick={() => onNavigate?.('crm-operations', { crmTab: 'rentals' })}
               className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -192,7 +193,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             <div 
-              onClick={() => onNavigate?.('crm-operations')}
+              onClick={() => onNavigate?.('crm-operations', { crmTab: 'contact_inquiries' })}
               className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -204,7 +205,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             <div 
-              onClick={() => onNavigate?.('crm-operations')}
+              onClick={() => onNavigate?.('crm-operations', { crmTab: 'welcome_packages' })}
               className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -216,7 +217,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             <div 
-              onClick={() => onNavigate?.('crm-operations')}
+              onClick={() => onNavigate?.('crm-operations', { crmTab: 'refunds' })}
               className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
             >
               <div className="flex items-center justify-between">
@@ -228,7 +229,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             <div 
-              onClick={() => onNavigate?.('crm-operations')}
+              onClick={() => onNavigate?.('crm-operations', { crmTab: 'makeups' })}
               className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors col-span-2 sm:col-span-1"
             >
               <div className="flex items-center justify-between">
@@ -256,8 +257,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* ROW 2: Status Distribution Panels */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
 
-        <div className="bg-white rounded-lg shadow-sm border p-5">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Show Status</h2>
+        <div 
+          onClick={() => onNavigate?.('show-management')}
+          className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Show Status</h2>
+            <span className="text-[11px] text-blue-600 font-semibold hover:underline">View &rarr;</span>
+          </div>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalShows} Total</p>
           <SegmentedBar segments={[
             { label: 'Scheduled', count: stats.scheduledShows, color: 'bg-red-500'    },
@@ -265,8 +272,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           ]} />
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-5">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Student Status</h2>
+        <div 
+          onClick={() => onNavigate?.('student-directory')}
+          className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Student Status</h2>
+            <span className="text-[11px] text-blue-600 font-semibold hover:underline">View &rarr;</span>
+          </div>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalStudents} Total</p>
           <SegmentedBar segments={[
             { label: 'Active',    count: stats.studentsActive,    color: 'bg-red-500'    },
@@ -275,8 +288,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           ]} />
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-5">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Class Status</h2>
+        <div 
+          onClick={() => onNavigate?.('class-management')}
+          className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Class Status</h2>
+            <span className="text-[11px] text-blue-600 font-semibold hover:underline">View &rarr;</span>
+          </div>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalClasses} Total</p>
           <SegmentedBar segments={[
             { label: 'Upcoming',    count: stats.upcomingClasses,    color: 'bg-yellow-400' },
@@ -286,8 +305,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           ]} />
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border p-5">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Workshop Status</h2>
+        <div 
+          onClick={() => onNavigate?.('workshops')}
+          className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Workshop Status</h2>
+            <span className="text-[11px] text-blue-600 font-semibold hover:underline">View &rarr;</span>
+          </div>
           <p className="text-2xl font-bold text-gray-900 mb-3">{stats.totalWorkshops} Total</p>
           <SegmentedBar segments={[
             { label: 'Upcoming',    count: stats.upcomingWorkshops,    color: 'bg-blue-500'  },
@@ -302,10 +327,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Class Enrollment */}
-        <div className="bg-white rounded-lg shadow-sm border p-5">
+        <div 
+          onClick={() => onNavigate?.('class-management')}
+          className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+        >
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Class Enrollment</h2>
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{stats.totalEnrollments} enrollments</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{stats.totalEnrollments} enrollments</span>
+              <span className="text-xs text-blue-600 font-semibold hover:underline">Manage &rarr;</span>
+            </div>
           </div>
           {stats.classEnrollmentData?.length > 0
             ? stats.classEnrollmentData.map((cls, i) => (
@@ -325,8 +356,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         <div className="flex flex-col gap-4">
 
           {/* Next Show */}
-          <div className="bg-white rounded-lg shadow-sm border p-5">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Next Upcoming Show</h2>
+          <div 
+            onClick={() => onNavigate?.('show-management')}
+            className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Next Upcoming Show</h2>
+              <span className="text-xs text-blue-600 font-semibold hover:underline">View Shows &rarr;</span>
+            </div>
             {stats.nextShow
               ? (
                 <div>
@@ -342,8 +379,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </div>
 
           {/* Next Workshop */}
-          <div className="bg-white rounded-lg shadow-sm border p-5">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Next Upcoming Workshop</h2>
+          <div 
+            onClick={() => onNavigate?.('workshops')}
+            className="bg-white rounded-lg shadow-sm border p-5 cursor-pointer hover:border-gray-300 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Next Upcoming Workshop</h2>
+              <span className="text-xs text-blue-600 font-semibold hover:underline">View Workshops &rarr;</span>
+            </div>
             {stats.nextWorkshop
               ? (
                 <div>
@@ -361,12 +404,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
           {/* Personnel Breakdown */}
           <div className="bg-white rounded-lg shadow-sm border p-5">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Personnel Breakdown</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Personnel Breakdown</h2>
+              <span 
+                onClick={() => onNavigate?.('personnel-management')}
+                className="text-xs text-blue-600 font-semibold hover:underline cursor-pointer"
+              >
+                View Roster &rarr;
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-3">
-              <MetricTile value={stats.studentsActive ?? stats.activeStudents} label="Active Students" color="red"  />
-              <MetricTile value={stats.studentsGraduated}                      label="Graduated"        color="gold" />
-              <MetricTile value={stats.totalCastMembers}                       label="Cast Members"     color="red"  />
-              <MetricTile value={stats.totalCrewMembers}                       label="Crew Members"     color="gold" />
+              <div onClick={() => onNavigate?.('student-directory')} className="cursor-pointer">
+                <MetricTile value={stats.studentsActive ?? stats.activeStudents} label="Active Students" color="red"  />
+              </div>
+              <div onClick={() => onNavigate?.('student-directory')} className="cursor-pointer">
+                <MetricTile value={stats.studentsGraduated}                      label="Graduated"        color="gold" />
+              </div>
+              <div onClick={() => onNavigate?.('cast')} className="cursor-pointer">
+                <MetricTile value={stats.totalCastMembers}                       label="Cast Members"     color="red"  />
+              </div>
+              <div onClick={() => onNavigate?.('crew')} className="cursor-pointer">
+                <MetricTile value={stats.totalCrewMembers}                       label="Crew Members"     color="gold" />
+              </div>
             </div>
           </div>
 
@@ -383,7 +442,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <span>🏢</span> Latest Rental Inquiries
               </h2>
               <button
-                onClick={() => onNavigate?.('crm-operations')}
+                onClick={() => onNavigate?.('crm-operations', { crmTab: 'rentals' })}
                 className="text-xs text-blue-600 hover:underline font-semibold"
               >
                 View all rentals &rarr;
@@ -392,7 +451,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {crmOverview.recentRentals?.length > 0 ? (
               <div className="divide-y divide-gray-100">
                 {crmOverview.recentRentals.map((r: any) => (
-                  <div key={r.rental_id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                  <div 
+                    key={r.rental_id} 
+                    onClick={() => onNavigate?.('crm-operations', { crmTab: 'rentals' })}
+                    className="py-2.5 flex items-start justify-between gap-3 text-xs cursor-pointer hover:bg-gray-50/80 px-2 rounded-lg transition-colors"
+                  >
                     <div>
                       <p className="font-bold text-gray-900">{r.contact_name}</p>
                       <p className="text-gray-500">{r.organization_name || r.event_type} {r.guest_count ? `• ${r.guest_count} guests` : ''}</p>
@@ -416,7 +479,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 <span>📬</span> Recent Web Contact Inquiries
               </h2>
               <button
-                onClick={() => onNavigate?.('crm-operations')}
+                onClick={() => onNavigate?.('crm-operations', { crmTab: 'contact_inquiries' })}
                 className="text-xs text-blue-600 hover:underline font-semibold"
               >
                 View all inquiries &rarr;
@@ -425,7 +488,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             {crmOverview.recentInquiries?.length > 0 ? (
               <div className="divide-y divide-gray-100">
                 {crmOverview.recentInquiries.map((inq: any) => (
-                  <div key={inq.log_id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                  <div 
+                    key={inq.log_id} 
+                    onClick={() => onNavigate?.('crm-operations', { crmTab: 'contact_inquiries' })}
+                    className="py-2.5 flex items-start justify-between gap-3 text-xs cursor-pointer hover:bg-gray-50/80 px-2 rounded-lg transition-colors"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-gray-900 truncate">{inq.sender_name || inq.staff_email}</p>

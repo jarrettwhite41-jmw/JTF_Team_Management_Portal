@@ -3,10 +3,14 @@ import { crmService, SpaceBooking, TicketRefundRequest, StudentCreditItem, Class
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
-type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'contact_inquiries' | 'communications';
+export type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'contact_inquiries' | 'communications';
 
-export const OperationsCRM: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<CRMTab>('scheduling');
+interface OperationsCRMProps {
+  initialTab?: CRMTab;
+}
+
+export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'scheduling' }) => {
+  const [activeTab, setActiveTab] = useState<CRMTab>(initialTab);
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -63,6 +67,12 @@ export const OperationsCRM: React.FC = () => {
 
   // Contact Inquiries state
   const [contactInquiries, setContactInquiries] = useState<CommunicationLog[]>([]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     loadTabData(activeTab);
