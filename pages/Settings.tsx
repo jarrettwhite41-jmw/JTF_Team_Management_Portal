@@ -5,7 +5,7 @@ import { AppSetting, ShowTypes } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'app' | 'show_types'>('show_types');
+  const [activeTab, setActiveTab] = useState<'app' | 'show_types' | 'integrations'>('show_types');
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -204,6 +204,16 @@ export const Settings: React.FC = () => {
         >
           <span>⚙️</span> App System Values
         </button>
+        <button
+          onClick={() => setActiveTab('integrations')}
+          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 ${
+            activeTab === 'integrations'
+              ? 'border-b-2 border-primary-600 text-primary-600'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <span>📊</span> Google Sheets & Webhooks
+        </button>
       </div>
 
       {message && (
@@ -332,6 +342,147 @@ export const Settings: React.FC = () => {
 
           <div className="pt-1 text-xs text-gray-500">
             {hasChanges ? 'You have unsaved changes.' : 'All system values are up to date.'}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: GOOGLE SHEETS & INQUIRY INTEGRATIONS */}
+      {activeTab === 'integrations' && (
+        <div className="space-y-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-700 leading-relaxed space-y-2">
+            <p className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+              <span>📋</span> Connected Google Sheets Reference
+            </p>
+            <p>
+              When web visitors fill out the Corporate Rental form or Contact form on the public website, their submissions are captured in your Google Sheets and immediately posted into the Team Management Portal.
+            </p>
+            <p>
+              If you ever replace or recreate either Google Sheet, paste the new Sheet ID or URL here to keep your records updated. Then open the new Sheet, go to <strong>Extensions &rarr; Apps Script</strong>, and paste the webhook script.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Rental Sheet Card */}
+            {(() => {
+              const rentalSetting = settings.find((s) => s.setting_key === 'google_sheet_rental_inquiries_id');
+              const currentId = draftValues['google_sheet_rental_inquiries_id'] ?? rentalSetting?.setting_value ?? '';
+              const isSaving = savingKey === 'google_sheet_rental_inquiries_id';
+              const isDirty = currentId !== (rentalSetting?.setting_value ?? '');
+
+              return (
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        🏢 Rental & Corporate Gigs Sheet
+                      </span>
+                      <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
+                        Live Sync
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Destination CRM Table: <code className="text-slate-800 font-mono">venue_rentals</code>
+                    </p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1">
+                        Google Sheet ID or Full URL:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentId}
+                        onChange={(e) => {
+                          const val = e.target.value.includes('/d/')
+                            ? e.target.value.split('/d/')[1].split('/')[0]
+                            : e.target.value;
+                          handleValueChange('google_sheet_rental_inquiries_id', val);
+                        }}
+                        placeholder="e.g. 10teUHafSmhCu6vofiY9T_RlDYTILFMOxmMjYwH2D_KM"
+                        className="w-full text-xs font-mono rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    {currentId && (
+                      <a
+                        href={`https://docs.google.com/spreadsheets/d/${currentId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline pt-1"
+                      >
+                        🔗 Open Rental Sheet in Google Drive &rarr;
+                      </a>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => rentalSetting && handleSaveRow(rentalSetting)}
+                    disabled={isSaving || !isDirty}
+                    className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? 'Saving...' : 'Update Rental Sheet ID'}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Contact Inquiries Sheet Card */}
+            {(() => {
+              const contactSetting = settings.find((s) => s.setting_key === 'google_sheet_contact_inquiries_id');
+              const currentId = draftValues['google_sheet_contact_inquiries_id'] ?? contactSetting?.setting_value ?? '';
+              const isSaving = savingKey === 'google_sheet_contact_inquiries_id';
+              const isDirty = currentId !== (contactSetting?.setting_value ?? '');
+
+              return (
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        📬 Contact Inquiries Sheet
+                      </span>
+                      <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full">
+                        Live Sync
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Destination CRM Table: <code className="text-slate-800 font-mono">communication_logs</code>
+                    </p>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1">
+                        Google Sheet ID or Full URL:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentId}
+                        onChange={(e) => {
+                          const val = e.target.value.includes('/d/')
+                            ? e.target.value.split('/d/')[1].split('/')[0]
+                            : e.target.value;
+                          handleValueChange('google_sheet_contact_inquiries_id', val);
+                        }}
+                        placeholder="e.g. 1fbrKTcjTVTiKIyLwHpZk8OrDDxtj64pU0ujd_85Eqvs"
+                        className="w-full text-xs font-mono rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                    {currentId && (
+                      <a
+                        href={`https://docs.google.com/spreadsheets/d/${currentId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline pt-1"
+                      >
+                        🔗 Open Contact Sheet in Google Drive &rarr;
+                      </a>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => contactSetting && handleSaveRow(contactSetting)}
+                    disabled={isSaving || !isDirty}
+                    className="w-full rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? 'Saving...' : 'Update Contact Sheet ID'}
+                  </button>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
