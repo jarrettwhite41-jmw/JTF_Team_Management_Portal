@@ -90,6 +90,7 @@ export interface CommunicationLog {
   log_id?: number;
   patron_id?: number | null;
   personnel_id?: number | null;
+  sender_name?: string | null;
   customer_name?: string;
   channel: 'email' | 'phone' | 'square' | 'eventbrite' | 'in_person' | 'chat';
   category: 'ticketing' | 'class_credit' | 'makeup_request' | 'venue_rental' | 'complaint' | 'general';
@@ -371,7 +372,7 @@ export const crmService = {
       const personnelName = log.personnel ? `${log.personnel.first_name || ''} ${log.personnel.last_name || ''}`.trim() : null;
       return {
         ...log,
-        customer_name: patronName || personnelName || 'Anonymous Customer',
+        customer_name: log.sender_name || patronName || personnelName || (log.staff_email ? log.staff_email.split('@')[0] : 'Inquiry Sender'),
       };
     });
   },
