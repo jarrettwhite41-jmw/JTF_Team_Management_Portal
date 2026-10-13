@@ -203,7 +203,16 @@ const App: React.FC = () => {
 
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard onNavigate={navigateToPage} />;
+        return (
+          <Dashboard 
+            onNavigate={(page, extra) => {
+              if (page === 'crm-operations' && extra?.crmTab) {
+                setCrmInitialTab(extra.crmTab);
+              }
+              navigateToPage(page);
+            }} 
+          />
+        );
       case 'personnel-management':
       case 'personnel':
         return <PersonnelDirectory />;
