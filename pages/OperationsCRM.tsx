@@ -3,7 +3,7 @@ import { crmService, SpaceBooking, TicketRefundRequest, StudentCreditItem, Class
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
-type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'communications';
+type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'contact_inquiries' | 'communications';
 
 export const OperationsCRM: React.FC = () => {
   const [activeTab, setActiveTab] = useState<CRMTab>('scheduling');
@@ -61,6 +61,9 @@ export const OperationsCRM: React.FC = () => {
   const [commLogs, setCommLogs] = useState<CommunicationLog[]>([]);
   const [commFilter, setCommFilter] = useState('all');
 
+  // Contact Inquiries state
+  const [contactInquiries, setContactInquiries] = useState<CommunicationLog[]>([]);
+
   useEffect(() => {
     loadTabData(activeTab);
   }, [activeTab]);
@@ -98,6 +101,9 @@ export const OperationsCRM: React.FC = () => {
       } else if (tab === 'communications') {
         const comData = await crmService.getCommunicationLogs(commFilter);
         setCommLogs(comData);
+      } else if (tab === 'contact_inquiries') {
+        const ciData = await crmService.getCommunicationLogs('general');
+        setContactInquiries(ciData);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to load data.' });
@@ -161,6 +167,16 @@ export const OperationsCRM: React.FC = () => {
       loadTabData('rentals');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error updating rental status.' });
+    }
+  };
+
+  const handleUpdateContactStatus = async (logId: number, status: CommunicationLog['status']) => {
+    try {
+      await crmService.updateCommunicationLogStatus(logId, status);
+      setMessage({ type: 'success', text: `Inquiry status updated to ${status}.` });
+      loadTabData('contact_inquiries');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error updating status.' });
     }
   };
 
@@ -258,6 +274,16 @@ export const OperationsCRM: React.FC = () => {
           }`}
         >
           🏢 Venue Rentals & Events
+        </button>
+        <button
+          onClick={() => setActiveTab('contact_inquiries')}
+          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
+            activeTab === 'contact_inquiries'
+              ? 'border-blue-600 text-blue-600 bg-white'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          📬 Contact Inquiries
         </button>
         <button
           onClick={() => setActiveTab('communications')}
@@ -744,7 +770,129 @@ export const OperationsCRM: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: COMMUNICATION LOG */}
+          {/* TAB 6: CONTACT INQUIRIES */}
+          {activeTab === 'contact_inquiries' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  Web inquiries submitted via the public contact form, synchronized in real time from your Google Sheet.
+                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 rounded-full">
+                    {contactInquiries.length} {contactInquiries.length === 1 ? 'Inquiry' : 'Inquiries'}
+                  </span>
+                </div>
+              </div>
+
+              {contactInquiries.length === 0 ? (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                  No contact inquiries found.
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          <th className="py-3 px-4">Submitted On</th>
+                          <th className="py-3 px-4">Contact</th>
+                          <th className="py-3 px-4">Subject & Message</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {contactInquiries.map((inq) => {
+                          const dateDisplay = inq.submitted_at
+                            ? inq.submitted_at
+                            : inq.created_at
+                            ? new Date(inq.created_at).toLocaleString([], {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '—';
+
+                          return (
+                            <tr key={inq.log_id} className="hover:bg-slate-50 align-top">
+                              <td className="py-3 px-4 whitespace-nowrap text-xs text-slate-600 font-medium">
+                                <div>📅 {dateDisplay}</div>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <div className="font-semibold text-slate-900">{inq.customer_name || inq.staff_email || 'Website Visitor'}</div>
+                                {inq.staff_email && (
+                                  <a
+                                    href={`mailto:${inq.staff_email}`}
+                                    className="text-xs text-blue-600 hover:underline block"
+                                  >
+                                    ✉️ {inq.staff_email}
+                                  </a>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 max-w-md">
+                                <div className="font-semibold text-slate-900 text-xs mb-1">{inq.subject}</div>
+                                <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-3 hover:line-clamp-none transition-all">
+                                  {inq.body.replace(/^From: [^\n]+\n\n/, '')}
+                                </p>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                    inq.status === 'open'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : inq.status === 'in_progress'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : inq.status === 'resolved'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  {inq.status.replace('_', ' ')}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
+                                {inq.status === 'open' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
+                                    className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100"
+                                  >
+                                    Start
+                                  </button>
+                                )}
+                                {inq.status === 'in_progress' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
+                                    className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
+                                  >
+                                    Resolve
+                                  </button>
+                                )}
+                                {inq.status === 'resolved' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
+                                    className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100"
+                                  >
+                                    Archive
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 7: COMMUNICATION LOG */}
           {activeTab === 'communications' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">

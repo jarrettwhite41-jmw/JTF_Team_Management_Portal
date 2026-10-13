@@ -98,6 +98,7 @@ export interface CommunicationLog {
   body: string;
   staff_email?: string;
   status: 'open' | 'in_progress' | 'resolved' | 'archived';
+  submitted_at?: string | null;
   created_at?: string;
 }
 
@@ -373,6 +374,17 @@ export const crmService = {
         customer_name: patronName || personnelName || 'Anonymous Customer',
       };
     });
+  },
+
+  async updateCommunicationLogStatus(logId: number, status: CommunicationLog['status']) {
+    const { data, error } = await supabase
+      .from('communication_logs')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('log_id', logId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
   async createCommunicationLog(log: Omit<CommunicationLog, 'log_id'>) {
