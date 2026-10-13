@@ -149,10 +149,22 @@ export const ContextualHelpDrawer: React.FC<ContextualHelpDrawerProps> = ({
               <div className="border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{currentSection.icon || '📌'}</span>
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-bold text-slate-900">{currentSection.title}</h3>
                     <p className="text-xs text-slate-500">Section Overview & Workflow</p>
                   </div>
+                  {onSelectSection && selectedKey !== guideData.currentSectionKey && (
+                    <button
+                      onClick={() => {
+                        onSelectSection(selectedKey);
+                        onClose();
+                      }}
+                      className="px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+                    >
+                      <span>Go to section</span>
+                      <span>→</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

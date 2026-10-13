@@ -572,6 +572,16 @@ const App: React.FC = () => {
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-2">
+          <button
+            onClick={() => {
+              setIsMobileActionsOpen(false);
+              setIsHelpOpen(true);
+            }}
+            className="w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-left text-sm font-semibold text-amber-900 hover:bg-amber-100"
+          >
+            <span className="mr-2">💡</span>
+            Help & Guide
+          </button>
           {canAccessPage(userRole, 'data-import') && (
             <button
               onClick={() => handleMobileNavigate('data-import')}
