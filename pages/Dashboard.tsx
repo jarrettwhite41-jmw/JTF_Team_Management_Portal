@@ -3,6 +3,7 @@ import { StatCard } from '../components/common/StatCard';
 import { Loader } from '../components/common/Loader';
 import { DashboardStats, ClassEnrollmentEntry, NextShowInfo, PageType } from '../types';
 import { gasService } from '../services/googleAppsScript';
+import { crmService } from '../services/crmService';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -109,6 +110,7 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [crmOverview, setCrmOverview] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedAt, setLoadedAt] = useState<string | null>(null);
 
@@ -116,11 +118,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   const loadDashboardData = async () => {
     try {
-      const response = await gasService.getDashboardStats();
-      if (response.success && response.data) {
-        setStats(response.data);
-        setLoadedAt(new Date().toLocaleTimeString());
+      const [gasRes, crmRes] = await Promise.allSettled([
+        gasService.getDashboardStats(),
+        crmService.getCrmDashboardOverview(),
+      ]);
+
+      if (gasRes.status === 'fulfilled' && gasRes.value.success && gasRes.value.data) {
+        setStats(gasRes.value.data);
       }
+      if (crmRes.status === 'fulfilled') {
+        setCrmOverview(crmRes.value);
+      }
+      setLoadedAt(new Date().toLocaleTimeString());
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -144,9 +153,94 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-2 mb-4 sm:mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-xs text-gray-500 mt-0.5">High-level theater operations, live action items, and conservatory statistics.</p>
+        </div>
         {loadedAt && <p className="text-xs text-gray-400">Updated at {loadedAt}</p>}
       </div>
+
+      {/* OPERATIONS & ACTION ITEMS BANNER */}
+      {crmOverview && (crmOverview.pendingRentalsCount > 0 || crmOverview.openInquiriesCount > 0 || crmOverview.unsignedWelcomePackagesCount > 0 || crmOverview.pendingRefundsCount > 0 || crmOverview.pendingMakeupsCount > 0) && (
+        <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-xl p-4 sm:p-5 mb-6 shadow-md border border-slate-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                Action Required
+              </span>
+              <h2 className="text-base sm:text-lg font-bold text-white mt-1">Pending Theater Ops & Inquiries</h2>
+            </div>
+            <button
+              onClick={() => onNavigate?.('crm-operations')}
+              className="text-xs font-semibold px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors whitespace-nowrap self-start sm:self-auto"
+            >
+              Open Theater CRM &rarr;
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div 
+              onClick={() => onNavigate?.('crm-operations')}
+              className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">🏢</span>
+                <span className="text-xl font-black text-amber-400">{crmOverview.pendingRentalsCount}</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-1">Rental Inquiries</p>
+              <p className="text-[11px] text-slate-400">Awaiting quotes / contracts</p>
+            </div>
+
+            <div 
+              onClick={() => onNavigate?.('crm-operations')}
+              className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">📬</span>
+                <span className="text-xl font-black text-blue-400">{crmOverview.openInquiriesCount}</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-1">Contact Messages</p>
+              <p className="text-[11px] text-slate-400">Open web inquiries</p>
+            </div>
+
+            <div 
+              onClick={() => onNavigate?.('crm-operations')}
+              className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">✍️</span>
+                <span className="text-xl font-black text-purple-400">{crmOverview.unsignedWelcomePackagesCount}</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-1">Welcome Packages</p>
+              <p className="text-[11px] text-slate-400">Pending student signature</p>
+            </div>
+
+            <div 
+              onClick={() => onNavigate?.('crm-operations')}
+              className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">🎟️</span>
+                <span className="text-xl font-black text-emerald-400">{crmOverview.pendingRefundsCount}</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-1">Refund Requests</p>
+              <p className="text-[11px] text-slate-400">{crmOverview.pendingRefundsCount === 0 ? 'All caught up' : 'Pending review'}</p>
+            </div>
+
+            <div 
+              onClick={() => onNavigate?.('crm-operations')}
+              className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700 p-3 rounded-lg cursor-pointer transition-colors col-span-2 sm:col-span-1"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xl">🧑‍🎓</span>
+                <span className="text-xl font-black text-teal-400">{crmOverview.pendingMakeupsCount}</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-1">Class Makeups</p>
+              <p className="text-[11px] text-slate-400">{crmOverview.pendingMakeupsCount === 0 ? 'All caught up' : 'Pending requests'}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ROW 1: KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
@@ -278,6 +372,84 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
         </div>
       </div>
+
+      {/* ROW 4: RECENT INCOMING INQUIRIES & RENTALS ACTIVITY */}
+      {crmOverview && (crmOverview.recentRentals?.length > 0 || crmOverview.recentInquiries?.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+          {/* Latest Rental Inquiries */}
+          <div className="bg-white rounded-lg shadow-sm border p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🏢</span> Latest Rental Inquiries
+              </h2>
+              <button
+                onClick={() => onNavigate?.('crm-operations')}
+                className="text-xs text-blue-600 hover:underline font-semibold"
+              >
+                View all rentals &rarr;
+              </button>
+            </div>
+            {crmOverview.recentRentals?.length > 0 ? (
+              <div className="divide-y divide-gray-100">
+                {crmOverview.recentRentals.map((r: any) => (
+                  <div key={r.rental_id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                    <div>
+                      <p className="font-bold text-gray-900">{r.contact_name}</p>
+                      <p className="text-gray-500">{r.organization_name || r.event_type} {r.guest_count ? `• ${r.guest_count} guests` : ''}</p>
+                      {r.preferred_date && <p className="text-[11px] text-gray-400 mt-0.5">Pref: {r.preferred_date.slice(0, 15)}</p>}
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 whitespace-nowrap">
+                      Inquiry
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-4 text-center">No active rental inquiries.</p>
+            )}
+          </div>
+
+          {/* Latest Contact Form Inquiries */}
+          <div className="bg-white rounded-lg shadow-sm border p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📬</span> Recent Web Contact Inquiries
+              </h2>
+              <button
+                onClick={() => onNavigate?.('crm-operations')}
+                className="text-xs text-blue-600 hover:underline font-semibold"
+              >
+                View all inquiries &rarr;
+              </button>
+            </div>
+            {crmOverview.recentInquiries?.length > 0 ? (
+              <div className="divide-y divide-gray-100">
+                {crmOverview.recentInquiries.map((inq: any) => (
+                  <div key={inq.log_id} className="py-2.5 flex items-start justify-between gap-3 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-gray-900 truncate">{inq.sender_name || inq.staff_email}</p>
+                        {inq.submitted_at && (
+                          <span className="text-[10px] text-gray-400 font-mono whitespace-nowrap">
+                            {inq.submitted_at.slice(0, 10)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-700 font-medium truncate mt-0.5">{inq.subject}</p>
+                      <p className="text-gray-400 text-[11px] truncate">{inq.body.replace(/^From: [^\n]+\n\n/, '')}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 whitespace-nowrap">
+                      Open
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-4 text-center">No open contact inquiries.</p>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

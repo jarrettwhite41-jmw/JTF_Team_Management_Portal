@@ -397,4 +397,31 @@ export const crmService = {
     if (error) throw error;
     return data;
   },
+
+  async getCrmDashboardOverview() {
+    const [rentalsCountRes, rentalsRes, inqCountRes, inquiriesRes, refundsRes, makeupsRes, welcomeRes, bookingsRes] = await Promise.all([
+      supabase.from('venue_rentals').select('rental_id', { count: 'exact', head: true }).eq('status', 'inquiry'),
+      supabase.from('venue_rentals').select('rental_id, contact_name, organization_name, event_type, guest_count, preferred_date, status, created_at').eq('status', 'inquiry').order('created_at', { ascending: false }).limit(4),
+      supabase.from('communication_logs').select('log_id', { count: 'exact', head: true }).eq('status', 'open'),
+      supabase.from('communication_logs').select('log_id, sender_name, staff_email, subject, body, submitted_at, created_at, status').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
+      supabase.from('ticket_refund_requests').select('request_id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('class_makeup_requests').select('makeup_request_id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('student_info').select('student_id', { count: 'exact', head: true }).eq('welcome_package_signed', false),
+      supabase.from('space_bookings').select('booking_id, booking_title, start_time, end_time, rooms(room_name)').gte('end_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(4),
+    ]);
+
+    return {
+      pendingRentalsCount: rentalsCountRes.count || 0,
+      recentRentals: rentalsRes.data || [],
+      openInquiriesCount: inqCountRes.count || 0,
+      recentInquiries: inquiriesRes.data || [],
+      pendingRefundsCount: refundsRes.count || 0,
+      pendingMakeupsCount: makeupsRes.count || 0,
+      unsignedWelcomePackagesCount: welcomeRes.count || 0,
+      upcomingBookings: (bookingsRes.data || []).map((b: any) => ({
+        ...b,
+        room_name: b.rooms?.room_name || 'Room',
+      })),
+    };
+  },
 };

@@ -262,7 +262,7 @@ const App: React.FC = () => {
       case 'settings':
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={navigateToPage} />;
     }
   };
 
