@@ -17,6 +17,7 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
   const [classLevels, setClassLevels] = useState<ClassLevels[]>([]);
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingLevel, setSavingLevel] = useState(false);
+  const [savingWelcome, setSavingWelcome] = useState(false);
 
   const [notes, setNotes] = useState<any[]>([]);
   const [skillRatings, setSkillRatings] = useState<any[]>([]);
@@ -97,6 +98,26 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
       setMessage({ type: 'error', text: res.error || 'Failed to update level.' });
     }
     setSavingLevel(false);
+  };
+
+  const handleWelcomePackageToggle = async (signed: boolean) => {
+    if (!profile) return;
+    setSavingWelcome(true);
+    const res = await gasService.updateStudentWelcomePackage(profile.StudentID, signed);
+    if (res.success) {
+      setProfile(prev => (prev ? {
+        ...prev,
+        WelcomePackageSigned: signed,
+        WelcomePackageSignedAt: signed ? new Date().toISOString() : null,
+      } : prev));
+      setMessage({
+        type: 'success',
+        text: signed ? 'Welcome package marked as signed.' : 'Welcome package marked as pending signature.',
+      });
+    } else {
+      setMessage({ type: 'error', text: res.error || 'Failed to update welcome package status.' });
+    }
+    setSavingWelcome(false);
   };
 
   const fmtDate = (d?: Date | string) => {
@@ -229,6 +250,35 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
                   ))}
                 </select>
                 {savingLevel && <p className="text-xs text-gray-400 mt-1">Saving...</p>}
+              </div>
+
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-gray-700 font-medium block">Welcome Package</label>
+                    <span className="text-xs text-gray-500">
+                      {profile.WelcomePackageSigned
+                        ? `Signed on ${fmtDate(profile.WelcomePackageSignedAt || undefined)}`
+                        : 'Not signed yet'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleWelcomePackageToggle(!profile.WelcomePackageSigned)}
+                    disabled={savingWelcome}
+                    className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                      profile.WelcomePackageSigned
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                        : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                    }`}
+                  >
+                    {savingWelcome
+                      ? 'Saving...'
+                      : profile.WelcomePackageSigned
+                      ? '✓ Signed'
+                      : 'Mark as Signed'}
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2 border-t border-gray-100 space-y-1.5">

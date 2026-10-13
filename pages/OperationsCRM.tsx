@@ -3,7 +3,7 @@ import { crmService, SpaceBooking, TicketRefundRequest, StudentCreditItem, Class
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
-type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'rentals' | 'communications';
+type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'communications';
 
 export const OperationsCRM: React.FC = () => {
   const [activeTab, setActiveTab] = useState<CRMTab>('scheduling');
@@ -32,6 +32,10 @@ export const OperationsCRM: React.FC = () => {
 
   // Makeups state
   const [makeupRequests, setMakeupRequests] = useState<ClassMakeupRequest[]>([]);
+
+  // Welcome Package state
+  const [welcomePackages, setWelcomePackages] = useState<any[]>([]);
+  const [welcomeFilter, setWelcomeFilter] = useState<'all' | 'signed' | 'pending'>('all');
 
   // Venue Rentals state
   const [rentals, setRentals] = useState<VenueRental[]>([]);
@@ -64,6 +68,9 @@ export const OperationsCRM: React.FC = () => {
       } else if (tab === 'makeups') {
         const mData = await crmService.getClassMakeupRequests();
         setMakeupRequests(mData);
+      } else if (tab === 'welcome_packages') {
+        const wpData = await crmService.getStudentWelcomePackageStatus();
+        setWelcomePackages(wpData);
       } else if (tab === 'rentals') {
         const renData = await crmService.getVenueRentals();
         setRentals(renData);
@@ -110,6 +117,19 @@ export const OperationsCRM: React.FC = () => {
       loadTabData('makeups');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error updating makeup request.' });
+    }
+  };
+
+  const handleToggleWelcomePackage = async (studentId: number, signed: boolean) => {
+    try {
+      await crmService.updateStudentWelcomePackage(studentId, signed);
+      setMessage({
+        type: 'success',
+        text: signed ? 'Student marked as having signed the welcome package.' : 'Student welcome package status set to pending.',
+      });
+      loadTabData('welcome_packages');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error updating welcome package status.' });
     }
   };
 
@@ -180,6 +200,16 @@ export const OperationsCRM: React.FC = () => {
           }`}
         >
           🧑‍🎓 Class Makeups & Transfers
+        </button>
+        <button
+          onClick={() => setActiveTab('welcome_packages')}
+          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
+            activeTab === 'welcome_packages'
+              ? 'border-blue-600 text-blue-600 bg-white'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          ✍️ Welcome Package Signatures
         </button>
         <button
           onClick={() => setActiveTab('rentals')}
@@ -443,6 +473,103 @@ export const OperationsCRM: React.FC = () => {
                             </td>
                           </tr>
                         ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: WELCOME PACKAGE SIGNATURES */}
+          {activeTab === 'welcome_packages' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-slate-600">
+                  Track students who have signed the conservatory welcome packet and code of conduct before classes begin.
+                </p>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={welcomeFilter}
+                    onChange={(e) => setWelcomeFilter(e.target.value as any)}
+                    className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700"
+                  >
+                    <option value="all">All Students ({welcomePackages.length})</option>
+                    <option value="signed">
+                      Signed ({welcomePackages.filter((s) => s.welcome_package_signed).length})
+                    </option>
+                    <option value="pending">
+                      Pending ({welcomePackages.filter((s) => !s.welcome_package_signed).length})
+                    </option>
+                  </select>
+                </div>
+              </div>
+
+              {welcomePackages.length === 0 ? (
+                <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                  No student records found.
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                          <th className="py-3 px-4">Student</th>
+                          <th className="py-3 px-4">Email</th>
+                          <th className="py-3 px-4">Student Status</th>
+                          <th className="py-3 px-4">Welcome Package</th>
+                          <th className="py-3 px-4">Date Signed</th>
+                          <th className="py-3 px-4 text-right">Quick Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {welcomePackages
+                          .filter((s) => {
+                            if (welcomeFilter === 'signed') return s.welcome_package_signed;
+                            if (welcomeFilter === 'pending') return !s.welcome_package_signed;
+                            return true;
+                          })
+                          .map((student) => (
+                            <tr key={student.student_id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-4 font-semibold text-slate-900">{student.student_name}</td>
+                              <td className="py-3 px-4 text-xs text-slate-600">{student.student_email}</td>
+                              <td className="py-3 px-4 text-xs">
+                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 capitalize">
+                                  {student.status || 'Active'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                {student.welcome_package_signed ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                    ✓ Signed
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                                    ⏳ Pending Signature
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-xs text-slate-600">
+                                {student.welcome_package_signed_at
+                                  ? new Date(student.welcome_package_signed_at).toLocaleDateString()
+                                  : '—'}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
+                                  className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                                    student.welcome_package_signed
+                                      ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                                      : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                                  }`}
+                                >
+                                  {student.welcome_package_signed ? 'Mark Pending' : 'Mark as Signed'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>

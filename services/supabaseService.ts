@@ -4427,6 +4427,25 @@ class SupabaseService {
     }
   }
 
+  async updateStudentWelcomePackage(studentId: number, signed: boolean): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('student_info')
+        .update({
+          welcome_package_signed: signed,
+          welcome_package_signed_at: signed ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('student_id', studentId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error updating student welcome package status:', error);
+      return { success: false, error: error.toString() };
+    }
+  }
+
   async updateStudentLevel(studentId: number, levelId: number): Promise<ApiResponse<{ success: boolean }>> {
     try {
       const { error } = await this.client
@@ -4739,6 +4758,8 @@ class SupabaseService {
           enrollment_date,
           status,
           current_level_id,
+          welcome_package_signed,
+          welcome_package_signed_at,
           personnel(*),
           class_levels(level_name),
           student_enrollments(enrollment_id)
@@ -4762,6 +4783,8 @@ class SupabaseService {
         CurrentLevelName: s.class_levels?.level_name || '',
         ClassesCompleted: 0,
         ActiveEnrollments: Array.isArray(s.student_enrollments) ? s.student_enrollments.length : 0,
+        WelcomePackageSigned: Boolean(s.welcome_package_signed),
+        WelcomePackageSignedAt: s.welcome_package_signed_at,
       }));
 
       return { success: true, data: rows };
@@ -4878,6 +4901,8 @@ class SupabaseService {
           EnrollmentDate: s.enrollment_date,
           StudentStatus: s.status || 'Active',
           CurrentLevel: s.current_level_id,
+          WelcomePackageSigned: Boolean(s.welcome_package_signed),
+          WelcomePackageSignedAt: s.welcome_package_signed_at,
           Enrollments: enrollments,
           Progression: progression,
         },

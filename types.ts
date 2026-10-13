@@ -366,6 +366,8 @@ export interface StudentWithDetails extends Personnel {
   CurrentLevelName?: string;
   ClassesCompleted?: number;
   ActiveEnrollments?: number;
+  WelcomePackageSigned?: boolean;
+  WelcomePackageSignedAt?: string | null;
 }
 
 export interface EnrollmentWithDetails extends StudentEnrollments {
@@ -398,6 +400,8 @@ export interface StudentProfileData {
   EnrollmentDate: Date | string;
   StudentStatus: 'Active' | 'Inactive' | 'Graduated';
   CurrentLevel?: number;
+  WelcomePackageSigned?: boolean;
+  WelcomePackageSignedAt?: string | null;
   // Aggregated data
   Enrollments: EnrollmentWithDetails[];
   Progression: ProgressionWithDetails[];

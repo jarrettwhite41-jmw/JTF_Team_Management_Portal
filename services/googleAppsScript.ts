@@ -997,6 +997,10 @@ class GoogleAppsScriptService {
     return this.callServerFunction<any>('updateStudentStatus', studentId, status);
   }
 
+  async updateStudentWelcomePackage(studentId: number, signed: boolean): Promise<ApiResponse<any>> {
+    return this.callServerFunction<any>('updateStudentWelcomePackage', studentId, signed);
+  }
+
   async updateStudentLevel(studentId: number, levelId: number): Promise<ApiResponse<any>> {
     return this.callServerFunction<any>('updateStudentLevel', studentId, levelId);
   }

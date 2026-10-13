@@ -15,6 +15,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Inactive' | 'Graduated'>('All');
   const [levelFilter, setLevelFilter] = useState<string>('All');
   const [enrollmentFilter, setEnrollmentFilter] = useState<'All' | 'Has Active Enrollments' | 'No Active Enrollments'>('All');
+  const [welcomePackageFilter, setWelcomePackageFilter] = useState<'All' | 'Signed' | 'Pending'>('All');
   const [nameSort, setNameSort] = useState<'az' | 'za'>('az');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -140,8 +141,14 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
         : enrollmentFilter === 'Has Active Enrollments'
         ? activeEnrollments > 0
         : activeEnrollments === 0;
+    const matchesWelcome =
+      welcomePackageFilter === 'All'
+        ? true
+        : welcomePackageFilter === 'Signed'
+        ? Boolean(student.WelcomePackageSigned)
+        : !student.WelcomePackageSigned;
 
-    return matchesSearch && matchesFilter && matchesLevel && matchesEnrollment;
+    return matchesSearch && matchesFilter && matchesLevel && matchesEnrollment && matchesWelcome;
   }).sort((a, b) => {
     const aName = `${a.LastName || ''} ${a.FirstName || ''}`.trim().toLowerCase();
     const bName = `${b.LastName || ''} ${b.FirstName || ''}`.trim().toLowerCase();
@@ -232,6 +239,15 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
             <option value="No Active Enrollments">No Active Enrollments</option>
           </select>
           <select
+            value={welcomePackageFilter}
+            onChange={(e) => setWelcomePackageFilter(e.target.value as typeof welcomePackageFilter)}
+            className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent font-medium"
+          >
+            <option value="All">All Welcome Packages</option>
+            <option value="Signed">✓ Welcome Package Signed</option>
+            <option value="Pending">⏳ Welcome Package Pending</option>
+          </select>
+          <select
             value={nameSort}
             onChange={(e) => setNameSort(e.target.value as typeof nameSort)}
             className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -299,6 +315,7 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
                   <th className="py-3 px-4">Student Name</th>
                   <th className="py-3 px-4">Email</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Welcome Pkg</th>
                   <th className="py-3 px-4">Current Level</th>
                   <th className="py-3 px-4 text-center">Completed</th>
                   <th className="py-3 px-4">Student Since</th>
@@ -322,6 +339,17 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
                       <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getStatusBadgeClass(student.StudentStatus)}`}>
                         {student.StudentStatus || 'N/A'}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {student.WelcomePackageSigned ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                          ✓ Signed
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                          ⏳ Pending
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-gray-700 whitespace-nowrap">
                       {student.CurrentLevelName || '—'}
@@ -376,6 +404,18 @@ export const StudentDirectory: React.FC<StudentDirectoryProps> = ({ onNavigateTo
                   <span className="text-gray-600">Status:</span>
                   <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(student.StudentStatus)}`}>
                     {student.StudentStatus || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Welcome Pkg:</span>
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full font-semibold ${
+                      student.WelcomePackageSigned
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {student.WelcomePackageSigned ? '✓ Signed' : '⏳ Pending'}
                   </span>
                 </div>
                 {student.CurrentLevelName && (

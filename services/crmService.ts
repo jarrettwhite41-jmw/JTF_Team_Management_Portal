@@ -281,6 +281,39 @@ export const crmService = {
     return data;
   },
 
+  // ── Welcome Package Signatures ────────────────────────────────────────
+  async getStudentWelcomePackageStatus() {
+    const { data, error } = await supabase
+      .from('student_info')
+      .select('student_id, status, welcome_package_signed, welcome_package_signed_at, personnel(first_name, last_name, primary_email)')
+      .order('student_id', { ascending: true });
+
+    if (error) throw error;
+    return (data || []).map((s: any) => ({
+      student_id: s.student_id,
+      student_name: s.personnel ? `${s.personnel.first_name || ''} ${s.personnel.last_name || ''}`.trim() : `Student #${s.student_id}`,
+      student_email: s.personnel?.primary_email || '—',
+      status: s.status,
+      welcome_package_signed: Boolean(s.welcome_package_signed),
+      welcome_package_signed_at: s.welcome_package_signed_at,
+    }));
+  },
+
+  async updateStudentWelcomePackage(studentId: number, signed: boolean) {
+    const { data, error } = await supabase
+      .from('student_info')
+      .update({
+        welcome_package_signed: signed,
+        welcome_package_signed_at: signed ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('student_id', studentId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   // ── Venue Rentals & Private Events ────────────────────────────────────
   async getVenueRentals() {
     const { data, error } = await supabase
