@@ -4,6 +4,142 @@ import { Message } from '../components/common/Message';
 import { AppSetting, ShowTypes } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
+const rentalScriptSnippet = `// ==========================================
+// JTF Rental Inquiries -> Supabase Webhook
+// ==========================================
+
+const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+
+function onFormSubmit(e) {
+  try {
+    let rowValues = [];
+    if (e && e.values) {
+      rowValues = e.values;
+    } else {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      const lastRow = sheet.getLastRow();
+      rowValues = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+    }
+
+    const companyName = String(rowValues[1] || "").trim();
+    const contactName = String(rowValues[2] || "Unknown Client").trim();
+    const contactEmail = String(rowValues[3] || "no-email-provided@jtf.internal").trim();
+    const contactPhone = String(rowValues[4] || "").trim();
+    const eventType = String(rowValues[5] || rowValues[6] || "Corporate Event").trim();
+    const guestCount = parseInt(rowValues[7], 10) || null;
+    const preferredDate = String(rowValues[8] || "").trim();
+    const startTimeEstimate = String(rowValues[9] || "").trim();
+    const techServices = String(rowValues[10] || "").trim();
+    const specificRequirements = String(rowValues[11] || "").trim();
+    const referral = String(rowValues[12] || "").trim();
+    const notesOptional = String(rowValues[13] || "").trim();
+
+    let startDate = new Date();
+    if (preferredDate && !isNaN(Date.parse(preferredDate))) {
+      startDate = new Date(preferredDate);
+    }
+    const endDate = new Date(startDate.getTime() + 4 * 60 * 60 * 1000);
+
+    const payload = {
+      organization_name: companyName,
+      contact_name: contactName,
+      contact_email: contactEmail,
+      contact_phone: contactPhone,
+      event_type: eventType,
+      guest_count: guestCount,
+      preferred_date: preferredDate,
+      start_time_estimate: startTimeEstimate,
+      event_start: startDate.toISOString(),
+      event_end: endDate.toISOString(),
+      rental_rate: 0,
+      deposit_amount: 0,
+      deposit_paid: false,
+      insurance_cert_on_file: false,
+      tech_requirements: techServices,
+      referral_source: referral,
+      notes: [specificRequirements, notesOptional].filter(Boolean).join(" | "),
+      status: "inquiry"
+    };
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "return=representation"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/venue_rentals", options);
+    Logger.log("Supabase response: " + response.getContentText());
+  } catch (err) {
+    Logger.log("Error posting rental inquiry: " + err.toString());
+  }
+}
+`;
+
+const contactScriptSnippet = `// ==========================================
+// JTF Contact Inquiries -> Supabase Webhook
+// ==========================================
+
+const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+
+function onFormSubmit(e) {
+  try {
+    let rowValues = [];
+    if (e && e.values) {
+      rowValues = e.values;
+    } else {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+      const lastRow = sheet.getLastRow();
+      rowValues = sheet.getRange(lastRow, 1, 1, sheet.getLastColumn()).getValues()[0];
+    }
+
+    const submittedOn = String(rowValues[0] || "").trim();
+    const senderName = String(rowValues[1] || "Website Visitor").trim();
+    const senderEmail = String(rowValues[2] || "").trim();
+    const subject = String(rowValues[3] || "General Contact Inquiry").trim();
+    const message = String(rowValues[4] || "").trim();
+
+    const fullBody = "From: " + senderName + " (" + senderEmail + ")\\n\\n" + message;
+
+    const payload = {
+      channel: "email",
+      category: "general",
+      direction: "inbound",
+      subject: subject,
+      body: fullBody,
+      staff_email: senderEmail,
+      sender_name: senderName,
+      submitted_at: submittedOn || new Date().toLocaleString(),
+      status: "open"
+    };
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "return=representation"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/communication_logs", options);
+    Logger.log("Supabase response: " + response.getContentText());
+  } catch (err) {
+    Logger.log("Error posting contact inquiry: " + err.toString());
+  }
+}
+`;
+
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'app' | 'show_types' | 'integrations'>('show_types');
   const [settings, setSettings] = useState<AppSetting[]>([]);
@@ -18,6 +154,10 @@ export const Settings: React.FC = () => {
   const [savingShowTypeId, setSavingShowTypeId] = useState<number | null>(null);
   const [newShowTypeName, setNewShowTypeName] = useState('');
   const [isAddingShowType, setIsAddingShowType] = useState(false);
+
+  // Script code modal / drawer state
+  const [activeScriptModal, setActiveScriptModal] = useState<'rental' | 'contact' | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -412,13 +552,22 @@ export const Settings: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => rentalSetting && handleSaveRow(rentalSetting)}
-                    disabled={isSaving || !isDirty}
-                    className="w-full rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSaving ? 'Saving...' : 'Update Rental Sheet ID'}
-                  </button>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveScriptModal('rental')}
+                      className="flex-1 rounded-lg border border-slate-300 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                      📜 View Apps Script
+                    </button>
+                    <button
+                      onClick={() => rentalSetting && handleSaveRow(rentalSetting)}
+                      disabled={isSaving || !isDirty}
+                      className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSaving ? 'Saving...' : 'Update Sheet ID'}
+                    </button>
+                  </div>
                 </div>
               );
             })()}
@@ -473,16 +622,90 @@ export const Settings: React.FC = () => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => contactSetting && handleSaveRow(contactSetting)}
-                    disabled={isSaving || !isDirty}
-                    className="w-full rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSaving ? 'Saving...' : 'Update Contact Sheet ID'}
-                  </button>
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveScriptModal('contact')}
+                      className="flex-1 rounded-lg border border-slate-300 bg-slate-50 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                      📜 View Apps Script
+                    </button>
+                    <button
+                      onClick={() => contactSetting && handleSaveRow(contactSetting)}
+                      disabled={isSaving || !isDirty}
+                      className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSaving ? 'Saving...' : 'Update Sheet ID'}
+                    </button>
+                  </div>
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Script Copy/Paste Modal */}
+      {activeScriptModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900">
+                  {activeScriptModal === 'rental' ? '🏢 Venue Rentals Apps Script' : '📬 Contact Inquiries Apps Script'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Paste this in Google Sheets under <strong>Extensions &rarr; Apps Script</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveScriptModal(null)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900 leading-relaxed">
+                <strong>Setup Steps in Google Sheets:</strong>
+                <ol className="list-decimal list-inside mt-1 space-y-0.5">
+                  <li>In your Google Sheet, click <strong>Extensions &rarr; Apps Script</strong>.</li>
+                  <li>Paste the code below into the code editor and press <strong>Save</strong>.</li>
+                  <li>Click <strong>Triggers</strong> (alarm clock icon ⏰ on left) &rarr; <strong>+ Add Trigger</strong>.</li>
+                  <li>Select event source: <strong>From spreadsheet</strong>, event type: <strong>On form submit</strong>, function: <strong>onFormSubmit</strong>.</li>
+                </ol>
+              </div>
+
+              <div className="relative">
+                <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs font-mono overflow-x-auto max-h-72">
+                  {activeScriptModal === 'rental' ? rentalScriptSnippet : contactScriptSnippet}
+                </pre>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = activeScriptModal === 'rental' ? rentalScriptSnippet : contactScriptSnippet;
+                    navigator.clipboard.writeText(code);
+                    setCopiedKey(activeScriptModal);
+                    setTimeout(() => setCopiedKey(null), 2500);
+                  }}
+                  className="absolute top-2 right-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-semibold shadow-sm transition-colors"
+                >
+                  {copiedKey === activeScriptModal ? '✓ Copied!' : '📋 Copy Script'}
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t pt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setActiveScriptModal(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
