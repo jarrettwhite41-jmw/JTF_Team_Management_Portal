@@ -382,14 +382,18 @@ export const crmService = {
   },
 
   async updateVenueRental(rentalId: number, updates: Partial<VenueRental>) {
+    const { rental_id: _rentalId, room_name: _roomName, ...rentalUpdates } = updates;
     const { data, error } = await supabase
       .from('venue_rentals')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...rentalUpdates, updated_at: new Date().toISOString() })
       .eq('rental_id', rentalId)
-      .select()
+      .select('*, rooms(room_name)')
       .single();
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      room_name: data.rooms?.room_name || 'Unassigned Stage',
+    };
   },
 
   // ── Centralized Customer Communications Log ───────────────────────────
