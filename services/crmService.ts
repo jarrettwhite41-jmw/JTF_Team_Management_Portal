@@ -82,8 +82,33 @@ export interface VenueRental {
   start_time_estimate?: string | null;
   referral_source?: string | null;
   notes?: string | null;
-  status: 'inquiry' | 'quoted' | 'contract_signed' | 'deposit_received' | 'confirmed' | 'completed' | 'canceled';
+  status: string; // 'inquiry' | 'quoted' | 'contract_signed' | 'deposit_received' | 'confirmed' | 'completed' | 'canceled' | etc.
   created_at?: string;
+  updated_at?: string;
+  // Pipeline & Opportunity Tracker fields from Google Sheet:
+  sheet_opportunity_id?: string | null;
+  opportunity_name?: string | null;
+  date_time_details?: string | null;
+  facilitators_planned?: number | null;
+  guests_crew_notes?: string | null;
+  location_spaces?: string | null;
+  next_action?: string | null;
+  follow_up_date?: string | null;
+  latest_update?: string | null;
+  budget?: number | null;
+  quoted_fee?: number | null;
+  agreed_fee?: number | null;
+  contract_status?: string | null;
+  contract_signed?: boolean | null;
+  deposit_status?: string | null;
+  deposit_due?: number | null;
+  paid_to_date?: number | null;
+  balance_due?: number | null;
+  payment_due_date?: string | null;
+  staffing_logistics?: string | null;
+  open_questions?: string | null;
+  client_folder_url?: string | null;
+  lead_owner?: string | null;
 }
 
 export interface CommunicationLog {
@@ -345,10 +370,21 @@ export const crmService = {
     return data;
   },
 
-  async updateVenueRentalStatus(rentalId: number, status: VenueRental['status']) {
+  async updateVenueRentalStatus(rentalId: number, status: string) {
     const { data, error } = await supabase
       .from('venue_rentals')
       .update({ status, updated_at: new Date().toISOString() })
+      .eq('rental_id', rentalId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateVenueRental(rentalId: number, updates: Partial<VenueRental>) {
+    const { data, error } = await supabase
+      .from('venue_rentals')
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('rental_id', rentalId)
       .select()
       .single();

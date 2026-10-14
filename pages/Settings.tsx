@@ -140,6 +140,145 @@ function onFormSubmit(e) {
 }
 `;
 
+const pipelineSyncScriptSnippet = `// ============================================================================
+// JTF Rental & Opportunity Pipeline -> Supabase Sync Script
+// Sheet: 1W4xaUVlFaOs23sjlPYD5K5dEaotEvK9RONE4gfQNBzQ
+// ============================================================================
+
+const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+
+/**
+ * Trigger: On Edit (or run manually to sync all rows).
+ * Syncs the edited row to Supabase 'venue_rentals'.
+ */
+function onEdit(e) {
+  if (!e || !e.range) return;
+  const sheet = e.range.getSheet();
+  const row = e.range.getRow();
+  if (row <= 1) return; // Skip headers
+
+  syncRowToSupabase(sheet, row);
+}
+
+function syncAllRows() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const lastRow = sheet.getLastRow();
+  for (let r = 2; r <= lastRow; r++) {
+    syncRowToSupabase(sheet, r);
+    Utilities.sleep(150);
+  }
+}
+
+function syncRowToSupabase(sheet, rowNumber) {
+  try {
+    const row = sheet.getRange(rowNumber, 1, 1, 30).getValues()[0];
+    const oppId = String(row[0] || "").trim(); // Col A: ID
+    const oppName = String(row[1] || "").trim(); // Col B: Client / opportunity
+    const status = String(row[2] || "inquiry").trim().toLowerCase().replace(/\\s+/g, '_'); // Col C: Status
+    const eventType = String(row[3] || "Corporate Event").trim(); // Col D: Event type
+    const eventDateRaw = row[4]; // Col E: Event date
+    const dateTimeDetails = String(row[5] || "").trim(); // Col F: Date / time details
+    const facilitatorsPlanned = parseInt(row[6], 10) || null; // Col G: # of Facilitators
+    const guestsCrew = String(row[7] || "").trim(); // Col H: Guests / crew
+    const locationSpaces = String(row[8] || "").trim(); // Col I: Location / spaces
+    const contactName = String(row[9] || oppName || "Unknown Client").trim(); // Col J: Contact
+    const email = String(row[10] || "no-email-provided@jtf.internal").trim(); // Col K: Email
+    const phone = String(row[11] || "").trim(); // Col L: Phone
+    const leadSource = String(row[12] || "").trim(); // Col M: Lead source
+    const nextAction = String(row[13] || "").trim(); // Col N: Next action
+    const followUpDateRaw = row[14]; // Col O: Follow-up date
+    const latestUpdate = String(row[15] || "").trim(); // Col P: Latest update
+    const budget = parseFloat(String(row[16] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col Q
+    const quotedFee = parseFloat(String(row[17] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col R
+    const agreedFee = parseFloat(String(row[18] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col S
+    const contractStatus = String(row[19] || "").trim(); // Col T: Contract status
+    const contractSigned = String(row[20] || "").trim().toLowerCase() === "yes" || String(row[20] || "").trim().toLowerCase() === "true"; // Col U
+    const depositStatus = String(row[21] || "").trim(); // Col V: Deposit status
+    const depositDue = parseFloat(String(row[22] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col W
+    const paidToDate = parseFloat(String(row[23] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col X
+    const balance = parseFloat(String(row[24] || 0).replace(/[^0-9.-]+/g, "")) || 0; // Col Y
+    const paymentDueRaw = row[25]; // Col Z: Payment due
+    const staffingLogistics = String(row[26] || "").trim(); // Col AA
+    const openQuestions = String(row[27] || "").trim(); // Col AB
+    const clientFolder = String(row[28] || "").trim(); // Col AC
+    const owner = String(row[29] || "").trim(); // Col AD: Owner
+
+    if (!oppId && !oppName && !contactName) return;
+
+    let eventStart = new Date();
+    if (eventDateRaw instanceof Date) {
+      eventStart = eventDateRaw;
+    } else if (eventDateRaw && !isNaN(Date.parse(eventDateRaw))) {
+      eventStart = new Date(eventDateRaw);
+    }
+    const eventEnd = new Date(eventStart.getTime() + 4 * 60 * 60 * 1000);
+
+    const payload = {
+      sheet_opportunity_id: oppId || ("OPP-" + rowNumber),
+      opportunity_name: oppName,
+      organization_name: oppName,
+      contact_name: contactName,
+      contact_email: email,
+      contact_phone: phone,
+      event_type: eventType,
+      date_time_details: dateTimeDetails,
+      facilitators_planned: facilitatorsPlanned,
+      guests_crew_notes: guestsCrew,
+      location_spaces: locationSpaces,
+      lead_owner: owner,
+      lead_source: leadSource,
+      referral_source: leadSource,
+      next_action: nextAction,
+      latest_update: latestUpdate,
+      budget: budget,
+      quoted_fee: quotedFee,
+      agreed_fee: agreedFee,
+      rental_rate: agreedFee || quotedFee,
+      contract_status: contractStatus,
+      contract_signed: contractSigned,
+      deposit_status: depositStatus,
+      deposit_due: depositDue,
+      deposit_amount: depositDue,
+      deposit_paid: depositStatus.toLowerCase().indexOf("paid") !== -1 || depositStatus.toLowerCase().indexOf("received") !== -1,
+      paid_to_date: paidToDate,
+      balance_due: balance,
+      staffing_logistics: staffingLogistics,
+      open_questions: openQuestions,
+      client_folder_url: clientFolder,
+      status: status || "inquiry",
+      event_start: eventStart.toISOString(),
+      event_end: eventEnd.toISOString(),
+      insurance_cert_on_file: false,
+    };
+
+    if (followUpDateRaw instanceof Date) {
+      payload.follow_up_date = followUpDateRaw.toISOString().slice(0, 10);
+    }
+    if (paymentDueRaw instanceof Date) {
+      payload.payment_due_date = paymentDueRaw.toISOString().slice(0, 10);
+    }
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/venue_rentals?on_conflict=sheet_opportunity_id", options);
+    Logger.log("Row " + rowNumber + " synced: " + response.getContentText());
+  } catch (err) {
+    Logger.log("Error syncing row " + rowNumber + ": " + err.toString());
+  }
+}
+`;
+
 export const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'app' | 'show_types' | 'integrations'>('show_types');
   const [settings, setSettings] = useState<AppSetting[]>([]);
@@ -156,7 +295,7 @@ export const Settings: React.FC = () => {
   const [isAddingShowType, setIsAddingShowType] = useState(false);
 
   // Script code modal / drawer state
-  const [activeScriptModal, setActiveScriptModal] = useState<'rental' | 'contact' | null>(null);
+  const [activeScriptModal, setActiveScriptModal] = useState<'rental' | 'contact' | 'pipeline' | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const loadData = async () => {
@@ -641,6 +780,119 @@ export const Settings: React.FC = () => {
                 </div>
               );
             })()}
+
+            {/* Rental & Opportunity Working Pipeline Tracker Sheet Card */}
+            {(() => {
+              const pipelineSetting = settings.find((s) => s.setting_key === 'google_sheet_rental_pipeline_id');
+              const currentId = draftValues['google_sheet_rental_pipeline_id'] ?? pipelineSetting?.setting_value ?? '';
+              const isSaving = savingKey === 'google_sheet_rental_pipeline_id';
+              const isDirty = currentId !== (pipelineSetting?.setting_value ?? '');
+
+              const writebackSetting = settings.find((s) => s.setting_key === 'enable_rental_sheet_writeback');
+              const isWritebackActive = (draftValues['enable_rental_sheet_writeback'] ?? writebackSetting?.setting_value ?? 'false') === 'true';
+              const isSavingWriteback = savingKey === 'enable_rental_sheet_writeback';
+
+              return (
+                <div className="bg-white border-2 border-indigo-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between md:col-span-2">
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                          📊 Deal / Opportunity Pipeline Working Tracker
+                        </span>
+                        <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                          Working Environment
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
+                        <span className="text-xs font-semibold text-slate-700">Write-back to Sheet:</span>
+                        <button
+                          type="button"
+                          disabled={isSavingWriteback}
+                          onClick={async () => {
+                            const nextVal = isWritebackActive ? 'false' : 'true';
+                            handleValueChange('enable_rental_sheet_writeback', nextVal);
+                            const setting = writebackSetting || {
+                              setting_key: 'enable_rental_sheet_writeback',
+                              setting_value: nextVal,
+                              description: 'Enable two-way sync / write-back from Portal to Rental Pipeline Sheet',
+                              updated_at: new Date().toISOString(),
+                            };
+                            await supabaseService.updateAppSetting({
+                              ...setting,
+                              setting_value: nextVal,
+                            });
+                            loadData();
+                          }}
+                          className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            isWritebackActive ? 'bg-indigo-600' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              isWritebackActive ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        <span className={`text-[11px] font-bold ${isWritebackActive ? 'text-indigo-700' : 'text-slate-500'}`}>
+                          {isWritebackActive ? 'ENABLED' : 'DISABLED (Read/Sync Only)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      Tracks active deals from the co-owner’s pipeline sheet (quoted fee, agreed fee, contract status, deposit status, staffing/logistics, and client folder). 
+                      Sync brings all working changes <strong>into the portal</strong> automatically. The write-back toggle remains <strong>OFF</strong> so portal changes will not overwrite the sheet until your team decides to enable bi-directional sync.
+                    </p>
+
+                    <div>
+                      <label className="text-xs font-semibold text-slate-700 block mb-1">
+                        Working Google Sheet ID or Full URL:
+                      </label>
+                      <input
+                        type="text"
+                        value={currentId}
+                        onChange={(e) => {
+                          const val = e.target.value.includes('/d/')
+                            ? e.target.value.split('/d/')[1].split('/')[0]
+                            : e.target.value;
+                          handleValueChange('google_sheet_rental_pipeline_id', val);
+                        }}
+                        placeholder="e.g. 1W4xaUVlFaOs23sjlPYD5K5dEaotEvK9RONE4gfQNBzQ"
+                        className="w-full text-xs font-mono rounded-lg border border-slate-300 px-3 py-2 text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    {currentId && (
+                      <a
+                        href={`https://docs.google.com/spreadsheets/d/${currentId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline pt-1"
+                      >
+                        🔗 Open Opportunity Tracking Sheet in Google Drive &rarr;
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-indigo-100">
+                    <button
+                      type="button"
+                      onClick={() => setActiveScriptModal('pipeline')}
+                      className="flex-1 rounded-lg border border-indigo-300 bg-indigo-50 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    >
+                      📜 View Pipeline Apps Script (Install in Sheet)
+                    </button>
+                    <button
+                      onClick={() => pipelineSetting && handleSaveRow(pipelineSetting)}
+                      disabled={isSaving || !isDirty}
+                      className="flex-1 rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSaving ? 'Saving...' : 'Update Pipeline Sheet ID'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -652,7 +904,11 @@ export const Settings: React.FC = () => {
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="font-bold text-lg text-slate-900">
-                  {activeScriptModal === 'rental' ? '🏢 Venue Rentals Apps Script' : '📬 Contact Inquiries Apps Script'}
+                  {activeScriptModal === 'rental'
+                    ? '🏢 Venue Rentals Apps Script'
+                    : activeScriptModal === 'pipeline'
+                    ? '📊 Opportunity Pipeline Tracker Apps Script'
+                    : '📬 Contact Inquiries Apps Script'}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Paste this in Google Sheets under <strong>Extensions &rarr; Apps Script</strong>
@@ -673,19 +929,38 @@ export const Settings: React.FC = () => {
                 <ol className="list-decimal list-inside mt-1 space-y-0.5">
                   <li>In your Google Sheet, click <strong>Extensions &rarr; Apps Script</strong>.</li>
                   <li>Paste the code below into the code editor and press <strong>Save</strong>.</li>
-                  <li>Click <strong>Triggers</strong> (alarm clock icon ⏰ on left) &rarr; <strong>+ Add Trigger</strong>.</li>
-                  <li>Select event source: <strong>From spreadsheet</strong>, event type: <strong>On form submit</strong>, function: <strong>onFormSubmit</strong>.</li>
+                  {activeScriptModal === 'pipeline' ? (
+                    <>
+                      <li>Click <strong>Triggers</strong> (alarm clock icon ⏰ on left) &rarr; <strong>+ Add Trigger</strong>.</li>
+                      <li>Select event source: <strong>From spreadsheet</strong>, event type: <strong>On edit</strong>, function: <strong>onEdit</strong>.</li>
+                      <li><em>Optional:</em> Run <code>syncAllRows()</code> once in the editor to backfill existing rows immediately into the Portal.</li>
+                    </>
+                  ) : (
+                    <>
+                      <li>Click <strong>Triggers</strong> (alarm clock icon ⏰ on left) &rarr; <strong>+ Add Trigger</strong>.</li>
+                      <li>Select event source: <strong>From spreadsheet</strong>, event type: <strong>On form submit</strong>, function: <strong>onFormSubmit</strong>.</li>
+                    </>
+                  )}
                 </ol>
               </div>
 
               <div className="relative">
                 <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg text-xs font-mono overflow-x-auto max-h-72">
-                  {activeScriptModal === 'rental' ? rentalScriptSnippet : contactScriptSnippet}
+                  {activeScriptModal === 'rental'
+                    ? rentalScriptSnippet
+                    : activeScriptModal === 'pipeline'
+                    ? pipelineSyncScriptSnippet
+                    : contactScriptSnippet}
                 </pre>
                 <button
                   type="button"
                   onClick={() => {
-                    const code = activeScriptModal === 'rental' ? rentalScriptSnippet : contactScriptSnippet;
+                    const code =
+                      activeScriptModal === 'rental'
+                        ? rentalScriptSnippet
+                        : activeScriptModal === 'pipeline'
+                        ? pipelineSyncScriptSnippet
+                        : contactScriptSnippet;
                     navigator.clipboard.writeText(code);
                     setCopiedKey(activeScriptModal);
                     setTimeout(() => setCopiedKey(null), 2500);
