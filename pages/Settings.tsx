@@ -827,18 +827,33 @@ export const Settings: React.FC = () => {
                           disabled={isSavingWriteback}
                           onClick={async () => {
                             const nextVal = isWritebackActive ? 'false' : 'true';
-                            handleValueChange('enable_rental_sheet_writeback', nextVal);
-                            const setting = writebackSetting || {
-                              setting_key: 'enable_rental_sheet_writeback',
-                              setting_value: nextVal,
-                              description: 'Enable two-way sync / write-back from Portal to Rental Pipeline Sheet',
-                              updated_at: new Date().toISOString(),
-                            };
-                            await supabaseService.updateAppSetting({
-                              ...setting,
-                              setting_value: nextVal,
-                            });
-                            loadData();
+                            setSavingKey('enable_rental_sheet_writeback');
+                            setMessage(null);
+                            try {
+                              handleValueChange('enable_rental_sheet_writeback', nextVal);
+                              const response = await supabaseService.updateAppSetting('enable_rental_sheet_writeback', nextVal);
+                              if (!response.success) {
+                                setMessage({ type: 'error', text: response.error || 'Failed to update write-back setting.' });
+                                handleValueChange('enable_rental_sheet_writeback', isWritebackActive ? 'true' : 'false');
+                                return;
+                              }
+                              setSettings((prev) =>
+                                prev.map((row) =>
+                                  row.setting_key === 'enable_rental_sheet_writeback'
+                                    ? { ...row, setting_value: nextVal, updated_at: new Date().toISOString() }
+                                    : row
+                                )
+                              );
+                              setMessage({
+                                type: 'success',
+                                text: `Rental Pipeline Sheet write-back is now ${nextVal === 'true' ? 'ENABLED' : 'DISABLED'}.`,
+                              });
+                            } catch (err: any) {
+                              setMessage({ type: 'error', text: err?.message || 'Error updating write-back setting.' });
+                              handleValueChange('enable_rental_sheet_writeback', isWritebackActive ? 'true' : 'false');
+                            } finally {
+                              setSavingKey(null);
+                            }
                           }}
                           className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                             isWritebackActive ? 'bg-indigo-600' : 'bg-slate-300'
