@@ -46,6 +46,9 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   const [rentalFilter, setRentalFilter] = useState<string>('all');
   const [rentalSearch, setRentalSearch] = useState<string>('');
   const [selectedRentalDetail, setSelectedRentalDetail] = useState<VenueRental | null>(null);
+  const [isEditingRental, setIsEditingRental] = useState(false);
+  const [editRentalForm, setEditRentalForm] = useState<Partial<VenueRental>>({});
+  const [isSavingRentalEdit, setIsSavingRentalEdit] = useState(false);
   const [isAddRentalOpen, setIsAddRentalOpen] = useState(false);
   const [newRental, setNewRental] = useState({
     contact_name: '',
@@ -207,6 +210,29 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
       loadTabData('rentals');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error creating rental booking.' });
+    }
+  };
+
+  const handleOpenRentalDetail = (ren: VenueRental) => {
+    setSelectedRentalDetail(ren);
+    setEditRentalForm({ ...ren });
+    setIsEditingRental(false);
+  };
+
+  const handleSaveRentalEdit = async () => {
+    if (!selectedRentalDetail) return;
+    setIsSavingRentalEdit(true);
+    try {
+      const updated = await crmService.updateVenueRental(selectedRentalDetail.rental_id, editRentalForm);
+      setSelectedRentalDetail(updated);
+      setEditRentalForm(updated);
+      setIsEditingRental(false);
+      setMessage({ type: 'success', text: 'Deal / rental opportunity saved successfully.' });
+      loadTabData('rentals');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to update deal.' });
+    } finally {
+      setIsSavingRentalEdit(false);
     }
   };
 
@@ -886,7 +912,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                                 <td className="py-3 px-4 text-right whitespace-nowrap">
                                   <button
                                     type="button"
-                                    onClick={() => setSelectedRentalDetail(ren)}
+                                    onClick={() => handleOpenRentalDetail(ren)}
                                     className="px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors"
                                   >
                                     View Card
@@ -1382,139 +1408,424 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         </div>
       )}
 
-      {/* Modal: View Full Pipeline / Deal Opportunity Card */}
+      {/* Modal: View & Edit Full Pipeline / Deal Opportunity Card */}
       {selectedRentalDetail && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between border-b pb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-lg text-slate-900">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b pb-4 gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-extrabold text-xl text-slate-900 tracking-tight break-words">
                     {selectedRentalDetail.opportunity_name || selectedRentalDetail.organization_name || selectedRentalDetail.contact_name}
                   </h3>
                   {selectedRentalDetail.sheet_opportunity_id && (
-                    <span className="text-xs font-mono font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
                       {selectedRentalDetail.sheet_opportunity_id}
                     </span>
                   )}
+                  <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+                    {selectedRentalDetail.event_type || 'Event / Gig'}
+                  </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Lead Owner: <strong>{selectedRentalDetail.lead_owner || 'Unassigned'}</strong> • Source: {selectedRentalDetail.lead_source || selectedRentalDetail.referral_source || 'Website'}
+                <p className="text-xs text-slate-500 mt-1">
+                  Lead Owner: <strong className="text-slate-800">{selectedRentalDetail.lead_owner || 'Unassigned'}</strong> • Source: <span className="font-medium text-slate-700">{selectedRentalDetail.lead_source || selectedRentalDetail.referral_source || 'Direct Inquiry'}</span>
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedRentalDetail(null)}
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
-              >
-                ✕
-              </button>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {!isEditingRental ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingRental(true)}
+                    className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
+                  >
+                    ✏️ Edit Deal Details
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSavingRentalEdit}
+                      onClick={handleSaveRentalEdit}
+                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                    >
+                      {isSavingRentalEdit ? 'Saving...' : '💾 Save Changes'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingRentalEdit}
+                      onClick={() => {
+                        setIsEditingRental(false);
+                        setEditRentalForm({ ...selectedRentalDetail });
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRentalDetail(null);
+                    setIsEditingRental(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-xl font-bold ml-1 p-1"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            {/* Status & Next Action Banner */}
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700">Status: <span className="uppercase text-indigo-700">{selectedRentalDetail.status}</span></span>
-                {selectedRentalDetail.follow_up_date && (
-                  <span className="text-slate-500 font-medium">Follow-up: 📅 {selectedRentalDetail.follow_up_date}</span>
+            {/* Quick Actions & Client Drive Folder bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-3 text-slate-700">
+                <span>👤 Contact: <strong>{selectedRentalDetail.contact_name}</strong></span>
+                {selectedRentalDetail.contact_email && (
+                  <a href={`mailto:${selectedRentalDetail.contact_email}`} className="text-indigo-600 hover:underline">
+                    ✉️ {selectedRentalDetail.contact_email}
+                  </a>
+                )}
+                {selectedRentalDetail.contact_phone && (
+                  <a href={`tel:${selectedRentalDetail.contact_phone}`} className="text-slate-700 hover:underline">
+                    📞 {selectedRentalDetail.contact_phone}
+                  </a>
                 )}
               </div>
-              {selectedRentalDetail.next_action && (
-                <div className="text-slate-800">
-                  <strong>Next Action:</strong> {selectedRentalDetail.next_action}
-                </div>
-              )}
-              {selectedRentalDetail.latest_update && (
-                <div className="text-slate-600 italic">
-                  <strong>Latest Update:</strong> {selectedRentalDetail.latest_update}
-                </div>
-              )}
-            </div>
 
-            {/* Financial Ledger Section */}
-            <div className="border border-slate-200 rounded-lg p-3 space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
-                💰 Financial Breakdown
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="bg-slate-50 p-2 rounded">
-                  <span className="text-slate-500 block text-[11px]">Budget</span>
-                  <strong className="text-slate-800">${Number(selectedRentalDetail.budget || 0).toLocaleString()}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded">
-                  <span className="text-slate-500 block text-[11px]">Quoted Fee</span>
-                  <strong className="text-slate-800">${Number(selectedRentalDetail.quoted_fee || 0).toLocaleString()}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded">
-                  <span className="text-slate-500 block text-[11px]">Agreed Fee</span>
-                  <strong className="text-indigo-700">${Number(selectedRentalDetail.agreed_fee || selectedRentalDetail.rental_rate || 0).toLocaleString()}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded">
-                  <span className="text-slate-500 block text-[11px]">Balance Due</span>
-                  <strong className="text-amber-700">${Number(selectedRentalDetail.balance_due || 0).toLocaleString()}</strong>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-1 border-t border-slate-100">
-                <span>Contract: <strong>{selectedRentalDetail.contract_status || (selectedRentalDetail.contract_signed ? 'Signed' : 'Pending')}</strong></span>
-                <span>Deposit Status: <strong>{selectedRentalDetail.deposit_status || (selectedRentalDetail.deposit_paid ? 'Paid' : 'Unpaid')}</strong></span>
-                <span>Paid to Date: <strong>${Number(selectedRentalDetail.paid_to_date || 0).toLocaleString()}</strong></span>
-                {selectedRentalDetail.payment_due_date && <span>Due Date: <strong>{selectedRentalDetail.payment_due_date}</strong></span>}
-              </div>
-            </div>
-
-            {/* Operations & Staffing Section */}
-            <div className="border border-slate-200 rounded-lg p-3 space-y-2 text-xs">
-              <span className="font-bold uppercase tracking-wider text-slate-600 block">
-                🎭 Production & Staffing
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Planned Facilitators / Actors:</span>
-                  <strong className="text-indigo-700 text-sm">
-                    {selectedRentalDetail.facilitators_planned ? `${selectedRentalDetail.facilitators_planned} performers` : 'None specified'}
-                  </strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Location / Spaces:</span>
-                  <strong className="text-slate-800">{selectedRentalDetail.location_spaces || selectedRentalDetail.room_name || 'Main Stage'}</strong>
-                </div>
-              </div>
-              {selectedRentalDetail.staffing_logistics && (
-                <div className="bg-slate-50 p-2 rounded">
-                  <strong className="block text-slate-700 mb-0.5">Staffing & Logistics:</strong>
-                  <p className="text-slate-600 whitespace-pre-wrap">{selectedRentalDetail.staffing_logistics}</p>
-                </div>
-              )}
-              {selectedRentalDetail.open_questions && (
-                <div className="bg-amber-50 border border-amber-200 p-2 rounded text-amber-900">
-                  <strong className="block mb-0.5">Open Questions:</strong>
-                  <p className="whitespace-pre-wrap">{selectedRentalDetail.open_questions}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Contact & Drive Links */}
-            <div className="flex items-center justify-between text-xs pt-2 border-t">
-              <div className="text-slate-600">
-                Contact: <strong>{selectedRentalDetail.contact_name}</strong> ({selectedRentalDetail.contact_email} {selectedRentalDetail.contact_phone ? `• ${selectedRentalDetail.contact_phone}` : ''})
-              </div>
-              {selectedRentalDetail.client_folder_url && (
+              {selectedRentalDetail.client_folder_url ? (
                 <a
-                  href={selectedRentalDetail.client_folder_url}
+                  href={
+                    selectedRentalDetail.client_folder_url.startsWith('http')
+                      ? selectedRentalDetail.client_folder_url
+                      : `https://drive.google.com/drive/search?q=${encodeURIComponent(selectedRentalDetail.client_folder_url)}`
+                  }
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
                 >
-                  📁 Open Client Folder &rarr;
+                  <span>📁 Open Client Folder</span>
+                  <span>&rarr;</span>
                 </a>
+              ) : (
+                <span className="text-slate-400 italic">No Drive folder attached</span>
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t">
+            {/* Edit Mode Form vs View Mode Layout */}
+            {isEditingRental ? (
+              <div className="space-y-4">
+                {/* Core Pipeline Status & Next Step */}
+                <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Pipeline Stage & Follow-Up</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Status / Stage</label>
+                      <select
+                        value={editRentalForm.status || 'inquiry'}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, status: e.target.value as any }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-medium text-slate-800"
+                      >
+                        <option value="inquiry">Inquiry</option>
+                        <option value="quoted">Quoted</option>
+                        <option value="contract_signed">Contract Signed</option>
+                        <option value="deposit_received">Deposit Received</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="canceled">Canceled</option>
+                        <option value="awaiting_response">Awaiting Response</option>
+                        <option value="proposal_in_development">Proposal In Development</option>
+                        <option value="scoping">Scoping</option>
+                        <option value="booked">Booked</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Lead Owner</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.lead_owner || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, lead_owner: e.target.value }))}
+                        placeholder="Owner name..."
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Follow-up Date</label>
+                      <input
+                        type="date"
+                        value={editRentalForm.follow_up_date || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Next Action Required</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.next_action || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, next_action: e.target.value }))}
+                        placeholder="e.g. Send revised scope of work and quote"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Latest Update / Notes</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.latest_update || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, latest_update: e.target.value }))}
+                        placeholder="e.g. Spoke on phone, client loves the 2-facilitator plan"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Financial Ledger Edit */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">💰 Financials & Billing</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Budget ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editRentalForm.budget ?? ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, budget: Number(e.target.value) }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Quoted Fee ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editRentalForm.quoted_fee ?? ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, quoted_fee: Number(e.target.value) }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Agreed Fee ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editRentalForm.agreed_fee ?? ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, agreed_fee: Number(e.target.value) }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs font-bold text-indigo-700"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Paid to Date ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editRentalForm.paid_to_date ?? ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, paid_to_date: Number(e.target.value) }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contract Status</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.contract_status || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, contract_status: e.target.value }))}
+                        placeholder="e.g. Sent / Signed"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Deposit Status</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.deposit_status || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, deposit_status: e.target.value }))}
+                        placeholder="e.g. Paid / Invoiced"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Payment Due Date</label>
+                      <input
+                        type="date"
+                        value={editRentalForm.payment_due_date || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, payment_due_date: e.target.value }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Operations & Logistics Edit */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">🎭 Facilitators, Performers & Spaces</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1"># Facilitators / Actors</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editRentalForm.facilitators_planned ?? ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, facilitators_planned: Number(e.target.value) || null }))}
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">Location / Spaces Booked</label>
+                      <input
+                        type="text"
+                        value={editRentalForm.location_spaces || ''}
+                        onChange={(e) => setEditRentalForm((prev) => ({ ...prev, location_spaces: e.target.value }))}
+                        placeholder="e.g. Main Stage + Green Room"
+                        className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Staffing & Logistics Details</label>
+                    <textarea
+                      rows={2}
+                      value={editRentalForm.staffing_logistics || ''}
+                      onChange={(e) => setEditRentalForm((prev) => ({ ...prev, staffing_logistics: e.target.value }))}
+                      placeholder="Tech crew needs, facilitator assignments, run of show..."
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Open Questions & Action Items</label>
+                    <textarea
+                      rows={2}
+                      value={editRentalForm.open_questions || ''}
+                      onChange={(e) => setEditRentalForm((prev) => ({ ...prev, open_questions: e.target.value }))}
+                      placeholder="Items pending clarification from the client or venue..."
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Client Drive Folder URL / Name</label>
+                    <input
+                      type="text"
+                      value={editRentalForm.client_folder_url || ''}
+                      onChange={(e) => setEditRentalForm((prev) => ({ ...prev, client_folder_url: e.target.value }))}
+                      placeholder="https://drive.google.com/... or folder name"
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* View Mode Presentation */
+              <div className="space-y-4">
+                {/* Status & Next Action Banner */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-500">Pipeline Status:</span>
+                      <span className="font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full text-[11px] bg-indigo-100 text-indigo-800">
+                        {selectedRentalDetail.status.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    {selectedRentalDetail.follow_up_date && (
+                      <span className="text-slate-600 font-medium bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                        📅 Follow-up: <strong>{selectedRentalDetail.follow_up_date}</strong>
+                      </span>
+                    )}
+                  </div>
+                  {selectedRentalDetail.next_action && (
+                    <div className="text-slate-800 pt-0.5">
+                      <span className="font-bold text-slate-900">Next Action:</span> {selectedRentalDetail.next_action}
+                    </div>
+                  )}
+                  {selectedRentalDetail.latest_update && (
+                    <div className="text-slate-600 italic">
+                      <span className="font-semibold text-slate-700 not-italic">Latest Note:</span> {selectedRentalDetail.latest_update}
+                    </div>
+                  )}
+                </div>
+
+                {/* Financial Ledger Section */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-600 block">
+                    💰 Financial Breakdown & Status
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block text-[11px]">Budget</span>
+                      <strong className="text-slate-900 text-base">${Number(selectedRentalDetail.budget || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block text-[11px]">Quoted Fee</span>
+                      <strong className="text-slate-900 text-base">${Number(selectedRentalDetail.quoted_fee || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="bg-indigo-50/70 p-3 rounded-lg border border-indigo-100">
+                      <span className="text-indigo-600 block text-[11px] font-semibold">Agreed Fee</span>
+                      <strong className="text-indigo-900 text-base">${Number(selectedRentalDetail.agreed_fee || selectedRentalDetail.rental_rate || 0).toLocaleString()}</strong>
+                    </div>
+                    <div className="bg-amber-50/70 p-3 rounded-lg border border-amber-100">
+                      <span className="text-amber-700 block text-[11px] font-semibold">Balance Due</span>
+                      <strong className="text-amber-900 text-base">${Number(selectedRentalDetail.balance_due || 0).toLocaleString()}</strong>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600 pt-2 border-t border-slate-100">
+                    <span>Contract: <strong className="text-slate-800">{selectedRentalDetail.contract_status || (selectedRentalDetail.contract_signed ? 'Signed' : 'Pending')}</strong></span>
+                    <span>Deposit Status: <strong className="text-slate-800">{selectedRentalDetail.deposit_status || (selectedRentalDetail.deposit_paid ? 'Paid' : 'Unpaid')}</strong></span>
+                    <span>Paid to Date: <strong className="text-emerald-700">${Number(selectedRentalDetail.paid_to_date || 0).toLocaleString()}</strong></span>
+                    {selectedRentalDetail.payment_due_date && <span>Due Date: <strong className="text-slate-800">{selectedRentalDetail.payment_due_date}</strong></span>}
+                  </div>
+                </div>
+
+                {/* Operations & Staffing Section */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                  <span className="font-bold uppercase tracking-wider text-slate-600 block">
+                    🎭 Production, Actors & Logistics
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block text-[11px]">Planned Facilitators / Performers:</span>
+                      <strong className="text-indigo-700 text-sm">
+                        {selectedRentalDetail.facilitators_planned ? `🎭 ${selectedRentalDetail.facilitators_planned} performers` : 'None specified'}
+                      </strong>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <span className="text-slate-500 block text-[11px]">Spaces Booked:</span>
+                      <strong className="text-slate-800 text-sm">🏛️ {selectedRentalDetail.location_spaces || selectedRentalDetail.room_name || 'Main Stage'}</strong>
+                    </div>
+                  </div>
+                  {selectedRentalDetail.staffing_logistics && (
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <strong className="block text-slate-700 mb-1">Staffing & Logistics:</strong>
+                      <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedRentalDetail.staffing_logistics}</p>
+                    </div>
+                  )}
+                  {selectedRentalDetail.open_questions && (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg text-amber-900">
+                      <strong className="block mb-1">⚠️ Open Questions:</strong>
+                      <p className="whitespace-pre-wrap leading-relaxed">{selectedRentalDetail.open_questions}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t">
               <button
                 type="button"
-                onClick={() => setSelectedRentalDetail(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs"
+                onClick={() => {
+                  setSelectedRentalDetail(null);
+                  setIsEditingRental(false);
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
               >
                 Close
               </button>

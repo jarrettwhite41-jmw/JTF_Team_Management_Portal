@@ -172,10 +172,17 @@ function syncAllRows() {
 
 function syncRowToSupabase(sheet, rowNumber) {
   try {
-    const row = sheet.getRange(rowNumber, 1, 1, 30).getValues()[0];
+    const range = sheet.getRange(rowNumber, 1, 1, 30);
+    const row = range.getValues()[0];
+    const richTexts = range.getRichTextValues()[0];
+
     const oppId = String(row[0] || "").trim(); // Col A: ID
+    if (!oppId || oppId.toLowerCase() === "id" || oppId.toLowerCase().indexOf("source:") !== -1) {
+      return; // Skip headers, descriptions, blank title rows
+    }
+
     const oppName = String(row[1] || "").trim(); // Col B: Client / opportunity
-    const status = String(row[2] || "inquiry").trim().toLowerCase().replace(/\\s+/g, '_'); // Col C: Status
+    const status = String(row[2] || "inquiry").trim().toLowerCase().replace(/\s+/g, '_'); // Col C: Status
     const eventType = String(row[3] || "Corporate Event").trim(); // Col D: Event type
     const eventDateRaw = row[4]; // Col E: Event date
     const dateTimeDetails = String(row[5] || "").trim(); // Col F: Date / time details
@@ -201,7 +208,16 @@ function syncRowToSupabase(sheet, rowNumber) {
     const paymentDueRaw = row[25]; // Col Z: Payment due
     const staffingLogistics = String(row[26] || "").trim(); // Col AA
     const openQuestions = String(row[27] || "").trim(); // Col AB
-    const clientFolder = String(row[28] || "").trim(); // Col AC
+
+    // Col AC: Client folder link (extract rich text hyperlink if present, otherwise cell value)
+    let clientFolder = "";
+    if (richTexts && richTexts[28]) {
+      clientFolder = richTexts[28].getLinkUrl() || "";
+    }
+    if (!clientFolder) {
+      clientFolder = String(row[28] || "").trim();
+    }
+
     const owner = String(row[29] || "").trim(); // Col AD: Owner
 
     if (!oppId && !oppName && !contactName) return;
