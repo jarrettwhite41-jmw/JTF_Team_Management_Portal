@@ -1,9 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { crmService, SpaceBooking, TicketRefundRequest, StudentCreditItem, ClassMakeupRequest, VenueRental, CommunicationLog } from '../services/crmService';
+import {
+  crmService,
+  SpaceBooking,
+  TicketRefundRequest,
+  StudentCreditItem,
+  ClassMakeupRequest,
+  VenueRental,
+  CommunicationLog,
+  OutreachLead,
+} from '../services/crmService';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
-export type CRMTab = 'scheduling' | 'refunds' | 'credits' | 'makeups' | 'welcome_packages' | 'rentals' | 'contact_inquiries' | 'communications';
+export type CRMTab =
+  | 'scheduling'
+  | 'refunds'
+  | 'credits'
+  | 'makeups'
+  | 'welcome_packages'
+  | 'rentals'
+  | 'outreach_leads'
+  | 'contact_inquiries'
+  | 'communications';
 
 interface OperationsCRMProps {
   initialTab?: CRMTab;
@@ -68,6 +86,34 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     status: 'inquiry' as VenueRental['status'],
   });
 
+  // Outreach & Leads state
+  const [leads, setLeads] = useState<OutreachLead[]>([]);
+  const [leadFilter, setLeadFilter] = useState<string>('all');
+  const [leadCategoryFilter, setLeadCategoryFilter] = useState<string>('all');
+  const [leadSearch, setLeadSearch] = useState<string>('');
+  const [selectedLead, setSelectedLead] = useState<OutreachLead | null>(null);
+  const [isEditingLead, setIsEditingLead] = useState(false);
+  const [editLeadForm, setEditLeadForm] = useState<Partial<OutreachLead>>({});
+  const [isSavingLead, setIsSavingLead] = useState(false);
+  const [isDeletingLead, setIsDeletingLead] = useState(false);
+  const [isAddLeadOpen, setIsAddLeadOpen] = useState(false);
+  const [isConvertingLead, setIsConvertingLead] = useState(false);
+  const [newLead, setNewLead] = useState<Omit<OutreachLead, 'lead_id'>>({
+    organization_name: '',
+    category: 'Corporate',
+    status: 'New',
+    contact_name: '',
+    contact_email: '',
+    contact_phone: '',
+    offer_purpose: 'Team Building Workshop',
+    next_action: '',
+    follow_up_date: '',
+    last_contact_date: '',
+    notes: '',
+    website_url: '',
+    owner: '',
+  });
+
   // Communications state
   const [commLogs, setCommLogs] = useState<CommunicationLog[]>([]);
   const [commFilter, setCommFilter] = useState('all');
@@ -121,6 +167,9 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
       } else if (tab === 'contact_inquiries') {
         const ciData = await crmService.getCommunicationLogs('general');
         setContactInquiries(ciData);
+      } else if (tab === 'outreach_leads') {
+        const lData = await crmService.getOutreachLeads();
+        setLeads(lData);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to load data.' });
@@ -283,6 +332,99 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     }
   };
 
+  // Outreach Lead handlers
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await crmService.createOutreachLead(newLead);
+      setIsAddLeadOpen(false);
+      setNewLead({
+        organization_name: '',
+        category: 'Corporate',
+        status: 'New',
+        contact_name: '',
+        contact_email: '',
+        contact_phone: '',
+        offer_purpose: 'Team Building Workshop',
+        next_action: '',
+        follow_up_date: '',
+        last_contact_date: '',
+        notes: '',
+        website_url: '',
+        owner: '',
+      });
+      setMessage({ type: 'success', text: 'Outreach lead created successfully.' });
+      loadTabData('outreach_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error creating outreach lead.' });
+    }
+  };
+
+  const handleOpenLeadDetail = (lead: OutreachLead) => {
+    setSelectedLead(lead);
+    setEditLeadForm({ ...lead });
+    setIsEditingLead(false);
+  };
+
+  const handleSaveLeadEdit = async () => {
+    if (!selectedLead?.lead_id) return;
+    setIsSavingLead(true);
+    try {
+      const updated = await crmService.updateOutreachLead(selectedLead.lead_id, editLeadForm);
+      setSelectedLead(updated);
+      setEditLeadForm(updated);
+      setIsEditingLead(false);
+      setMessage({ type: 'success', text: 'Lead details updated successfully.' });
+      loadTabData('outreach_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to save lead updates.' });
+    } finally {
+      setIsSavingLead(false);
+    }
+  };
+
+  const handleDeleteLead = async () => {
+    if (!selectedLead?.lead_id) return;
+    const name = selectedLead.organization_name || 'this lead';
+    if (!window.confirm(`Are you sure you want to permanently remove ${name}?`)) return;
+
+    setIsDeletingLead(true);
+    try {
+      await crmService.deleteOutreachLead(selectedLead.lead_id);
+      setSelectedLead(null);
+      setIsEditingLead(false);
+      setMessage({ type: 'success', text: `Lead ${name} removed.` });
+      loadTabData('outreach_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to delete lead.' });
+    } finally {
+      setIsDeletingLead(false);
+    }
+  };
+
+  const handleConvertLeadToRental = async () => {
+    if (!selectedLead) return;
+    if (!window.confirm(`Convert "${selectedLead.organization_name}" to a Venue Rental / Event Deal? This will create an event booking in the Rentals & Deal Pipeline.`)) return;
+
+    setIsConvertingLead(true);
+    try {
+      const createdRental = await crmService.convertLeadToEventRental(selectedLead);
+      setSelectedLead(null);
+      setIsEditingLead(false);
+      setMessage({
+        type: 'success',
+        text: `Successfully converted "${selectedLead.organization_name}" to an Event Deal! Switched to Rentals tab.`,
+      });
+      // Switch tab to rentals and reload
+      setActiveTab('rentals');
+      loadTabData('rentals');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to convert lead to event deal.' });
+    } finally {
+      setIsConvertingLead(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -360,6 +502,16 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
           }`}
         >
           🏢 Rentals & Deal Pipeline
+        </button>
+        <button
+          onClick={() => setActiveTab('outreach_leads')}
+          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
+            activeTab === 'outreach_leads'
+              ? 'border-emerald-600 text-emerald-600 bg-white'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          🎯 Outreach & Leads
         </button>
         <button
           onClick={() => setActiveTab('contact_inquiries')}
@@ -977,7 +1129,234 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
             );
           })()}
 
-          {/* TAB 6: CONTACT INQUIRIES */}
+          {/* TAB 6: OUTREACH & LEADS PIPELINE */}
+          {activeTab === 'outreach_leads' && (() => {
+            const categories = Array.from(new Set(leads.map((l) => l.category).filter(Boolean)));
+            const statuses = Array.from(new Set(leads.map((l) => l.status).filter(Boolean)));
+
+            const filteredLeads = leads.filter((l) => {
+              if (leadFilter !== 'all' && l.status !== leadFilter) return false;
+              if (leadCategoryFilter !== 'all' && l.category !== leadCategoryFilter) return false;
+              if (leadSearch.trim()) {
+                const q = leadSearch.toLowerCase().trim();
+                const matchOrg = (l.organization_name || '').toLowerCase().includes(q);
+                const matchContact = (l.contact_name || '').toLowerCase().includes(q);
+                const matchEmail = (l.contact_email || '').toLowerCase().includes(q);
+                const matchOwner = (l.owner || '').toLowerCase().includes(q);
+                const matchOffer = (l.offer_purpose || '').toLowerCase().includes(q);
+                if (!matchOrg && !matchContact && !matchEmail && !matchOwner && !matchOffer) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="space-y-4">
+                {/* Metric Summary Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">
+                      Total Prospects
+                    </span>
+                    <span className="text-xl font-bold text-slate-900">{leads.length}</span>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">Active pipeline</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider block">
+                      Organizations
+                    </span>
+                    <span className="text-xl font-bold text-emerald-700">
+                      {new Set(leads.map((l) => l.organization_name)).size}
+                    </span>
+                    <span className="text-[11px] text-emerald-400 block mt-0.5">Unique accounts</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider block">
+                      In Progress / Pitched
+                    </span>
+                    <span className="text-xl font-bold text-blue-700">
+                      {leads.filter((l) => !['New', 'Closed', 'Inactive'].includes(l.status)).length}
+                    </span>
+                    <span className="text-[11px] text-blue-400 block mt-0.5">Active negotiations</span>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+                    <span className="text-[11px] font-semibold text-indigo-600 uppercase tracking-wider block">
+                      Upcoming Follow-ups
+                    </span>
+                    <span className="text-xl font-bold text-indigo-700">
+                      {leads.filter((l) => Boolean(l.follow_up_date)).length}
+                    </span>
+                    <span className="text-[11px] text-indigo-400 block mt-0.5">Scheduled touches</span>
+                  </div>
+                </div>
+
+                {/* Controls Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-2xs">
+                  <div className="flex flex-wrap items-center gap-2 flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search accounts, contacts, emails, offer..."
+                      value={leadSearch}
+                      onChange={(e) => setLeadSearch(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-900 focus:outline-none focus:border-emerald-500 w-full sm:max-w-xs"
+                    />
+                    <select
+                      value={leadFilter}
+                      onChange={(e) => setLeadFilter(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 font-medium focus:outline-none"
+                    >
+                      <option value="all">All Stages ({leads.length})</option>
+                      {statuses.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={leadCategoryFilter}
+                      onChange={(e) => setLeadCategoryFilter(e.target.value)}
+                      className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-slate-700 font-medium focus:outline-none"
+                    >
+                      <option value="all">All Categories</option>
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddLeadOpen(true)}
+                      className="px-3 py-1.5 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap shadow-2xs"
+                    >
+                      + Add Outreach Lead
+                    </button>
+                  </div>
+                </div>
+
+                {filteredLeads.length === 0 ? (
+                  <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
+                    No outreach leads matched your filters.
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-4">Organization / Prospect</th>
+                            <th className="py-3 px-4">Category & Purpose</th>
+                            <th className="py-3 px-4">Primary Contact</th>
+                            <th className="py-3 px-4">Status & Owner</th>
+                            <th className="py-3 px-4">Next Action / Follow-Up</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredLeads.map((lead) => (
+                            <tr key={lead.lead_id} className="hover:bg-slate-50 transition-colors align-top">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-900">{lead.organization_name}</span>
+                                  {lead.sheet_lead_id && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
+                                      {lead.sheet_lead_id}
+                                    </span>
+                                  )}
+                                </div>
+                                {lead.website_url && (
+                                  <a
+                                    href={lead.website_url.startsWith('http') ? lead.website_url : `https://${lead.website_url}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[11px] text-emerald-600 hover:underline block pt-0.5 truncate max-w-xs"
+                                  >
+                                    🌐 {lead.website_url.replace(/^https?:\/\//, '')}
+                                  </a>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4 text-xs">
+                                {lead.category && (
+                                  <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold text-[11px] mb-1">
+                                    {lead.category}
+                                  </span>
+                                )}
+                                <div className="text-slate-800 font-medium">
+                                  {lead.offer_purpose || 'General Outreach'}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4 text-xs">
+                                <div className="font-semibold text-slate-900">{lead.contact_name || '—'}</div>
+                                {lead.contact_email && (
+                                  <a href={`mailto:${lead.contact_email}`} className="text-blue-600 hover:underline block text-[11px]">
+                                    ✉️ {lead.contact_email}
+                                  </a>
+                                )}
+                                {lead.contact_phone && (
+                                  <div className="text-slate-500 text-[11px]">📞 {lead.contact_phone}</div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4 text-xs whitespace-nowrap">
+                                <div>
+                                  <span
+                                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                      lead.status.toLowerCase().includes('won') || lead.status.toLowerCase().includes('converted')
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : lead.status.toLowerCase().includes('contacted') || lead.status.toLowerCase().includes('pitch')
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : lead.status.toLowerCase().includes('inactive') || lead.status.toLowerCase().includes('lost')
+                                        ? 'bg-slate-100 text-slate-700'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    {lead.status}
+                                  </span>
+                                </div>
+                                {lead.owner && (
+                                  <div className="text-[11px] font-medium text-slate-600 mt-1">
+                                    👤 {lead.owner}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4 text-xs max-w-xs">
+                                {lead.next_action ? (
+                                  <div className="font-medium text-slate-800 line-clamp-2">{lead.next_action}</div>
+                                ) : (
+                                  <span className="text-slate-400 italic">No next action set</span>
+                                )}
+                                {lead.follow_up_date && (
+                                  <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                                    ⏰ Follow-up: {lead.follow_up_date}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenLeadDetail(lead)}
+                                  className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
+                                >
+                                  View / Edit
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* TAB 7: CONTACT INQUIRIES */}
           {activeTab === 'contact_inquiries' && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1880,6 +2259,492 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                 onClick={() => {
                   setSelectedRentalDetail(null);
                   setIsEditingRental(false);
+                }}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Outreach Lead */}
+      {isAddLeadOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="font-bold text-lg text-slate-900">Add Outreach Prospect / Lead</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddLeadOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateLead} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Organization / Prospect Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. University of Miami / Baptist Health"
+                  value={newLead.organization_name}
+                  onChange={(e) => setNewLead((prev) => ({ ...prev, organization_name: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
+                  <select
+                    value={newLead.category || 'Corporate'}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, category: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  >
+                    <option value="Corporate">Corporate</option>
+                    <option value="Education">Education / University</option>
+                    <option value="Non-profit">Non-profit / Community</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Private Client">Private Client</option>
+                    <option value="Sponsorship">Sponsorship / Partner</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Status / Stage</label>
+                  <select
+                    value={newLead.status}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, status: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                  >
+                    <option value="New">New</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Pitch Sent">Pitch Sent</option>
+                    <option value="In Discussion">In Discussion</option>
+                    <option value="Qualified">Qualified</option>
+                    <option value="Closed / Won">Closed / Won</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Contact Name</label>
+                  <input
+                    type="text"
+                    placeholder="Contact person..."
+                    value={newLead.contact_name || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, contact_name: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="email@company.com"
+                    value={newLead.contact_email || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, contact_email: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="305-555-0100"
+                    value={newLead.contact_phone || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, contact_phone: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Offer / Purpose</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Improv Team Building / Executive Retreat"
+                    value={newLead.offer_purpose || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, offer_purpose: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Website or Deck Link</label>
+                  <input
+                    type="text"
+                    placeholder="https://..."
+                    value={newLead.website_url || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, website_url: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Account Owner</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Michael / Sarah"
+                    value={newLead.owner || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, owner: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Next Action</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Follow up with deck"
+                    value={newLead.next_action || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, next_action: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Follow-up Date</label>
+                  <input
+                    type="date"
+                    value={newLead.follow_up_date || ''}
+                    onChange={(e) => setNewLead((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Prospect Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Key background context, meeting notes..."
+                  value={newLead.notes || ''}
+                  onChange={(e) => setNewLead((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsAddLeadOpen(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 rounded-lg text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  Save Outreach Lead
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: View & Edit Outreach Lead Detail Card */}
+      {selectedLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b pb-4 gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-extrabold text-xl text-slate-900 tracking-tight break-words">
+                    {selectedLead.organization_name}
+                  </h3>
+                  {selectedLead.sheet_lead_id && (
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md">
+                      {selectedLead.sheet_lead_id}
+                    </span>
+                  )}
+                  {selectedLead.category && (
+                    <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                      {selectedLead.category}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Lead Owner: <strong className="text-slate-800">{selectedLead.owner || 'Unassigned'}</strong> • Status: <span className="font-semibold text-slate-800">{selectedLead.status}</span>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={isConvertingLead || isDeletingLead}
+                  onClick={handleConvertLeadToRental}
+                  className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
+                  title="Creates a booked/deal record in Rentals & Deal Pipeline"
+                >
+                  {isConvertingLead ? 'Converting...' : '🎯 Convert to Event Deal'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingLead || isSavingLead}
+                  onClick={handleDeleteLead}
+                  className="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
+                >
+                  {isDeletingLead ? 'Removing...' : 'Remove Lead'}
+                </button>
+                {!isEditingLead ? (
+                  <button
+                    type="button"
+                    disabled={isDeletingLead}
+                    onClick={() => setIsEditingLead(true)}
+                    className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-2xs"
+                  >
+                    ✏️ Edit Lead
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isSavingLead || isDeletingLead}
+                      onClick={handleSaveLeadEdit}
+                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                    >
+                      {isSavingLead ? 'Saving...' : '💾 Save'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSavingLead || isDeletingLead}
+                      onClick={() => {
+                        setIsEditingLead(false);
+                        setEditLeadForm({ ...selectedLead });
+                      }}
+                      className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedLead(null);
+                    setIsEditingLead(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-600 text-xl font-bold ml-1 p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* View or Edit mode */}
+            {isEditingLead ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Organization / Prospect *</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.organization_name || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, organization_name: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Category</label>
+                    <select
+                      value={editLeadForm.category || 'Corporate'}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, category: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    >
+                      <option value="Corporate">Corporate</option>
+                      <option value="Education">Education / University</option>
+                      <option value="Non-profit">Non-profit / Community</option>
+                      <option value="Healthcare">Healthcare</option>
+                      <option value="Private Client">Private Client</option>
+                      <option value="Sponsorship">Sponsorship / Partner</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Status / Stage</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.status || 'New'}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, status: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contact Name</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.contact_name || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, contact_name: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contact Email</label>
+                    <input
+                      type="email"
+                      value={editLeadForm.contact_email || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, contact_email: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Contact Phone</label>
+                    <input
+                      type="tel"
+                      value={editLeadForm.contact_phone || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, contact_phone: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Offer / Purpose</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.offer_purpose || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, offer_purpose: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Website or Deck Link</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.website_url || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, website_url: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Account Owner</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.owner || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, owner: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Next Action</label>
+                    <input
+                      type="text"
+                      value={editLeadForm.next_action || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, next_action: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Follow-up Date</label>
+                    <input
+                      type="date"
+                      value={editLeadForm.follow_up_date || ''}
+                      onChange={(e) => setEditLeadForm((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                      className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">Notes</label>
+                  <textarea
+                    rows={3}
+                    value={editLeadForm.notes || ''}
+                    onChange={(e) => setEditLeadForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Contact and Account Summary */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Primary Contact</span>
+                    <strong className="text-slate-900 text-sm">{selectedLead.contact_name || '—'}</strong>
+                    {selectedLead.contact_email && (
+                      <a href={`mailto:${selectedLead.contact_email}`} className="text-blue-600 hover:underline block mt-0.5">
+                        ✉️ {selectedLead.contact_email}
+                      </a>
+                    )}
+                    {selectedLead.contact_phone && (
+                      <span className="text-slate-600 block mt-0.5">📞 {selectedLead.contact_phone}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Offer / Purpose</span>
+                    <strong className="text-slate-900 text-sm">{selectedLead.offer_purpose || 'General Outreach'}</strong>
+                    {selectedLead.category && (
+                      <span className="text-slate-600 block mt-0.5">Category: {selectedLead.category}</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[11px]">Online Presence / Deck</span>
+                    {selectedLead.website_url ? (
+                      <a
+                        href={selectedLead.website_url.startsWith('http') ? selectedLead.website_url : `https://${selectedLead.website_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-emerald-600 font-semibold hover:underline mt-1"
+                      >
+                        🌐 Visit Website / Deck &rarr;
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 italic">No website attached</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cadence & Next Action */}
+                <div className="border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                  <span className="font-bold uppercase tracking-wider text-slate-700 block">
+                    Cadence & Follow-Up
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-emerald-50/60 p-3 rounded-lg border border-emerald-100">
+                      <span className="text-emerald-800 font-semibold block text-[11px]">Next Action:</span>
+                      <strong className="text-emerald-950 text-sm">
+                        {selectedLead.next_action || 'No next action specified'}
+                      </strong>
+                    </div>
+                    <div className="bg-amber-50/60 p-3 rounded-lg border border-amber-100">
+                      <span className="text-amber-800 font-semibold block text-[11px]">Scheduled Follow-Up:</span>
+                      <strong className="text-amber-950 text-sm">
+                        {selectedLead.follow_up_date || 'No follow-up date'}
+                      </strong>
+                    </div>
+                  </div>
+                  {selectedLead.notes && (
+                    <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                      <strong className="block text-slate-700 mb-1">Notes:</strong>
+                      <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{selectedLead.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLead(null);
+                  setIsEditingLead(false);
                 }}
                 className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-xs transition-colors"
               >

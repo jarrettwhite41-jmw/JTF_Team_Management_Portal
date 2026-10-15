@@ -129,6 +129,26 @@ export interface CommunicationLog {
   created_at?: string;
 }
 
+export interface OutreachLead {
+  lead_id?: number;
+  sheet_lead_id?: string | null;
+  organization_name: string;
+  category?: string | null;
+  status: string;
+  contact_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  offer_purpose?: string | null;
+  next_action?: string | null;
+  follow_up_date?: string | null;
+  last_contact_date?: string | null;
+  notes?: string | null;
+  website_url?: string | null;
+  owner?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const crmService = {
   // ── Space Bookings & Conflict Prevention ──────────────────────────────
   async getAllRooms() {
@@ -500,6 +520,91 @@ export const crmService = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  // ── Outreach & Leads Pipeline ─────────────────────────────────────────
+  async getOutreachLeads() {
+    const { data, error } = await supabase
+      .from('crm_outreach_leads')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []) as OutreachLead[];
+  },
+
+  async createOutreachLead(lead: Omit<OutreachLead, 'lead_id'>) {
+    const { data, error } = await supabase
+      .from('crm_outreach_leads')
+      .insert([lead])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as OutreachLead;
+  },
+
+  async updateOutreachLead(leadId: number, updates: Partial<OutreachLead>) {
+    const { lead_id: _id, ...cleanUpdates } = updates;
+    const { data, error } = await supabase
+      .from('crm_outreach_leads')
+      .update({ ...cleanUpdates, updated_at: new Date().toISOString() })
+      .eq('lead_id', leadId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as OutreachLead;
+  },
+
+  async deleteOutreachLead(leadId: number) {
+    const { error } = await supabase
+      .from('crm_outreach_leads')
+      .delete()
+      .eq('lead_id', leadId);
+
+    if (error) throw error;
+    return { success: true };
+  },
+
+  async convertLeadToEventRental(lead: OutreachLead) {
+    // Creates a new venue rental deal pre-populated with lead info
+    const now = new Date();
+    const futureDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 2 weeks out placeholder
+    const eventStart = new Date(futureDate.setHours(18, 0, 0, 0)).toISOString();
+    const eventEnd = new Date(futureDate.setHours(21, 0, 0, 0)).toISOString();
+
+    const newRentalPayload: Omit<VenueRental, 'rental_id'> = {
+      organization_name: lead.organization_name || undefined,
+      opportunity_name: `${lead.organization_name} - ${lead.offer_purpose || 'Event'}`,
+      contact_name: lead.contact_name || lead.organization_name,
+      contact_email: lead.contact_email || 'pending@example.com',
+      contact_phone: lead.contact_phone || undefined,
+      event_type: lead.offer_purpose || 'Corporate Workshop',
+      status: 'inquiry',
+      event_start: eventStart,
+      event_end: eventEnd,
+      rental_rate: 0,
+      deposit_amount: 0,
+      deposit_paid: false,
+      insurance_cert_on_file: false,
+      notes: `Converted from Outreach Lead #${lead.lead_id} (${lead.organization_name}). Notes: ${lead.notes || 'None'}. Next action: ${lead.next_action || 'None'}.`,
+      lead_owner: lead.owner || undefined,
+      lead_source: 'Outreach Pipeline',
+      next_action: lead.next_action || undefined,
+      follow_up_date: lead.follow_up_date || undefined,
+      latest_update: `Converted from Outreach Lead on ${new Date().toLocaleDateString()}`,
+    };
+
+    const createdRental = await this.createVenueRental(newRentalPayload);
+
+    // Update lead status to Closed / Won or Converted
+    await this.updateOutreachLead(lead.lead_id!, {
+      status: 'Converted to Event',
+      notes: `${lead.notes || ''}\n[Converted to Rental #${createdRental.rental_id} on ${new Date().toLocaleDateString()}]`.trim(),
+    });
+
+    return createdRental;
   },
 
   async getCrmDashboardOverview() {

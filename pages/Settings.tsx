@@ -228,23 +228,123 @@ function pipelineJson(value) {
 
 /**
  * Trigger: On Edit (or run manually to sync all rows).
- * Syncs the edited row to Supabase 'venue_rentals'.
+ * Automatically detects whether the edit is on the 'Events' or 'Outreach /Leads' sheet!
  */
 function onEdit(e) {
   if (!e || !e.range) return;
   const sheet = e.range.getSheet();
+  const sheetName = sheet.getName();
   const row = e.range.getRow();
   if (row <= 1) return; // Skip headers
 
-  syncRowToSupabase(sheet, row);
+  if (sheetName.toLowerCase().indexOf("lead") !== -1 || sheetName.toLowerCase().indexOf("outreach") !== -1) {
+    syncOutreachLeadRow(sheet, row);
+  } else {
+    syncRowToSupabase(sheet, row);
+  }
 }
 
 function syncAllRows() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const lastRow = sheet.getLastRow();
-  for (let r = 2; r <= lastRow; r++) {
-    syncRowToSupabase(sheet, r);
-    Utilities.sleep(150);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  for (let s = 0; s < sheets.length; s++) {
+    const sheet = sheets[s];
+    const sheetName = sheet.getName();
+    const lastRow = sheet.getLastRow();
+    if (sheetName.toLowerCase().indexOf("lead") !== -1 || sheetName.toLowerCase().indexOf("outreach") !== -1) {
+      Logger.log("Backfilling Outreach / Leads sheet: " + sheetName);
+      for (let r = 2; r <= lastRow; r++) {
+        syncOutreachLeadRow(sheet, r);
+        Utilities.sleep(100);
+      }
+    } else {
+      Logger.log("Backfilling Events / Pipeline sheet: " + sheetName);
+      for (let r = 2; r <= lastRow; r++) {
+        syncRowToSupabase(sheet, r);
+        Utilities.sleep(100);
+      }
+    }
+  }
+}
+
+function syncOutreachLeadRow(sheet, rowNumber) {
+  try {
+    const range = sheet.getRange(rowNumber, 1, 1, 14);
+    const row = range.getValues()[0];
+    const richTexts = range.getRichTextValues()[0];
+
+    const leadId = String(row[0] || "").trim(); // Col A: ID
+    if (!leadId || leadId.toLowerCase() === "id") return;
+
+    const org = String(row[1] || "").trim(); // Col B: Organization / prospect
+    if (!org) return;
+
+    const category = String(row[2] || "").trim(); // Col C: Category
+    const status = String(row[3] || "New").trim(); // Col D: Status
+    const contact = String(row[4] || "").trim(); // Col E: Contact
+    const email = String(row[5] || "").trim(); // Col F: Email
+    const phone = String(row[6] || "").trim(); // Col G: Phone
+    const offer = String(row[7] || "").trim(); // Col H: Offer / purpose
+    const nextAction = String(row[8] || "").trim(); // Col I: Next action
+    const followUpRaw = row[9]; // Col J: Follow-up date
+    const lastContactRaw = row[10]; // Col K: Last contact
+    const notes = String(row[11] || "").trim(); // Col L: Notes
+
+    // Col M: Website / document (extract link URL if present)
+    let website = "";
+    if (richTexts && richTexts[12]) {
+      website = richTexts[12].getLinkUrl() || "";
+    }
+    if (!website) {
+      website = String(row[12] || "").trim();
+    }
+
+    const owner = String(row[13] || "").trim(); // Col N: Owner
+
+    const payload = {
+      sheet_lead_id: leadId,
+      organization_name: org,
+      category: category,
+      status: status,
+      contact_name: contact,
+      contact_email: email,
+      contact_phone: phone,
+      offer_purpose: offer,
+      next_action: nextAction,
+      notes: notes,
+      website_url: website,
+      owner: owner,
+      updated_at: new Date().toISOString()
+    };
+
+    if (followUpRaw instanceof Date) {
+      payload.follow_up_date = followUpRaw.toISOString().slice(0, 10);
+    } else if (followUpRaw && !isNaN(Date.parse(followUpRaw))) {
+      payload.follow_up_date = new Date(followUpRaw).toISOString().slice(0, 10);
+    }
+
+    if (lastContactRaw instanceof Date) {
+      payload.last_contact_date = lastContactRaw.toISOString().slice(0, 10);
+    } else if (lastContactRaw && !isNaN(Date.parse(lastContactRaw))) {
+      payload.last_contact_date = new Date(lastContactRaw).toISOString().slice(0, 10);
+    }
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Prefer": "resolution=merge-duplicates,return=representation"
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(SUPABASE_URL + "/rest/v1/crm_outreach_leads?on_conflict=sheet_lead_id", options);
+    Logger.log("Outreach row " + rowNumber + " synced: " + response.getContentText());
+  } catch (err) {
+    Logger.log("Error syncing outreach row " + rowNumber + ": " + err.toString());
   }
 }
 
