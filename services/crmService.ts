@@ -382,17 +382,22 @@ export const crmService = {
   },
 
   async updateVenueRental(rentalId: number, updates: Partial<VenueRental>) {
-    const { rental_id: _rentalId, room_name: _roomName, ...rentalUpdates } = updates;
+    const {
+      rental_id: _rentalId,
+      room_name: displayRoomName,
+      rooms: _rooms,
+      ...rentalUpdates
+    } = updates as Partial<VenueRental> & { rooms?: unknown };
     const { data, error } = await supabase
       .from('venue_rentals')
       .update({ ...rentalUpdates, updated_at: new Date().toISOString() })
       .eq('rental_id', rentalId)
-      .select('*, rooms(room_name)')
+      .select()
       .single();
     if (error) throw error;
     return {
       ...data,
-      room_name: data.rooms?.room_name || 'Unassigned Stage',
+      room_name: displayRoomName || 'Unassigned Stage',
     };
   },
 
@@ -444,7 +449,7 @@ export const crmService = {
       supabase.from('venue_rentals').select('rental_id, contact_name, organization_name, event_type, guest_count, preferred_date, status, created_at').eq('status', 'inquiry').order('created_at', { ascending: false }).limit(4),
       supabase.from('communication_logs').select('log_id', { count: 'exact', head: true }).eq('status', 'open'),
       supabase.from('communication_logs').select('log_id, sender_name, staff_email, subject, body, submitted_at, created_at, status').eq('status', 'open').order('created_at', { ascending: false }).limit(4),
-      supabase.from('ticket_refund_requests').select('request_id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('ticket_refund_requests').select('refund_request_id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('class_makeup_requests').select('makeup_request_id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('student_info').select('student_id', { count: 'exact', head: true }).eq('welcome_package_signed', false),
       supabase.from('space_bookings').select('booking_id, booking_title, start_time, end_time, rooms(room_name)').gte('end_time', new Date().toISOString()).order('start_time', { ascending: true }).limit(4),
