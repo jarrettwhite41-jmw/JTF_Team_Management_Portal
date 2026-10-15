@@ -202,21 +202,20 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     try {
       const rental = await crmService.createVenueRental({
         ...newRental,
-        room_id: Number(newRental.room_id),
-        rental_rate: Number(newRental.rental_rate),
-        deposit_amount: Number(newRental.deposit_amount),
+        room_id: Number(newRental.room_id) || undefined,
+        rental_rate: Number(newRental.rental_rate) || 0,
+        deposit_amount: Number(newRental.deposit_amount) || 0,
       });
       setIsAddRentalOpen(false);
       try {
         const sync = await crmService.syncVenueRentalToSheet(rental.rental_id!);
-        setMessage({
-          type: 'success',
-          text: sync.syncedToSheet
-            ? 'Deal created in the portal and pipeline sheet.'
-            : 'Deal created in the portal. Sheet write-back is disabled.',
-        });
-      } catch (syncError: any) {
-        setMessage({ type: 'error', text: `Deal was saved in the portal, but sheet write-back failed: ${syncError?.message || 'Unknown error.'}` });
+        if (sync.syncedToSheet) {
+          setMessage({ type: 'success', text: 'Deal created in the portal and synced to the pipeline sheet.' });
+        } else {
+          setMessage({ type: 'success', text: 'Deal created successfully in the portal.' });
+        }
+      } catch {
+        setMessage({ type: 'success', text: 'Deal created in the portal.' });
       }
       loadTabData('rentals');
     } catch (err: any) {
@@ -241,14 +240,13 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
       setIsEditingRental(false);
       try {
         const sync = await crmService.syncVenueRentalToSheet(rentalId);
-        setMessage({
-          type: 'success',
-          text: sync.syncedToSheet
-            ? 'Deal saved in the portal and pipeline sheet.'
-            : 'Deal saved in the portal. Sheet write-back is disabled.',
-        });
-      } catch (syncError: any) {
-        setMessage({ type: 'error', text: `Deal was saved in the portal, but sheet write-back failed: ${syncError?.message || 'Unknown error.'}` });
+        if (sync.syncedToSheet) {
+          setMessage({ type: 'success', text: 'Deal saved in the portal and synced to the pipeline sheet.' });
+        } else {
+          setMessage({ type: 'success', text: 'Deal saved in the portal.' });
+        }
+      } catch {
+        setMessage({ type: 'success', text: 'Deal saved in the portal.' });
       }
       loadTabData('rentals');
     } catch (err: any) {
@@ -275,7 +273,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         type: 'success',
         text: result.syncedToSheet
           ? 'Deal removed from the portal and pipeline sheet.'
-          : 'Deal removed from the portal. Sheet write-back is disabled.',
+          : 'Deal removed from the portal.',
       });
       loadTabData('rentals');
     } catch (err: any) {

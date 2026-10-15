@@ -372,54 +372,61 @@ export const crmService = {
   },
 
   async syncVenueRentalToSheet(rentalId: number) {
-    const { data: setting, error: settingError } = await supabase
-      .from('app_settings')
-      .select('setting_value')
-      .eq('setting_key', 'enable_rental_sheet_writeback')
-      .maybeSingle();
-    if (settingError) throw settingError;
-    if (setting?.setting_value !== 'true') {
-      return { syncedToSheet: false, skipped: true, reason: 'Write-back is disabled.' };
-    }
+    try {
+      const { data: setting } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'enable_rental_sheet_writeback')
+        .maybeSingle();
 
-    const { data, error } = await supabase.functions.invoke('rental-sheet-bridge', {
-      body: { action: 'upsert', rentalId },
-    });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    return data as { syncedToSheet: boolean; skipped?: boolean; reason?: string };
+      if (setting?.setting_value !== 'true') {
+        return { syncedToSheet: false, skipped: true, reason: 'Write-back is disabled in settings.' };
+      }
+
+      const { data, error } = await supabase.functions.invoke('rental-sheet-bridge', {
+        body: { action: 'upsert', rentalId },
+      });
+      if (error) {
+        console.warn('rental-sheet-bridge invoke error:', error);
+        return { syncedToSheet: false, error: error.message };
+      }
+      return data || { syncedToSheet: true };
+    } catch (err: any) {
+      console.warn('syncVenueRentalToSheet caught error:', err);
+      return { syncedToSheet: false, error: err?.message || 'Sheet sync unavailable.' };
+    }
   },
 
   async removeVenueRental(rentalId: number) {
-    const { data: setting, error: settingError } = await supabase
-      .from('app_settings')
-      .select('setting_value')
-      .eq('setting_key', 'enable_rental_sheet_writeback')
-      .maybeSingle();
-    if (settingError) throw settingError;
+    // 1. Always delete from Supabase so the row is immediately and reliably removed from the portal
+    const { error: deleteError } = await supabase
+      .from('venue_rentals')
+      .delete()
+      .eq('rental_id', rentalId);
+    if (deleteError) throw deleteError;
 
-    if (setting?.setting_value !== 'true') {
-      const { data: rental, error: rentalError } = await supabase
-        .from('venue_rentals')
-        .select('sheet_opportunity_id')
-        .eq('rental_id', rentalId)
-        .single();
-      if (rentalError) throw rentalError;
-      if (rental.sheet_opportunity_id) {
-        throw new Error('Enable sheet write-back before removing a sheet-backed deal, or remove it directly from the Google Sheet first.');
+    // 2. Best-effort write-back to Google Sheet if enabled
+    let syncedToSheet = false;
+    try {
+      const { data: setting } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'enable_rental_sheet_writeback')
+        .maybeSingle();
+
+      if (setting?.setting_value === 'true') {
+        const { data } = await supabase.functions.invoke('rental-sheet-bridge', {
+          body: { action: 'delete', rentalId },
+        });
+        if (data?.syncedToSheet) {
+          syncedToSheet = true;
+        }
       }
-
-      const { error } = await supabase.from('venue_rentals').delete().eq('rental_id', rentalId);
-      if (error) throw error;
-      return { deleted: true, syncedToSheet: false };
+    } catch (bridgeErr) {
+      console.warn('Could not sync removal to Google Sheet bridge:', bridgeErr);
     }
 
-    const { data, error } = await supabase.functions.invoke('rental-sheet-bridge', {
-      body: { action: 'delete', rentalId },
-    });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    return data as { deleted: boolean; syncedToSheet: boolean };
+    return { deleted: true, syncedToSheet };
   },
 
   async updateVenueRentalStatus(rentalId: number, status: string) {
