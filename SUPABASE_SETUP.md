@@ -300,6 +300,24 @@ supabase secrets set SUPABASE_ANON_KEY=YOUR_ANON_KEY
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 ```
 
+## Rental Pipeline Sheet Write-Back
+
+The Rental Pipeline Apps Script supports portal upserts and removals through the protected `rental-sheet-bridge` Edge Function. The function accepts only authenticated Team admins/managers. Keep write-back disabled until both sides are deployed.
+
+1. In the Google Sheet, install the Pipeline Apps Script from **Settings & Integrations** in the Team Portal.
+2. In Apps Script **Project Settings**, create the Script Property `JTF_PIPELINE_WEBHOOK_TOKEN` with a unique random token.
+3. Deploy the script as a **Web app**, executing as the sheet owner and allowing access to anyone. The token is checked on every request. Copy the deployment URL.
+4. From this project, deploy the Edge Function and set its secrets:
+
+```bash
+supabase functions deploy rental-sheet-bridge --project-ref jsitpkzeszwwrgjfivbi
+supabase secrets set GOOGLE_SHEETS_WEB_APP_URL="YOUR_APPS_SCRIPT_WEB_APP_URL" GOOGLE_SHEETS_WEBHOOK_TOKEN="THE_SAME_RANDOM_TOKEN" --project-ref jsitpkzeszwwrgjfivbi
+```
+
+5. Enable **Write-back to Sheet** in the Team Portal Settings only after deployment and secret configuration are complete.
+
+When enabled, adding or editing a deal upserts the matching row by opportunity ID. **Remove Deal** deletes the matching spreadsheet row first and then deletes the Supabase record. When write-back is disabled, sheet-backed records cannot be removed from the portal because the next sheet sync would recreate them; portal-only records can still be removed.
+
 ### Required Frontend Env Vars (Redirects)
 
 Add these to `.env.local` and your Vercel environment settings:

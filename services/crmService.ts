@@ -88,6 +88,7 @@ export interface VenueRental {
   // Pipeline & Opportunity Tracker fields from Google Sheet:
   sheet_opportunity_id?: string | null;
   opportunity_name?: string | null;
+  lead_source?: string | null;
   date_time_details?: string | null;
   facilitators_planned?: number | null;
   guests_crew_notes?: string | null;
@@ -368,6 +369,57 @@ export const crmService = {
       .single();
     if (error) throw error;
     return data;
+  },
+
+  async syncVenueRentalToSheet(rentalId: number) {
+    const { data: setting, error: settingError } = await supabase
+      .from('app_settings')
+      .select('setting_value')
+      .eq('setting_key', 'enable_rental_sheet_writeback')
+      .maybeSingle();
+    if (settingError) throw settingError;
+    if (setting?.setting_value !== 'true') {
+      return { syncedToSheet: false, skipped: true, reason: 'Write-back is disabled.' };
+    }
+
+    const { data, error } = await supabase.functions.invoke('rental-sheet-bridge', {
+      body: { action: 'upsert', rentalId },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as { syncedToSheet: boolean; skipped?: boolean; reason?: string };
+  },
+
+  async removeVenueRental(rentalId: number) {
+    const { data: setting, error: settingError } = await supabase
+      .from('app_settings')
+      .select('setting_value')
+      .eq('setting_key', 'enable_rental_sheet_writeback')
+      .maybeSingle();
+    if (settingError) throw settingError;
+
+    if (setting?.setting_value !== 'true') {
+      const { data: rental, error: rentalError } = await supabase
+        .from('venue_rentals')
+        .select('sheet_opportunity_id')
+        .eq('rental_id', rentalId)
+        .single();
+      if (rentalError) throw rentalError;
+      if (rental.sheet_opportunity_id) {
+        throw new Error('Enable sheet write-back before removing a sheet-backed deal, or remove it directly from the Google Sheet first.');
+      }
+
+      const { error } = await supabase.from('venue_rentals').delete().eq('rental_id', rentalId);
+      if (error) throw error;
+      return { deleted: true, syncedToSheet: false };
+    }
+
+    const { data, error } = await supabase.functions.invoke('rental-sheet-bridge', {
+      body: { action: 'delete', rentalId },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as { deleted: boolean; syncedToSheet: boolean };
   },
 
   async updateVenueRentalStatus(rentalId: number, status: string) {

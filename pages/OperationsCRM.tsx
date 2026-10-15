@@ -49,6 +49,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   const [isEditingRental, setIsEditingRental] = useState(false);
   const [editRentalForm, setEditRentalForm] = useState<Partial<VenueRental>>({});
   const [isSavingRentalEdit, setIsSavingRentalEdit] = useState(false);
+  const [isDeletingRental, setIsDeletingRental] = useState(false);
   const [isAddRentalOpen, setIsAddRentalOpen] = useState(false);
   const [newRental, setNewRental] = useState({
     contact_name: '',
@@ -199,14 +200,24 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   const handleCreateRental = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await crmService.createVenueRental({
+      const rental = await crmService.createVenueRental({
         ...newRental,
         room_id: Number(newRental.room_id),
         rental_rate: Number(newRental.rental_rate),
         deposit_amount: Number(newRental.deposit_amount),
       });
-      setMessage({ type: 'success', text: 'Venue rental booking created successfully!' });
       setIsAddRentalOpen(false);
+      try {
+        const sync = await crmService.syncVenueRentalToSheet(rental.rental_id!);
+        setMessage({
+          type: 'success',
+          text: sync.syncedToSheet
+            ? 'Deal created in the portal and pipeline sheet.'
+            : 'Deal created in the portal. Sheet write-back is disabled.',
+        });
+      } catch (syncError: any) {
+        setMessage({ type: 'error', text: `Deal was saved in the portal, but sheet write-back failed: ${syncError?.message || 'Unknown error.'}` });
+      }
       loadTabData('rentals');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error creating rental booking.' });
@@ -220,19 +231,57 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   };
 
   const handleSaveRentalEdit = async () => {
-    if (!selectedRentalDetail) return;
+    const rentalId = selectedRentalDetail?.rental_id;
+    if (rentalId == null) return;
     setIsSavingRentalEdit(true);
     try {
-      const updated = await crmService.updateVenueRental(selectedRentalDetail.rental_id, editRentalForm);
+      const updated = await crmService.updateVenueRental(rentalId, editRentalForm);
       setSelectedRentalDetail(updated);
       setEditRentalForm(updated);
       setIsEditingRental(false);
-      setMessage({ type: 'success', text: 'Deal / rental opportunity saved successfully.' });
+      try {
+        const sync = await crmService.syncVenueRentalToSheet(rentalId);
+        setMessage({
+          type: 'success',
+          text: sync.syncedToSheet
+            ? 'Deal saved in the portal and pipeline sheet.'
+            : 'Deal saved in the portal. Sheet write-back is disabled.',
+        });
+      } catch (syncError: any) {
+        setMessage({ type: 'error', text: `Deal was saved in the portal, but sheet write-back failed: ${syncError?.message || 'Unknown error.'}` });
+      }
       loadTabData('rentals');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to update deal.' });
     } finally {
       setIsSavingRentalEdit(false);
+    }
+  };
+
+  const handleRemoveRental = async () => {
+    if (!selectedRentalDetail?.rental_id) return;
+    const name = selectedRentalDetail.opportunity_name || selectedRentalDetail.organization_name || selectedRentalDetail.contact_name;
+    const confirmMessage = selectedRentalDetail.sheet_opportunity_id
+      ? `Permanently remove ${name} from the portal and, when write-back is enabled, the pipeline sheet?`
+      : `Permanently remove ${name} from the portal?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsDeletingRental(true);
+    try {
+      const result = await crmService.removeVenueRental(selectedRentalDetail.rental_id);
+      setSelectedRentalDetail(null);
+      setIsEditingRental(false);
+      setMessage({
+        type: 'success',
+        text: result.syncedToSheet
+          ? 'Deal removed from the portal and pipeline sheet.'
+          : 'Deal removed from the portal. Sheet write-back is disabled.',
+      });
+      loadTabData('rentals');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to remove deal.' });
+    } finally {
+      setIsDeletingRental(false);
     }
   };
 
@@ -1433,10 +1482,19 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={isDeletingRental || isSavingRentalEdit}
+                  onClick={handleRemoveRental}
+                  className="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
+                >
+                  {isDeletingRental ? 'Removing...' : 'Remove Deal'}
+                </button>
                 {!isEditingRental ? (
                   <button
                     type="button"
+                    disabled={isDeletingRental}
                     onClick={() => setIsEditingRental(true)}
                     className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
                   >
@@ -1446,7 +1504,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      disabled={isSavingRentalEdit}
+                      disabled={isSavingRentalEdit || isDeletingRental}
                       onClick={handleSaveRentalEdit}
                       className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
                     >
@@ -1454,7 +1512,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     </button>
                     <button
                       type="button"
-                      disabled={isSavingRentalEdit}
+                      disabled={isSavingRentalEdit || isDeletingRental}
                       onClick={() => {
                         setIsEditingRental(false);
                         setEditRentalForm({ ...selectedRentalDetail });

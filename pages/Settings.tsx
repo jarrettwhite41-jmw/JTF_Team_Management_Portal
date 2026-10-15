@@ -148,6 +148,84 @@ const pipelineSyncScriptSnippet = `// ==========================================
 const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
 
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents || "{}");
+    const expectedToken = PropertiesService.getScriptProperties().getProperty("JTF_PIPELINE_WEBHOOK_TOKEN");
+    if (!expectedToken || body.token !== expectedToken) {
+      return pipelineJson({ success: false, error: "Unauthorized." });
+    }
+
+    const sheet = SpreadsheetApp.openById(String(body.sheetId || "")).getSheets()[0];
+    const opportunityId = String(body.opportunityId || "").trim();
+    if (!opportunityId) throw new Error("Opportunity ID is required.");
+
+    if (body.action === "delete") {
+      const rowNumber = findPipelineRow(sheet, opportunityId);
+      if (rowNumber) sheet.deleteRow(rowNumber);
+      return pipelineJson({ success: true, deleted: Boolean(rowNumber) });
+    }
+    if (body.action !== "upsert" || !body.rental) throw new Error("Unsupported action or missing rental data.");
+
+    const rental = body.rental;
+    const eventDate = rental.event_start ? new Date(rental.event_start) : "";
+    const followUpDate = rental.follow_up_date ? new Date(rental.follow_up_date + "T12:00:00") : "";
+    const paymentDueDate = rental.payment_due_date ? new Date(rental.payment_due_date + "T12:00:00") : "";
+    const rowValues = [[
+      opportunityId,
+      rental.opportunity_name || rental.organization_name || "",
+      rental.status || "inquiry",
+      rental.event_type || "",
+      eventDate,
+      rental.date_time_details || "",
+      rental.facilitators_planned || "",
+      rental.guests_crew_notes || "",
+      rental.location_spaces || "",
+      rental.contact_name || "",
+      rental.contact_email || "",
+      rental.contact_phone || "",
+      rental.lead_source || rental.referral_source || "",
+      rental.next_action || "",
+      followUpDate,
+      rental.latest_update || "",
+      rental.budget || "",
+      rental.quoted_fee || "",
+      rental.agreed_fee || "",
+      rental.contract_status || "",
+      rental.contract_signed ? "Yes" : "No",
+      rental.deposit_status || "",
+      rental.deposit_due || rental.deposit_amount || "",
+      rental.paid_to_date || "",
+      rental.balance_due || "",
+      paymentDueDate,
+      rental.staffing_logistics || "",
+      rental.open_questions || "",
+      rental.client_folder_url || "",
+      rental.lead_owner || ""
+    ]];
+    const targetRow = findPipelineRow(sheet, opportunityId) || Math.max(sheet.getLastRow() + 1, 2);
+    sheet.getRange(targetRow, 1, 1, 30).setValues(rowValues);
+    return pipelineJson({ success: true, row: targetRow });
+  } catch (error) {
+    return pipelineJson({ success: false, error: String(error && error.message || error) });
+  }
+}
+
+function findPipelineRow(sheet, opportunityId) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+  const match = sheet.getRange(2, 1, lastRow - 1, 1)
+    .createTextFinder(opportunityId)
+    .matchEntireCell(true)
+    .findNext();
+  return match ? match.getRow() : null;
+}
+
+function pipelineJson(value) {
+  return ContentService.createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 /**
  * Trigger: On Edit (or run manually to sync all rows).
  * Syncs the edited row to Supabase 'venue_rentals'.
@@ -872,8 +950,7 @@ export const Settings: React.FC = () => {
                     </div>
 
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      Tracks active deals from the co-owner’s pipeline sheet (quoted fee, agreed fee, contract status, deposit status, staffing/logistics, and client folder). 
-                      Sync brings all working changes <strong>into the portal</strong> automatically. The write-back toggle remains <strong>OFF</strong> so portal changes will not overwrite the sheet until your team decides to enable bi-directional sync.
+                      Tracks deals from the shared pipeline sheet. Portal additions, edits, and removals sync to the sheet only after the protected Apps Script endpoint and Supabase Edge Function are deployed and write-back is enabled.
                     </p>
 
                     <div>
@@ -965,6 +1042,11 @@ export const Settings: React.FC = () => {
                       <li>Click <strong>Triggers</strong> (alarm clock icon ⏰ on left) &rarr; <strong>+ Add Trigger</strong>.</li>
                       <li>Select event source: <strong>From spreadsheet</strong>, event type: <strong>On edit</strong>, function: <strong>onEdit</strong>.</li>
                       <li><em>Optional:</em> Run <code>syncAllRows()</code> once in the editor to backfill existing rows immediately into the Portal.</li>
+                      <li>In Apps Script <strong>Project Settings</strong>, add Script Property <code>JTF_PIPELINE_WEBHOOK_TOKEN</code> with a unique secret value.</li>
+                      <li>Deploy &rarr; <strong>New deployment</strong> &rarr; <strong>Web app</strong>; execute as yourself, allow access to anyone, and copy the deployment URL.</li>
+                      <li>From the Team Portal project, run <code>supabase functions deploy rental-sheet-bridge --project-ref jsitpkzeszwwrgjfivbi</code>.</li>
+                      <li>Run <code>supabase secrets set GOOGLE_SHEETS_WEB_APP_URL="WEB_APP_URL" GOOGLE_SHEETS_WEBHOOK_TOKEN="SAME_TOKEN" --project-ref jsitpkzeszwwrgjfivbi</code>, replacing both values.</li>
+                      <li>Enable write-back only after both deployments and secrets are configured. Portal adds, edits, and removals will then update the sheet.</li>
                     </>
                   ) : (
                     <>
