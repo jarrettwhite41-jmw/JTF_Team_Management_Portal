@@ -980,150 +980,247 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     No bookings or opportunities matched your filters.
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                            <th className="py-3 px-4">Client / Opportunity</th>
-                            <th className="py-3 px-4">Event & Space</th>
-                            <th className="py-3 px-4">Date / Time</th>
-                            <th className="py-3 px-4">Staffing & Actors</th>
-                            <th className="py-3 px-4">Financials</th>
-                            <th className="py-3 px-4">Status & Owner</th>
-                            <th className="py-3 px-4 text-right">Details</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredRentals.map((ren) => {
-                            const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
-                            const hasSheetData = Boolean(ren.sheet_opportunity_id);
+                  <>
+                    {/* Mobile Card View (< md) */}
+                    <div className="md:hidden space-y-3">
+                      {filteredRentals.map((ren) => {
+                        const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
+                        const hasSheetData = Boolean(ren.sheet_opportunity_id);
 
-                            return (
-                              <tr key={ren.rental_id} className="hover:bg-slate-50 transition-colors">
-                                <td className="py-3 px-4">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-semibold text-slate-900">{clientDisplay}</span>
-                                    {hasSheetData && (
-                                      <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
-                                        {ren.sheet_opportunity_id}
+                        return (
+                          <div key={ren.rental_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className="font-bold text-slate-900 text-sm">{clientDisplay}</h4>
+                                  {hasSheetData && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                      {ren.sheet_opportunity_id}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">{ren.contact_name}</div>
+                              </div>
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                                  ren.status === 'confirmed' || ren.status === 'booked'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : ren.status === 'contract_signed'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : ren.status === 'deposit_received'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : ren.status === 'completed'
+                                    ? 'bg-slate-100 text-slate-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {ren.status.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                              <div>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Event & Space</span>
+                                <div className="font-medium text-slate-800 truncate">{ren.event_type}</div>
+                                <div className="text-slate-500 text-[11px] truncate">🏛️ {ren.location_spaces || ren.room_name || 'TBD'}</div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Date & Time</span>
+                                <div className="font-medium text-slate-800">{new Date(ren.event_start).toLocaleDateString()}</div>
+                                <div className="text-slate-500 text-[11px] truncate">
+                                  {ren.date_time_details || `${new Date(ren.event_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(ren.event_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Financials</span>
+                                <div className="font-bold text-slate-900">
+                                  {ren.agreed_fee ? `$${Number(ren.agreed_fee).toLocaleString()}` : ren.quoted_fee ? `Quote: $${Number(ren.quoted_fee).toLocaleString()}` : `$${ren.rental_rate}`}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  Bal: ${Number(ren.balance_due || 0).toLocaleString()}
+                                </div>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Staff / Owner</span>
+                                <div className="font-medium text-indigo-700">
+                                  {ren.facilitators_planned ? `🎭 ${ren.facilitators_planned} Actor${ren.facilitators_planned > 1 ? 's' : ''}` : 'No actors'}
+                                </div>
+                                <div className="text-slate-500 text-[11px] truncate">
+                                  {ren.lead_owner ? `👤 ${ren.lead_owner}` : 'Unassigned'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1">
+                              {ren.client_folder_url ? (
+                                <a
+                                  href={ren.client_folder_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                                >
+                                  📁 Folder &rarr;
+                                </a>
+                              ) : <span />}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRentalDetail(ren)}
+                                className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                              >
+                                View Card &rarr;
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Desktop Table View (>= md) */}
+                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm table-fixed">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              <th className="py-3 px-3 w-[22%]">Client / Opportunity</th>
+                              <th className="py-3 px-3 w-[16%]">Event & Space</th>
+                              <th className="py-3 px-3 w-[15%]">Date / Time</th>
+                              <th className="py-3 px-3 w-[15%]">Staffing & Actors</th>
+                              <th className="py-3 px-3 w-[14%]">Financials</th>
+                              <th className="py-3 px-3 w-[10%]">Status & Owner</th>
+                              <th className="py-3 px-3 w-[8%] text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredRentals.map((ren) => {
+                              const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
+                              const hasSheetData = Boolean(ren.sheet_opportunity_id);
+
+                              return (
+                                <tr key={ren.rental_id} className="hover:bg-slate-50 transition-colors">
+                                  <td className="py-3 px-3 align-top">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-semibold text-slate-900 text-xs break-words">{clientDisplay}</span>
+                                      {hasSheetData && (
+                                        <span className="text-[10px] font-mono px-1 py-0.2 bg-slate-100 text-slate-600 rounded shrink-0">
+                                          {ren.sheet_opportunity_id}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 truncate">{ren.contact_name}</div>
+                                    <div className="text-[11px] text-slate-400 truncate">
+                                      {ren.contact_email} {ren.contact_phone ? `• ${ren.contact_phone}` : ''}
+                                    </div>
+                                    {ren.client_folder_url && (
+                                      <a
+                                        href={ren.client_folder_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:underline pt-0.5"
+                                      >
+                                        📁 Client Folder &rarr;
+                                      </a>
+                                    )}
+                                  </td>
+
+                                  <td className="py-3 px-3 text-xs align-top">
+                                    <span className="inline-block px-1.5 py-0.5 bg-slate-100 rounded text-slate-800 font-medium truncate max-w-full">
+                                      {ren.event_type}
+                                    </span>
+                                    <div className="text-slate-600 font-medium mt-1 truncate">
+                                      🏛️ {ren.location_spaces || ren.room_name || 'Unassigned Room'}
+                                    </div>
+                                    {ren.guest_count ? (
+                                      <div className="text-[11px] text-slate-500">👥 {ren.guest_count} guests</div>
+                                    ) : null}
+                                  </td>
+
+                                  <td className="py-3 px-3 text-xs text-slate-600 align-top">
+                                    <div className="font-medium text-slate-800">{new Date(ren.event_start).toLocaleDateString()}</div>
+                                    <div className="text-[11px] text-slate-500 break-words line-clamp-2 leading-tight mt-0.5" title={ren.date_time_details || ''}>
+                                      {ren.date_time_details || (
+                                        <>
+                                          {new Date(ren.event_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
+                                          {new Date(ren.event_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  <td className="py-3 px-3 text-xs align-top">
+                                    {ren.facilitators_planned ? (
+                                      <div className="font-semibold text-indigo-700">
+                                        🎭 {ren.facilitators_planned} {ren.facilitators_planned === 1 ? 'Actor' : 'Actors'}
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-400">—</span>
+                                    )}
+                                    {ren.staffing_logistics && (
+                                      <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5 leading-tight" title={ren.staffing_logistics}>
+                                        {ren.staffing_logistics}
+                                      </p>
+                                    )}
+                                  </td>
+
+                                  <td className="py-3 px-3 text-xs align-top">
+                                    {ren.agreed_fee ? (
+                                      <div className="font-bold text-slate-900">${Number(ren.agreed_fee).toLocaleString()}</div>
+                                    ) : ren.quoted_fee ? (
+                                      <div className="font-semibold text-slate-700">Quote: ${Number(ren.quoted_fee).toLocaleString()}</div>
+                                    ) : (
+                                      <div className="font-semibold text-slate-900">${ren.rental_rate}</div>
+                                    )}
+                                    <div className="text-[11px] text-slate-500">
+                                      Paid: ${Number(ren.paid_to_date || 0).toLocaleString()} • Bal: ${Number(ren.balance_due || 0).toLocaleString()}
+                                    </div>
+                                    {ren.contract_signed && (
+                                      <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded inline-block mt-0.5">
+                                        ✓ Contract Signed
                                       </span>
                                     )}
-                                  </div>
-                                  <div className="text-xs text-slate-500">{ren.contact_name}</div>
-                                  <div className="text-[11px] text-slate-400">
-                                    {ren.contact_email} {ren.contact_phone ? `• ${ren.contact_phone}` : ''}
-                                  </div>
-                                  {ren.client_folder_url && (
-                                    <a
-                                      href={ren.client_folder_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:underline pt-0.5"
-                                    >
-                                      📁 Client Folder &rarr;
-                                    </a>
-                                  )}
-                                </td>
+                                  </td>
 
-                                <td className="py-3 px-4 text-xs">
-                                  <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-slate-800 font-medium">
-                                    {ren.event_type}
-                                  </span>
-                                  <div className="text-slate-600 font-medium mt-1">
-                                    🏛️ {ren.location_spaces || ren.room_name || 'Unassigned Room'}
-                                  </div>
-                                  {ren.guest_count ? (
-                                    <div className="text-[11px] text-slate-500">👥 {ren.guest_count} guests</div>
-                                  ) : null}
-                                </td>
-
-                                <td className="py-3 px-4 text-xs text-slate-600 whitespace-nowrap">
-                                  <div>{new Date(ren.event_start).toLocaleDateString()}</div>
-                                  <div className="text-[11px] text-slate-400">
-                                    {ren.date_time_details || (
-                                      <>
-                                        {new Date(ren.event_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
-                                        {new Date(ren.event_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </>
+                                  <td className="py-3 px-3 align-top">
+                                    <div>
+                                      <span
+                                        className={`inline-flex px-1.5 py-0.5 rounded text-[11px] font-semibold leading-tight ${
+                                          ren.status === 'confirmed' || ren.status === 'booked'
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : ren.status === 'contract_signed'
+                                            ? 'bg-blue-100 text-blue-800'
+                                            : ren.status === 'deposit_received'
+                                            ? 'bg-purple-100 text-purple-800'
+                                            : ren.status === 'completed'
+                                            ? 'bg-slate-100 text-slate-800'
+                                            : 'bg-amber-100 text-amber-800'
+                                        }`}
+                                      >
+                                        {ren.status.replace(/_/g, ' ')}
+                                      </span>
+                                    </div>
+                                    {ren.lead_owner && (
+                                      <div className="text-[11px] font-medium text-slate-600 mt-1 truncate" title={ren.lead_owner}>
+                                        👤 {ren.lead_owner}
+                                      </div>
                                     )}
-                                  </div>
-                                </td>
+                                  </td>
 
-                                <td className="py-3 px-4 text-xs">
-                                  {ren.facilitators_planned ? (
-                                    <div className="font-semibold text-indigo-700">
-                                      🎭 {ren.facilitators_planned} {ren.facilitators_planned === 1 ? 'Facilitator/Actor' : 'Facilitators/Actors'}
-                                    </div>
-                                  ) : (
-                                    <span className="text-slate-400">—</span>
-                                  )}
-                                  {ren.staffing_logistics && (
-                                    <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5" title={ren.staffing_logistics}>
-                                      {ren.staffing_logistics}
-                                    </p>
-                                  )}
-                                </td>
-
-                                <td className="py-3 px-4 text-xs whitespace-nowrap">
-                                  {ren.agreed_fee ? (
-                                    <div className="font-bold text-slate-900">${Number(ren.agreed_fee).toLocaleString()}</div>
-                                  ) : ren.quoted_fee ? (
-                                    <div className="font-semibold text-slate-700">Quote: ${Number(ren.quoted_fee).toLocaleString()}</div>
-                                  ) : (
-                                    <div className="font-semibold text-slate-900">${ren.rental_rate}</div>
-                                  )}
-                                  <div className="text-[11px] text-slate-500">
-                                    Paid: ${Number(ren.paid_to_date || 0).toLocaleString()} • Bal: ${Number(ren.balance_due || 0).toLocaleString()}
-                                  </div>
-                                  {ren.contract_signed && (
-                                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded inline-block mt-0.5">
-                                      ✓ Contract Signed
-                                    </span>
-                                  )}
-                                </td>
-
-                                <td className="py-3 px-4 whitespace-nowrap">
-                                  <div>
-                                    <span
-                                      className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                        ren.status === 'confirmed'
-                                          ? 'bg-emerald-100 text-emerald-800'
-                                          : ren.status === 'contract_signed'
-                                          ? 'bg-blue-100 text-blue-800'
-                                          : ren.status === 'deposit_received'
-                                          ? 'bg-purple-100 text-purple-800'
-                                          : ren.status === 'completed'
-                                          ? 'bg-slate-100 text-slate-800'
-                                          : 'bg-amber-100 text-amber-800'
-                                      }`}
+                                  <td className="py-3 px-3 text-right align-top">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenRentalDetail(ren)}
+                                      className="px-2 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors whitespace-nowrap"
                                     >
-                                      {ren.status.replace('_', ' ')}
-                                    </span>
-                                  </div>
-                                  {ren.lead_owner && (
-                                    <div className="text-[11px] font-medium text-slate-600 mt-1">
-                                      👤 {ren.lead_owner}
-                                    </div>
-                                  )}
-                                </td>
-
-                                <td className="py-3 px-4 text-right whitespace-nowrap">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenRentalDetail(ren)}
-                                    className="px-2.5 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors"
-                                  >
-                                    View Card
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                      View Card
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             );
@@ -1240,117 +1337,211 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     No outreach leads matched your filters.
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                            <th className="py-3 px-4">Organization / Prospect</th>
-                            <th className="py-3 px-4">Category & Purpose</th>
-                            <th className="py-3 px-4">Primary Contact</th>
-                            <th className="py-3 px-4">Status & Owner</th>
-                            <th className="py-3 px-4">Next Action / Follow-Up</th>
-                            <th className="py-3 px-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredLeads.map((lead) => (
-                            <tr key={lead.lead_id} className="hover:bg-slate-50 transition-colors align-top">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-bold text-slate-900">{lead.organization_name}</span>
-                                  {lead.sheet_lead_id && (
-                                    <span className="text-[10px] font-mono px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded">
-                                      {lead.sheet_lead_id}
-                                    </span>
-                                  )}
-                                </div>
-                                {lead.website_url && (
-                                  <a
-                                    href={lead.website_url.startsWith('http') ? lead.website_url : `https://${lead.website_url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[11px] text-emerald-600 hover:underline block pt-0.5 truncate max-w-xs"
-                                  >
-                                    🌐 {lead.website_url.replace(/^https?:\/\//, '')}
-                                  </a>
-                                )}
-                              </td>
-
-                              <td className="py-3 px-4 text-xs">
-                                {lead.category && (
-                                  <span className="inline-block px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold text-[11px] mb-1">
-                                    {lead.category}
+                  <>
+                    {/* Mobile Card View (< md) */}
+                    <div className="md:hidden space-y-3">
+                      {filteredLeads.map((lead) => (
+                        <div key={lead.lead_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4 className="font-bold text-slate-900 text-sm">{lead.organization_name}</h4>
+                                {lead.sheet_lead_id && (
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                    {lead.sheet_lead_id}
                                   </span>
                                 )}
-                                <div className="text-slate-800 font-medium">
-                                  {lead.offer_purpose || 'General Outreach'}
-                                </div>
-                              </td>
+                              </div>
+                              {lead.website_url && (
+                                <a
+                                  href={lead.website_url.startsWith('http') ? lead.website_url : `https://${lead.website_url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-[11px] text-emerald-600 hover:underline block pt-0.5 truncate max-w-[200px]"
+                                >
+                                  🌐 {lead.website_url.replace(/^https?:\/\//, '')}
+                                </a>
+                              )}
+                            </div>
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                                lead.status.toLowerCase().includes('won') || lead.status.toLowerCase().includes('converted')
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : lead.status.toLowerCase().includes('contacted') || lead.status.toLowerCase().includes('pitch')
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : lead.status.toLowerCase().includes('inactive') || lead.status.toLowerCase().includes('lost')
+                                  ? 'bg-slate-100 text-slate-700'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {lead.status}
+                            </span>
+                          </div>
 
-                              <td className="py-3 px-4 text-xs">
-                                <div className="font-semibold text-slate-900">{lead.contact_name || '—'}</div>
-                                {lead.contact_email && (
-                                  <a href={`mailto:${lead.contact_email}`} className="text-blue-600 hover:underline block text-[11px]">
-                                    ✉️ {lead.contact_email}
-                                  </a>
-                                )}
-                                {lead.contact_phone && (
-                                  <div className="text-slate-500 text-[11px]">📞 {lead.contact_phone}</div>
-                                )}
-                              </td>
-
-                              <td className="py-3 px-4 text-xs whitespace-nowrap">
-                                <div>
-                                  <span
-                                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                      lead.status.toLowerCase().includes('won') || lead.status.toLowerCase().includes('converted')
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : lead.status.toLowerCase().includes('contacted') || lead.status.toLowerCase().includes('pitch')
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : lead.status.toLowerCase().includes('inactive') || lead.status.toLowerCase().includes('lost')
-                                        ? 'bg-slate-100 text-slate-700'
-                                        : 'bg-amber-100 text-amber-800'
-                                    }`}
-                                  >
-                                    {lead.status}
-                                  </span>
-                                </div>
-                                {lead.owner && (
-                                  <div className="text-[11px] font-medium text-slate-600 mt-1">
-                                    👤 {lead.owner}
-                                  </div>
-                                )}
-                              </td>
-
-                              <td className="py-3 px-4 text-xs max-w-xs">
-                                {lead.next_action ? (
-                                  <div className="font-medium text-slate-800 line-clamp-2">{lead.next_action}</div>
-                                ) : (
-                                  <span className="text-slate-400 italic">No next action set</span>
-                                )}
+                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <div>
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Category</span>
+                              <span className="inline-block px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-700 font-medium text-[11px] mt-0.5">
+                                {lead.category || 'General'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Contact</span>
+                              <div className="font-semibold text-slate-900 truncate">{lead.contact_name || '—'}</div>
+                              {lead.contact_email && (
+                                <a href={`mailto:${lead.contact_email}`} className="text-blue-600 hover:underline text-[11px] truncate block">
+                                  ✉️ {lead.contact_email}
+                                </a>
+                              )}
+                            </div>
+                            <div className="col-span-2">
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Offer / Purpose</span>
+                              <div className="font-medium text-slate-800 text-xs">{lead.offer_purpose || 'General Outreach'}</div>
+                            </div>
+                            {lead.next_action && (
+                              <div className="col-span-2 pt-1 border-t border-slate-200">
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Next Action</span>
+                                <div className="text-slate-700 text-xs">{lead.next_action}</div>
                                 {lead.follow_up_date && (
                                   <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
                                     ⏰ Follow-up: {lead.follow_up_date}
                                   </div>
                                 )}
-                              </td>
+                              </div>
+                            )}
+                          </div>
 
-                              <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenLeadDetail(lead)}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors"
-                                >
-                                  View / Edit
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          <div className="flex items-center justify-between pt-1">
+                            <div className="text-xs text-slate-500">
+                              {lead.owner ? `👤 ${lead.owner}` : 'Unassigned'}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLeadDetail(lead)}
+                              className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              View / Edit &rarr;
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+
+                    {/* Desktop Table View (>= md) */}
+                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm table-fixed">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              <th className="py-3 px-3 w-[24%]">Organization / Prospect</th>
+                              <th className="py-3 px-3 w-[18%]">Category & Purpose</th>
+                              <th className="py-3 px-3 w-[18%]">Primary Contact</th>
+                              <th className="py-3 px-3 w-[14%]">Status & Owner</th>
+                              <th className="py-3 px-3 w-[16%]">Next Action / Follow-Up</th>
+                              <th className="py-3 px-3 w-[10%] text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filteredLeads.map((lead) => (
+                              <tr key={lead.lead_id} className="hover:bg-slate-50 transition-colors align-top">
+                                <td className="py-3 px-3">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-slate-900 text-xs break-words">{lead.organization_name}</span>
+                                    {lead.sheet_lead_id && (
+                                      <span className="text-[10px] font-mono px-1 py-0.2 bg-slate-100 text-slate-600 rounded shrink-0">
+                                        {lead.sheet_lead_id}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {lead.website_url && (
+                                    <a
+                                      href={lead.website_url.startsWith('http') ? lead.website_url : `https://${lead.website_url}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-[11px] text-emerald-600 hover:underline block pt-0.5 truncate max-w-full"
+                                    >
+                                      🌐 {lead.website_url.replace(/^https?:\/\//, '')}
+                                    </a>
+                                  )}
+                                </td>
+
+                                <td className="py-3 px-3 text-xs">
+                                  {lead.category && (
+                                    <span className="inline-block px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold text-[11px] mb-1 truncate max-w-full">
+                                      {lead.category}
+                                    </span>
+                                  )}
+                                  <div className="text-slate-800 font-medium text-xs break-words line-clamp-2">
+                                    {lead.offer_purpose || 'General Outreach'}
+                                  </div>
+                                </td>
+
+                                <td className="py-3 px-3 text-xs">
+                                  <div className="font-semibold text-slate-900 truncate">{lead.contact_name || '—'}</div>
+                                  {lead.contact_email && (
+                                    <a href={`mailto:${lead.contact_email}`} className="text-blue-600 hover:underline block text-[11px] truncate">
+                                      ✉️ {lead.contact_email}
+                                    </a>
+                                  )}
+                                  {lead.contact_phone && (
+                                    <div className="text-slate-500 text-[11px] truncate">📞 {lead.contact_phone}</div>
+                                  )}
+                                </td>
+
+                                <td className="py-3 px-3 text-xs">
+                                  <div>
+                                    <span
+                                      className={`inline-flex px-1.5 py-0.5 rounded text-[11px] font-semibold leading-tight ${
+                                        lead.status.toLowerCase().includes('won') || lead.status.toLowerCase().includes('converted')
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : lead.status.toLowerCase().includes('contacted') || lead.status.toLowerCase().includes('pitch')
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : lead.status.toLowerCase().includes('inactive') || lead.status.toLowerCase().includes('lost')
+                                          ? 'bg-slate-100 text-slate-700'
+                                          : 'bg-amber-100 text-amber-800'
+                                      }`}
+                                    >
+                                      {lead.status}
+                                    </span>
+                                  </div>
+                                  {lead.owner && (
+                                    <div className="text-[11px] font-medium text-slate-600 mt-1 truncate" title={lead.owner}>
+                                      👤 {lead.owner}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="py-3 px-3 text-xs">
+                                  {lead.next_action ? (
+                                    <div className="font-medium text-slate-800 text-[11px] line-clamp-2 leading-tight" title={lead.next_action}>
+                                      {lead.next_action}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 italic text-[11px]">No next action set</span>
+                                  )}
+                                  {lead.follow_up_date && (
+                                    <div className="text-[11px] text-amber-700 font-semibold mt-0.5">
+                                      ⏰ Follow-up: {lead.follow_up_date}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="py-3 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenLeadDetail(lead)}
+                                    className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                                  >
+                                    View / Edit
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             );

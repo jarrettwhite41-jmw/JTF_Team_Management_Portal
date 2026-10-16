@@ -360,7 +360,7 @@ function syncRowToSupabase(sheet, rowNumber) {
     }
 
     const oppName = String(row[1] || "").trim(); // Col B: Client / opportunity
-    const status = String(row[2] || "inquiry").trim().toLowerCase().replace(/\s+/g, '_'); // Col C: Status
+    const status = String(row[2] || "inquiry").trim().toLowerCase().replace(/\\s+/g, '_'); // Col C: Status
     const eventType = String(row[3] || "Corporate Event").trim(); // Col D: Event type
     const eventDateRaw = row[4]; // Col E: Event date
     const dateTimeDetails = String(row[5] || "").trim(); // Col F: Date / time details
