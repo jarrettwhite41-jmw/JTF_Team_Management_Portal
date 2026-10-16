@@ -441,98 +441,173 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         <Message type={message.type} message={message.text} onClose={() => setMessage(null)} />
       )}
 
-      {/* Tabs */}
-      <div className="flex overflow-x-auto border-b border-slate-200 gap-2 pb-px text-sm">
-        <button
-          onClick={() => setActiveTab('scheduling')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'scheduling'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          🏛️ Space Scheduling & Conflicts
-        </button>
-        <button
-          onClick={() => setActiveTab('refunds')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'refunds'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          🎟️ Ticket Refunds & Credits
-        </button>
-        <button
-          onClick={() => setActiveTab('credits')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'credits'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          💰 Student Tuition Credits
-        </button>
-        <button
-          onClick={() => setActiveTab('makeups')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'makeups'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          🧑‍🎓 Class Makeups & Transfers
-        </button>
-        <button
-          onClick={() => setActiveTab('welcome_packages')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'welcome_packages'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          ✍️ Welcome Package Signatures
-        </button>
-        <button
-          onClick={() => setActiveTab('rentals')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'rentals'
-              ? 'border-indigo-600 text-indigo-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          🏢 Rentals & Deal Pipeline
-        </button>
-        <button
-          onClick={() => setActiveTab('outreach_leads')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'outreach_leads'
-              ? 'border-emerald-600 text-emerald-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          🎯 Outreach & Leads
-        </button>
-        <button
-          onClick={() => setActiveTab('contact_inquiries')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'contact_inquiries'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          📬 Contact Inquiries
-        </button>
-        <button
-          onClick={() => setActiveTab('communications')}
-          className={`px-4 py-2.5 font-semibold whitespace-nowrap rounded-t-lg transition-colors border-b-2 ${
-            activeTab === 'communications'
-              ? 'border-blue-600 text-blue-600 bg-white'
-              : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          💬 Communication Log
-        </button>
+      {/* Redesigned Clean Segmented Navigation (grouped for desktop & responsive scroll for mobile) */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-2 sm:p-2.5 shadow-2xs space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <span>CRM Operational Suites</span>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+            Direct access to deals, prospects, students & facilities
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 sm:gap-2">
+          {/* Revenue & Pipeline Group */}
+          <button
+            onClick={() => setActiveTab('rentals')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'rentals'
+                ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🏢</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Rentals & Deals</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'rentals' ? 'text-indigo-200' : 'text-slate-400'}`}>
+                Bookings & pipeline
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('outreach_leads')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'outreach_leads'
+                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🎯</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Outreach & Leads</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'outreach_leads' ? 'text-emerald-200' : 'text-slate-400'}`}>
+                Accounts & outreach
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('scheduling')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'scheduling'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🏛️</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Space Scheduling</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'scheduling' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Rooms & conflicts
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('contact_inquiries')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'contact_inquiries'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">📬</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Contact Inquiries</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'contact_inquiries' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Web submissions
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('refunds')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'refunds'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🎟️</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Ticket Refunds</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'refunds' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Refund & ticket credit
+              </span>
+            </div>
+          </button>
+
+          {/* Student Operations Group */}
+          <button
+            onClick={() => setActiveTab('credits')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'credits'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">💰</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Tuition Credits</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'credits' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Student balances
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('makeups')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'makeups'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🧑‍🎓</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Class Makeups</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'makeups' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Class transfers
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('welcome_packages')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'welcome_packages'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">✍️</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Welcome Packages</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'welcome_packages' ? 'text-blue-200' : 'text-slate-400'}`}>
+                L1 student waivers
+              </span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('communications')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'communications'
+                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">💬</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Communications</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'communications' ? 'text-blue-200' : 'text-slate-400'}`}>
+                Inbound touch log
+              </span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -2030,74 +2105,78 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b pb-4 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b pb-4 gap-3">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-extrabold text-xl text-slate-900 tracking-tight break-words">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h3 className="font-extrabold text-lg sm:text-xl text-slate-900 tracking-tight break-words">
                     {selectedRentalDetail.opportunity_name || selectedRentalDetail.organization_name || selectedRentalDetail.contact_name}
                   </h3>
                   {selectedRentalDetail.sheet_opportunity_id && (
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">
+                    <span className="text-[11px] sm:text-xs font-mono font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md shrink-0">
                       {selectedRentalDetail.sheet_opportunity_id}
                     </span>
                   )}
-                  <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md">
+                  <span className="text-[11px] sm:text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md shrink-0">
                     {selectedRentalDetail.event_type || 'Event / Gig'}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Lead Owner: <strong className="text-slate-800">{selectedRentalDetail.lead_owner || 'Unassigned'}</strong> • Source: <span className="font-medium text-slate-700">{selectedRentalDetail.lead_source || selectedRentalDetail.referral_source || 'Direct Inquiry'}</span>
-                </p>
+                <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Lead Owner: <strong className="text-slate-800">{selectedRentalDetail.lead_owner || 'Unassigned'}</strong></span>
+                  <span className="text-slate-300">•</span>
+                  <span>Source: <span className="font-medium text-slate-700">{selectedRentalDetail.lead_source || selectedRentalDetail.referral_source || 'Direct Inquiry'}</span></span>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  disabled={isDeletingRental || isSavingRentalEdit}
-                  onClick={handleRemoveRental}
-                  className="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
-                >
-                  {isDeletingRental ? 'Removing...' : 'Remove Deal'}
-                </button>
-                {!isEditingRental ? (
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    disabled={isDeletingRental}
-                    onClick={() => setIsEditingRental(true)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
+                    disabled={isDeletingRental || isSavingRentalEdit}
+                    onClick={handleRemoveRental}
+                    className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
                   >
-                    ✏️ Edit Deal Details
+                    {isDeletingRental ? 'Removing...' : 'Remove Deal'}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2">
+                  {!isEditingRental ? (
                     <button
                       type="button"
-                      disabled={isSavingRentalEdit || isDeletingRental}
-                      onClick={handleSaveRentalEdit}
-                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                      disabled={isDeletingRental}
+                      onClick={() => setIsEditingRental(true)}
+                      className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
                     >
-                      {isSavingRentalEdit ? 'Saving...' : '💾 Save Changes'}
+                      ✏️ Edit Deal Details
                     </button>
-                    <button
-                      type="button"
-                      disabled={isSavingRentalEdit || isDeletingRental}
-                      onClick={() => {
-                        setIsEditingRental(false);
-                        setEditRentalForm({ ...selectedRentalDetail });
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isSavingRentalEdit || isDeletingRental}
+                        onClick={handleSaveRentalEdit}
+                        className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                      >
+                        {isSavingRentalEdit ? 'Saving...' : '💾 Save Changes'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingRentalEdit || isDeletingRental}
+                        onClick={() => {
+                          setIsEditingRental(false);
+                          setEditRentalForm({ ...selectedRentalDetail });
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedRentalDetail(null);
                     setIsEditingRental(false);
                   }}
-                  className="text-slate-400 hover:text-slate-600 text-xl font-bold ml-1 p-1"
+                  className="text-slate-400 hover:text-slate-600 text-xl font-bold p-1 ml-1"
                 >
                   ✕
                 </button>
@@ -2105,16 +2184,16 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
             </div>
 
             {/* Quick Actions & Client Drive Folder bar */}
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
-              <div className="flex flex-wrap items-center gap-3 text-slate-700">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-700">
                 <span>👤 Contact: <strong>{selectedRentalDetail.contact_name}</strong></span>
                 {selectedRentalDetail.contact_email && (
-                  <a href={`mailto:${selectedRentalDetail.contact_email}`} className="text-indigo-600 hover:underline">
+                  <a href={`mailto:${selectedRentalDetail.contact_email}`} className="text-indigo-600 hover:underline break-all">
                     ✉️ {selectedRentalDetail.contact_email}
                   </a>
                 )}
                 {selectedRentalDetail.contact_phone && (
-                  <a href={`tel:${selectedRentalDetail.contact_phone}`} className="text-slate-700 hover:underline">
+                  <a href={`tel:${selectedRentalDetail.contact_phone}`} className="text-slate-700 hover:underline whitespace-nowrap">
                     📞 {selectedRentalDetail.contact_phone}
                   </a>
                 )}
@@ -2129,13 +2208,13 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   }
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs self-start sm:self-auto"
                 >
                   <span>📁 Open Client Folder</span>
                   <span>&rarr;</span>
                 </a>
               ) : (
-                <span className="text-slate-400 italic">No Drive folder attached</span>
+                <span className="text-slate-400 italic text-[11px]">No Drive folder attached</span>
               )}
             </div>
 
@@ -2646,78 +2725,82 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-5 max-h-[92vh] overflow-y-auto">
             {/* Header */}
-            <div className="flex items-start justify-between border-b pb-4 gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b pb-4 gap-3">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-extrabold text-xl text-slate-900 tracking-tight break-words">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <h3 className="font-extrabold text-lg sm:text-xl text-slate-900 tracking-tight break-words">
                     {selectedLead.organization_name}
                   </h3>
                   {selectedLead.sheet_lead_id && (
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md">
+                    <span className="text-[11px] sm:text-xs font-mono font-bold px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-md shrink-0">
                       {selectedLead.sheet_lead_id}
                     </span>
                   )}
                   {selectedLead.category && (
-                    <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md">
+                    <span className="text-[11px] sm:text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-md shrink-0">
                       {selectedLead.category}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Lead Owner: <strong className="text-slate-800">{selectedLead.owner || 'Unassigned'}</strong> • Status: <span className="font-semibold text-slate-800">{selectedLead.status}</span>
-                </p>
+                <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Lead Owner: <strong className="text-slate-800">{selectedLead.owner || 'Unassigned'}</strong></span>
+                  <span className="text-slate-300">•</span>
+                  <span>Status: <span className="font-semibold text-slate-800">{selectedLead.status}</span></span>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  disabled={isConvertingLead || isDeletingLead}
-                  onClick={handleConvertLeadToRental}
-                  className="px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
-                  title="Creates a booked/deal record in Rentals & Deal Pipeline"
-                >
-                  {isConvertingLead ? 'Converting...' : '🎯 Convert to Event Deal'}
-                </button>
-                <button
-                  type="button"
-                  disabled={isDeletingLead || isSavingLead}
-                  onClick={handleDeleteLead}
-                  className="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
-                >
-                  {isDeletingLead ? 'Removing...' : 'Remove Lead'}
-                </button>
-                {!isEditingLead ? (
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
-                    disabled={isDeletingLead}
-                    onClick={() => setIsEditingLead(true)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-2xs"
+                    disabled={isConvertingLead || isDeletingLead}
+                    onClick={handleConvertLeadToRental}
+                    className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs"
+                    title="Creates a booked/deal record in Rentals & Deal Pipeline"
                   >
-                    ✏️ Edit Lead
+                    {isConvertingLead ? 'Converting...' : '🎯 Convert to Event Deal'}
                   </button>
-                ) : (
-                  <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isDeletingLead || isSavingLead}
+                    onClick={handleDeleteLead}
+                    className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors disabled:opacity-50"
+                  >
+                    {isDeletingLead ? 'Removing...' : 'Remove Lead'}
+                  </button>
+                  {!isEditingLead ? (
                     <button
                       type="button"
-                      disabled={isSavingLead || isDeletingLead}
-                      onClick={handleSaveLeadEdit}
-                      className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                      disabled={isDeletingLead}
+                      onClick={() => setIsEditingLead(true)}
+                      className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-2xs"
                     >
-                      {isSavingLead ? 'Saving...' : '💾 Save'}
+                      ✏️ Edit Lead
                     </button>
-                    <button
-                      type="button"
-                      disabled={isSavingLead || isDeletingLead}
-                      onClick={() => {
-                        setIsEditingLead(false);
-                        setEditLeadForm({ ...selectedLead });
-                      }}
-                      className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isSavingLead || isDeletingLead}
+                        onClick={handleSaveLeadEdit}
+                        className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 shadow-2xs"
+                      >
+                        {isSavingLead ? 'Saving...' : '💾 Save'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingLead || isDeletingLead}
+                        onClick={() => {
+                          setIsEditingLead(false);
+                          setEditLeadForm({ ...selectedLead });
+                        }}
+                        className="px-2.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => {

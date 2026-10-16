@@ -237,34 +237,82 @@ function onEdit(e) {
   const row = e.range.getRow();
   if (row <= 1) return; // Skip headers
 
-  if (sheetName.toLowerCase().indexOf("lead") !== -1 || sheetName.toLowerCase().indexOf("outreach") !== -1) {
+  if (isOutreachSheet(sheet)) {
     syncOutreachLeadRow(sheet, row);
   } else {
     syncRowToSupabase(sheet, row);
   }
 }
 
+/**
+ * Returns true if this sheet is the Outreach / Leads tab, either by name or by tab ID (gid).
+ */
+function isOutreachSheet(sheet) {
+  if (!sheet) return false;
+  try {
+    if (sheet.getSheetId && sheet.getSheetId() === 1576425752) return true;
+  } catch (err) {}
+  const name = (sheet.getName() || "").toLowerCase();
+  return name.indexOf("lead") !== -1 || name.indexOf("outreach") !== -1;
+}
+
 function syncAllRows() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheets = ss.getSheets();
+  Logger.log("Found " + sheets.length + " sheet tabs in spreadsheet.");
+
   for (let s = 0; s < sheets.length; s++) {
     const sheet = sheets[s];
     const sheetName = sheet.getName();
+    const sheetGid = sheet.getSheetId ? sheet.getSheetId() : "unknown";
     const lastRow = sheet.getLastRow();
-    if (sheetName.toLowerCase().indexOf("lead") !== -1 || sheetName.toLowerCase().indexOf("outreach") !== -1) {
-      Logger.log("Backfilling Outreach / Leads sheet: " + sheetName);
+    Logger.log("Scanning tab: '" + sheetName + "' (gid=" + sheetGid + "), rows: " + lastRow);
+
+    if (isOutreachSheet(sheet)) {
+      Logger.log("--> Backfilling Outreach / Leads sheet: " + sheetName);
       for (let r = 2; r <= lastRow; r++) {
         syncOutreachLeadRow(sheet, r);
         Utilities.sleep(100);
       }
     } else {
-      Logger.log("Backfilling Events / Pipeline sheet: " + sheetName);
+      Logger.log("--> Backfilling Events / Pipeline sheet: " + sheetName);
       for (let r = 2; r <= lastRow; r++) {
         syncRowToSupabase(sheet, r);
         Utilities.sleep(100);
       }
     }
   }
+}
+
+/**
+ * Dedicated runner to sync ONLY the Outreach / Leads sheet directly!
+ * You can select 'syncOutreachSheetOnly' in the Apps Script function dropdown and click Run.
+ */
+function syncOutreachSheetOnly() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let outreachSheet = null;
+
+  // Try finding by gid 1576425752 first
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    if (isOutreachSheet(sheets[i])) {
+      outreachSheet = sheets[i];
+      break;
+    }
+  }
+
+  if (!outreachSheet) {
+    Logger.log("ERROR: Could not find Outreach / Leads sheet by name or gid!");
+    return;
+  }
+
+  const lastRow = outreachSheet.getLastRow();
+  Logger.log("Syncing Outreach sheet '" + outreachSheet.getName() + "', total rows: " + lastRow);
+  for (let r = 2; r <= lastRow; r++) {
+    syncOutreachLeadRow(outreachSheet, r);
+    Utilities.sleep(100);
+  }
+  Logger.log("Outreach sync finished!");
 }
 
 function syncOutreachLeadRow(sheet, rowNumber) {
@@ -277,7 +325,10 @@ function syncOutreachLeadRow(sheet, rowNumber) {
     if (!leadId || leadId.toLowerCase() === "id") return;
 
     const org = String(row[1] || "").trim(); // Col B: Organization / prospect
-    if (!org) return;
+    if (!org) {
+      Logger.log("Row " + rowNumber + " has ID " + leadId + " but no Organization name. Skipping.");
+      return;
+    }
 
     const category = String(row[2] || "").trim(); // Col C: Category
     const status = String(row[3] || "New").trim(); // Col D: Status
