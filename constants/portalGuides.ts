@@ -27,28 +27,36 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       title: 'Theater CRM & Ops',
       icon: '🏢',
       description:
-        'Unified operations management for space bookings, customer ticket refunds, tuition credits, class makeup vouchers, welcome package compliance, venue rentals, and public web inquiries.',
+        'Unified operations command center for space bookings, ticket refunds, tuition credits, class makeup vouchers, welcome package compliance, venue rentals & deals, cold/warm outreach prospect leads, contact inquiries, and customer communication logs.',
       workflow: [
         'Space Scheduling: Reserve Main Stage, Second Stage, Classroom A, or Green Room with automated collision detection.',
-        'Ticket Refunds: Process customer refund requests with approved/rejected tracking.',
-        'Tuition Credits: Manage credit balances for conservatory students withdrawing or rescheduling.',
+        'Ticket Refunds: Process customer refund and store credit requests from Square POS and Eventbrite with approved/processed tracking.',
+        'Tuition Credits: Manage credit balances for conservatory students withdrawing, dropping, or rescheduling without messy spreadsheet math.',
         'Class Makeups: Track student absence makeup vouchers and match them with available class dates.',
-        'Welcome Packages: Track signed student agreements—Level 1 enrollments are automatically flagged for signature.',
-        'Venue Rentals & Gigs: Manage incoming rental quotes, contracts, deposit payments, and event milestones.',
-        'Contact Inquiries: View and resolve incoming web messages received from the public website.',
+        'Welcome Packages: Track signed student agreements—Level 1 enrollments are automatically flagged for signature compliance.',
+        'Venue Rentals & Deal Pipeline: Track rental bookings and outside gigs through Inquiry, Quoted, Contract Sent, Deposit Received, and Paid in Full stages with financial KPI metrics (quoted, agreed, paid, balance due). Convert confirmed inquiries directly into calendar events.',
+        'Outreach & Leads: Manage organizational prospects, corporate clients, schools, and partner leads with status pipelines (Prospecting, Pitch Sent, Under Discussion, Won/Converted, Inactive). One-click "Convert to Event / Rental" pushes winning outreach leads directly into the venue deal pipeline.',
+        'Contact Inquiries: View, triage, and resolve incoming web messages received from the public website, automatically synchronized from Google Forms/Sheets.',
+        'Communication Log: Review customer interaction history across email, phone, ticketing, class credit, and venue rental inquiries.',
       ],
       tips: [
-        'Google Sheets webhooks automatically populate rentals and contact messages in real time.',
+        'Google Sheets two-way sync keeps venue deals and outreach leads automatically aligned with co-owner Google Sheets.',
+        'Use the quick "+ Add Deal" and "+ Add Outreach Lead" buttons to log new opportunities on the fly.',
+        'Responsive mobile card views allow theater managers to approve refunds, makeups, check packets, and update deals seamlessly from their phones without horizontal scrolling.',
         'Double-booking prevention stops conflicting space reservations on the same stage.',
       ],
       crossPortalImpact: [
         {
-          portal: 'Master Schedule & Instructors',
-          description: 'Confirmed space reservations instantly block room slots, preventing instructors or directors from double-booking classrooms or stages.',
+          portal: 'Master Schedule & Calendar',
+          description: 'Confirmed space reservations and approved rental events instantly block stage and room slots, preventing instructors or directors from conflicting bookings.',
         },
         {
-          portal: 'Instructor Portal (Makeups)',
-          description: 'Approved class makeup vouchers allow instructors to verify student attendance without penalizing normal cohort caps.',
+          portal: 'Instructor Portal (Makeups & Packets)',
+          description: 'Approved class makeup vouchers allow instructors to verify student attendance without penalizing normal cohort caps, while welcome package compliance ensures onboarding paperwork is complete before session 1.',
+        },
+        {
+          portal: 'Directors & Production',
+          description: 'Confirmed private rentals and outside gigs on main stages block weekend rehearsal and performance slots across all director lineups.',
         },
       ],
     },
@@ -180,12 +188,14 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       description:
         'Portal system settings, Google Sheets integration links, Apps Script webhook generator, and environment configurations.',
       workflow: [
-        'Access Google Sheets & Webhooks tab to view live Sheet IDs and Drive shortcuts.',
-        'Use the 1-click script copier to get ready-to-run Google Apps Script code whenever new Google Forms or Sheets are created.',
+        'Access Google Sheets & Webhooks tab to view live Sheet IDs and Drive shortcuts for events, outreach leads, contact inquiries, and auditions.',
+        'Use the 1-click script copier to get ready-to-run Google Apps Script code with automatic sheet and GID matching for rental deals and outreach leads.',
+        'Run the dedicated sync runner (e.g. syncOutreachSheetOnly or syncEventsOnly) directly inside Apps Script to immediately backfill historical spreadsheet rows into Supabase.',
         'Configure portal branding, default rooms, and notification destinations.',
       ],
       tips: [
         'Apps Script webhooks run securely within your Google account without exposing sheets publicly to anyone with a link.',
+        'The generated Apps Script automatically normalizes column headers and matches tabs by name or GID ID (e.g. gid=1576425752 for outreach leads).',
       ],
     },
     'account-recovery': {

@@ -463,3 +463,6 @@ Pushes: `appsscript.json`, `Code.gs`, `index.html`
 | Babel parse errors | Extra `),` pairs from split-panel conversion — count parens carefully |
 | String `==` vs `===` for IDs | GAS sheets can return numbers or strings; use `==` for ID comparisons |
 | Active class statuses are not uniform | Check for `'active'`, `'in progress'`, `'scheduled'` (case-insensitive) |
+| PostgREST upsert requires matching unique constraint | When doing `?on_conflict=sheet_lead_id`, ensure `uq_crm_outreach_leads_sheet_id` or similar unique constraint exists in Postgres |
+| Google Sheets outreach lead sync | Use `isOutreachSheet` with tab name check + GID (`1576425752`) matching; use `syncOutreachSheetOnly` runner to backfill |
+| Operations CRM responsive mobile pattern | Use dual presentation: `md:hidden` for stacked mobile cards with action buttons and `hidden md:block` for `table-fixed` tables |
