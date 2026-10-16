@@ -29,19 +29,21 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       description:
         'Unified operations command center for space bookings, ticket refunds, tuition credits, class makeup vouchers, welcome package compliance, venue rentals & deals, cold/warm outreach prospect leads, contact inquiries, and customer communication logs.',
       workflow: [
+        'Venue Rentals & Gigs: Track rental bookings and outside gigs through Inquiry, Quoted, Contract Sent, Deposit Received, and Paid in Full stages with financial KPI metrics (quoted, agreed, paid, balance due). Convert confirmed inquiries directly into calendar events.',
+        'Outreach & Prospect Pipeline: Manage organizational prospects, corporate clients, schools, and partner leads with status pipelines (Prospecting, Pitch Sent, Under Discussion, Won/Converted, Inactive). One-click "Convert to Event / Rental" pushes winning outreach leads directly into the venue deal pipeline.',
         'Space Scheduling: Reserve Main Stage, Second Stage, Classroom A, or Green Room with automated collision detection.',
         'Ticket Refunds: Process customer refund and store credit requests from Square POS and Eventbrite with approved/processed tracking.',
         'Tuition Credits: Manage credit balances for conservatory students withdrawing, dropping, or rescheduling without messy spreadsheet math.',
         'Class Makeups: Track student absence makeup vouchers and match them with available class dates.',
         'Welcome Packages: Track signed student agreements—Level 1 enrollments are automatically flagged for signature compliance.',
-        'Venue Rentals & Deal Pipeline: Track rental bookings and outside gigs through Inquiry, Quoted, Contract Sent, Deposit Received, and Paid in Full stages with financial KPI metrics (quoted, agreed, paid, balance due). Convert confirmed inquiries directly into calendar events.',
-        'Outreach & Leads: Manage organizational prospects, corporate clients, schools, and partner leads with status pipelines (Prospecting, Pitch Sent, Under Discussion, Won/Converted, Inactive). One-click "Convert to Event / Rental" pushes winning outreach leads directly into the venue deal pipeline.',
         'Contact Inquiries: View, triage, and resolve incoming web messages received from the public website, automatically synchronized from Google Forms/Sheets.',
         'Communication Log: Review customer interaction history across email, phone, ticketing, class credit, and venue rental inquiries.',
       ],
       tips: [
+        'Rentals & Deals: Review financial metrics (Quoted vs Agreed vs Paid vs Due) directly above the deals table to gauge pipeline health.',
+        'Outreach Pipeline: Use "+ Add Outreach Lead" to record prospect accounts, target decision makers, pitch dates, and next follow-up dates.',
+        'One-Click Conversion: When an outreach deal is won, click "Convert to Event / Rental" to seamlessly bridge the record into venue rentals.',
         'Google Sheets two-way sync keeps venue deals and outreach leads automatically aligned with co-owner Google Sheets.',
-        'Use the quick "+ Add Deal" and "+ Add Outreach Lead" buttons to log new opportunities on the fly.',
         'Responsive mobile card views allow theater managers to approve refunds, makeups, check packets, and update deals seamlessly from their phones without horizontal scrolling.',
         'Double-booking prevention stops conflicting space reservations on the same stage.',
       ],
@@ -57,6 +59,52 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
         {
           portal: 'Directors & Production',
           description: 'Confirmed private rentals and outside gigs on main stages block weekend rehearsal and performance slots across all director lineups.',
+        },
+      ],
+    },
+    'venue-rentals': {
+      title: 'Rentals & Deal Pipeline',
+      icon: '🏛️',
+      description:
+        'End-to-end venue rentals and outside gigs pipeline. Manage incoming quotes, contracts, deposit payments, event dates, room assignments, and financial milestones.',
+      workflow: [
+        'Review the financial KPI banner: Quoted Value, Agreed Value, Collected to Date, and Outstanding Balance Due.',
+        'Track stage progression: Inquiry → Quoted → Contract Sent → Deposit Received → Paid in Full → Completed.',
+        'Click "+ Add Deal" to record a new private event, corporate workshop, or outside theater rental with client contact details, rate, and dates.',
+        'Open any deal card or row to edit details, assign stages (Main Stage, Second Stage, etc.), adjust fees, log notes, or sync writebacks to Google Sheets.',
+        'Use "Convert to Event / Rental" to automatically bridge confirmed bookings into the Master Calendar.',
+      ],
+      tips: [
+        'Real-time writeback to the co-owner Google Sheet automatically keeps financial partners informed without manual spreadsheet data entry.',
+        'Touch-optimized mobile cards let you check client contacts, event dates, and payment balances on the fly.',
+      ],
+      crossPortalImpact: [
+        {
+          portal: 'Master Schedule & Operations',
+          description: 'Confirmed rentals lock stage availability and prevent scheduling conflicts across public shows, rehearsals, and classes.',
+        },
+      ],
+    },
+    'outreach-leads': {
+      title: 'Outreach & Prospect Pipeline',
+      icon: '🎯',
+      description:
+        'Cold and warm client development CRM for corporate workshops, team-building sessions, school field trips, touring shows, and community partnerships.',
+      workflow: [
+        'Track prospect account stages: Prospecting → Pitch Sent → Under Discussion → Won / Converted → Inactive.',
+        'Click "+ Add Outreach Lead" to capture organization name, contact persona, email, phone, estimated offer value, next action, and follow-up deadline.',
+        'Filter leads by pipeline status or search by company, contact person, or owner.',
+        'When a client is ready to book, click "Convert to Event / Rental" on the lead modal to instantly generate a venue rental deal in the rentals pipeline.',
+        'Sync directly with Google Sheets (gid=1576425752) for two-way collaborative account management.',
+      ],
+      tips: [
+        'Set next actions and follow-up dates to keep business development efforts organized.',
+        'Use the mobile card view to quickly tap phone or email shortcuts before sales calls.',
+      ],
+      crossPortalImpact: [
+        {
+          portal: 'Venue Rentals & Production',
+          description: 'Converted outreach leads automatically seed rental pipeline entries with all client history and contact info intact.',
         },
       ],
     },

@@ -88,6 +88,8 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
 
   // Outreach & Leads state
   const [leads, setLeads] = useState<OutreachLead[]>([]);
+  const [showRentalsGuide, setShowRentalsGuide] = useState(false);
+  const [showOutreachGuide, setShowOutreachGuide] = useState(false);
   const [leadFilter, setLeadFilter] = useState<string>('all');
   const [leadCategoryFilter, setLeadCategoryFilter] = useState<string>('all');
   const [leadSearch, setLeadSearch] = useState<string>('');
@@ -1287,6 +1289,19 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => setShowRentalsGuide(!showRentalsGuide)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        showRentalsGuide
+                          ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                      title="Toggle Rentals Help Guide & Workflow"
+                    >
+                      <span>ℹ️</span>
+                      <span>{showRentalsGuide ? 'Hide Guide' : 'Help & Guide'}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setIsAddRentalOpen(true)}
                       className="px-3 py-1.5 bg-indigo-600 text-white font-semibold text-xs rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
                     >
@@ -1294,6 +1309,57 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     </button>
                   </div>
                 </div>
+
+                {/* Inline Help Guide Banner */}
+                {showRentalsGuide && (
+                  <div className="bg-gradient-to-r from-indigo-50 via-slate-50 to-white border border-indigo-200 rounded-xl p-4 shadow-2xs space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🏛️</span>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">Venue Rentals & Deal Pipeline Guide</h4>
+                          <p className="text-xs text-slate-600">
+                            Track outside theater rentals, private gigs, and corporate workshop bookings from initial quote to final settlement.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowRentalsGuide(false)}
+                        className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      <div className="bg-white/90 p-3 rounded-lg border border-indigo-100 text-xs space-y-1">
+                        <div className="font-bold text-indigo-900 flex items-center gap-1">
+                          <span>1️⃣</span> Pipeline Stages
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Progress deals from <strong>Inquiry</strong> → <strong>Quoted</strong> → <strong>Contract Signed</strong> → <strong>Deposit Received</strong> → <strong>Confirmed</strong> → <strong>Completed</strong>.
+                        </p>
+                      </div>
+                      <div className="bg-white/90 p-3 rounded-lg border border-indigo-100 text-xs space-y-1">
+                        <div className="font-bold text-indigo-900 flex items-center gap-1">
+                          <span>2️⃣</span> Financial Tracking
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Monitor <em>Quoted Fee</em> vs <em>Agreed Fee</em>, log deposit payments and paid-to-date totals, and monitor receivables due at a glance.
+                        </p>
+                      </div>
+                      <div className="bg-white/90 p-3 rounded-lg border border-indigo-100 text-xs space-y-1">
+                        <div className="font-bold text-indigo-900 flex items-center gap-1">
+                          <span>3️⃣</span> Live Google Sheet Sync
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Deals automatically sync two-way with the co-owner Google Sheet. Updates here write back live so finance partners stay informed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {filteredRentals.length === 0 ? (
                   <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
@@ -1644,6 +1710,19 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
+                      onClick={() => setShowOutreachGuide(!showOutreachGuide)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        showOutreachGuide
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
+                      title="Toggle Outreach Help Guide & Workflow"
+                    >
+                      <span>ℹ️</span>
+                      <span>{showOutreachGuide ? 'Hide Guide' : 'Help & Guide'}</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setIsAddLeadOpen(true)}
                       className="px-3 py-1.5 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 transition-colors whitespace-nowrap shadow-2xs"
                     >
@@ -1651,6 +1730,57 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     </button>
                   </div>
                 </div>
+
+                {/* Inline Help Guide Banner */}
+                {showOutreachGuide && (
+                  <div className="bg-gradient-to-r from-emerald-50 via-slate-50 to-white border border-emerald-200 rounded-xl p-4 shadow-2xs space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">🎯</span>
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm">Outreach & Prospect Pipeline Guide</h4>
+                          <p className="text-xs text-slate-600">
+                            Client prospecting and outreach CRM for corporate workshops, team building, school tours, and community partnerships.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowOutreachGuide(false)}
+                        className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                      <div className="bg-white/90 p-3 rounded-lg border border-emerald-100 text-xs space-y-1">
+                        <div className="font-bold text-emerald-900 flex items-center gap-1">
+                          <span>1️⃣</span> Prospecting Funnel
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Track stages: <strong>Prospecting</strong> → <strong>Pitch Sent</strong> → <strong>Under Discussion</strong> → <strong>Won / Converted</strong> → <strong>Inactive</strong>.
+                        </p>
+                      </div>
+                      <div className="bg-white/90 p-3 rounded-lg border border-emerald-100 text-xs space-y-1">
+                        <div className="font-bold text-emerald-900 flex items-center gap-1">
+                          <span>2️⃣</span> One-Click Conversion
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          When a deal closes, click <strong>Convert to Event / Rental</strong> on the lead card to instantly spin up a venue rental deal with all client details preserved.
+                        </p>
+                      </div>
+                      <div className="bg-white/90 p-3 rounded-lg border border-emerald-100 text-xs space-y-1">
+                        <div className="font-bold text-emerald-900 flex items-center gap-1">
+                          <span>3️⃣</span> Live Google Sheet Sync
+                        </div>
+                        <p className="text-slate-600 leading-relaxed">
+                          Direct bidirectional sync with Google Sheet tab (gid=1576425752). Status changes, follow-up dates, and notes update automatically.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {filteredLeads.length === 0 ? (
                   <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
