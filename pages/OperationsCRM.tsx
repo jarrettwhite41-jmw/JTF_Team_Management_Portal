@@ -617,14 +617,14 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
           {/* TAB 1: SPACE SCHEDULING */}
           {activeTab === 'scheduling' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <p className="text-sm text-slate-600">
                   Guaranteed conflict prevention across Main Stage, Second Stage, Classroom A, and Green Room.
                 </p>
                 <button
                   type="button"
                   onClick={() => setIsAddBookingOpen(true)}
-                  className="px-3 py-1.5 bg-blue-600 text-white font-semibold text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1.5 bg-blue-600 text-white font-semibold text-xs rounded-lg hover:bg-blue-700 transition-colors self-start sm:self-auto shrink-0 shadow-2xs"
                 >
                   + Reserve Space
                 </button>
@@ -635,46 +635,87 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No upcoming reservations found.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Event Title</th>
-                          <th className="py-3 px-4">Space / Room</th>
-                          <th className="py-3 px-4">Type</th>
-                          <th className="py-3 px-4">Start Time</th>
-                          <th className="py-3 px-4">End Time</th>
-                          <th className="py-3 px-4">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {bookings.map((b) => (
-                          <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-4 font-semibold text-slate-900">{b.booking_title}</td>
-                            <td className="py-3 px-4 text-slate-700 font-medium">🏛️ {b.room_name}</td>
-                            <td className="py-3 px-4 capitalize text-xs text-slate-600">{b.booking_type}</td>
-                            <td className="py-3 px-4 text-xs text-slate-700">{new Date(b.start_time).toLocaleString()}</td>
-                            <td className="py-3 px-4 text-xs text-slate-700">{new Date(b.end_time).toLocaleString()}</td>
-                            <td className="py-3 px-4">
-                              <span
-                                className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                  b.status === 'confirmed'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : b.status === 'hold'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}
-                              >
-                                {b.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {bookings.map((b) => (
+                      <div key={b.booking_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm leading-snug">{b.booking_title}</h4>
+                            <div className="text-xs font-medium text-slate-700 mt-0.5">🏛️ {b.room_name}</div>
+                          </div>
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                              b.status === 'confirmed'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : b.status === 'hold'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            {b.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Type</span>
+                            <span className="capitalize font-medium text-slate-800">{b.booking_type}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Date</span>
+                            <span className="font-medium text-slate-800">{new Date(b.start_time).toLocaleDateString()}</span>
+                          </div>
+                          <div className="col-span-2 text-slate-600 text-[11px]">
+                            ⏰ {new Date(b.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(b.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[26%]">Event Title</th>
+                            <th className="py-3 px-3 w-[20%]">Space / Room</th>
+                            <th className="py-3 px-3 w-[14%]">Type</th>
+                            <th className="py-3 px-3 w-[15%]">Start Time</th>
+                            <th className="py-3 px-3 w-[15%]">End Time</th>
+                            <th className="py-3 px-3 w-[10%] text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {bookings.map((b) => (
+                            <tr key={b.booking_id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-3 px-3 font-semibold text-slate-900 text-xs break-words">{b.booking_title}</td>
+                              <td className="py-3 px-3 text-slate-700 font-medium text-xs truncate">🏛️ {b.room_name}</td>
+                              <td className="py-3 px-3 capitalize text-xs text-slate-600 truncate">{b.booking_type}</td>
+                              <td className="py-3 px-3 text-xs text-slate-700 truncate">{new Date(b.start_time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className="py-3 px-3 text-xs text-slate-700 truncate">{new Date(b.end_time).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                              <td className="py-3 px-3 text-right">
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                    b.status === 'confirmed'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : b.status === 'hold'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
+                                  {b.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -690,63 +731,122 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No ticket refund requests pending.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Customer</th>
-                          <th className="py-3 px-4">Platform</th>
-                          <th className="py-3 px-4">Type</th>
-                          <th className="py-3 px-4">Amount</th>
-                          <th className="py-3 px-4">Reason</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {refundRequests.map((r) => (
-                          <tr key={r.refund_request_id} className="hover:bg-slate-50">
-                            <td className="py-3 px-4">
-                              <div className="font-semibold text-slate-900">{r.customer_name}</div>
-                              <div className="text-xs text-slate-500">{r.customer_email}</div>
-                            </td>
-                            <td className="py-3 px-4 capitalize text-xs font-medium text-slate-700">{r.platform}</td>
-                            <td className="py-3 px-4 uppercase text-xs text-slate-600">{r.refund_type}</td>
-                            <td className="py-3 px-4 font-bold text-slate-900">${r.refund_amount}</td>
-                            <td className="py-3 px-4 text-xs text-slate-600 max-w-xs truncate">{r.reason}</td>
-                            <td className="py-3 px-4">
-                              <span
-                                className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                  r.status === 'approved'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : r.status === 'processed'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : r.status === 'rejected'
-                                    ? 'bg-rose-100 text-rose-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {r.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {r.status === 'requested' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApproveRefund(r.refund_request_id!)}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
-                                >
-                                  Approve
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {refundRequests.map((r) => (
+                      <div key={r.refund_request_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm">{r.customer_name}</div>
+                            <div className="text-xs text-slate-500">{r.customer_email}</div>
+                          </div>
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                              r.status === 'approved'
+                                ? 'bg-blue-100 text-blue-800'
+                                : r.status === 'processed'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : r.status === 'rejected'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {r.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Platform & Type</span>
+                            <span className="capitalize font-medium text-slate-800">{r.platform} • {r.refund_type}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Amount</span>
+                            <span className="font-bold text-slate-900 text-sm">${r.refund_amount}</span>
+                          </div>
+                          {r.reason && (
+                            <div className="col-span-2">
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Reason</span>
+                              <p className="text-slate-600 text-xs">{r.reason}</p>
+                            </div>
+                          )}
+                        </div>
+                        {r.status === 'requested' && (
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleApproveRefund(r.refund_request_id!)}
+                              className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              Approve Refund
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[22%]">Customer</th>
+                            <th className="py-3 px-3 w-[12%]">Platform</th>
+                            <th className="py-3 px-3 w-[10%]">Type</th>
+                            <th className="py-3 px-3 w-[12%]">Amount</th>
+                            <th className="py-3 px-3 w-[26%]">Reason</th>
+                            <th className="py-3 px-3 w-[10%]">Status</th>
+                            <th className="py-3 px-3 w-[8%] text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {refundRequests.map((r) => (
+                            <tr key={r.refund_request_id} className="hover:bg-slate-50">
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-slate-900 text-xs truncate">{r.customer_name}</div>
+                                <div className="text-[11px] text-slate-500 truncate">{r.customer_email}</div>
+                              </td>
+                              <td className="py-3 px-3 capitalize text-xs font-medium text-slate-700 truncate">{r.platform}</td>
+                              <td className="py-3 px-3 uppercase text-xs text-slate-600 truncate">{r.refund_type}</td>
+                              <td className="py-3 px-3 font-bold text-slate-900 text-xs">${r.refund_amount}</td>
+                              <td className="py-3 px-3 text-xs text-slate-600">
+                                <div className="line-clamp-2 leading-tight" title={r.reason || ''}>{r.reason}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                    r.status === 'approved'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : r.status === 'processed'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : r.status === 'rejected'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                {r.status === 'requested' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveRefund(r.refund_request_id!)}
+                                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 whitespace-nowrap"
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -762,32 +862,67 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No student credit records logged.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Student</th>
-                          <th className="py-3 px-4">Credit Type</th>
-                          <th className="py-3 px-4">Amount</th>
-                          <th className="py-3 px-4">Description</th>
-                          <th className="py-3 px-4">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {studentCredits.map((c) => (
-                          <tr key={c.credit_id} className="hover:bg-slate-50">
-                            <td className="py-3 px-4 font-semibold text-slate-900">{c.student_name}</td>
-                            <td className="py-3 px-4 capitalize text-xs text-slate-700">{c.credit_type.replace('_', ' ')}</td>
-                            <td className="py-3 px-4 font-bold text-emerald-700">${c.amount}</td>
-                            <td className="py-3 px-4 text-xs text-slate-600">{c.description}</td>
-                            <td className="py-3 px-4 text-xs text-slate-500">{new Date(c.created_at || '').toLocaleDateString()}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {studentCredits.map((c) => (
+                      <div key={c.credit_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm">{c.student_name}</h4>
+                          <span className="font-extrabold text-emerald-700 text-sm bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 shrink-0">
+                            ${c.amount}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Credit Type</span>
+                            <span className="capitalize font-medium text-slate-800">{c.credit_type.replace('_', ' ')}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Date</span>
+                            <span className="font-medium text-slate-800">{new Date(c.created_at || '').toLocaleDateString()}</span>
+                          </div>
+                          {c.description && (
+                            <div className="col-span-2">
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Description</span>
+                              <p className="text-slate-600 text-xs">{c.description}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[24%]">Student</th>
+                            <th className="py-3 px-3 w-[18%]">Credit Type</th>
+                            <th className="py-3 px-3 w-[14%]">Amount</th>
+                            <th className="py-3 px-3 w-[30%]">Description</th>
+                            <th className="py-3 px-3 w-[14%] text-right">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {studentCredits.map((c) => (
+                            <tr key={c.credit_id} className="hover:bg-slate-50">
+                              <td className="py-3 px-3 font-semibold text-slate-900 text-xs truncate">{c.student_name}</td>
+                              <td className="py-3 px-3 capitalize text-xs text-slate-700 truncate">{c.credit_type.replace('_', ' ')}</td>
+                              <td className="py-3 px-3 font-bold text-emerald-700 text-xs">${c.amount}</td>
+                              <td className="py-3 px-3 text-xs text-slate-600">
+                                <div className="line-clamp-2 leading-tight" title={c.description || ''}>{c.description}</div>
+                              </td>
+                              <td className="py-3 px-3 text-xs text-slate-500 text-right truncate">{new Date(c.created_at || '').toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -803,57 +938,104 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No class makeup requests pending.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Student</th>
-                          <th className="py-3 px-4">Original Class & Date</th>
-                          <th className="py-3 px-4">Target Class</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {makeupRequests.map((m) => (
-                          <tr key={m.makeup_request_id} className="hover:bg-slate-50">
-                            <td className="py-3 px-4 font-semibold text-slate-900">{m.student_name}</td>
-                            <td className="py-3 px-4 text-xs text-slate-700">
-                              <div>{m.original_class_name}</div>
-                              <div className="text-slate-500">{m.original_session_date}</div>
-                            </td>
-                            <td className="py-3 px-4 text-xs text-slate-700">{m.target_class_name}</td>
-                            <td className="py-3 px-4">
-                              <span
-                                className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                  m.status === 'approved'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : m.status === 'attended'
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {m.status}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {m.status === 'pending' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateMakeupStatus(m.makeup_request_id!, 'approved')}
-                                  className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
-                                >
-                                  Approve
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {makeupRequests.map((m) => (
+                      <div key={m.makeup_request_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm">{m.student_name}</h4>
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                              m.status === 'approved'
+                                ? 'bg-blue-100 text-blue-800'
+                                : m.status === 'attended'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {m.status}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Original Class</span>
+                            <span className="font-medium text-slate-800 block">{m.original_class_name}</span>
+                            <span className="text-[11px] text-slate-500">{m.original_session_date}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">Target Class</span>
+                            <span className="font-medium text-slate-800 block">{m.target_class_name}</span>
+                          </div>
+                        </div>
+                        {m.status === 'pending' && (
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateMakeupStatus(m.makeup_request_id!, 'approved')}
+                              className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              Approve Makeup
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[24%]">Student</th>
+                            <th className="py-3 px-3 w-[26%]">Original Class & Date</th>
+                            <th className="py-3 px-3 w-[26%]">Target Class</th>
+                            <th className="py-3 px-3 w-[12%]">Status</th>
+                            <th className="py-3 px-3 w-[12%] text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {makeupRequests.map((m) => (
+                            <tr key={m.makeup_request_id} className="hover:bg-slate-50">
+                              <td className="py-3 px-3 font-semibold text-slate-900 text-xs truncate">{m.student_name}</td>
+                              <td className="py-3 px-3 text-xs text-slate-700">
+                                <div className="font-medium truncate">{m.original_class_name}</div>
+                                <div className="text-[11px] text-slate-500 truncate">{m.original_session_date}</div>
+                              </td>
+                              <td className="py-3 px-3 text-xs text-slate-700 font-medium truncate">{m.target_class_name}</td>
+                              <td className="py-3 px-3">
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                    m.status === 'approved'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : m.status === 'attended'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}
+                                >
+                                  {m.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                {m.status === 'pending' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateMakeupStatus(m.makeup_request_id!, 'approved')}
+                                    className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 whitespace-nowrap"
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -887,70 +1069,133 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No student records found.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Student</th>
-                          <th className="py-3 px-4">Email</th>
-                          <th className="py-3 px-4">Student Status</th>
-                          <th className="py-3 px-4">Welcome Package</th>
-                          <th className="py-3 px-4">Date Signed</th>
-                          <th className="py-3 px-4 text-right">Quick Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {welcomePackages
-                          .filter((s) => {
-                            if (welcomeFilter === 'signed') return s.welcome_package_signed;
-                            if (welcomeFilter === 'pending') return !s.welcome_package_signed;
-                            return true;
-                          })
-                          .map((student) => (
-                            <tr key={student.student_id} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-3 px-4 font-semibold text-slate-900">{student.student_name}</td>
-                              <td className="py-3 px-4 text-xs text-slate-600">{student.student_email}</td>
-                              <td className="py-3 px-4 text-xs">
-                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 capitalize">
-                                  {student.status || 'Active'}
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {welcomePackages
+                      .filter((s) => {
+                        if (welcomeFilter === 'signed') return s.welcome_package_signed;
+                        if (welcomeFilter === 'pending') return !s.welcome_package_signed;
+                        return true;
+                      })
+                      .map((student) => (
+                        <div key={student.student_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-slate-900 text-sm">{student.student_name}</h4>
+                              <div className="text-xs text-slate-600 truncate">{student.student_email}</div>
+                            </div>
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 capitalize shrink-0">
+                              {student.status || 'Active'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <div>
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Packet Status</span>
+                              {student.welcome_package_signed ? (
+                                <span className="inline-flex items-center gap-1 font-semibold text-emerald-800 text-xs">
+                                  ✓ Signed
                                 </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                {student.welcome_package_signed ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                                    ✓ Signed
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-                                    ⏳ Pending Signature
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-xs text-slate-600">
+                              ) : (
+                                <span className="inline-flex items-center gap-1 font-semibold text-amber-800 text-xs">
+                                  ⏳ Pending
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="text-[10px] uppercase font-semibold text-slate-400 block">Date Signed</span>
+                              <span className="font-medium text-slate-800">
                                 {student.welcome_package_signed_at
                                   ? new Date(student.welcome_package_signed_at).toLocaleDateString()
                                   : '—'}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
-                                  className={`px-3 py-1 text-xs font-semibold rounded-lg border transition-colors ${
-                                    student.welcome_package_signed
-                                      ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
-                                      : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                                  }`}
-                                >
-                                  {student.welcome_package_signed ? 'Mark Pending' : 'Mark as Signed'}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
+                              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                                student.welcome_package_signed
+                                  ? 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                                  : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                              }`}
+                            >
+                              {student.welcome_package_signed ? 'Mark as Pending' : 'Mark as Signed'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[24%]">Student</th>
+                            <th className="py-3 px-3 w-[26%]">Email</th>
+                            <th className="py-3 px-3 w-[12%]">Status</th>
+                            <th className="py-3 px-3 w-[16%]">Welcome Package</th>
+                            <th className="py-3 px-3 w-[10%]">Date Signed</th>
+                            <th className="py-3 px-3 w-[12%] text-right">Quick Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {welcomePackages
+                            .filter((s) => {
+                              if (welcomeFilter === 'signed') return s.welcome_package_signed;
+                              if (welcomeFilter === 'pending') return !s.welcome_package_signed;
+                              return true;
+                            })
+                            .map((student) => (
+                              <tr key={student.student_id} className="hover:bg-slate-50 transition-colors">
+                                <td className="py-3 px-3 font-semibold text-slate-900 text-xs truncate">{student.student_name}</td>
+                                <td className="py-3 px-3 text-xs text-slate-600 truncate">{student.student_email}</td>
+                                <td className="py-3 px-3 text-xs">
+                                  <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 capitalize">
+                                    {student.status || 'Active'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3">
+                                  {student.welcome_package_signed ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                                      ✓ Signed
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800">
+                                      ⏳ Pending
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-xs text-slate-600 truncate">
+                                  {student.welcome_package_signed_at
+                                    ? new Date(student.welcome_package_signed_at).toLocaleDateString()
+                                    : '—'}
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
+                                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                                      student.welcome_package_signed
+                                        ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                                        : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                                    }`}
+                                  >
+                                    {student.welcome_package_signed ? 'Mark Pending' : 'Mark Signed'}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -1641,105 +1886,193 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   No contact inquiries found.
                 </div>
               ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                          <th className="py-3 px-4">Submitted On</th>
-                          <th className="py-3 px-4">Contact</th>
-                          <th className="py-3 px-4">Subject & Message</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {contactInquiries.map((inq) => {
-                          const dateDisplay = inq.submitted_at
-                            ? inq.submitted_at
-                            : inq.created_at
-                            ? new Date(inq.created_at).toLocaleString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : '—';
+                <>
+                  {/* Mobile Card View (< md) */}
+                  <div className="md:hidden space-y-3">
+                    {contactInquiries.map((inq) => {
+                      const dateDisplay = inq.submitted_at
+                        ? inq.submitted_at
+                        : inq.created_at
+                        ? new Date(inq.created_at).toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '—';
 
-                          return (
-                            <tr key={inq.log_id} className="hover:bg-slate-50 align-top">
-                              <td className="py-3 px-4 whitespace-nowrap text-xs text-slate-600 font-medium">
-                                <div>📅 {dateDisplay}</div>
-                              </td>
-                              <td className="py-3 px-4 whitespace-nowrap">
-                                <div className="font-semibold text-slate-900">{inq.customer_name || inq.staff_email || 'Website Visitor'}</div>
-                                {inq.staff_email && (
-                                  <a
-                                    href={`mailto:${inq.staff_email}`}
-                                    className="text-xs text-blue-600 hover:underline block"
-                                  >
-                                    ✉️ {inq.staff_email}
-                                  </a>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 max-w-md">
-                                <div className="font-semibold text-slate-900 text-xs mb-1">{inq.subject}</div>
-                                <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-3 hover:line-clamp-none transition-all">
-                                  {inq.body.replace(/^From: [^\n]+\n\n/, '')}
-                                </p>
-                              </td>
-                              <td className="py-3 px-4 whitespace-nowrap">
-                                <span
-                                  className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                    inq.status === 'open'
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : inq.status === 'in_progress'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : inq.status === 'resolved'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-slate-100 text-slate-700'
-                                  }`}
-                                >
-                                  {inq.status.replace('_', ' ')}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right whitespace-nowrap space-x-1">
-                                {inq.status === 'open' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
-                                    className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100"
-                                  >
-                                    Start
-                                  </button>
-                                )}
-                                {inq.status === 'in_progress' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
-                                    className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100"
-                                  >
-                                    Resolve
-                                  </button>
-                                )}
-                                {inq.status === 'resolved' && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
-                                    className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100"
-                                  >
-                                    Archive
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                      return (
+                        <div key={inq.log_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-bold text-slate-900 text-sm">{inq.customer_name || inq.staff_email || 'Website Visitor'}</h4>
+                              {inq.staff_email && (
+                                <a href={`mailto:${inq.staff_email}`} className="text-xs text-blue-600 hover:underline block truncate">
+                                  ✉️ {inq.staff_email}
+                                </a>
+                              )}
+                            </div>
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                                inq.status === 'open'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : inq.status === 'in_progress'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : inq.status === 'resolved'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {inq.status.replace('_', ' ')}
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5 text-xs">
+                            <div className="flex items-center justify-between text-[11px] text-slate-500">
+                              <span>📅 {dateDisplay}</span>
+                            </div>
+                            <div className="font-semibold text-slate-900 text-xs">{inq.subject}</div>
+                            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                              {inq.body.replace(/^From: [^\n]+\n\n/, '')}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            {inq.status === 'open' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
+                                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                              >
+                                Mark In Progress
+                              </button>
+                            )}
+                            {inq.status === 'in_progress' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
+                                className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                              >
+                                Mark Resolved
+                              </button>
+                            )}
+                            {inq.status === 'resolved' && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
+                                className="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+                              >
+                                Archive
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                </div>
+
+                  {/* Desktop Table View (>= md) */}
+                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-sm table-fixed">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                            <th className="py-3 px-3 w-[16%]">Submitted On</th>
+                            <th className="py-3 px-3 w-[20%]">Contact</th>
+                            <th className="py-3 px-3 w-[40%]">Subject & Message</th>
+                            <th className="py-3 px-3 w-[12%]">Status</th>
+                            <th className="py-3 px-3 w-[12%] text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {contactInquiries.map((inq) => {
+                            const dateDisplay = inq.submitted_at
+                              ? inq.submitted_at
+                              : inq.created_at
+                              ? new Date(inq.created_at).toLocaleString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '—';
+
+                            return (
+                              <tr key={inq.log_id} className="hover:bg-slate-50 align-top">
+                                <td className="py-3 px-3 text-xs text-slate-600 font-medium">
+                                  <div className="truncate">📅 {dateDisplay}</div>
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="font-semibold text-slate-900 text-xs truncate">{inq.customer_name || inq.staff_email || 'Website Visitor'}</div>
+                                  {inq.staff_email && (
+                                    <a
+                                      href={`mailto:${inq.staff_email}`}
+                                      className="text-[11px] text-blue-600 hover:underline block truncate"
+                                    >
+                                      ✉️ {inq.staff_email}
+                                    </a>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="font-semibold text-slate-900 text-xs mb-1 line-clamp-1">{inq.subject}</div>
+                                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-3 hover:line-clamp-none transition-all">
+                                    {inq.body.replace(/^From: [^\n]+\n\n/, '')}
+                                  </p>
+                                </td>
+                                <td className="py-3 px-3">
+                                  <span
+                                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                      inq.status === 'open'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : inq.status === 'in_progress'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : inq.status === 'resolved'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {inq.status.replace('_', ' ')}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right space-x-1">
+                                  {inq.status === 'open' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
+                                      className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 whitespace-nowrap"
+                                    >
+                                      Start
+                                    </button>
+                                  )}
+                                  {inq.status === 'in_progress' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
+                                      className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 whitespace-nowrap"
+                                    >
+                                      Resolve
+                                    </button>
+                                  )}
+                                  {inq.status === 'resolved' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
+                                      className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 whitespace-nowrap"
+                                    >
+                                      Archive
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           )}
