@@ -11,6 +11,8 @@ import { Personnel, SpecialGuest } from '../types';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
 export const SeasonPlanner: React.FC = () => {
   const [seasons, setSeasons] = useState<PlanningSeason[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<PlanningSeason | null>(null);
@@ -25,7 +27,8 @@ export const SeasonPlanner: React.FC = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Filters & State
+  // Tabs & Views
+  const [viewMode, setViewMode] = useState<'grid' | 'table' | 'faculty'>('grid');
   const [filterType, setFilterType] = useState<'all' | 'class' | 'show' | 'workshop'>('all');
   const [isNewSeasonModalOpen, setIsNewSeasonModalOpen] = useState(false);
   const [newSeasonForm, setNewSeasonForm] = useState({
@@ -123,7 +126,7 @@ export const SeasonPlanner: React.FC = () => {
   };
 
   // Open item modal for Add or Edit
-  const handleOpenItemModal = (item?: PlanningItem) => {
+  const handleOpenItemModal = (item?: PlanningItem, presetDay?: string) => {
     if (item) {
       setEditingItem({ ...item });
     } else {
@@ -136,7 +139,7 @@ export const SeasonPlanner: React.FC = () => {
         end_date: selectedSeason?.end_date || new Date().toISOString().slice(0, 10),
         start_time: '19:00:00',
         end_time: '21:30:00',
-        day_of_week: 'Tuesday',
+        day_of_week: presetDay || 'Tuesday',
         room_id: 1,
         venue_name: 'Main Stage',
         capacity: 16,
@@ -355,143 +358,379 @@ export const SeasonPlanner: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter and Action Bar */}
+      {/* Switchboard: Views & Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
-        <div className="flex items-center gap-2">
-          {(['all', 'class', 'show', 'workshop'] as const).map(type => (
+        <div className="flex items-center gap-3">
+          {/* View mode toggle */}
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-xs">
             <button
-              key={type}
-              onClick={() => setFilterType(type)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${
-                filterType === type
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white text-indigo-600 shadow-2xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              {type === 'all' ? 'All Types' : `${type}s`}
+              📅 Weekly Room Grid
             </button>
-          ))}
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                viewMode === 'table'
+                  ? 'bg-white text-indigo-600 shadow-2xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Items Ledger
+            </button>
+            <button
+              onClick={() => setViewMode('faculty')}
+              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+                viewMode === 'faculty'
+                  ? 'bg-white text-indigo-600 shadow-2xs font-bold'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              👩‍🏫 Faculty Availability ({instructorsAvail.length})
+            </button>
+          </div>
+
+          {/* Item type filter (for grid & table) */}
+          {viewMode !== 'faculty' && (
+            <div className="hidden sm:flex items-center gap-1 pl-3 border-l border-gray-200">
+              {(['all', 'class', 'show', 'workshop'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md capitalize transition-colors ${
+                    filterType === type
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {type === 'all' ? 'All' : `${type}s`}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
           onClick={() => handleOpenItemModal()}
-          className="px-3.5 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs whitespace-nowrap"
+          className="px-3.5 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs whitespace-nowrap self-end sm:self-auto"
         >
           + Add Draft Item
         </button>
       </div>
 
-      {/* Items Table / Cards */}
-      {filteredItems.length === 0 ? (
-        <div className="bg-white p-12 rounded-xl border border-gray-200 text-center text-gray-500 space-y-2">
-          <p className="font-semibold text-gray-700">No planning items in this season yet.</p>
-          <p className="text-xs">Click "+ Add Draft Item" to start scheduling classes, shows, or workshops.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 uppercase tracking-wider">
-                  <th className="py-3 px-3">Type</th>
-                  <th className="py-3 px-3">Title & Subtitle</th>
-                  <th className="py-3 px-3">Date / Day</th>
-                  <th className="py-3 px-3">Time & Room</th>
-                  <th className="py-3 px-3">Assigned Lead</th>
-                  <th className="py-3 px-3">Status / Sanity</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredItems.map(item => {
-                  const leadPerson = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
-                  const room = rooms.find(r => r.RoomID === item.room_id);
-
-                  return (
-                    <tr key={item.item_id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="py-3 px-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                          item.item_type === 'class'
-                            ? 'bg-blue-100 text-blue-800'
-                            : item.item_type === 'show'
-                            ? 'bg-purple-100 text-purple-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {item.item_type}
-                        </span>
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-gray-900">{item.title}</div>
-                        {item.subtitle_or_level && (
-                          <div className="text-[11px] text-gray-500">{item.subtitle_or_level}</div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3 text-gray-700">
-                        {item.item_type === 'class' ? (
-                          <div>
-                            <span className="font-semibold">{item.day_of_week}s</span>
-                            <span className="block text-[11px] text-gray-500">{item.start_date} &rarr; {item.end_date}</span>
-                          </div>
-                        ) : (
-                          <div>{item.start_date}</div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3 text-gray-700">
-                        <div>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</div>
-                        <div className="text-[11px] text-gray-500 font-medium">📍 {room?.RoomName || item.venue_name || 'Main Stage'}</div>
-                      </td>
-
-                      <td className="py-3 px-3">
-                        {leadPerson ? (
-                          <span className="font-medium text-gray-900">
-                            {leadPerson.FirstName} {leadPerson.LastName}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400 italic">Unassigned</span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3">
-                        {item.validation_status === 'clean' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                            ✓ Clean
-                          </span>
-                        ) : item.validation_status === 'warning' ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title={item.conflict_details?.messages?.join('; ')}>
-                            ⚠️ Notice
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200" title={item.conflict_details?.messages?.join('; ')}>
-                            ✕ Conflict
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleOpenItemModal(item)}
-                            className="px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.item_id)}
-                            className="px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* VIEW 1: WEEKLY ROOM GRID / TIMELINE */}
+      {viewMode === 'grid' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-4 overflow-x-auto space-y-4">
+          <div className="flex items-center justify-between text-xs text-gray-500 border-b pb-2">
+            <span className="font-semibold text-gray-700">Master Weekly Stage & Room Timeline</span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500 inline-block"></span> Class</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-purple-500 inline-block"></span> Show</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block"></span> Workshop</span>
+            </div>
           </div>
+
+          <div className="grid grid-cols-7 gap-2 min-w-[900px]">
+            {DAYS_OF_WEEK.map(day => {
+              const dayItems = filteredItems.filter(i => {
+                if (i.day_of_week && i.day_of_week.toLowerCase() === day.toLowerCase()) return true;
+                if (i.start_date) {
+                  const d = new Date(i.start_date + 'T12:00:00Z');
+                  const dName = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+                  return dName.toLowerCase() === day.toLowerCase();
+                }
+                return false;
+              });
+
+              const dayTeachers = instructorsAvail.filter(a => a.day_of_week.toLowerCase() === day.toLowerCase());
+
+              return (
+                <div key={day} className="border border-gray-200 rounded-lg bg-gray-50/50 flex flex-col h-[520px] overflow-hidden">
+                  {/* Day Header */}
+                  <div className="p-2 border-b bg-white text-center">
+                    <div className="font-bold text-xs text-gray-800">{day}</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      {dayTeachers.length} Faculty Available
+                    </div>
+                  </div>
+
+                  {/* Day Column Events */}
+                  <div className="flex-1 p-1.5 space-y-1.5 overflow-y-auto">
+                    {dayItems.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-center p-2">
+                        <span className="text-[11px] text-gray-400 italic">No events</span>
+                      </div>
+                    ) : (
+                      dayItems
+                        .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                        .map(item => {
+                          const room = rooms.find(r => r.RoomID === item.room_id);
+                          const lead = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
+                          const isClass = item.item_type === 'class';
+                          const isShow = item.item_type === 'show';
+
+                          return (
+                            <div
+                              key={item.item_id}
+                              onClick={() => handleOpenItemModal(item)}
+                              className={`p-2 rounded-lg border text-left cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${
+                                isClass
+                                  ? 'bg-blue-50/80 border-blue-200 text-blue-950'
+                                  : isShow
+                                  ? 'bg-purple-50/80 border-purple-200 text-purple-950'
+                                  : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                              } ${
+                                item.validation_status === 'conflict' ? 'ring-2 ring-red-500' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[10px] font-bold">
+                                <span>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</span>
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] uppercase ${
+                                  item.validation_status === 'conflict' ? 'bg-red-200 text-red-900 font-bold' : ''
+                                }`}>
+                                  {room?.RoomName || 'Stage'}
+                                </span>
+                              </div>
+
+                              <div className="font-bold text-xs mt-1 truncate" title={item.title}>
+                                {item.title}
+                              </div>
+
+                              {item.subtitle_or_level && (
+                                <div className="text-[10px] opacity-80 truncate">
+                                  {item.subtitle_or_level}
+                                </div>
+                              )}
+
+                              {lead && (
+                                <div className="text-[10px] mt-1 font-medium text-gray-600 truncate">
+                                  👤 {lead.FirstName} {lead.LastName}
+                                </div>
+                              )}
+
+                              {item.validation_status === 'conflict' && (
+                                <div className="text-[10px] font-bold text-red-700 mt-1">
+                                  ✕ Conflict
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+
+                  {/* Day Footer Add shortcut */}
+                  <button
+                    onClick={() => handleOpenItemModal(undefined, day)}
+                    className="p-1.5 text-center text-[11px] font-semibold text-gray-500 hover:text-indigo-600 hover:bg-gray-100 border-t transition-colors"
+                  >
+                    + Add to {day}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: ITEMS LEDGER TABLE */}
+      {viewMode === 'table' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+          {filteredItems.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 space-y-2">
+              <p className="font-semibold text-gray-700">No planning items in this season yet.</p>
+              <p className="text-xs">Click "+ Add Draft Item" to start scheduling classes, shows, or workshops.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 uppercase tracking-wider">
+                    <th className="py-3 px-3">Type</th>
+                    <th className="py-3 px-3">Title & Subtitle</th>
+                    <th className="py-3 px-3">Date / Day</th>
+                    <th className="py-3 px-3">Time & Room</th>
+                    <th className="py-3 px-3">Assigned Lead</th>
+                    <th className="py-3 px-3">Status / Sanity</th>
+                    <th className="py-3 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredItems.map(item => {
+                    const leadPerson = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
+                    const room = rooms.find(r => r.RoomID === item.room_id);
+
+                    return (
+                      <tr key={item.item_id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="py-3 px-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                            item.item_type === 'class'
+                              ? 'bg-blue-100 text-blue-800'
+                              : item.item_type === 'show'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {item.item_type}
+                          </span>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-gray-900">{item.title}</div>
+                          {item.subtitle_or_level && (
+                            <div className="text-[11px] text-gray-500">{item.subtitle_or_level}</div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 text-gray-700">
+                          {item.item_type === 'class' ? (
+                            <div>
+                              <span className="font-semibold">{item.day_of_week}s</span>
+                              <span className="block text-[11px] text-gray-500">{item.start_date} &rarr; {item.end_date}</span>
+                            </div>
+                          ) : (
+                            <div>{item.start_date}</div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 text-gray-700">
+                          <div>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</div>
+                          <div className="text-[11px] text-gray-500 font-medium">📍 {room?.RoomName || item.venue_name || 'Main Stage'}</div>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {leadPerson ? (
+                            <span className="font-medium text-gray-900">
+                              {leadPerson.FirstName} {leadPerson.LastName}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 italic">Unassigned</span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {item.validation_status === 'clean' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              ✓ Clean
+                            </span>
+                          ) : item.validation_status === 'warning' ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title={item.conflict_details?.messages?.join('; ')}>
+                              ⚠️ Notice
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200" title={item.conflict_details?.messages?.join('; ')}>
+                              ✕ Conflict
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenItemModal(item)}
+                              className="px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(item.item_id)}
+                              className="px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* VIEW 3: FACULTY AVAILABILITY DASHBOARD */}
+      {viewMode === 'faculty' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-5 space-y-4">
+          <div>
+            <h3 className="font-bold text-gray-900 text-sm">Instructor Portal Availability Submissions</h3>
+            <p className="text-xs text-gray-500">
+              Live preferences submitted by conservatory faculty via the Instructor Portal. Use this to staff classes without scheduling collisions or blackout surprises.
+            </p>
+          </div>
+
+          {instructorsAvail.length === 0 ? (
+            <div className="p-8 text-center text-gray-400 text-xs">
+              No instructor availability recorded yet. Instructors can submit availability in the Instructor Portal.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from(new Set(instructorsAvail.map(a => a.personnel_id))).map(pId => {
+                const teacherPerson = personnelList.find(p => p.PersonnelID === pId);
+                const teacherAvails = instructorsAvail.filter(a => a.personnel_id === pId);
+
+                return (
+                  <div key={pId} className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 space-y-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="font-bold text-xs text-gray-900">
+                        {teacherPerson ? `${teacherPerson.FirstName} ${teacherPerson.LastName}` : `Instructor #${pId}`}
+                      </div>
+                      <span className="text-[10px] text-gray-500">
+                        Max {teacherAvails[0]?.max_classes_per_week || 2} cls/wk
+                      </span>
+                    </div>
+
+                    {teacherAvails[0]?.preferred_levels && teacherAvails[0].preferred_levels.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {teacherAvails[0].preferred_levels.map((lvl, idx) => (
+                          <span key={idx} className="bg-blue-50 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded border border-blue-200">
+                            {lvl}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="space-y-1 pt-1 text-xs">
+                      {teacherAvails.map(avail => (
+                        <div key={avail.availability_id} className="flex items-center justify-between py-0.5 text-[11px]">
+                          <span className="font-medium text-gray-700">{avail.day_of_week} ({avail.time_preference}):</span>
+                          <span className={`px-1.5 py-0.2 rounded font-bold uppercase text-[9px] ${
+                            avail.availability_status === 'preferred'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : avail.availability_status === 'available'
+                              ? 'bg-blue-100 text-blue-800'
+                              : avail.availability_status === 'sub_only'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {avail.availability_status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {teacherAvails.some(a => a.blackout_dates && a.blackout_dates.length > 0) && (
+                      <div className="border-t pt-2 text-[10px] text-gray-600">
+                        <span className="font-bold text-red-700">🌴 Blackout / Vacation:</span>{' '}
+                        {teacherAvails.flatMap(a => a.blackout_dates || []).join(', ')}
+                      </div>
+                    )}
+
+                    {teacherAvails[0]?.notes && (
+                      <div className="text-[10px] italic text-gray-500 bg-white p-1.5 rounded border">
+                        "{teacherAvails[0].notes}"
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
