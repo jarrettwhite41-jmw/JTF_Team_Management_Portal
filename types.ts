@@ -526,6 +526,7 @@ export type PageType =
   | 'student-directory'
   | 'student-profile'
   | 'skills-management'
+  | 'season-planner'
   | 'crm-operations'
   | 'settings';
 

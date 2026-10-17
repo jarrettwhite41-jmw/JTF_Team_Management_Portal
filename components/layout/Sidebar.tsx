@@ -76,6 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: '📘',
       defaultPage: 'class-management' as PageType,
       children: [
+        { id: 'season-planner', label: 'Season & Curriculum Planner', icon: '🗓️' },
         { id: 'class-management', label: 'Class Offerings', icon: '📘' },
         { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
         { id: 'workshops', label: 'Workshops', icon: '🧠' },

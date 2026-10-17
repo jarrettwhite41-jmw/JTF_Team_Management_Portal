@@ -22,6 +22,7 @@ import { DataImport } from './pages/DataImport';
 import { AccountRecovery } from './pages/AccountRecovery';
 import { Settings } from './pages/Settings';
 import { OperationsCRM, CRMTab } from './pages/OperationsCRM';
+import { SeasonPlanner } from './pages/SeasonPlanner';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
 import { Loader } from './components/common/Loader';
@@ -39,7 +40,7 @@ const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
-  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'crm-operations', 'settings',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'season-planner', 'crm-operations', 'settings',
 ]);
 
 const getInitialTeamPage = (): PageType => {
@@ -61,7 +62,7 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
     'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
-    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'settings',
+    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'season-planner', 'settings',
   ];
 
   if (role === 'admin' || role === 'manager') return true;
@@ -270,6 +271,8 @@ const App: React.FC = () => {
         }} />;
       case 'skills-management':
         return <SkillsManagement />;
+      case 'season-planner':
+        return <SeasonPlanner />;
       case 'crm-operations':
         return <OperationsCRM initialTab={crmInitialTab} />;
       case 'settings':
