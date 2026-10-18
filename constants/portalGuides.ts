@@ -172,6 +172,55 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
         },
       ],
     },
+    'season-planner': {
+      title: 'Season & Curriculum Planner',
+      icon: '🗓️',
+      description:
+        'Interactive master planning canvas for staging entire conservatory sessions, public show seasons, and intensive workshops before publishing them to the live schedules.',
+      workflow: [
+        'Create a Planning Season specifying Season Name, Start Date, End Date, and initial notes.',
+        'Delete seasons with the 🗑️ Delete Season button when archiving or resetting seasonal planning drafts.',
+        'Stage draft items: choose item type (Class, Show, or Workshop), title, curriculum level, day of week, meeting times, room, and lead instructor/director.',
+        'Inspect real-time collision detection: the engine automatically verifies room double-booking, teacher day preferences, and instructor blackout/vacation dates.',
+        'Toggle between Calendar, Weekly Schedule, and Summary Ledger views to visualize load and venue usage across weeks.',
+        'Review collision warnings (e.g. "Instructor is marked unavailable on Mondays", "Instructor has a submitted blackout date on 2026-11-10; substitute needed").',
+        'When ready, publish the season to instantly commit all draft classes and shows into the production live tables.',
+      ],
+      tips: [
+        'Draft seasons remain safely staged without altering current live student classes or public show tickets until you explicitly publish.',
+        'Deleting a planning season cascades automatically, cleanly removing draft items without orphaned records.',
+      ],
+      crossPortalImpact: [
+        {
+          portal: 'Instructor Portal (Teaching Availability)',
+          description: 'The Season Planner directly queries teachers’ submitted recurring day availability, class level preferences, and specific blackout dates to warn staff of conflicts.',
+        },
+        {
+          portal: 'Master Schedule & Production',
+          description: 'Publishing a season commits all scheduled classes and shows into live database offering tables and calendars across the company.',
+        },
+      ],
+    },
+    'skills-management': {
+      title: 'Curriculum & Skills Rubric',
+      icon: '⭐',
+      description:
+        'Master competency frameworks and skill progression rubrics for conservatory Levels 1 through 5, youth programs, and specialty conservatory workshops.',
+      workflow: [
+        'Review and define competency rubrics per level (e.g., Fundamentals, Scenework, Characters & Games, Longform).',
+        'Audit instructor evaluations and student milestone progress.',
+        'Verify prerequisite criteria for students advancing between levels.',
+      ],
+      tips: [
+        'Aligning rubrics ensures consistent standards when multiple instructors teach different cohorts of the same level.',
+      ],
+      crossPortalImpact: [
+        {
+          portal: 'Instructor Portal',
+          description: 'Skills rubrics defined here determine the competencies teachers evaluate during in-class progress check-ins.',
+        },
+      ],
+    },
     'student-directory': {
       title: 'Student Directory',
       icon: '🎓',
