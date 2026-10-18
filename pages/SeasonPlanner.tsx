@@ -7,7 +7,7 @@ import {
   ConflictCheckResult,
 } from '../services/plannerService';
 import { supabaseService } from '../services/supabaseService';
-import { Personnel, SpecialGuest } from '../types';
+import { Personnel, SpecialGuest, ClassLevels, ShowTypes } from '../types';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
@@ -21,6 +21,8 @@ export const SeasonPlanner: React.FC = () => {
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
   const [specialGuests, setSpecialGuests] = useState<SpecialGuest[]>([]);
   const [rooms, setRooms] = useState<Array<{ RoomID: number; RoomName: string }>>([]);
+  const [classLevels, setClassLevels] = useState<ClassLevels[]>([]);
+  const [showTypes, setShowTypes] = useState<ShowTypes[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingItem, setIsSavingItem] = useState(false);
@@ -51,11 +53,13 @@ export const SeasonPlanner: React.FC = () => {
     setIsLoading(true);
     setMessage(null);
     try {
-      const [seasonList, teachersRes, guestsRes, availList] = await Promise.all([
+      const [seasonList, teachersRes, guestsRes, availList, levelsRes, showTypesRes] = await Promise.all([
         plannerService.getSeasons(),
         supabaseService.getAllTeachers(),
         supabaseService.getAllSpecialGuests(),
         plannerService.getInstructorAvailability(),
+        supabaseService.getAllClassLevels(),
+        supabaseService.getAllShowTypes(),
       ]);
 
       setSeasons(seasonList);
@@ -66,6 +70,13 @@ export const SeasonPlanner: React.FC = () => {
         setSpecialGuests(guestsRes.data);
       }
       setInstructorsAvail(availList);
+
+      if (levelsRes.success && levelsRes.data) {
+        setClassLevels(levelsRes.data);
+      }
+      if (showTypesRes.success && showTypesRes.data) {
+        setShowTypes(showTypesRes.data);
+      }
 
       // Default rooms
       setRooms([
@@ -156,11 +167,12 @@ export const SeasonPlanner: React.FC = () => {
     if (item) {
       setEditingItem({ ...item });
     } else {
+      const defaultLevel = classLevels[0]?.LevelName || 'Level 1 (Fundamentals)';
       setEditingItem({
         season_id: selectedSeason?.season_id,
         item_type: 'class',
         title: '',
-        subtitle_or_level: 'Level 1 (Fundamentals)',
+        subtitle_or_level: defaultLevel,
         start_date: selectedSeason?.start_date || new Date().toISOString().slice(0, 10),
         end_date: selectedSeason?.end_date || new Date().toISOString().slice(0, 10),
         start_time: '19:00:00',
@@ -793,7 +805,18 @@ export const SeasonPlanner: React.FC = () => {
                     <button
                       key={t}
                       type="button"
-                      onClick={() => setEditingItem({ ...editingItem, item_type: t })}
+                      onClick={() => {
+                        const nextLevel = t === 'class'
+                          ? (classLevels[0]?.LevelName || '')
+                          : t === 'show'
+                          ? (showTypes[0]?.ShowTypeName || '')
+                          : '';
+                        setEditingItem({
+                          ...editingItem,
+                          item_type: t,
+                          subtitle_or_level: nextLevel,
+                        });
+                      }}
                       className={`py-2 text-xs font-bold rounded-lg capitalize border transition-all ${
                         editingItem.item_type === t
                           ? 'bg-indigo-50 border-indigo-500 text-indigo-700 shadow-2xs'
@@ -806,28 +829,91 @@ export const SeasonPlanner: React.FC = () => {
                 </div>
               </div>
 
-              {/* Title & Subtitle */}
+              {/* Title & Subtitle / Level */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Title</label>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    {editingItem.item_type === 'class'
+                      ? 'Course Name / Cohort'
+                      : editingItem.item_type === 'show'
+                      ? 'Show Title'
+                      : 'Workshop Title'}
+                  </label>
                   <input
                     type="text"
                     required
                     value={editingItem.title || ''}
                     onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
-                    placeholder="e.g. Level 1 Improv, Friday Night Live..."
+                    placeholder={
+                      editingItem.item_type === 'class'
+                        ? 'e.g. Improv Foundations, Harold Studio...'
+                        : editingItem.item_type === 'show'
+                        ? 'e.g. Friday Night Live, The BIG Show...'
+                        : 'e.g. Guest Masterclass: Musical Improv...'
+                    }
                     className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Subtitle / Level</label>
-                  <input
-                    type="text"
-                    value={editingItem.subtitle_or_level || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, subtitle_or_level: e.target.value })}
-                    placeholder="e.g. Fundamentals, Mainstage, Spanish..."
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
-                  />
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    {editingItem.item_type === 'class'
+                      ? 'Class Level / Curriculum'
+                      : editingItem.item_type === 'show'
+                      ? 'Show Type'
+                      : 'Subtitle / Focus'}
+                  </label>
+
+                  {editingItem.item_type === 'class' ? (
+                    <select
+                      value={editingItem.subtitle_or_level || ''}
+                      onChange={(e) => {
+                        const lvl = e.target.value;
+                        setEditingItem({
+                          ...editingItem,
+                          subtitle_or_level: lvl,
+                          // Optional convenience: auto-populate title if empty
+                          title: editingItem.title ? editingItem.title : `${lvl} Improv`,
+                        });
+                      }}
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
+                    >
+                      <option value="">-- Select Class Level --</option>
+                      {classLevels.map((lvl) => (
+                        <option key={lvl.ClassLevelID} value={lvl.LevelName}>
+                          {lvl.LevelName} {lvl.Description ? `— ${lvl.Description}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : editingItem.item_type === 'show' ? (
+                    <select
+                      value={editingItem.subtitle_or_level || ''}
+                      onChange={(e) => {
+                        const stName = e.target.value;
+                        setEditingItem({
+                          ...editingItem,
+                          subtitle_or_level: stName,
+                          // Auto-fill Title if user hasn't typed a custom show title
+                          title: editingItem.title ? editingItem.title : stName,
+                        });
+                      }}
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
+                    >
+                      <option value="">-- Select Show Type --</option>
+                      {showTypes.map((st) => (
+                        <option key={st.ShowTypeID} value={st.ShowTypeName}>
+                          {st.ShowTypeName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editingItem.subtitle_or_level || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, subtitle_or_level: e.target.value })}
+                      placeholder="e.g. Visiting Artist Intensive, Character Acting..."
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                    />
+                  )}
                 </div>
               </div>
 
