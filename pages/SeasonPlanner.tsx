@@ -125,6 +125,32 @@ export const SeasonPlanner: React.FC = () => {
     setIsLoading(false);
   };
 
+  const handleDeleteSeason = async () => {
+    if (!selectedSeason) return;
+    const confirmPrompt = window.confirm(
+      `Are you sure you want to permanently delete the planning season "${selectedSeason.season_name}"?\n\nThis will remove all associated draft items and cannot be undone.`
+    );
+    if (!confirmPrompt) return;
+
+    setIsLoading(true);
+    const success = await plannerService.deleteSeason(selectedSeason.season_id);
+    if (success) {
+      const remaining = seasons.filter(s => s.season_id !== selectedSeason.season_id);
+      setSeasons(remaining);
+      if (remaining.length > 0) {
+        setSelectedSeason(remaining[0]);
+        await loadSeasonItems(remaining[0].season_id);
+      } else {
+        setSelectedSeason(null);
+        setItems([]);
+      }
+      setMessage({ type: 'success', text: `Planning session "${selectedSeason.season_name}" deleted.` });
+    } else {
+      setMessage({ type: 'error', text: 'Failed to delete planning session.' });
+    }
+    setIsLoading(false);
+  };
+
   // Open item modal for Add or Edit
   const handleOpenItemModal = (item?: PlanningItem, presetDay?: string) => {
     if (item) {
@@ -303,13 +329,20 @@ export const SeasonPlanner: React.FC = () => {
         </div>
 
         {selectedSeason && (
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-3 text-xs text-gray-500">
             <span>📅 {selectedSeason.start_date} &rarr; {selectedSeason.end_date}</span>
             <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
               selectedSeason.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
             }`}>
               {selectedSeason.status}
             </span>
+            <button
+              onClick={handleDeleteSeason}
+              title="Delete this entire planning session and its draft items"
+              className="text-gray-400 hover:text-red-600 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50 text-[11px] font-semibold border border-transparent hover:border-red-200"
+            >
+              🗑️ Delete Season
+            </button>
           </div>
         )}
       </div>

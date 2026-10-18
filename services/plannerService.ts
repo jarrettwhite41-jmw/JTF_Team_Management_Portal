@@ -110,6 +110,19 @@ export const plannerService = {
     return true;
   },
 
+  async deleteSeason(seasonId: string): Promise<boolean> {
+    const { error } = await supabase
+      .from('planning_seasons')
+      .delete()
+      .eq('season_id', seasonId);
+
+    if (error) {
+      console.error('Error deleting planning season:', error);
+      return false;
+    }
+    return true;
+  },
+
   // ----------------------------------------------------
   // PLANNING ITEMS (DRAFT QUEUE)
   // ----------------------------------------------------
