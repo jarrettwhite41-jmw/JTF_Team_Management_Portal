@@ -334,49 +334,50 @@ const App: React.FC = () => {
     );
   }
 
-  const mobileTopLevelSections: Array<{ id: PageType; label: string; icon: string }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'scheduling', label: 'Schedule', icon: '📅' },
-    { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
-    { id: 'inventory', label: 'Inventory', icon: '📦' },
-    { id: 'data-import', label: 'Import Center', icon: '⬆️' },
-  ].filter((item) => canAccessPage(userRole, item.id));
+  const mobileTopLevelSections = ([
+    { id: 'dashboard' as PageType, label: 'Dashboard', icon: '📊' },
+    { id: 'scheduling' as PageType, label: 'Schedule', icon: '📅' },
+    { id: 'ticketing' as PageType, label: 'Ticketing & Sales', icon: '🎟️' },
+    { id: 'inventory' as PageType, label: 'Inventory', icon: '📦' },
+    { id: 'data-import' as PageType, label: 'Import Center', icon: '⬆️' },
+  ]).filter((item) => canAccessPage(userRole, item.id));
 
   const mobileSectionGroups: Array<{ label: string; icon: string; pages: Array<{ id: PageType; label: string; icon: string }> }> = [
     {
       label: 'Shows & Production',
       icon: '🎭',
-      pages: [
-        { id: 'show-management', label: 'Shows', icon: '🎬' },
-        { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
-        { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
-        { id: 'cast', label: 'Cast Management', icon: '🎭' },
-        { id: 'bartenders', label: 'Bartender Management', icon: '🍺' },
-        { id: 'games', label: 'Games', icon: '🎲' },
-      ].filter((item) => canAccessPage(userRole, item.id)),
+      pages: ([
+        { id: 'show-management' as PageType, label: 'Shows', icon: '🎬' },
+        { id: 'ticketing' as PageType, label: 'Ticketing & Sales', icon: '🎟️' },
+        { id: 'crew' as PageType, label: 'Crew Assignments', icon: '🛠️' },
+        { id: 'cast' as PageType, label: 'Cast Management', icon: '🎭' },
+        { id: 'bartenders' as PageType, label: 'Bartender Management', icon: '🍺' },
+        { id: 'games' as PageType, label: 'Games', icon: '🎲' },
+      ]).filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'People & Staffing',
       icon: '👥',
-      pages: [
-        { id: 'personnel-management', label: 'Personnel Directory', icon: '🗂️' },
-        { id: 'teacher-management', label: 'Teacher Management', icon: '🧑‍🏫' },
-        { id: 'director-management', label: 'Director Management', icon: '🎬' },
-        { id: 'special-guests', label: 'Special Guests', icon: '🎤' },
-        { id: 'portal-access', label: 'Portal Access', icon: '🔐' },
-        { id: 'settings', label: 'Settings', icon: '⚙️' },
-        { id: 'account-recovery', label: 'Account Recovery', icon: '🔧' },
-      ].filter((item) => canAccessPage(userRole, item.id)),
+      pages: ([
+        { id: 'personnel-management' as PageType, label: 'Personnel Directory', icon: '🗂️' },
+        { id: 'teacher-management' as PageType, label: 'Teacher Management', icon: '🧑‍🏫' },
+        { id: 'director-management' as PageType, label: 'Director Management', icon: '🎬' },
+        { id: 'special-guests' as PageType, label: 'Special Guests', icon: '🎤' },
+        { id: 'portal-access' as PageType, label: 'Portal Access', icon: '🔐' },
+        { id: 'settings' as PageType, label: 'Settings', icon: '⚙️' },
+        { id: 'account-recovery' as PageType, label: 'Account Recovery', icon: '🔧' },
+      ]).filter((item) => canAccessPage(userRole, item.id)),
     },
     {
       label: 'Classes & Education',
       icon: '📘',
-      pages: [
-        { id: 'class-management', label: 'Classes', icon: '📘' },
-        { id: 'student-directory', label: 'Student Directory', icon: '🎓' },
-        { id: 'workshops', label: 'Workshops', icon: '🧠' },
-        { id: 'skills-management', label: 'Skills', icon: '⭐' },
-      ].filter((item) => canAccessPage(userRole, item.id)),
+      pages: ([
+        { id: 'season-planner' as PageType, label: 'Season & Curriculum Planner', icon: '🗓️' },
+        { id: 'class-management' as PageType, label: 'Classes', icon: '📘' },
+        { id: 'student-directory' as PageType, label: 'Student Directory', icon: '🎓' },
+        { id: 'workshops' as PageType, label: 'Workshops', icon: '🧠' },
+        { id: 'skills-management' as PageType, label: 'Skills', icon: '⭐' },
+      ]).filter((item) => canAccessPage(userRole, item.id)),
     },
   ].filter((group) => group.pages.length > 0);
 
