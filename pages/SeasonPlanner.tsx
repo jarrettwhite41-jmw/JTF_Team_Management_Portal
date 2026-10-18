@@ -32,6 +32,7 @@ export const SeasonPlanner: React.FC = () => {
   // Tabs & Views
   const [viewMode, setViewMode] = useState<'grid' | 'table' | 'faculty'>('grid');
   const [filterType, setFilterType] = useState<'all' | 'class' | 'show' | 'workshop'>('all');
+  const [selectedMobileDay, setSelectedMobileDay] = useState<string>('Monday');
   const [isNewSeasonModalOpen, setIsNewSeasonModalOpen] = useState(false);
   const [newSeasonForm, setNewSeasonForm] = useState({
     season_name: '',
@@ -405,49 +406,49 @@ export const SeasonPlanner: React.FC = () => {
 
       {/* Switchboard: Views & Filters */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-gray-200 shadow-2xs">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
           {/* View mode toggle */}
-          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-xs">
+          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50 text-xs overflow-x-auto max-w-full">
             <button
               onClick={() => setViewMode('grid')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all ${
                 viewMode === 'grid'
                   ? 'bg-white text-indigo-600 shadow-2xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              📅 Weekly Room Grid
+              📅 Schedule
             </button>
             <button
               onClick={() => setViewMode('table')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all ${
                 viewMode === 'table'
                   ? 'bg-white text-indigo-600 shadow-2xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              📋 Items Ledger
+              📋 Ledger
             </button>
             <button
               onClick={() => setViewMode('faculty')}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-all ${
+              className={`px-3 py-1.5 rounded-md font-semibold whitespace-nowrap transition-all ${
                 viewMode === 'faculty'
                   ? 'bg-white text-indigo-600 shadow-2xs font-bold'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              👩‍🏫 Faculty Availability ({instructorsAvail.length})
+              👩‍🏫 Faculty ({instructorsAvail.length})
             </button>
           </div>
 
           {/* Item type filter (for grid & table) */}
           {viewMode !== 'faculty' && (
-            <div className="hidden sm:flex items-center gap-1 pl-3 border-l border-gray-200">
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0 sm:pl-3 sm:border-l sm:border-gray-200">
               {(['all', 'class', 'show', 'workshop'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setFilterType(type)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md capitalize transition-colors ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md capitalize whitespace-nowrap transition-colors ${
                     filterType === type
                       ? 'bg-gray-900 text-white'
                       : 'text-gray-500 hover:bg-gray-100'
@@ -462,7 +463,7 @@ export const SeasonPlanner: React.FC = () => {
 
         <button
           onClick={() => handleOpenItemModal()}
-          className="px-3.5 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs whitespace-nowrap self-end sm:self-auto"
+          className="px-3.5 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-2xs whitespace-nowrap self-start sm:self-auto"
         >
           + Add Draft Item
         </button>
@@ -470,8 +471,8 @@ export const SeasonPlanner: React.FC = () => {
 
       {/* VIEW 1: WEEKLY ROOM GRID / TIMELINE */}
       {viewMode === 'grid' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-4 overflow-x-auto space-y-4">
-          <div className="flex items-center justify-between text-xs text-gray-500 border-b pb-2">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-3 sm:p-4 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-gray-500 border-b pb-2">
             <span className="font-semibold text-gray-700">Master Weekly Stage & Room Timeline</span>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-blue-500 inline-block"></span> Class</span>
@@ -480,38 +481,82 @@ export const SeasonPlanner: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 min-w-[900px]">
-            {DAYS_OF_WEEK.map(day => {
+          {/* Mobile-Friendly Day Carousel / Pill Picker (visible on small screens) */}
+          <div className="sm:hidden space-y-3">
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+              {DAYS_OF_WEEK.map(d => {
+                const count = filteredItems.filter(i => {
+                  if (i.day_of_week && i.day_of_week.toLowerCase() === d.toLowerCase()) return true;
+                  if (i.start_date) {
+                    const dt = new Date(i.start_date + 'T12:00:00Z');
+                    return dt.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase() === d.toLowerCase();
+                  }
+                  return false;
+                }).length;
+                const isSel = selectedMobileDay === d;
+
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedMobileDay(d)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 shrink-0 ${
+                      isSel
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <span>{d.slice(0, 3)}</span>
+                    {count > 0 && (
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                        isSel ? 'bg-indigo-700 text-white' : 'bg-gray-200 text-gray-700'
+                      }`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Focused Mobile Day Card */}
+            {(() => {
+              const day = selectedMobileDay;
               const dayItems = filteredItems.filter(i => {
                 if (i.day_of_week && i.day_of_week.toLowerCase() === day.toLowerCase()) return true;
                 if (i.start_date) {
-                  const d = new Date(i.start_date + 'T12:00:00Z');
-                  const dName = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-                  return dName.toLowerCase() === day.toLowerCase();
+                  const dt = new Date(i.start_date + 'T12:00:00Z');
+                  return dt.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }).toLowerCase() === day.toLowerCase();
                 }
                 return false;
               });
-
               const dayTeachers = instructorsAvail.filter(a => a.day_of_week.toLowerCase() === day.toLowerCase());
 
               return (
-                <div key={day} className="border border-gray-200 rounded-lg bg-gray-50/50 flex flex-col h-[520px] overflow-hidden">
-                  {/* Day Header */}
-                  <div className="p-2 border-b bg-white text-center">
-                    <div className="font-bold text-xs text-gray-800">{day}</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
-                      {dayTeachers.length} Faculty Available
+                <div className="border border-gray-200 rounded-xl bg-gray-50/70 p-3 space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div>
+                      <span className="font-bold text-sm text-gray-900">{day} Lineup</span>
+                      <span className="block text-[11px] text-gray-500">
+                        {dayTeachers.length} Faculty Available
+                      </span>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenItemModal(undefined, day)}
+                      className="px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                    >
+                      + Add Item
+                    </button>
                   </div>
 
-                  {/* Day Column Events */}
-                  <div className="flex-1 p-1.5 space-y-1.5 overflow-y-auto">
-                    {dayItems.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-center p-2">
-                        <span className="text-[11px] text-gray-400 italic">No events</span>
-                      </div>
-                    ) : (
-                      dayItems
+                  {dayItems.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-gray-400 italic">
+                      No draft items scheduled for {day}. Tap "+ Add Item" above.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {dayItems
                         .sort((a, b) => a.start_time.localeCompare(b.start_time))
                         .map(item => {
                           const room = rooms.find(r => r.RoomID === item.room_id);
@@ -523,7 +568,7 @@ export const SeasonPlanner: React.FC = () => {
                             <div
                               key={item.item_id}
                               onClick={() => handleOpenItemModal(item)}
-                              className={`p-2 rounded-lg border text-left cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${
+                              className={`p-3 rounded-lg border text-left cursor-pointer transition-all shadow-2xs space-y-1.5 ${
                                 isClass
                                   ? 'bg-blue-50/80 border-blue-200 text-blue-950'
                                   : isShow
@@ -533,52 +578,141 @@ export const SeasonPlanner: React.FC = () => {
                                 item.validation_status === 'conflict' ? 'ring-2 ring-red-500' : ''
                               }`}
                             >
-                              <div className="flex items-center justify-between text-[10px] font-bold">
-                                <span>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</span>
-                                <span className={`px-1.5 py-0.2 rounded text-[9px] uppercase ${
-                                  item.validation_status === 'conflict' ? 'bg-red-200 text-red-900 font-bold' : ''
-                                }`}>
+                              <div className="flex items-center justify-between text-xs font-bold">
+                                <span>{item.start_time.slice(0, 5)} – {item.end_time.slice(0, 5)}</span>
+                                <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-white/80 border">
                                   {room?.RoomName || 'Stage'}
                                 </span>
                               </div>
 
-                              <div className="font-bold text-xs mt-1 truncate" title={item.title}>
-                                {item.title}
-                              </div>
-
+                              <div className="font-bold text-sm text-gray-900">{item.title}</div>
                               {item.subtitle_or_level && (
-                                <div className="text-[10px] opacity-80 truncate">
-                                  {item.subtitle_or_level}
-                                </div>
+                                <div className="text-xs text-gray-600">{item.subtitle_or_level}</div>
                               )}
 
-                              {lead && (
-                                <div className="text-[10px] mt-1 font-medium text-gray-600 truncate">
-                                  👤 {lead.FirstName} {lead.LastName}
-                                </div>
-                              )}
-
-                              {item.validation_status === 'conflict' && (
-                                <div className="text-[10px] font-bold text-red-700 mt-1">
-                                  ✕ Conflict
-                                </div>
-                              )}
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-black/5">
+                                <span className="font-medium text-gray-700">
+                                  {lead ? `👤 ${lead.FirstName} ${lead.LastName}` : '👤 Unassigned'}
+                                </span>
+                                {item.validation_status === 'conflict' && (
+                                  <span className="text-red-700 font-bold">✕ Conflict</span>
+                                )}
+                                {item.validation_status === 'warning' && (
+                                  <span className="text-amber-700 font-semibold">⚠️ Notice</span>
+                                )}
+                              </div>
                             </div>
                           );
-                        })
-                    )}
-                  </div>
-
-                  {/* Day Footer Add shortcut */}
-                  <button
-                    onClick={() => handleOpenItemModal(undefined, day)}
-                    className="p-1.5 text-center text-[11px] font-semibold text-gray-500 hover:text-indigo-600 hover:bg-gray-100 border-t transition-colors"
-                  >
-                    + Add to {day}
-                  </button>
+                        })}
+                    </div>
+                  )}
                 </div>
               );
-            })}
+            })()}
+          </div>
+
+          {/* Desktop 7-Column Grid (hidden on mobile, visible on sm and up) */}
+          <div className="hidden sm:block overflow-x-auto">
+            <div className="grid grid-cols-7 gap-2 min-w-[840px]">
+              {DAYS_OF_WEEK.map(day => {
+                const dayItems = filteredItems.filter(i => {
+                  if (i.day_of_week && i.day_of_week.toLowerCase() === day.toLowerCase()) return true;
+                  if (i.start_date) {
+                    const d = new Date(i.start_date + 'T12:00:00Z');
+                    const dName = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+                    return dName.toLowerCase() === day.toLowerCase();
+                  }
+                  return false;
+                });
+
+                const dayTeachers = instructorsAvail.filter(a => a.day_of_week.toLowerCase() === day.toLowerCase());
+
+                return (
+                  <div key={day} className="border border-gray-200 rounded-lg bg-gray-50/50 flex flex-col h-[520px] overflow-hidden">
+                    {/* Day Header */}
+                    <div className="p-2 border-b bg-white text-center">
+                      <div className="font-bold text-xs text-gray-800">{day}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">
+                        {dayTeachers.length} Faculty Available
+                      </div>
+                    </div>
+
+                    {/* Day Column Events */}
+                    <div className="flex-1 p-1.5 space-y-1.5 overflow-y-auto">
+                      {dayItems.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-center p-2">
+                          <span className="text-[11px] text-gray-400 italic">No events</span>
+                        </div>
+                      ) : (
+                        dayItems
+                          .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                          .map(item => {
+                            const room = rooms.find(r => r.RoomID === item.room_id);
+                            const lead = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
+                            const isClass = item.item_type === 'class';
+                            const isShow = item.item_type === 'show';
+
+                            return (
+                              <div
+                                key={item.item_id}
+                                onClick={() => handleOpenItemModal(item)}
+                                className={`p-2 rounded-lg border text-left cursor-pointer transition-all hover:scale-[1.02] shadow-2xs ${
+                                  isClass
+                                    ? 'bg-blue-50/80 border-blue-200 text-blue-950'
+                                    : isShow
+                                    ? 'bg-purple-50/80 border-purple-200 text-purple-950'
+                                    : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                                } ${
+                                  item.validation_status === 'conflict' ? 'ring-2 ring-red-500' : ''
+                                }`}
+                              >
+                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                  <span>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</span>
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] uppercase ${
+                                    item.validation_status === 'conflict' ? 'bg-red-200 text-red-900 font-bold' : ''
+                                  }`}>
+                                    {room?.RoomName || 'Stage'}
+                                  </span>
+                                </div>
+
+                                <div className="font-bold text-xs mt-1 truncate" title={item.title}>
+                                  {item.title}
+                                </div>
+
+                                {item.subtitle_or_level && (
+                                  <div className="text-[10px] opacity-80 truncate">
+                                    {item.subtitle_or_level}
+                                  </div>
+                                )}
+
+                                {lead && (
+                                  <div className="text-[10px] mt-1 font-medium text-gray-600 truncate">
+                                    👤 {lead.FirstName} {lead.LastName}
+                                  </div>
+                                )}
+
+                                {item.validation_status === 'conflict' && (
+                                  <div className="text-[10px] font-bold text-red-700 mt-1">
+                                    ✕ Conflict
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+
+                    {/* Day Footer Add shortcut */}
+                    <button
+                      onClick={() => handleOpenItemModal(undefined, day)}
+                      className="p-1.5 text-center text-[11px] font-semibold text-gray-500 hover:text-indigo-600 hover:bg-gray-100 border-t transition-colors"
+                    >
+                      + Add to {day}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -592,109 +726,195 @@ export const SeasonPlanner: React.FC = () => {
               <p className="text-xs">Click "+ Add Draft Item" to start scheduling classes, shows, or workshops.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 uppercase tracking-wider">
-                    <th className="py-3 px-3">Type</th>
-                    <th className="py-3 px-3">Title & Subtitle</th>
-                    <th className="py-3 px-3">Date / Day</th>
-                    <th className="py-3 px-3">Time & Room</th>
-                    <th className="py-3 px-3">Assigned Lead</th>
-                    <th className="py-3 px-3">Status / Sanity</th>
-                    <th className="py-3 px-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredItems.map(item => {
-                    const leadPerson = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
-                    const room = rooms.find(r => r.RoomID === item.room_id);
+            <>
+              {/* Mobile Card List for Ledger (sm:hidden) */}
+              <div className="sm:hidden divide-y divide-gray-100 p-2 space-y-2">
+                {filteredItems.map(item => {
+                  const leadPerson = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
+                  const room = rooms.find(r => r.RoomID === item.room_id);
 
-                    return (
-                      <tr key={item.item_id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="py-3 px-3">
-                          <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
-                            item.item_type === 'class'
-                              ? 'bg-blue-100 text-blue-800'
-                              : item.item_type === 'show'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'bg-emerald-100 text-emerald-800'
-                          }`}>
-                            {item.item_type}
+                  return (
+                    <div
+                      key={item.item_id}
+                      className="p-3 bg-gray-50/70 border border-gray-200 rounded-xl space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                          item.item_type === 'class'
+                            ? 'bg-blue-100 text-blue-800'
+                            : item.item_type === 'show'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {item.item_type}
+                        </span>
+
+                        {item.validation_status === 'clean' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ Clean
                           </span>
-                        </td>
+                        ) : item.validation_status === 'warning' ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title={item.conflict_details?.messages?.join('; ')}>
+                            ⚠️ Notice
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200" title={item.conflict_details?.messages?.join('; ')}>
+                            ✕ Conflict
+                          </span>
+                        )}
+                      </div>
 
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-gray-900">{item.title}</div>
-                          {item.subtitle_or_level && (
-                            <div className="text-[11px] text-gray-500">{item.subtitle_or_level}</div>
-                          )}
-                        </td>
+                      <div>
+                        <div className="font-bold text-sm text-gray-900">{item.title}</div>
+                        {item.subtitle_or_level && (
+                          <div className="text-xs text-gray-500">{item.subtitle_or_level}</div>
+                        )}
+                      </div>
 
-                        <td className="py-3 px-3 text-gray-700">
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 bg-white p-2 rounded-lg border border-gray-100">
+                        <div>
+                          <span className="font-semibold text-gray-700 block text-[11px]">When:</span>
                           {item.item_type === 'class' ? (
-                            <div>
-                              <span className="font-semibold">{item.day_of_week}s</span>
-                              <span className="block text-[11px] text-gray-500">{item.start_date} &rarr; {item.end_date}</span>
+                            <span>{item.day_of_week}s ({item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)})</span>
+                          ) : (
+                            <span>{item.start_date} ({item.start_time.slice(0, 5)}–{item.end_time.slice(0, 5)})</span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-700 block text-[11px]">Where & Who:</span>
+                          <span>📍 {room?.RoomName || item.venue_name || 'Stage'}</span>
+                          <span className="block truncate text-gray-500">
+                            {leadPerson ? `👤 ${leadPerson.FirstName} ${leadPerson.LastName}` : '👤 Unassigned'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenItemModal(item)}
+                          className="px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteItem(item.item_id)}
+                          className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table (hidden on mobile, visible on sm and up) */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200 font-semibold text-gray-600 uppercase tracking-wider">
+                      <th className="py-3 px-3">Type</th>
+                      <th className="py-3 px-3">Title & Subtitle</th>
+                      <th className="py-3 px-3">Date / Day</th>
+                      <th className="py-3 px-3">Time & Room</th>
+                      <th className="py-3 px-3">Assigned Lead</th>
+                      <th className="py-3 px-3">Status / Sanity</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredItems.map(item => {
+                      const leadPerson = personnelList.find(p => p.PersonnelID === item.primary_personnel_id);
+                      const room = rooms.find(r => r.RoomID === item.room_id);
+
+                      return (
+                        <tr key={item.item_id} className="hover:bg-gray-50/70 transition-colors">
+                          <td className="py-3 px-3">
+                            <span className={`inline-flex px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                              item.item_type === 'class'
+                                ? 'bg-blue-100 text-blue-800'
+                                : item.item_type === 'show'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {item.item_type}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-gray-900">{item.title}</div>
+                            {item.subtitle_or_level && (
+                              <div className="text-[11px] text-gray-500">{item.subtitle_or_level}</div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3 text-gray-700">
+                            {item.item_type === 'class' ? (
+                              <div>
+                                <span className="font-semibold">{item.day_of_week}s</span>
+                                <span className="block text-[11px] text-gray-500">{item.start_date} &rarr; {item.end_date}</span>
+                              </div>
+                            ) : (
+                              <div>{item.start_date}</div>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3 text-gray-700">
+                            <div>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</div>
+                            <div className="text-[11px] text-gray-500 font-medium">📍 {room?.RoomName || item.venue_name || 'Main Stage'}</div>
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {leadPerson ? (
+                              <span className="font-medium text-gray-900">
+                                {leadPerson.FirstName} {leadPerson.LastName}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 italic">Unassigned</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3">
+                            {item.validation_status === 'clean' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                ✓ Clean
+                              </span>
+                            ) : item.validation_status === 'warning' ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title={item.conflict_details?.messages?.join('; ')}>
+                                ⚠️ Notice
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200" title={item.conflict_details?.messages?.join('; ')}>
+                                ✕ Conflict
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenItemModal(item)}
+                                className="px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.item_id)}
+                                className="px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded"
+                              >
+                                Delete
+                              </button>
                             </div>
-                          ) : (
-                            <div>{item.start_date}</div>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 text-gray-700">
-                          <div>{item.start_time.slice(0, 5)} - {item.end_time.slice(0, 5)}</div>
-                          <div className="text-[11px] text-gray-500 font-medium">📍 {room?.RoomName || item.venue_name || 'Main Stage'}</div>
-                        </td>
-
-                        <td className="py-3 px-3">
-                          {leadPerson ? (
-                            <span className="font-medium text-gray-900">
-                              {leadPerson.FirstName} {leadPerson.LastName}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 italic">Unassigned</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3">
-                          {item.validation_status === 'clean' ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                              ✓ Clean
-                            </span>
-                          ) : item.validation_status === 'warning' ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200" title={item.conflict_details?.messages?.join('; ')}>
-                              ⚠️ Notice
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200" title={item.conflict_details?.messages?.join('; ')}>
-                              ✕ Conflict
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenItemModal(item)}
-                              className="px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 rounded"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item.item_id)}
-                              className="px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
