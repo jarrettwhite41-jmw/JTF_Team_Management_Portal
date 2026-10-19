@@ -169,15 +169,16 @@ export const SeasonPlanner: React.FC = () => {
       setEditingItem({ ...item });
     } else {
       const defaultLevel = classLevels[0]?.LevelName || 'Level 1 (Fundamentals)';
+      const startDate = selectedSeason?.start_date || new Date().toISOString().slice(0, 10);
       setEditingItem({
         season_id: selectedSeason?.season_id,
         item_type: 'class',
         title: defaultLevel,
         subtitle_or_level: defaultLevel,
-        start_date: selectedSeason?.start_date || new Date().toISOString().slice(0, 10),
-        end_date: selectedSeason?.end_date || new Date().toISOString().slice(0, 10),
-        start_time: '19:00:00',
-        end_time: '21:30:00',
+        start_date: startDate,
+        end_date: selectedSeason?.end_date || startDate,
+        start_time: '19:30:00',
+        end_time: '22:00:00',
         day_of_week: presetDay || 'Tuesday',
         room_id: 1,
         venue_name: 'Main Stage',
@@ -594,12 +595,25 @@ export const SeasonPlanner: React.FC = () => {
                                 <span className="font-medium text-gray-700">
                                   {lead ? `👤 ${lead.FirstName} ${lead.LastName}` : '👤 Unassigned'}
                                 </span>
-                                {item.validation_status === 'conflict' && (
-                                  <span className="text-red-700 font-bold">✕ Conflict</span>
-                                )}
-                                {item.validation_status === 'warning' && (
-                                  <span className="text-amber-700 font-semibold">⚠️ Notice</span>
-                                )}
+                                <div className="flex items-center gap-1.5">
+                                  {item.validation_status === 'conflict' && (
+                                    <span className="text-red-700 font-bold">✕ Conflict</span>
+                                  )}
+                                  {item.validation_status === 'warning' && (
+                                    <span className="text-amber-700 font-semibold">⚠️ Notice</span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteItem(item.item_id);
+                                    }}
+                                    title="Remove draft item"
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           );
@@ -696,6 +710,20 @@ export const SeasonPlanner: React.FC = () => {
                                     ✕ Conflict
                                   </div>
                                 )}
+
+                                <div className="flex justify-end pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteItem(item.item_id);
+                                    }}
+                                    title="Remove draft item"
+                                    className="text-[10px] text-gray-400 hover:text-red-600 px-1 py-0.5 rounded hover:bg-red-50"
+                                  >
+                                    🗑️ Remove
+                                  </button>
+                                </div>
                               </div>
                             );
                           })
@@ -1031,11 +1059,18 @@ export const SeasonPlanner: React.FC = () => {
                           : t === 'show'
                           ? (showTypes[0]?.ShowTypeName || 'The Main Event')
                           : '';
+
+                        const defaultStartTime = t === 'class' ? '19:30:00' : t === 'show' ? '21:00:00' : (editingItem.start_time || '19:00:00');
+                        const defaultEndTime = t === 'class' ? '22:00:00' : t === 'show' ? '23:00:00' : (editingItem.end_time || '21:30:00');
+
                         setEditingItem({
                           ...editingItem,
                           item_type: t,
                           title: nextLevel || (t === 'workshop' ? (editingItem.title || '') : ''),
                           subtitle_or_level: nextLevel,
+                          start_time: defaultStartTime,
+                          end_time: defaultEndTime,
+                          end_date: t === 'class' ? (editingItem.end_date || selectedSeason?.end_date || editingItem.start_date) : null,
                         });
                       }}
                       className={`py-2 text-xs font-bold rounded-lg capitalize border transition-all ${
@@ -1170,24 +1205,49 @@ export const SeasonPlanner: React.FC = () => {
               {/* Date & Recurrence */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Start Date</label>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    {editingItem.item_type === 'class' ? 'Start Date' : 'Event Date'}
+                  </label>
                   <input
                     type="date"
                     required
                     value={editingItem.start_date || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, start_date: e.target.value })}
+                    onChange={(e) => {
+                      const newStartDate = e.target.value;
+                      // Sync Day of Week automatically based on the chosen date
+                      let derivedDay = editingItem.day_of_week;
+                      if (newStartDate) {
+                        const d = new Date(newStartDate + 'T12:00:00Z');
+                        derivedDay = d.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+                      }
+                      setEditingItem({
+                        ...editingItem,
+                        start_date: newStartDate,
+                        day_of_week: derivedDay,
+                        end_date: editingItem.item_type === 'class' ? (editingItem.end_date || newStartDate) : null,
+                      });
+                    }}
                     className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">End Date (Class)</label>
-                  <input
-                    type="date"
-                    value={editingItem.end_date || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, end_date: e.target.value })}
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
-                  />
-                </div>
+                {editingItem.item_type === 'class' ? (
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1">End Date (Cohort End)</label>
+                    <input
+                      type="date"
+                      value={editingItem.end_date || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, end_date: e.target.value })}
+                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-1">End Date</label>
+                    <div className="w-full text-xs border border-dashed border-gray-200 rounded-lg p-2 text-gray-400 bg-gray-50 italic">
+                      Single-day event
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-xs font-bold text-gray-700 block mb-1">Day of Week</label>
                   <select
@@ -1209,8 +1269,8 @@ export const SeasonPlanner: React.FC = () => {
                   <input
                     type="time"
                     required
-                    value={editingItem.start_time || '19:00'}
-                    onChange={(e) => setEditingItem({ ...editingItem, start_time: e.target.value })}
+                    value={editingItem.start_time?.slice(0, 5) || (editingItem.item_type === 'class' ? '19:30' : editingItem.item_type === 'show' ? '21:00' : '19:00')}
+                    onChange={(e) => setEditingItem({ ...editingItem, start_time: e.target.value + (e.target.value.length === 5 ? ':00' : '') })}
                     className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
                 </div>
@@ -1219,8 +1279,8 @@ export const SeasonPlanner: React.FC = () => {
                   <input
                     type="time"
                     required
-                    value={editingItem.end_time || '21:30'}
-                    onChange={(e) => setEditingItem({ ...editingItem, end_time: e.target.value })}
+                    value={editingItem.end_time?.slice(0, 5) || (editingItem.item_type === 'class' ? '22:00' : editingItem.item_type === 'show' ? '23:00' : '21:30')}
+                    onChange={(e) => setEditingItem({ ...editingItem, end_time: e.target.value + (e.target.value.length === 5 ? ':00' : '') })}
                     className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
                   />
                 </div>
@@ -1292,21 +1352,37 @@ export const SeasonPlanner: React.FC = () => {
                 )}
               </div>
 
-              <div className="border-t pt-4 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsItemModalOpen(false)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingItem}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm disabled:opacity-50"
-                >
-                  {isSavingItem ? 'Saving...' : 'Save Draft Item'}
-                </button>
+              <div className="border-t pt-4 flex items-center justify-between gap-2">
+                <div>
+                  {editingItem.item_id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleDeleteItem(editingItem.item_id!);
+                        setIsItemModalOpen(false);
+                      }}
+                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg border border-red-200 flex items-center gap-1"
+                    >
+                      🗑️ Remove Draft Item
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsItemModalOpen(false)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingItem}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm disabled:opacity-50"
+                  >
+                    {isSavingItem ? 'Saving...' : 'Save Draft Item'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
