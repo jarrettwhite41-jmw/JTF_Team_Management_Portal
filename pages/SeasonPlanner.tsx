@@ -1352,7 +1352,7 @@ export const SeasonPlanner: React.FC = () => {
                 )}
               </div>
 
-              <div className="border-t pt-4 flex items-center justify-between gap-2">
+              <div className="border-t pt-4 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   {editingItem.item_id && (
                     <button
@@ -1361,24 +1361,24 @@ export const SeasonPlanner: React.FC = () => {
                         handleDeleteItem(editingItem.item_id!);
                         setIsItemModalOpen(false);
                       }}
-                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg border border-red-200 flex items-center gap-1"
+                      className="w-full sm:w-auto px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg border border-red-200 flex items-center justify-center gap-1"
                     >
                       🗑️ Remove Draft Item
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 justify-end">
                   <button
                     type="button"
                     onClick={() => setIsItemModalOpen(false)}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSavingItem}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm disabled:opacity-50"
+                    className="flex-1 sm:flex-initial px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-sm disabled:opacity-50"
                   >
                     {isSavingItem ? 'Saving...' : 'Save Draft Item'}
                   </button>

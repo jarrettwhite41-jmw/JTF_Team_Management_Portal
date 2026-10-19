@@ -179,16 +179,20 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
         'Interactive master planning canvas for staging entire conservatory sessions, public show seasons, and intensive workshops before publishing them to the live schedules.',
       workflow: [
         'Create a Planning Season specifying Season Name, Start Date, End Date, and initial notes.',
-        'Delete seasons with the 🗑️ Delete Season button when archiving or resetting seasonal planning drafts.',
-        'Stage draft items: choose item type (Class, Show, or Workshop), title, curriculum level, day of week, meeting times, room, and lead instructor/director.',
+        'Delete unwanted seasons with the 🗑️ Delete Season button when resetting seasonal planning drafts.',
+        'Stage draft items: choose item type (Class, Show, or Workshop), curriculum level/title, date, room, and lead instructor/director.',
+        'Smart scheduling defaults: Classes default to recurring multi-week cohorts (7:30 PM - 10:00 PM) with start and end dates. Shows default to single-day events (9:00 PM - 11:00 PM), and workshops are single-day intensives.',
+        'Remove unwanted draft items at any time directly from the item edit modal ("🗑️ Remove Draft Item"), calendar cards, or the table ledger.',
         'Inspect real-time collision detection: the engine automatically verifies room double-booking, teacher day preferences, and instructor blackout/vacation dates.',
         'Toggle between Calendar, Weekly Schedule, and Summary Ledger views to visualize load and venue usage across weeks.',
         'Review collision warnings (e.g. "Instructor is marked unavailable on Mondays", "Instructor has a submitted blackout date on 2026-11-10; substitute needed").',
         'When ready, publish the season to instantly commit all draft classes and shows into the production live tables.',
       ],
       tips: [
-        'Draft seasons remain safely staged without altering current live student classes or public show tickets until you explicitly publish.',
-        'Deleting a planning season cascades automatically, cleanly removing draft items without orphaned records.',
+        'Draft items remain safely staged in the draft plan without altering current live student classes or public show tickets until you explicitly publish.',
+        'Only classes span multiple weeks with an end date; shows and workshops automatically treat dates as single-day events.',
+        'You can delete individual draft items directly from the modal footer or by tapping the 🗑️ icon on any schedule card.',
+        'Deleting a planning season cascades automatically, cleanly removing all draft items without leaving orphaned records.',
       ],
       crossPortalImpact: [
         {
