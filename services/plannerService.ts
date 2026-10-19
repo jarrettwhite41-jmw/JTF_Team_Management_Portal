@@ -301,12 +301,45 @@ export const plannerService = {
     const errors: string[] = [];
     let publishedCount = 0;
 
+    // Pre-load reference tables so we can resolve types, levels, and teachers properly
+    const [levelsRes, showTypesRes, teachersRes] = await Promise.all([
+      supabaseService.getAllClassLevels(),
+      supabaseService.getAllShowTypes(),
+      supabaseService.getAllTeachers(),
+    ]);
+
+    const classLevels = levelsRes.success && levelsRes.data ? levelsRes.data : [];
+    const showTypes = showTypesRes.success && showTypesRes.data ? showTypesRes.data : [];
+    const teachersList = teachersRes.success && teachersRes.data ? teachersRes.data : [];
+
+    // Helper map for personnel_id -> teacher_id
+    const personnelToTeacherMap = new Map<number, number>();
+    teachersList.forEach(t => {
+      if (t.PersonnelID && t.TeacherID) {
+        personnelToTeacherMap.set(t.PersonnelID, t.TeacherID);
+      }
+    });
+
     for (const item of items) {
       try {
         if (item.item_type === 'show') {
+          // Resolve ShowTypeID by matching item title or subtitle against show types
+          let matchedShowTypeId = 1;
+          const searchName = (item.subtitle_or_level || item.title || '').trim().toLowerCase();
+          const matchedType = showTypes.find(st =>
+            st.ShowTypeName.toLowerCase() === searchName ||
+            searchName.includes(st.ShowTypeName.toLowerCase()) ||
+            st.ShowTypeName.toLowerCase().includes(searchName)
+          );
+          if (matchedType) {
+            matchedShowTypeId = matchedType.ShowTypeID;
+          } else if (showTypes.length > 0) {
+            matchedShowTypeId = showTypes[0].ShowTypeID;
+          }
+
           // Publish to ShowInformation
           const showRes = await supabaseService.createShow({
-            ShowTypeID: 1, // Default or matched ShowType
+            ShowTypeID: matchedShowTypeId,
             ShowDate: item.start_date,
             StartTime: item.start_time,
             EndTime: item.end_time,
@@ -352,17 +385,47 @@ export const plannerService = {
             errors.push(`Failed to publish workshop "${item.title}": ${wsRes.error}`);
           }
         } else if (item.item_type === 'class') {
-          // Publish to ClassOfferings
+          // 1. Resolve ClassLevelID by matching subtitle_or_level or title
+          let resolvedLevelId = 1;
+          const searchLevel = (item.subtitle_or_level || item.title || '').trim().toLowerCase();
+          const matchedLevel = classLevels.find(cl =>
+            cl.LevelName.toLowerCase() === searchLevel ||
+            searchLevel.includes(cl.LevelName.toLowerCase()) ||
+            cl.LevelName.toLowerCase().includes(searchLevel)
+          );
+          if (matchedLevel) {
+            resolvedLevelId = matchedLevel.ClassLevelID;
+          } else if (classLevels.length > 0) {
+            resolvedLevelId = classLevels[0].ClassLevelID;
+          }
+
+          // 2. Resolve TeacherID in the `teachers` table
+          let resolvedTeacherId: number | null = null;
+          if (item.primary_personnel_id) {
+            if (personnelToTeacherMap.has(item.primary_personnel_id)) {
+              resolvedTeacherId = personnelToTeacherMap.get(item.primary_personnel_id)!;
+            } else {
+              // Ensure person exists in teachers table
+              const addTeacherRes = await supabaseService.addPersonAsTeacher(item.primary_personnel_id);
+              if (addTeacherRes.success && addTeacherRes.data?.TeacherID) {
+                resolvedTeacherId = addTeacherRes.data.TeacherID;
+                personnelToTeacherMap.set(item.primary_personnel_id, resolvedTeacherId);
+              }
+            }
+          }
+
+          // 3. Publish to `class_offerings` table with correct snake_case schema
           const { data: offering, error: classErr } = await supabase
-            .from('ClassOfferings')
+            .from('class_offerings')
             .insert([{
-              LevelID: 1, // Default or matched Level
-              TeacherID: item.primary_personnel_id,
-              StartDate: item.start_date,
-              EndDate: item.end_date || item.start_date,
-              RoomID: item.room_id || 1,
-              Capacity: item.capacity || 16,
-              Notes: item.description,
+              class_level_id: resolvedLevelId,
+              teacher_id: resolvedTeacherId,
+              start_date: item.start_date,
+              end_date: item.end_date || item.start_date,
+              room_id: item.room_id || 1,
+              max_students: item.capacity || 16,
+              status: 'Open',
+              notes: item.description || item.subtitle_or_level || null,
             }])
             .select()
             .single();
@@ -370,7 +433,7 @@ export const plannerService = {
           if (!classErr && offering) {
             await this.savePlanningItem({
               item_id: item.item_id,
-              published_offering_id: offering.OfferingID,
+              published_offering_id: offering.offering_id,
             });
             publishedCount++;
           } else {
