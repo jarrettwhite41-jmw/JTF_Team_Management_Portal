@@ -172,7 +172,7 @@ export const SeasonPlanner: React.FC = () => {
       setEditingItem({
         season_id: selectedSeason?.season_id,
         item_type: 'class',
-        title: '',
+        title: defaultLevel,
         subtitle_or_level: defaultLevel,
         start_date: selectedSeason?.start_date || new Date().toISOString().slice(0, 10),
         end_date: selectedSeason?.end_date || new Date().toISOString().slice(0, 10),
@@ -1027,13 +1027,14 @@ export const SeasonPlanner: React.FC = () => {
                       type="button"
                       onClick={() => {
                         const nextLevel = t === 'class'
-                          ? (classLevels[0]?.LevelName || '')
+                          ? (classLevels[0]?.LevelName || 'Level 1 (Fundamentals)')
                           : t === 'show'
-                          ? (showTypes[0]?.ShowTypeName || '')
+                          ? (showTypes[0]?.ShowTypeName || 'The Main Event')
                           : '';
                         setEditingItem({
                           ...editingItem,
                           item_type: t,
+                          title: nextLevel || (t === 'workshop' ? (editingItem.title || '') : ''),
                           subtitle_or_level: nextLevel,
                         });
                       }}
@@ -1051,90 +1052,119 @@ export const SeasonPlanner: React.FC = () => {
 
               {/* Title & Subtitle / Level */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">
-                    {editingItem.item_type === 'class'
-                      ? 'Course Name / Cohort'
-                      : editingItem.item_type === 'show'
-                      ? 'Show Title'
-                      : 'Workshop Title'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editingItem.title || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
-                    placeholder={
-                      editingItem.item_type === 'class'
-                        ? 'e.g. Improv Foundations, Harold Studio...'
-                        : editingItem.item_type === 'show'
-                        ? 'e.g. Friday Night Live, The BIG Show...'
-                        : 'e.g. Guest Masterclass: Musical Improv...'
-                    }
-                    className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">
-                    {editingItem.item_type === 'class'
-                      ? 'Class Level / Curriculum'
-                      : editingItem.item_type === 'show'
-                      ? 'Show Type'
-                      : 'Subtitle / Focus'}
-                  </label>
-
-                  {editingItem.item_type === 'class' ? (
-                    <select
-                      value={editingItem.subtitle_or_level || ''}
-                      onChange={(e) => {
-                        const lvl = e.target.value;
-                        setEditingItem({
+                {editingItem.item_type === 'class' ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Class Level / Course Name
+                      </label>
+                      <select
+                        value={editingItem.subtitle_or_level || editingItem.title || ''}
+                        onChange={(e) => {
+                          const lvl = e.target.value;
+                          setEditingItem({
+                            ...editingItem,
+                            title: lvl,
+                            subtitle_or_level: lvl,
+                          });
+                        }}
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
+                      >
+                        <option value="">-- Select Class Level --</option>
+                        {classLevels.map((lvl) => (
+                          <option key={lvl.ClassLevelID} value={lvl.LevelName}>
+                            {lvl.LevelName} {lvl.Description ? `— ${lvl.Description}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Cohort / Custom Label (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingItem.title && editingItem.title !== editingItem.subtitle_or_level ? editingItem.title : ''}
+                        onChange={(e) => setEditingItem({
                           ...editingItem,
-                          subtitle_or_level: lvl,
-                          // Optional convenience: auto-populate title if empty
-                          title: editingItem.title ? editingItem.title : `${lvl} Improv`,
-                        });
-                      }}
-                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
-                    >
-                      <option value="">-- Select Class Level --</option>
-                      {classLevels.map((lvl) => (
-                        <option key={lvl.ClassLevelID} value={lvl.LevelName}>
-                          {lvl.LevelName} {lvl.Description ? `— ${lvl.Description}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : editingItem.item_type === 'show' ? (
-                    <select
-                      value={editingItem.subtitle_or_level || ''}
-                      onChange={(e) => {
-                        const stName = e.target.value;
-                        setEditingItem({
+                          title: e.target.value.trim() ? e.target.value : (editingItem.subtitle_or_level || 'Class'),
+                        })}
+                        placeholder={editingItem.subtitle_or_level ? `Default: ${editingItem.subtitle_or_level}` : 'e.g. Cohort B, Spanish Track'}
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                      />
+                    </div>
+                  </>
+                ) : editingItem.item_type === 'show' ? (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Show Type / Title
+                      </label>
+                      <select
+                        value={editingItem.subtitle_or_level || editingItem.title || ''}
+                        onChange={(e) => {
+                          const stName = e.target.value;
+                          setEditingItem({
+                            ...editingItem,
+                            title: stName,
+                            subtitle_or_level: stName,
+                          });
+                        }}
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
+                      >
+                        <option value="">-- Select Show Type --</option>
+                        {showTypes.map((st) => (
+                          <option key={st.ShowTypeID} value={st.ShowTypeName}>
+                            {st.ShowTypeName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Custom Show Title (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingItem.title && editingItem.title !== editingItem.subtitle_or_level ? editingItem.title : ''}
+                        onChange={(e) => setEditingItem({
                           ...editingItem,
-                          subtitle_or_level: stName,
-                          // Auto-fill Title if user hasn't typed a custom show title
-                          title: editingItem.title ? editingItem.title : stName,
-                        });
-                      }}
-                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900 bg-white"
-                    >
-                      <option value="">-- Select Show Type --</option>
-                      {showTypes.map((st) => (
-                        <option key={st.ShowTypeID} value={st.ShowTypeName}>
-                          {st.ShowTypeName}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={editingItem.subtitle_or_level || ''}
-                      onChange={(e) => setEditingItem({ ...editingItem, subtitle_or_level: e.target.value })}
-                      placeholder="e.g. Visiting Artist Intensive, Character Acting..."
-                      className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
-                    />
-                  )}
-                </div>
+                          title: e.target.value.trim() ? e.target.value : (editingItem.subtitle_or_level || 'Show'),
+                        })}
+                        placeholder={editingItem.subtitle_or_level ? `Default: ${editingItem.subtitle_or_level}` : 'e.g. Halloween Special, The BIG Show'}
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Workshop Title
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editingItem.title || ''}
+                        onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                        placeholder="e.g. Musical Improv Intensive, Harold Masterclass"
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">
+                        Subtitle / Focus
+                      </label>
+                      <input
+                        type="text"
+                        value={editingItem.subtitle_or_level || ''}
+                        onChange={(e) => setEditingItem({ ...editingItem, subtitle_or_level: e.target.value })}
+                        placeholder="e.g. Guest Instructor, Intermediate/Advanced"
+                        className="w-full text-xs border border-gray-300 rounded-lg p-2 text-gray-900"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Date & Recurrence */}
