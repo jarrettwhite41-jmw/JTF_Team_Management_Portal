@@ -525,7 +525,7 @@ function syncRowToSupabase(sheet, rowNumber) {
 `;
 
 export const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'app' | 'show_types' | 'integrations'>('show_types');
+  const [activeTab, setActiveTab] = useState<'app' | 'show_types' | 'integrations' | 'squarespace'>('show_types');
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -737,6 +737,16 @@ export const Settings: React.FC = () => {
           }`}
         >
           <span>📊</span> Google Sheets & Webhooks
+        </button>
+        <button
+          onClick={() => setActiveTab('squarespace')}
+          className={`pb-3 text-sm font-semibold transition-colors flex items-center gap-2 ${
+            activeTab === 'squarespace'
+              ? 'border-b-2 border-primary-600 text-primary-600'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <span>🌐</span> Squarespace Widgets
         </button>
       </div>
 
@@ -1152,6 +1162,347 @@ export const Settings: React.FC = () => {
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: SQUARESPACE EMBEDDABLE WIDGETS */}
+      {activeTab === 'squarespace' && (
+        <div className="space-y-6">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-xs text-emerald-900 leading-relaxed space-y-2">
+            <p className="font-bold text-sm text-emerald-950 flex items-center gap-1.5">
+              <span>🎟️</span> Squarespace Public Website Integration
+            </p>
+            <p>
+              Display your live theater schedule on Squarespace without duplicate entry! When you publish a season or sync Eventbrite tickets, these widgets automatically refresh on your website.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-emerald-800">
+              <li><strong>Authoritative Eventbrite Sync:</strong> If an event matches Eventbrite, the direct ticket purchase link is automatically featured. If an event or class is internal or not on Eventbrite, it displays cleanly with venue details.</li>
+              <li><strong>Zero Maintenance:</strong> Self-contained vanilla JS & CSS widgets with no external dependencies or npm builds required on Squarespace. Works inside any Squarespace <em>Code Block</em>.</li>
+              <li><strong>Fast & Secure:</strong> Uses read-only Supabase RPC endpoints (<code className="font-mono bg-emerald-100 px-1 py-0.5 rounded">get_public_upcoming_shows</code> & <code className="font-mono bg-emerald-100 px-1 py-0.5 rounded">get_public_upcoming_classes</code>). Internal notes, cast pay, and financial data are never exposed.</li>
+            </ul>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Widget 1: Upcoming Shows */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🎭</span>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Upcoming Shows Widget</h3>
+                      <p className="text-[11px] text-slate-500">For your Squarespace <code className="font-mono bg-slate-100 px-1 rounded">/shows</code> page</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-purple-50 text-purple-700 rounded-full border border-purple-200">
+                    Shows & Tickets
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Renders responsive show cards with date, time, stage, show format, and a direct <strong>Get Tickets</strong> button linked to Eventbrite.
+                </p>
+
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                  <span className="text-xs font-semibold text-slate-700 block">Preview Layout:</span>
+                  <div className="bg-white p-3 rounded border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900">Friday Night Live (Main Stage)</div>
+                        <div className="text-[11px] text-slate-500">📅 Friday • 9:00 PM • Main Stage</div>
+                      </div>
+                      <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-1 rounded">
+                        🎟️ Get Tickets
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 italic text-center">
+                      + Auto-populates from database in real time
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Squarespace Embed Code (HTML/JS):
+                  </label>
+                  <textarea
+                    readOnly
+                    rows={6}
+                    value={`<!-- JTF Upcoming Shows Squarespace Widget -->
+<div id="jtf-shows-widget" style="max-width:800px;margin:0 auto;font-family:system-ui,-apple-system,sans-serif;">
+  <div id="jtf-shows-loading" style="text-align:center;padding:24px;color:#666;">Loading upcoming performances...</div>
+  <div id="jtf-shows-list" style="display:grid;gap:16px;"></div>
+</div>
+<script>
+(async function() {
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_public_upcoming_shows", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit_count: 20, include_internal: true })
+    });
+    const shows = await res.json();
+    const loading = document.getElementById("jtf-shows-loading");
+    const container = document.getElementById("jtf-shows-list");
+    if (!shows || shows.length === 0) {
+      loading.innerHTML = "<p style='color:#777;padding:20px;'>No upcoming shows currently scheduled. Check back soon!</p>";
+      return;
+    }
+    loading.style.display = "none";
+    container.innerHTML = shows.map(s => {
+      const dateStr = new Date(s.show_date + "T00:00:00").toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = s.show_time ? s.show_time.slice(0, 5) : "8:00 PM";
+      const ticketBtn = s.ticket_url ? 
+        \`<a href="\${s.ticket_url}" target="_blank" rel="noopener" style="display:inline-block;background:#e11d48;color:#fff;padding:8px 16px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">🎟️ Get Tickets</a>\` : 
+        \`<span style="display:inline-block;background:#f1f5f9;color:#64748b;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;">Box Office / At Door</span>\`;
+      return \`<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div>
+          <div style="font-weight:700;font-size:16px;color:#0f172a;">\${s.show_type_name || 'Main Stage Show'}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:4px;">📅 \${dateStr} • \${timeStr} • 📍 \${s.venue || 'Main Stage'}</div>
+        </div>
+        <div>\${ticketBtn}</div>
+      </div>\`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("jtf-shows-loading").innerText = "Unable to load schedule at this time.";
+  }
+})();
+</script>`}
+                    className="w-full text-[11px] font-mono bg-slate-900 text-slate-100 rounded-lg p-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = `<!-- JTF Upcoming Shows Squarespace Widget -->
+<div id="jtf-shows-widget" style="max-width:800px;margin:0 auto;font-family:system-ui,-apple-system,sans-serif;">
+  <div id="jtf-shows-loading" style="text-align:center;padding:24px;color:#666;">Loading upcoming performances...</div>
+  <div id="jtf-shows-list" style="display:grid;gap:16px;"></div>
+</div>
+<script>
+(async function() {
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_public_upcoming_shows", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit_count: 20, include_internal: true })
+    });
+    const shows = await res.json();
+    const loading = document.getElementById("jtf-shows-loading");
+    const container = document.getElementById("jtf-shows-list");
+    if (!shows || shows.length === 0) {
+      loading.innerHTML = "<p style='color:#777;padding:20px;'>No upcoming shows currently scheduled. Check back soon!</p>";
+      return;
+    }
+    loading.style.display = "none";
+    container.innerHTML = shows.map(s => {
+      const dateStr = new Date(s.show_date + "T00:00:00").toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+      const timeStr = s.show_time ? s.show_time.slice(0, 5) : "8:00 PM";
+      const ticketBtn = s.ticket_url ? 
+        \`<a href="\${s.ticket_url}" target="_blank" rel="noopener" style="display:inline-block;background:#e11d48;color:#fff;padding:8px 16px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">🎟️ Get Tickets</a>\` : 
+        \`<span style="display:inline-block;background:#f1f5f9;color:#64748b;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;">Box Office / At Door</span>\`;
+      return \`<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div>
+          <div style="font-weight:700;font-size:16px;color:#0f172a;">\${s.show_type_name || 'Main Stage Show'}</div>
+          <div style="font-size:13px;color:#64748b;margin-top:4px;">📅 \${dateStr} • \${timeStr} • 📍 \${s.venue || 'Main Stage'}</div>
+        </div>
+        <div>\${ticketBtn}</div>
+      </div>\`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("jtf-shows-loading").innerText = "Unable to load schedule at this time.";
+  }
+})();
+</script>`;
+                    navigator.clipboard.writeText(code);
+                    setCopiedKey('widget-shows');
+                    setTimeout(() => setCopiedKey(null), 2500);
+                  }}
+                  className="w-full rounded-lg bg-purple-600 py-2.5 text-xs font-semibold text-white hover:bg-purple-700 transition-colors shadow-xs"
+                >
+                  {copiedKey === 'widget-shows' ? '✓ Copied to Clipboard!' : '📋 Copy Shows Widget Code'}
+                </button>
+              </div>
+            </div>
+
+            {/* Widget 2: Classes & Workshops */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🎓</span>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Classes & Workshops Widget</h3>
+                      <p className="text-[11px] text-slate-500">For your Squarespace <code className="font-mono bg-slate-100 px-1 rounded">/classes</code> page</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+                    Conservatory
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Renders upcoming 7-week conservatory cohorts and intensive workshops with start dates, run times, location, and registration status.
+                </p>
+
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-2">
+                  <span className="text-xs font-semibold text-slate-700 block">Preview Layout:</span>
+                  <div className="bg-white p-3 rounded border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900">IA1: Fundamentals of Improv</div>
+                        <div className="text-[11px] text-slate-500">📅 Starts Sep 10 • Thursdays 7:30-10:00 PM • Main Stage</div>
+                      </div>
+                      <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded">
+                        Enroll Now
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 italic text-center">
+                      + Auto-populates from database in real time
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Squarespace Embed Code (HTML/JS):
+                  </label>
+                  <textarea
+                    readOnly
+                    rows={6}
+                    value={`<!-- JTF Upcoming Classes Squarespace Widget -->
+<div id="jtf-classes-widget" style="max-width:800px;margin:0 auto;font-family:system-ui,-apple-system,sans-serif;">
+  <div id="jtf-classes-loading" style="text-align:center;padding:24px;color:#666;">Loading upcoming conservatory courses...</div>
+  <div id="jtf-classes-list" style="display:grid;gap:16px;"></div>
+</div>
+<script>
+(async function() {
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_public_upcoming_classes", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit_count: 20 })
+    });
+    const items = await res.json();
+    const loading = document.getElementById("jtf-classes-loading");
+    const container = document.getElementById("jtf-classes-list");
+    if (!items || items.length === 0) {
+      loading.innerHTML = "<p style='color:#777;padding:20px;'>No new classes currently open for enrollment. Check back soon!</p>";
+      return;
+    }
+    loading.style.display = "none";
+    container.innerHTML = items.map(c => {
+      const startStr = new Date(c.start_date + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const tag = c.item_type === 'workshop' ? 
+        '<span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">WORKSHOP</span>' : 
+        '<span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">7-WEEK COURSE</span>';
+      return \`<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:16px;color:#0f172a;">\${c.title}</span>
+            \${tag}
+          </div>
+          <div style="font-size:13px;color:#64748b;">📅 Starts \${startStr} • \${c.meeting_days_or_time || 'Weekly'} • 📍 \${c.venue || 'Conservatory'}</div>
+        </div>
+        <div>
+          <a href="/register" style="display:inline-block;background:#2563eb;color:#fff;padding:8px 16px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">Enroll Now</a>
+        </div>
+      </div>\`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("jtf-classes-loading").innerText = "Unable to load courses at this time.";
+  }
+})();
+</script>`}
+                    className="w-full text-[11px] font-mono bg-slate-900 text-slate-100 rounded-lg p-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = `<!-- JTF Upcoming Classes Squarespace Widget -->
+<div id="jtf-classes-widget" style="max-width:800px;margin:0 auto;font-family:system-ui,-apple-system,sans-serif;">
+  <div id="jtf-classes-loading" style="text-align:center;padding:24px;color:#666;">Loading upcoming conservatory courses...</div>
+  <div id="jtf-classes-list" style="display:grid;gap:16px;"></div>
+</div>
+<script>
+(async function() {
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  try {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/rpc/get_public_upcoming_classes", {
+      method: "POST",
+      headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit_count: 20 })
+    });
+    const items = await res.json();
+    const loading = document.getElementById("jtf-classes-loading");
+    const container = document.getElementById("jtf-classes-list");
+    if (!items || items.length === 0) {
+      loading.innerHTML = "<p style='color:#777;padding:20px;'>No new classes currently open for enrollment. Check back soon!</p>";
+      return;
+    }
+    loading.style.display = "none";
+    container.innerHTML = items.map(c => {
+      const startStr = new Date(c.start_date + "T00:00:00").toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      const tag = c.item_type === 'workshop' ? 
+        '<span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">WORKSHOP</span>' : 
+        '<span style="background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">7-WEEK COURSE</span>';
+      return \`<div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span style="font-weight:700;font-size:16px;color:#0f172a;">\${c.title}</span>
+            \${tag}
+          </div>
+          <div style="font-size:13px;color:#64748b;">📅 Starts \${startStr} • \${c.meeting_days_or_time || 'Weekly'} • 📍 \${c.venue || 'Conservatory'}</div>
+        </div>
+        <div>
+          <a href="/register" style="display:inline-block;background:#2563eb;color:#fff;padding:8px 16px;border-radius:6px;font-weight:bold;text-decoration:none;font-size:13px;">Enroll Now</a>
+        </div>
+      </div>\`;
+    }).join("");
+  } catch (e) {
+    document.getElementById("jtf-classes-loading").innerText = "Unable to load courses at this time.";
+  }
+})();
+</script>`;
+                    navigator.clipboard.writeText(code);
+                    setCopiedKey('widget-classes');
+                    setTimeout(() => setCopiedKey(null), 2500);
+                  }}
+                  className="w-full rounded-lg bg-blue-600 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors shadow-xs"
+                >
+                  {copiedKey === 'widget-classes' ? '✓ Copied to Clipboard!' : '📋 Copy Classes Widget Code'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Squarespace How-To Guide Box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-3">
+            <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+              <span>📖</span> How to Add to Squarespace (30 Seconds)
+            </h4>
+            <ol className="list-decimal list-inside text-xs text-slate-700 space-y-1.5 leading-relaxed">
+              <li>Log into your <strong>Squarespace</strong> site editor and navigate to the page (e.g. <em>/shows</em> or <em>/classes</em>).</li>
+              <li>Click <strong>Edit Page</strong> &rarr; <strong>Add Block</strong> (+) &rarr; select <strong>Code</strong>.</li>
+              <li>Set the block format to <strong>HTML</strong> and ensure <em>Display Source</em> is turned OFF.</li>
+              <li>Paste the widget code copied above into the code field and click <strong>Save / Publish</strong>.</li>
+              <li>The widget will immediately pull live showtimes and Eventbrite links straight from your database whenever a visitor arrives!</li>
+            </ol>
           </div>
         </div>
       )}

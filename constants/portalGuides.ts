@@ -287,14 +287,16 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       title: 'Settings & Integrations',
       icon: '⚙️',
       description:
-        'Portal system settings, Google Sheets integration links, Apps Script webhook generator, and environment configurations.',
+        'Portal system settings, Google Sheets integration links, Apps Script webhook generator, Squarespace website widgets, and environment configurations.',
       workflow: [
         'Access Google Sheets & Webhooks tab to view live Sheet IDs and Drive shortcuts for events, outreach leads, contact inquiries, and auditions.',
+        'Squarespace Website Widgets: Access the Squarespace Widgets tab to generate embeddable HTML/JS code snippets for your public /shows and /classes pages. Real-time sync matches Eventbrite ticket links authoritatively while safely handling internal events.',
         'Use the 1-click script copier to get ready-to-run Google Apps Script code with automatic sheet and GID matching for rental deals and outreach leads.',
         'Run the dedicated sync runner (e.g. syncOutreachSheetOnly or syncEventsOnly) directly inside Apps Script to immediately backfill historical spreadsheet rows into Supabase.',
         'Configure portal branding, default rooms, and notification destinations.',
       ],
       tips: [
+        'Squarespace widgets run read-only Supabase RPC queries that require zero manual website maintenance whenever seasons or ticket links update.',
         'Apps Script webhooks run securely within your Google account without exposing sheets publicly to anyone with a link.',
         'The generated Apps Script automatically normalizes column headers and matches tabs by name or GID ID (e.g. gid=1576425752 for outreach leads).',
       ],
