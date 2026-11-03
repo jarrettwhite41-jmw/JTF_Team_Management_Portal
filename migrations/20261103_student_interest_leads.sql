@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.student_interest_leads (
   status VARCHAR(30) DEFAULT 'inquired', -- 'inquired', 'contacted', 'follow_up_needed', 'enrolled', 'archived'
   follow_up_date DATE,
   student_id INT REFERENCES public.student_info(student_id) ON DELETE SET NULL, -- optional link if existing student
+  personnel_id INT REFERENCES public.personnel(personnel_id) ON DELETE SET NULL, -- link to personnel directory
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

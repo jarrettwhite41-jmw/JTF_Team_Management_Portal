@@ -13,6 +13,8 @@ import {
 } from '../services/crmService';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
+import { supabaseService } from '../services/supabaseService';
+import { Personnel } from '../types';
 
 export type CRMTab =
   | 'student_leads'
@@ -129,11 +131,13 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   // Student Interest Leads & Course Demand state
   const [studentLeads, setStudentLeads] = useState<StudentInterestLead[]>([]);
   const [classDemand, setClassDemand] = useState<ClassDemandSummary[]>([]);
+  const [personnelRoster, setPersonnelRoster] = useState<Personnel[]>([]);
   const [studentLeadFilter, setStudentLeadFilter] = useState<string>('all');
   const [studentLeadLevelFilter, setStudentLeadLevelFilter] = useState<string>('all');
   const [studentLeadSearch, setStudentLeadSearch] = useState<string>('');
   const [isAddStudentLeadOpen, setIsAddStudentLeadOpen] = useState(false);
   const [isSavingStudentLead, setIsSavingStudentLead] = useState(false);
+  const [isCreatingNewPersonnel, setIsCreatingNewPersonnel] = useState(false);
   const [selectedStudentLead, setSelectedStudentLead] = useState<StudentInterestLead | null>(null);
   const [isEditingStudentLead, setIsEditingStudentLead] = useState(false);
   const [editStudentLeadForm, setEditStudentLeadForm] = useState<Partial<StudentInterestLead>>({});
@@ -142,6 +146,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     email: '',
     phone: '',
     student_type: 'new_prospect',
+    personnel_id: null,
     class_level_id: 1,
     target_cycle: 'Next Cycle',
     preferred_days: 'Tuesdays or Thursdays',
@@ -203,12 +208,16 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         const lData = await crmService.getOutreachLeads();
         setLeads(lData);
       } else if (tab === 'student_leads') {
-        const [leadsData, demandData] = await Promise.all([
+        const [leadsData, demandData, personnelRes] = await Promise.all([
           crmService.getStudentInterestLeads(),
           crmService.getClassDemandSummary(),
+          supabaseService.getAllPersonnel(),
         ]);
         setStudentLeads(leadsData);
         setClassDemand(demandData);
+        if (personnelRes.success && personnelRes.data) {
+          setPersonnelRoster(personnelRes.data);
+        }
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to load data.' });
@@ -465,6 +474,27 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   };
 
   // Student Interest Lead Handlers
+  const handleSelectReturningPersonnel = (personnelIdStr: string) => {
+    if (!personnelIdStr) {
+      setNewStudentLead((prev) => ({
+        ...prev,
+        personnel_id: null,
+      }));
+      return;
+    }
+    const pid = Number(personnelIdStr);
+    const matched = personnelRoster.find((p) => p.PersonnelID === pid);
+    if (matched) {
+      setNewStudentLead((prev) => ({
+        ...prev,
+        personnel_id: matched.PersonnelID,
+        student_name: `${matched.FirstName} ${matched.LastName}`.trim(),
+        email: matched.PrimaryEmail || prev.email,
+        phone: matched.PrimaryPhone || prev.phone,
+      }));
+    }
+  };
+
   const handleCreateStudentLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStudentLead.student_name.trim()) {
@@ -473,17 +503,39 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     }
     setIsSavingStudentLead(true);
     try {
+      let linkedPersonnelId = newStudentLead.personnel_id || null;
+
+      // If user chose to create a new personnel profile for this returning student
+      if (isCreatingNewPersonnel && !linkedPersonnelId) {
+        const parts = newStudentLead.student_name.trim().split(' ');
+        const firstName = parts[0] || 'Student';
+        const lastName = parts.slice(1).join(' ') || 'Prospect';
+        const pRes = await supabaseService.createPersonnel({
+          FirstName: firstName,
+          LastName: lastName,
+          PrimaryEmail: newStudentLead.email || `${firstName.toLowerCase()}.${Date.now()}@jtf.internal`,
+          PrimaryPhone: newStudentLead.phone || undefined,
+        });
+        if (pRes.success && pRes.data) {
+          linkedPersonnelId = pRes.data.PersonnelID;
+          setPersonnelRoster((prev) => [...prev, pRes.data!]);
+        }
+      }
+
       await crmService.createStudentInterestLead({
         ...newStudentLead,
+        personnel_id: linkedPersonnelId,
         class_level_id: newStudentLead.class_level_id ? Number(newStudentLead.class_level_id) : null,
       });
       setMessage({ type: 'success', text: `Interest logged for ${newStudentLead.student_name}!` });
       setIsAddStudentLeadOpen(false);
+      setIsCreatingNewPersonnel(false);
       setNewStudentLead({
         student_name: '',
         email: '',
         phone: '',
         student_type: 'new_prospect',
+        personnel_id: null,
         class_level_id: 1,
         target_cycle: 'Next Cycle',
         preferred_days: 'Tuesdays or Thursdays',
@@ -893,7 +945,14 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                         <div key={lead.lead_id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <div className="font-bold text-slate-900 text-sm">{lead.student_name}</div>
+                              <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                                <span>{lead.student_name}</span>
+                                {lead.personnel_id && (
+                                  <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-1 py-0.2 rounded" title="Linked to Personnel Directory">
+                                    Directory 👤
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-xs text-slate-500">{lead.level_name} • {lead.target_cycle || 'Next Cycle'}</div>
                             </div>
                             <span
@@ -978,7 +1037,14 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                             {filtered.map((lead) => (
                               <tr key={lead.lead_id} className="hover:bg-slate-50 align-top">
                                 <td className="py-3 px-3">
-                                  <div className="font-bold text-slate-900 text-xs truncate">{lead.student_name}</div>
+                                  <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                                    <span>{lead.student_name}</span>
+                                    {lead.personnel_id && (
+                                      <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-1 py-0.2 rounded" title="Linked to Personnel Directory">
+                                        Directory 👤
+                                      </span>
+                                    )}
+                                  </div>
                                   <div className="text-[11px] text-slate-500 capitalize">{lead.student_type.replace('_', ' ')}</div>
                                   {lead.email && <div className="text-[11px] text-blue-600 truncate">✉️ {lead.email}</div>}
                                   {lead.phone && <div className="text-[11px] text-slate-600 truncate">📞 {lead.phone}</div>}
@@ -3960,6 +4026,95 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
             </div>
 
             <form onSubmit={handleCreateStudentLead} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Student Type</label>
+                  <select
+                    value={newStudentLead.student_type}
+                    onChange={(e) => {
+                      const st = e.target.value as any;
+                      setNewStudentLead((prev) => ({
+                        ...prev,
+                        student_type: st,
+                        personnel_id: st === 'new_prospect' ? null : prev.personnel_id,
+                      }));
+                      if (st === 'new_prospect') setIsCreatingNewPersonnel(false);
+                    }}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                  >
+                    <option value="new_prospect">New Prospect (Never Taken Class)</option>
+                    <option value="returning_student">Returning Student (Ready for Next Level)</option>
+                    <option value="former_alumni">Former Alumni (Re-engaging)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Class Level</label>
+                  <select
+                    value={newStudentLead.class_level_id || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, class_level_id: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  >
+                    {classDemand.map((cd) => (
+                      <option key={cd.class_level_id} value={cd.class_level_id}>
+                        {cd.level_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Returning Student / Alumni: Link to Personnel Directory */}
+              {newStudentLead.student_type !== 'new_prospect' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-amber-900">Personnel Directory Lookup</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreatingNewPersonnel((prev) => !prev);
+                        if (!isCreatingNewPersonnel) {
+                          setNewStudentLead((prev) => ({ ...prev, personnel_id: null }));
+                        }
+                      }}
+                      className="text-[11px] font-semibold text-amber-800 underline hover:text-amber-950"
+                    >
+                      {isCreatingNewPersonnel ? '← Pick from existing roster' : '+ Add as new person to roster'}
+                    </button>
+                  </div>
+
+                  {!isCreatingNewPersonnel ? (
+                    <div>
+                      <label className="block text-[11px] font-medium text-amber-800 mb-1">
+                        Select Existing Student / Performer / Staff:
+                      </label>
+                      <select
+                        value={newStudentLead.personnel_id || ''}
+                        onChange={(e) => handleSelectReturningPersonnel(e.target.value)}
+                        className="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white"
+                      >
+                        <option value="">-- Choose from {personnelRoster.length} contacts --</option>
+                        {personnelRoster
+                          .slice()
+                          .sort((a, b) => (a.FirstName || '').localeCompare(b.FirstName || ''))
+                          .map((p) => (
+                            <option key={p.PersonnelID} value={p.PersonnelID}>
+                              {p.FirstName} {p.LastName} {p.PrimaryEmail ? `(${p.PrimaryEmail})` : ''}
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        Selecting automatically populates their name, email, phone, and links their personnel history.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-white/70 border border-amber-200 rounded-lg text-xs text-amber-800">
+                      <span className="font-semibold">New Directory Contact:</span> A new personnel entry will be created with the details entered below and linked automatically.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Student / Prospect Name *</label>
                 <input
@@ -3992,35 +4147,6 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     onChange={(e) => setNewStudentLead((prev) => ({ ...prev, phone: e.target.value }))}
                     className="w-full border border-slate-300 rounded-lg p-2 text-xs"
                   />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Student Type</label>
-                  <select
-                    value={newStudentLead.student_type}
-                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, student_type: e.target.value as any }))}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
-                  >
-                    <option value="new_prospect">New Prospect (Never Taken Class)</option>
-                    <option value="returning_student">Returning Student (Ready for Next Level)</option>
-                    <option value="former_alumni">Former Alumni (Re-engaging)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Class Level</label>
-                  <select
-                    value={newStudentLead.class_level_id || ''}
-                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, class_level_id: Number(e.target.value) }))}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
-                  >
-                    {classDemand.map((cd) => (
-                      <option key={cd.class_level_id} value={cd.class_level_id}>
-                        {cd.level_name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -4123,6 +4249,73 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
             </div>
 
             <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Student Type</label>
+                  <select
+                    value={editStudentLeadForm.student_type || 'new_prospect'}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, student_type: e.target.value as any }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                  >
+                    <option value="new_prospect">New Prospect (Never Taken Class)</option>
+                    <option value="returning_student">Returning Student (Ready for Next Level)</option>
+                    <option value="former_alumni">Former Alumni (Re-engaging)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Class Level</label>
+                  <select
+                    value={editStudentLeadForm.class_level_id || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, class_level_id: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  >
+                    {classDemand.map((cd) => (
+                      <option key={cd.class_level_id} value={cd.class_level_id}>
+                        {cd.level_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Linked Personnel Directory Profile */}
+              {editStudentLeadForm.student_type !== 'new_prospect' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
+                  <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                    Linked Personnel Record:
+                  </label>
+                  <select
+                    value={editStudentLeadForm.personnel_id || ''}
+                    onChange={(e) => {
+                      const pid = e.target.value ? Number(e.target.value) : null;
+                      const matched = personnelRoster.find((p) => p.PersonnelID === pid);
+                      setEditStudentLeadForm((prev) => ({
+                        ...prev,
+                        personnel_id: pid,
+                        student_name: matched ? `${matched.FirstName} ${matched.LastName}`.trim() : prev.student_name,
+                        email: matched?.PrimaryEmail || prev.email,
+                        phone: matched?.PrimaryPhone || prev.phone,
+                      }));
+                    }}
+                    className="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white"
+                  >
+                    <option value="">-- No Personnel Record Linked --</option>
+                    {personnelRoster
+                      .slice()
+                      .sort((a, b) => (a.FirstName || '').localeCompare(b.FirstName || ''))
+                      .map((p) => (
+                        <option key={p.PersonnelID} value={p.PersonnelID}>
+                          {p.FirstName} {p.LastName} {p.PrimaryEmail ? `(${p.PrimaryEmail})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-[10px] text-amber-700">
+                    Links this lead with theater records, class history, and performer roster.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Student Name</label>
                 <input

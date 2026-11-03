@@ -166,6 +166,7 @@ export interface StudentInterestLead {
   status: 'inquired' | 'contacted' | 'follow_up_needed' | 'enrolled' | 'archived';
   follow_up_date?: string | null;
   student_id?: number | null;
+  personnel_id?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -641,13 +642,14 @@ export const crmService = {
   async getStudentInterestLeads() {
     const { data, error } = await supabase
       .from('student_interest_leads')
-      .select('*, class_levels(level_name)')
+      .select('*, class_levels(level_name), personnel:personnel_id(first_name, last_name, primary_email, primary_phone)')
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
     return (data || []).map((lead: any) => ({
       ...lead,
       level_name: lead.class_levels?.level_name || 'General / Unspecified',
+      student_name: lead.student_name || (lead.personnel ? `${lead.personnel.first_name} ${lead.personnel.last_name}` : 'Student'),
     })) as StudentInterestLead[];
   },
 
