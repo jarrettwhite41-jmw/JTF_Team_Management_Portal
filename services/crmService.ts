@@ -667,6 +667,26 @@ export const crmService = {
     } as StudentInterestLead;
   },
 
+  async bulkCreateStudentInterestLeads(leads: Array<Omit<StudentInterestLead, 'lead_id' | 'level_name'>>) {
+    if (!leads.length) return [];
+    // Batch in chunks of 100 for safety and performance
+    const chunkSize = 100;
+    const inserted: any[] = [];
+    for (let i = 0; i < leads.length; i += chunkSize) {
+      const batch = leads.slice(i, i + chunkSize);
+      const { data, error } = await supabase
+        .from('student_interest_leads')
+        .insert(batch)
+        .select('*, class_levels(level_name)');
+      if (error) throw error;
+      if (data) inserted.push(...data);
+    }
+    return inserted.map((row: any) => ({
+      ...row,
+      level_name: row.class_levels?.level_name || 'General / Unspecified',
+    })) as StudentInterestLead[];
+  },
+
   async updateStudentInterestLead(leadId: number, updates: Partial<StudentInterestLead>) {
     const { lead_id: _id, level_name: _ln, ...cleanUpdates } = updates;
     const { data, error } = await supabase

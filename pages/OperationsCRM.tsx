@@ -15,6 +15,7 @@ import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { supabaseService } from '../services/supabaseService';
 import { Personnel } from '../types';
+import { SpreadsheetImportModal } from '../components/SpreadsheetImportModal';
 
 export type CRMTab =
   | 'student_leads'
@@ -136,6 +137,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   const [studentLeadLevelFilter, setStudentLeadLevelFilter] = useState<string>('all');
   const [studentLeadSearch, setStudentLeadSearch] = useState<string>('');
   const [isAddStudentLeadOpen, setIsAddStudentLeadOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSavingStudentLead, setIsSavingStudentLead] = useState(false);
   const [isCreatingNewPersonnel, setIsCreatingNewPersonnel] = useState(false);
   const [selectedStudentLead, setSelectedStudentLead] = useState<StudentInterestLead | null>(null);
@@ -817,13 +819,22 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                     Track class inquiries, re-engage alumni, and measure course demand before scheduling your next cycle.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddStudentLeadOpen(true)}
-                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-colors shadow-xs"
-                >
-                  <span>+</span> Log Student Interest
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsImportModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs"
+                  >
+                    <span>📊</span> Import Spreadsheet (.csv / .xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddStudentLeadOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-colors shadow-xs"
+                  >
+                    <span>+</span> Log Student Interest
+                  </button>
+                </div>
               </div>
 
               {/* Demand Intelligence Grid */}
@@ -4006,6 +4017,21 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
           </div>
         </div>
       )}
+
+      {/* Modal: Import Legacy Spreadsheet */}
+      <SpreadsheetImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={(count) => {
+          setMessage({
+            type: 'success',
+            text: `Successfully ingested ${count} student interest records from spreadsheet!`,
+          });
+          loadTabData('student_leads');
+        }}
+        classDemand={classDemand}
+        personnelRoster={personnelRoster}
+      />
 
       {/* Modal: Add Student Interest Lead */}
       {isAddStudentLeadOpen && (
