@@ -6,6 +6,7 @@ import {
   ClassInstructorAvailability,
   ConflictCheckResult,
 } from '../services/plannerService';
+import { crmService, ClassDemandSummary } from '../services/crmService';
 import { supabaseService } from '../services/supabaseService';
 import { Personnel, SpecialGuest, ClassLevels, ShowTypes } from '../types';
 import { Loader } from '../components/common/Loader';
@@ -23,6 +24,8 @@ export const SeasonPlanner: React.FC = () => {
   const [rooms, setRooms] = useState<Array<{ RoomID: number; RoomName: string }>>([]);
   const [classLevels, setClassLevels] = useState<ClassLevels[]>([]);
   const [showTypes, setShowTypes] = useState<ShowTypes[]>([]);
+  const [classDemand, setClassDemand] = useState<ClassDemandSummary[]>([]);
+  const [showDemandPanel, setShowDemandPanel] = useState<boolean>(true);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingItem, setIsSavingItem] = useState(false);
@@ -54,16 +57,18 @@ export const SeasonPlanner: React.FC = () => {
     setIsLoading(true);
     setMessage(null);
     try {
-      const [seasonList, teachersRes, guestsRes, availList, levelsRes, showTypesRes] = await Promise.all([
+      const [seasonList, teachersRes, guestsRes, availList, levelsRes, showTypesRes, demandList] = await Promise.all([
         plannerService.getSeasons(),
         supabaseService.getAllTeachers(),
         supabaseService.getAllSpecialGuests(),
         plannerService.getInstructorAvailability(),
         supabaseService.getAllClassLevels(),
         supabaseService.getAllShowTypes(),
+        crmService.getClassDemandSummary(),
       ]);
 
       setSeasons(seasonList);
+      setClassDemand(demandList);
       if (teachersRes.success && teachersRes.data) {
         setPersonnelList(teachersRes.data as any);
       }
@@ -357,6 +362,54 @@ export const SeasonPlanner: React.FC = () => {
             >
               🗑️ Delete Season
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* Class Demand & Inquiries Intelligence Panel */}
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 shadow-2xs space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎓</span>
+            <div>
+              <div className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-2">
+                <span>Student Interest & Course Demand</span>
+                <span className="bg-amber-200/70 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  CRM Live
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Inquiries logged in CRM. Use this signal to prioritize which cohort levels to schedule for this cycle.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowDemandPanel(!showDemandPanel)}
+            className="text-xs font-semibold text-amber-900 hover:text-amber-950 underline"
+          >
+            {showDemandPanel ? 'Hide Demand Grid ▲' : 'Show Demand Grid ▼'}
+          </button>
+        </div>
+
+        {showDemandPanel && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 pt-1 border-t border-amber-200/70">
+            {classDemand.map((cd) => (
+              <div
+                key={cd.class_level_id}
+                className={`p-2 rounded-lg border text-center ${
+                  cd.active_inquiry_count > 0
+                    ? 'bg-white border-amber-300 shadow-2xs'
+                    : 'bg-white/40 border-amber-100 text-slate-400'
+                }`}
+              >
+                <div className="text-[11px] font-bold text-slate-800">{cd.level_name}</div>
+                <div className="text-sm font-black text-amber-700 mt-0.5">{cd.active_inquiry_count}</div>
+                <div className="text-[10px] text-slate-500">
+                  {cd.active_inquiry_count === 1 ? '1 student' : `${cd.active_inquiry_count} students`}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

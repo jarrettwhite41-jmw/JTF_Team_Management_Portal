@@ -8,18 +8,21 @@ import {
   VenueRental,
   CommunicationLog,
   OutreachLead,
+  StudentInterestLead,
+  ClassDemandSummary,
 } from '../services/crmService';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 
 export type CRMTab =
+  | 'student_leads'
+  | 'rentals'
+  | 'outreach_leads'
   | 'scheduling'
   | 'refunds'
   | 'credits'
   | 'makeups'
   | 'welcome_packages'
-  | 'rentals'
-  | 'outreach_leads'
   | 'contact_inquiries'
   | 'communications';
 
@@ -123,6 +126,33 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   // Contact Inquiries state
   const [contactInquiries, setContactInquiries] = useState<CommunicationLog[]>([]);
 
+  // Student Interest Leads & Course Demand state
+  const [studentLeads, setStudentLeads] = useState<StudentInterestLead[]>([]);
+  const [classDemand, setClassDemand] = useState<ClassDemandSummary[]>([]);
+  const [studentLeadFilter, setStudentLeadFilter] = useState<string>('all');
+  const [studentLeadLevelFilter, setStudentLeadLevelFilter] = useState<string>('all');
+  const [studentLeadSearch, setStudentLeadSearch] = useState<string>('');
+  const [isAddStudentLeadOpen, setIsAddStudentLeadOpen] = useState(false);
+  const [isSavingStudentLead, setIsSavingStudentLead] = useState(false);
+  const [selectedStudentLead, setSelectedStudentLead] = useState<StudentInterestLead | null>(null);
+  const [isEditingStudentLead, setIsEditingStudentLead] = useState(false);
+  const [editStudentLeadForm, setEditStudentLeadForm] = useState<Partial<StudentInterestLead>>({});
+  const [newStudentLead, setNewStudentLead] = useState<Omit<StudentInterestLead, 'lead_id' | 'level_name'>>({
+    student_name: '',
+    email: '',
+    phone: '',
+    student_type: 'new_prospect',
+    class_level_id: 1,
+    target_cycle: 'Next Cycle',
+    preferred_days: 'Tuesdays or Thursdays',
+    preferred_time: '7:30 PM - 10:00 PM',
+    notes: '',
+    lead_source: 'website',
+    lead_owner: '',
+    status: 'inquired',
+    follow_up_date: '',
+  });
+
   useEffect(() => {
     if (initialTab) {
       setActiveTab(initialTab);
@@ -172,6 +202,13 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
       } else if (tab === 'outreach_leads') {
         const lData = await crmService.getOutreachLeads();
         setLeads(lData);
+      } else if (tab === 'student_leads') {
+        const [leadsData, demandData] = await Promise.all([
+          crmService.getStudentInterestLeads(),
+          crmService.getClassDemandSummary(),
+        ]);
+        setStudentLeads(leadsData);
+        setClassDemand(demandData);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Failed to load data.' });
@@ -427,6 +464,87 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     }
   };
 
+  // Student Interest Lead Handlers
+  const handleCreateStudentLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudentLead.student_name.trim()) {
+      setMessage({ type: 'error', text: 'Student name is required.' });
+      return;
+    }
+    setIsSavingStudentLead(true);
+    try {
+      await crmService.createStudentInterestLead({
+        ...newStudentLead,
+        class_level_id: newStudentLead.class_level_id ? Number(newStudentLead.class_level_id) : null,
+      });
+      setMessage({ type: 'success', text: `Interest logged for ${newStudentLead.student_name}!` });
+      setIsAddStudentLeadOpen(false);
+      setNewStudentLead({
+        student_name: '',
+        email: '',
+        phone: '',
+        student_type: 'new_prospect',
+        class_level_id: 1,
+        target_cycle: 'Next Cycle',
+        preferred_days: 'Tuesdays or Thursdays',
+        preferred_time: '7:30 PM - 10:00 PM',
+        notes: '',
+        lead_source: 'website',
+        lead_owner: '',
+        status: 'inquired',
+        follow_up_date: '',
+      });
+      loadTabData('student_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to create student lead.' });
+    } finally {
+      setIsSavingStudentLead(false);
+    }
+  };
+
+  const handleUpdateStudentLeadStatus = async (leadId: number, status: StudentInterestLead['status']) => {
+    try {
+      await crmService.updateStudentInterestLead(leadId, { status });
+      setMessage({ type: 'success', text: `Student lead status updated to ${status.replace('_', ' ')}.` });
+      loadTabData('student_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to update student lead status.' });
+    }
+  };
+
+  const handleSaveStudentLeadEdit = async () => {
+    if (!selectedStudentLead || !selectedStudentLead.lead_id) return;
+    setIsSavingStudentLead(true);
+    try {
+      await crmService.updateStudentInterestLead(selectedStudentLead.lead_id, {
+        ...editStudentLeadForm,
+        class_level_id: editStudentLeadForm.class_level_id ? Number(editStudentLeadForm.class_level_id) : null,
+      });
+      setMessage({ type: 'success', text: 'Student lead updated successfully.' });
+      setIsEditingStudentLead(false);
+      setSelectedStudentLead(null);
+      loadTabData('student_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to update student lead.' });
+    } finally {
+      setIsSavingStudentLead(false);
+    }
+  };
+
+  const handleDeleteStudentLead = async () => {
+    if (!selectedStudentLead || !selectedStudentLead.lead_id) return;
+    if (!window.confirm(`Delete interest record for "${selectedStudentLead.student_name}"?`)) return;
+    try {
+      await crmService.deleteStudentInterestLead(selectedStudentLead.lead_id);
+      setMessage({ type: 'success', text: 'Student interest lead removed.' });
+      setIsEditingStudentLead(false);
+      setSelectedStudentLead(null);
+      loadTabData('student_leads');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Failed to delete student lead.' });
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -455,6 +573,24 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 sm:gap-2">
+          {/* Student Interest Leads */}
+          <button
+            onClick={() => setActiveTab('student_leads')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-left ${
+              activeTab === 'student_leads'
+                ? 'bg-amber-600 text-white shadow-sm ring-2 ring-amber-600/20'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+            }`}
+          >
+            <span className="text-base shrink-0">🎓</span>
+            <div className="min-w-0">
+              <span className="block leading-tight truncate">Student Leads</span>
+              <span className={`text-[10px] block font-normal leading-tight ${activeTab === 'student_leads' ? 'text-amber-200' : 'text-slate-400'}`}>
+                Interest & demand
+              </span>
+            </div>
+          </button>
+
           {/* Revenue & Pipeline Group */}
           <button
             onClick={() => setActiveTab('rentals')}
@@ -616,6 +752,319 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         <Loader text="Loading CRM records..." />
       ) : (
         <>
+          {/* TAB: STUDENT INTEREST & DEMAND LEADS */}
+          {activeTab === 'student_leads' && (
+            <div className="space-y-6">
+              {/* Header bar with actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span>🎓</span> Prospective & Returning Student Interest
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Track class inquiries, re-engage alumni, and measure course demand before scheduling your next cycle.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddStudentLeadOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition-colors shadow-xs"
+                >
+                  <span>+</span> Log Student Interest
+                </button>
+              </div>
+
+              {/* Demand Intelligence Grid */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200 rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📊</span>
+                    <div>
+                      <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                        Live Cycle Demand Summary
+                      </h3>
+                      <p className="text-[11px] text-amber-800">
+                        Aggregated student interest by course level. Use this data when scheduling your next season cohorts.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-white/80 border border-amber-300 px-2.5 py-1 rounded-full text-amber-900 shadow-2xs">
+                    {studentLeads.filter((l) => l.status !== 'enrolled' && l.status !== 'archived').length} Active Leads
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 pt-1">
+                  {classDemand.map((cd) => (
+                    <div
+                      key={cd.class_level_id}
+                      onClick={() => setStudentLeadLevelFilter(String(cd.class_level_id))}
+                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                        studentLeadLevelFilter === String(cd.class_level_id)
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
+                          : cd.active_inquiry_count > 0
+                          ? 'bg-white border-amber-300 text-slate-800 hover:border-amber-400 shadow-2xs'
+                          : 'bg-white/50 border-amber-100 text-slate-400'
+                      }`}
+                    >
+                      <div className="text-xs font-black">{cd.level_name}</div>
+                      <div className={`text-base font-black mt-0.5 ${studentLeadLevelFilter === String(cd.class_level_id) ? 'text-amber-100' : 'text-amber-700'}`}>
+                        {cd.active_inquiry_count}
+                      </div>
+                      <div className={`text-[10px] leading-tight ${studentLeadLevelFilter === String(cd.class_level_id) ? 'text-amber-200' : 'text-slate-500'}`}>
+                        {cd.new_prospect_count > 0 ? `${cd.new_prospect_count} new` : '0 new'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-500">Filter:</span>
+                  <select
+                    value={studentLeadFilter}
+                    onChange={(e) => setStudentLeadFilter(e.target.value)}
+                    className="text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="inquired">Inquired (New)</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="follow_up_needed">Follow-up Needed</option>
+                    <option value="enrolled">Enrolled</option>
+                    <option value="archived">Archived</option>
+                  </select>
+
+                  <select
+                    value={studentLeadLevelFilter}
+                    onChange={(e) => setStudentLeadLevelFilter(e.target.value)}
+                    className="text-xs rounded-lg border border-slate-300 px-2.5 py-1.5 bg-slate-50 text-slate-800 focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="all">All Course Levels</option>
+                    {classDemand.map((cd) => (
+                      <option key={cd.class_level_id} value={String(cd.class_level_id)}>
+                        {cd.level_name} ({cd.active_inquiry_count} interested)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-64">
+                  <input
+                    type="text"
+                    value={studentLeadSearch}
+                    onChange={(e) => setStudentLeadSearch(e.target.value)}
+                    placeholder="Search by student name, email, phone..."
+                    className="w-full text-xs rounded-lg border border-slate-300 px-3 py-1.5 text-slate-900 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Lead Cards / Table */}
+              {(() => {
+                const filtered = studentLeads.filter((lead) => {
+                  if (studentLeadFilter !== 'all' && lead.status !== studentLeadFilter) return false;
+                  if (studentLeadLevelFilter !== 'all' && String(lead.class_level_id) !== studentLeadLevelFilter) return false;
+                  if (studentLeadSearch.trim()) {
+                    const q = studentLeadSearch.toLowerCase();
+                    const name = (lead.student_name || '').toLowerCase();
+                    const email = (lead.email || '').toLowerCase();
+                    const phone = (lead.phone || '').toLowerCase();
+                    const notes = (lead.notes || '').toLowerCase();
+                    if (!name.includes(q) && !email.includes(q) && !phone.includes(q) && !notes.includes(q)) return false;
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-white p-8 rounded-2xl border border-slate-200 text-center text-slate-500 space-y-2">
+                      <p className="font-semibold text-slate-700">No student interest leads found matching your filters.</p>
+                      <p className="text-xs">Click "+ Log Student Interest" above to record an inquiry.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {/* Mobile Cards */}
+                    <div className="grid grid-cols-1 gap-3 md:hidden">
+                      {filtered.map((lead) => (
+                        <div key={lead.lead_id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-slate-900 text-sm">{lead.student_name}</div>
+                              <div className="text-xs text-slate-500">{lead.level_name} • {lead.target_cycle || 'Next Cycle'}</div>
+                            </div>
+                            <span
+                              className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                lead.status === 'inquired'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : lead.status === 'follow_up_needed'
+                                  ? 'bg-red-100 text-red-800'
+                                  : lead.status === 'contacted'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : lead.status === 'enrolled'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {lead.status.replace('_', ' ')}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-slate-600 space-y-1 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            {lead.email && <div>✉️ <a href={`mailto:${lead.email}`} className="text-blue-600 underline">{lead.email}</a></div>}
+                            {lead.phone && <div>📞 <a href={`tel:${lead.phone}`} className="text-blue-600 underline">{lead.phone}</a></div>}
+                            {lead.preferred_days && <div>🗓️ Preferred: {lead.preferred_days} ({lead.preferred_time || 'Evenings'})</div>}
+                            {lead.follow_up_date && <div>⏰ Follow-up by: <strong>{lead.follow_up_date}</strong></div>}
+                            {lead.notes && <p className="text-slate-700 italic pt-1 border-t border-slate-200 mt-1">"{lead.notes}"</p>}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                            <span className="text-[11px] text-slate-400 capitalize">
+                              Type: {lead.student_type.replace('_', ' ')}
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStudentLead(lead);
+                                  setEditStudentLeadForm(lead);
+                                  setIsEditingStudentLead(true);
+                                }}
+                                className="px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg"
+                              >
+                                Edit
+                              </button>
+                              {lead.status !== 'enrolled' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateStudentLeadStatus(lead.lead_id!, 'enrolled')}
+                                  className="px-2.5 py-1 text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg"
+                                >
+                                  Enrolled ✓
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateStudentLeadStatus(lead.lead_id!, 'contacted')}
+                                  className="px-2.5 py-1 text-xs font-semibold bg-slate-200 text-slate-700 rounded-lg"
+                                >
+                                  Reopen
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm table-fixed">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              <th className="py-3 px-3 w-[18%]">Student / Prospect</th>
+                              <th className="py-3 px-3 w-[15%]">Target Course</th>
+                              <th className="py-3 px-3 w-[22%]">Preferences & Schedule</th>
+                              <th className="py-3 px-3 w-[15%]">Follow-up Date</th>
+                              <th className="py-3 px-3 w-[12%]">Status</th>
+                              <th className="py-3 px-3 w-[18%] text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {filtered.map((lead) => (
+                              <tr key={lead.lead_id} className="hover:bg-slate-50 align-top">
+                                <td className="py-3 px-3">
+                                  <div className="font-bold text-slate-900 text-xs truncate">{lead.student_name}</div>
+                                  <div className="text-[11px] text-slate-500 capitalize">{lead.student_type.replace('_', ' ')}</div>
+                                  {lead.email && <div className="text-[11px] text-blue-600 truncate">✉️ {lead.email}</div>}
+                                  {lead.phone && <div className="text-[11px] text-slate-600 truncate">📞 {lead.phone}</div>}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="font-bold text-amber-900 text-xs bg-amber-50 border border-amber-200 inline-block px-2 py-0.5 rounded">
+                                    {lead.level_name}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-1">{lead.target_cycle || 'Next Cycle'}</div>
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="text-xs text-slate-700 font-medium">{lead.preferred_days || 'Flexible days'}</div>
+                                  <div className="text-[11px] text-slate-500">{lead.preferred_time || 'Evening'}</div>
+                                  {lead.notes && (
+                                    <p className="text-[11px] text-slate-600 italic line-clamp-2 mt-1">"{lead.notes}"</p>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3 text-xs">
+                                  {lead.follow_up_date ? (
+                                    <span className="font-semibold text-slate-800">📅 {lead.follow_up_date}</span>
+                                  ) : (
+                                    <span className="text-slate-400">—</span>
+                                  )}
+                                  {lead.lead_owner && (
+                                    <div className="text-[11px] text-slate-500">Staff: {lead.lead_owner}</div>
+                                  )}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <span
+                                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                      lead.status === 'inquired'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : lead.status === 'follow_up_needed'
+                                        ? 'bg-red-100 text-red-800'
+                                        : lead.status === 'contacted'
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : lead.status === 'enrolled'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {lead.status.replace('_', ' ')}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right space-x-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedStudentLead(lead);
+                                      setEditStudentLeadForm(lead);
+                                      setIsEditingStudentLead(true);
+                                    }}
+                                    className="px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md"
+                                  >
+                                    Edit
+                                  </button>
+                                  {lead.status !== 'enrolled' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateStudentLeadStatus(lead.lead_id!, 'enrolled')}
+                                      className="px-2 py-1 text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 rounded-md"
+                                    >
+                                      Enrolled ✓
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateStudentLeadStatus(lead.lead_id!, 'contacted')}
+                                      className="px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-600 rounded-md"
+                                    >
+                                      Reopen
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
           {/* TAB 1: SPACE SCHEDULING */}
           {activeTab === 'scheduling' && (
             <div className="space-y-4">
@@ -3487,6 +3936,336 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add Student Interest Lead */}
+      {isAddStudentLeadOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900">Log Student Interest</h3>
+                <p className="text-xs text-slate-500">Record a class inquiry or returning student re-engagement</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddStudentLeadOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateStudentLead} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Student / Prospect Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Alex Rivera"
+                  value={newStudentLead.student_name}
+                  onChange={(e) => setNewStudentLead((prev) => ({ ...prev, student_name: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="alex@example.com"
+                    value={newStudentLead.email || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="305-555-0199"
+                    value={newStudentLead.phone || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Student Type</label>
+                  <select
+                    value={newStudentLead.student_type}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, student_type: e.target.value as any }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  >
+                    <option value="new_prospect">New Prospect (Never Taken Class)</option>
+                    <option value="returning_student">Returning Student (Ready for Next Level)</option>
+                    <option value="former_alumni">Former Alumni (Re-engaging)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Class Level</label>
+                  <select
+                    value={newStudentLead.class_level_id || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, class_level_id: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  >
+                    {classDemand.map((cd) => (
+                      <option key={cd.class_level_id} value={cd.class_level_id}>
+                        {cd.level_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Cycle</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Fall 2026 / Next Cycle"
+                    value={newStudentLead.target_cycle || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, target_cycle: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Days</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Tuesdays, Thursdays"
+                    value={newStudentLead.preferred_days || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, preferred_days: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Follow-up Date</label>
+                  <input
+                    type="date"
+                    value={newStudentLead.follow_up_date || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Staff Owner</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Michael / Education Director"
+                    value={newStudentLead.lead_owner || ''}
+                    onChange={(e) => setNewStudentLead((prev) => ({ ...prev, lead_owner: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes / Inquiry Details</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Inquired about Level 1 after watching Friday show; wants to bring a friend..."
+                  value={newStudentLead.notes || ''}
+                  onChange={(e) => setNewStudentLead((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsAddStudentLeadOpen(false)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingStudentLead}
+                  className="px-4 py-2 bg-amber-600 rounded-lg text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {isSavingStudentLead ? 'Saving...' : 'Save Student Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Student Lead Detail */}
+      {selectedStudentLead && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div>
+                <h3 className="font-bold text-lg text-slate-900">{selectedStudentLead.student_name}</h3>
+                <p className="text-xs text-slate-500">Course Interest & Follow-Up Tracker</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStudentLead(null);
+                  setIsEditingStudentLead(false);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Student Name</label>
+                <input
+                  type="text"
+                  value={editStudentLeadForm.student_name || ''}
+                  onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, student_name: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={editStudentLeadForm.email || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={editStudentLeadForm.phone || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
+                  <select
+                    value={editStudentLeadForm.status || 'inquired'}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs font-semibold"
+                  >
+                    <option value="inquired">Inquired</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="follow_up_needed">Follow-up Needed</option>
+                    <option value="enrolled">Enrolled ✓</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Class Level</label>
+                  <select
+                    value={editStudentLeadForm.class_level_id || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, class_level_id: Number(e.target.value) }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  >
+                    {classDemand.map((cd) => (
+                      <option key={cd.class_level_id} value={cd.class_level_id}>
+                        {cd.level_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Target Cycle</label>
+                  <input
+                    type="text"
+                    value={editStudentLeadForm.target_cycle || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, target_cycle: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Days</label>
+                  <input
+                    type="text"
+                    value={editStudentLeadForm.preferred_days || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, preferred_days: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Follow-up Date</label>
+                  <input
+                    type="date"
+                    value={editStudentLeadForm.follow_up_date || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, follow_up_date: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Staff Owner</label>
+                  <input
+                    type="text"
+                    value={editStudentLeadForm.lead_owner || ''}
+                    onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, lead_owner: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Notes</label>
+                <textarea
+                  rows={3}
+                  value={editStudentLeadForm.notes || ''}
+                  onChange={(e) => setEditStudentLeadForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={handleDeleteStudentLead}
+                  className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg"
+                >
+                  Delete Record
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStudentLead(null);
+                      setIsEditingStudentLead(false);
+                    }}
+                    className="px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingStudentLead}
+                    onClick={handleSaveStudentLeadEdit}
+                    className="px-4 py-2 bg-amber-600 rounded-lg text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {isSavingStudentLead ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

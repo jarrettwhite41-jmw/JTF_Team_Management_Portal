@@ -149,6 +149,36 @@ export interface OutreachLead {
   updated_at?: string;
 }
 
+export interface StudentInterestLead {
+  lead_id?: number;
+  student_name: string;
+  email?: string | null;
+  phone?: string | null;
+  student_type: 'new_prospect' | 'returning_student' | 'former_alumni';
+  class_level_id?: number | null;
+  level_name?: string | null;
+  target_cycle?: string | null;
+  preferred_days?: string | null;
+  preferred_time?: string | null;
+  notes?: string | null;
+  lead_source?: string | null;
+  lead_owner?: string | null;
+  status: 'inquired' | 'contacted' | 'follow_up_needed' | 'enrolled' | 'archived';
+  follow_up_date?: string | null;
+  student_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ClassDemandSummary {
+  class_level_id: number;
+  level_name: string;
+  active_inquiry_count: number;
+  new_prospect_count: number;
+  returning_count: number;
+  needs_followup_count: number;
+}
+
 export const crmService = {
   // ── Space Bookings & Conflict Prevention ──────────────────────────────
   async getAllRooms() {
@@ -605,6 +635,73 @@ export const crmService = {
     });
 
     return createdRental;
+  },
+
+  // ── Student Interest & Course Demand Leads ────────────────────────────
+  async getStudentInterestLeads() {
+    const { data, error } = await supabase
+      .from('student_interest_leads')
+      .select('*, class_levels(level_name)')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map((lead: any) => ({
+      ...lead,
+      level_name: lead.class_levels?.level_name || 'General / Unspecified',
+    })) as StudentInterestLead[];
+  },
+
+  async createStudentInterestLead(lead: Omit<StudentInterestLead, 'lead_id' | 'level_name'>) {
+    const { data, error } = await supabase
+      .from('student_interest_leads')
+      .insert([lead])
+      .select('*, class_levels(level_name)')
+      .single();
+
+    if (error) throw error;
+    return {
+      ...data,
+      level_name: data.class_levels?.level_name || 'General / Unspecified',
+    } as StudentInterestLead;
+  },
+
+  async updateStudentInterestLead(leadId: number, updates: Partial<StudentInterestLead>) {
+    const { lead_id: _id, level_name: _ln, ...cleanUpdates } = updates;
+    const { data, error } = await supabase
+      .from('student_interest_leads')
+      .update({ ...cleanUpdates, updated_at: new Date().toISOString() })
+      .eq('lead_id', leadId)
+      .select('*, class_levels(level_name)')
+      .single();
+
+    if (error) throw error;
+    return {
+      ...data,
+      level_name: data.class_levels?.level_name || 'General / Unspecified',
+    } as StudentInterestLead;
+  },
+
+  async deleteStudentInterestLead(leadId: number) {
+    const { error } = await supabase
+      .from('student_interest_leads')
+      .delete()
+      .eq('lead_id', leadId);
+
+    if (error) throw error;
+    return { success: true };
+  },
+
+  async getClassDemandSummary(): Promise<ClassDemandSummary[]> {
+    const { data, error } = await supabase.rpc('get_class_demand_summary');
+    if (error) throw error;
+    return (data || []).map((row: any) => ({
+      class_level_id: Number(row.class_level_id),
+      level_name: String(row.level_name),
+      active_inquiry_count: Number(row.active_inquiry_count || 0),
+      new_prospect_count: Number(row.new_prospect_count || 0),
+      returning_count: Number(row.returning_count || 0),
+      needs_followup_count: Number(row.needs_followup_count || 0),
+    }));
   },
 
   async getCrmDashboardOverview() {

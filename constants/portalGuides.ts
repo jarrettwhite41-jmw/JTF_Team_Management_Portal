@@ -29,6 +29,7 @@ export const TEAM_PORTAL_GUIDE_DATA: PortalGuideData = {
       description:
         'Unified operations command center for space bookings, ticket refunds, tuition credits, class makeup vouchers, welcome package compliance, venue rentals & deals, cold/warm outreach prospect leads, contact inquiries, and customer communication logs.',
       workflow: [
+        'Student Leads & Demand Tracker: Log prospective students and alumni inquiries, target course levels, preferred days/times, next follow-up dates, and conversion statuses (Inquired, Contacted, Follow-up Needed, Enrolled). Real-time demand signals feed straight into the Season Planner.',
         'Venue Rentals & Gigs: Track rental bookings and outside gigs through Inquiry, Quoted, Contract Sent, Deposit Received, and Paid in Full stages with financial KPI metrics (quoted, agreed, paid, balance due). Convert confirmed inquiries directly into calendar events.',
         'Outreach & Prospect Pipeline: Manage organizational prospects, corporate clients, schools, and partner leads with status pipelines (Prospecting, Pitch Sent, Under Discussion, Won/Converted, Inactive). One-click "Convert to Event / Rental" pushes winning outreach leads directly into the venue deal pipeline.',
         'Space Scheduling: Reserve Main Stage, Second Stage, Classroom A, or Green Room with automated collision detection.',

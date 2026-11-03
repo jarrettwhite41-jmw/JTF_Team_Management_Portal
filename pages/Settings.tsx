@@ -1489,6 +1489,253 @@ export const Settings: React.FC = () => {
                 </button>
               </div>
             </div>
+
+            {/* Widget 3: Student Waitlist & Course Inquiry Form */}
+            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4 flex flex-col justify-between md:col-span-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📝</span>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Course Waitlist & Interest Inquiry Form</h3>
+                      <p className="text-[11px] text-slate-500">For your Squarespace <code className="font-mono bg-slate-100 px-1 rounded">/classes</code> or <code className="font-mono bg-slate-100 px-1 rounded">/interest</code> page</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold uppercase px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+                    Lead Generator
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Embeds a clean inquiry form on your website where prospective and returning students can submit interest for specific course levels (e.g. IA1, IA2, Musical Improv) and preferred days. Submissions automatically appear in your <strong>CRM &rarr; Student Leads</strong> tab and feed into the <strong>Season Planner</strong> demand signal!
+                </p>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Squarespace Embed Code (HTML/JS Form):
+                  </label>
+                  <textarea
+                    readOnly
+                    rows={6}
+                    value={`<!-- JTF Class Waitlist & Interest Form Widget -->
+<div id="jtf-interest-widget" style="max-width:560px;margin:20px auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06);font-family:system-ui,-apple-system,sans-serif;">
+  <h3 style="margin:0 0 6px 0;font-size:18px;font-weight:700;color:#0f172a;">Join the Conservatory Waitlist / Express Interest</h3>
+  <p style="margin:0 0 16px 0;font-size:13px;color:#64748b;">Tell us what class you want to take next, and our education director will contact you when registration opens!</p>
+  <form id="jtf-interest-form" style="display:grid;gap:12px;">
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Your Name *</label>
+      <input type="text" id="jtf-lead-name" required placeholder="Alex Rivera" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Email *</label>
+        <input type="email" id="jtf-lead-email" required placeholder="alex@example.com" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Phone</label>
+        <input type="tel" id="jtf-lead-phone" placeholder="305-555-0199" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Target Level</label>
+        <select id="jtf-lead-level" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;background:#fff;">
+          <option value="1">IA1: Fundamentals (Beginner)</option>
+          <option value="2">IA2: Scenework</option>
+          <option value="3">IA3: Advanced Scenework</option>
+          <option value="4">IA4: Forms & Style</option>
+          <option value="5">IA5: Performance</option>
+          <option value="6">IA6: Conservatory Capstone</option>
+          <option value="7">Sketch Comedy</option>
+          <option value="8">Musical Improv</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Student Status</label>
+        <select id="jtf-lead-type" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;background:#fff;">
+          <option value="new_prospect">New Student (First Time)</option>
+          <option value="returning_student">Returning Student</option>
+          <option value="former_alumni">Former Alumni</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Preferred Days / Times</label>
+      <input type="text" id="jtf-lead-days" placeholder="e.g. Tuesdays or Thursdays, Weekends" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Questions or Notes</label>
+      <textarea id="jtf-lead-notes" rows="2" placeholder="Tell us about your improv background or goals..." style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;"></textarea>
+    </div>
+    <button type="submit" id="jtf-lead-submit" style="background:#d97706;color:#ffffff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">Submit Interest</button>
+  </form>
+  <div id="jtf-interest-msg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600;text-align:center;"></div>
+</div>
+<script>
+(function() {
+  const form = document.getElementById("jtf-interest-form");
+  const msg = document.getElementById("jtf-interest-msg");
+  const btn = document.getElementById("jtf-lead-submit");
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.innerText = "Submitting...";
+    const payload = {
+      student_name: document.getElementById("jtf-lead-name").value.trim(),
+      email: document.getElementById("jtf-lead-email").value.trim(),
+      phone: document.getElementById("jtf-lead-phone").value.trim() || null,
+      class_level_id: parseInt(document.getElementById("jtf-lead-level").value, 10),
+      student_type: document.getElementById("jtf-lead-type").value,
+      preferred_days: document.getElementById("jtf-lead-days").value.trim() || null,
+      notes: document.getElementById("jtf-lead-notes").value.trim() || null,
+      lead_source: "website_waitlist",
+      status: "inquired"
+    };
+    try {
+      const res = await fetch(SUPABASE_URL + "/rest/v1/student_interest_leads", {
+        method: "POST",
+        headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      form.reset();
+      msg.style.display = "block";
+      msg.style.background = "#ecfdf5";
+      msg.style.color = "#065f46";
+      msg.innerText = "Thank you! Your interest has been received. Our team will reach out soon.";
+    } catch(err) {
+      msg.style.display = "block";
+      msg.style.background = "#fef2f2";
+      msg.style.color = "#991b1b";
+      msg.innerText = "Error submitting interest. Please contact us directly.";
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Submit Interest";
+    }
+  });
+})();
+</script>`}
+                    className="w-full text-[11px] font-mono bg-slate-900 text-slate-100 rounded-lg p-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = `<!-- JTF Class Waitlist & Interest Form Widget -->
+<div id="jtf-interest-widget" style="max-width:560px;margin:20px auto;padding:24px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.06);font-family:system-ui,-apple-system,sans-serif;">
+  <h3 style="margin:0 0 6px 0;font-size:18px;font-weight:700;color:#0f172a;">Join the Conservatory Waitlist / Express Interest</h3>
+  <p style="margin:0 0 16px 0;font-size:13px;color:#64748b;">Tell us what class you want to take next, and our education director will contact you when registration opens!</p>
+  <form id="jtf-interest-form" style="display:grid;gap:12px;">
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Your Name *</label>
+      <input type="text" id="jtf-lead-name" required placeholder="Alex Rivera" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Email *</label>
+        <input type="email" id="jtf-lead-email" required placeholder="alex@example.com" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Phone</label>
+        <input type="tel" id="jtf-lead-phone" placeholder="305-555-0199" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Target Level</label>
+        <select id="jtf-lead-level" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;background:#fff;">
+          <option value="1">IA1: Fundamentals (Beginner)</option>
+          <option value="2">IA2: Scenework</option>
+          <option value="3">IA3: Advanced Scenework</option>
+          <option value="4">IA4: Forms & Style</option>
+          <option value="5">IA5: Performance</option>
+          <option value="6">IA6: Conservatory Capstone</option>
+          <option value="7">Sketch Comedy</option>
+          <option value="8">Musical Improv</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Student Status</label>
+        <select id="jtf-lead-type" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;background:#fff;">
+          <option value="new_prospect">New Student (First Time)</option>
+          <option value="returning_student">Returning Student</option>
+          <option value="former_alumni">Former Alumni</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Preferred Days / Times</label>
+      <input type="text" id="jtf-lead-days" placeholder="e.g. Tuesdays or Thursdays, Weekends" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;" />
+    </div>
+    <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px;">Questions or Notes</label>
+      <textarea id="jtf-lead-notes" rows="2" placeholder="Tell us about your improv background or goals..." style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;"></textarea>
+    </div>
+    <button type="submit" id="jtf-lead-submit" style="background:#d97706;color:#ffffff;border:none;padding:10px 18px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;">Submit Interest</button>
+  </form>
+  <div id="jtf-interest-msg" style="display:none;margin-top:12px;padding:10px 14px;border-radius:6px;font-size:13px;font-weight:600;text-align:center;"></div>
+</div>
+<script>
+(function() {
+  const form = document.getElementById("jtf-interest-form");
+  const msg = document.getElementById("jtf-interest-msg");
+  const btn = document.getElementById("jtf-lead-submit");
+  const SUPABASE_URL = "https://jsitpkzeszwwrgjfivbi.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzaXRwa3plc3p3d3JnamZpdmJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwODk2MjUsImV4cCI6MjA5MzY2NTYyNX0.1j7-j7fO5KPvAk0xJe7CNbuQ5fwsH3lOriUK0qU8q1g";
+  form.addEventListener("submit", async function(e) {
+    e.preventDefault();
+    btn.disabled = true;
+    btn.innerText = "Submitting...";
+    const payload = {
+      student_name: document.getElementById("jtf-lead-name").value.trim(),
+      email: document.getElementById("jtf-lead-email").value.trim(),
+      phone: document.getElementById("jtf-lead-phone").value.trim() || null,
+      class_level_id: parseInt(document.getElementById("jtf-lead-level").value, 10),
+      student_type: document.getElementById("jtf-lead-type").value,
+      preferred_days: document.getElementById("jtf-lead-days").value.trim() || null,
+      notes: document.getElementById("jtf-lead-notes").value.trim() || null,
+      lead_source: "website_waitlist",
+      status: "inquired"
+    };
+    try {
+      const res = await fetch(SUPABASE_URL + "/rest/v1/student_interest_leads", {
+        method: "POST",
+        headers: { "apikey": SUPABASE_ANON, "Authorization": "Bearer " + SUPABASE_ANON, "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Submission failed");
+      form.reset();
+      msg.style.display = "block";
+      msg.style.background = "#ecfdf5";
+      msg.style.color = "#065f46";
+      msg.innerText = "Thank you! Your interest has been received. Our team will reach out soon.";
+    } catch(err) {
+      msg.style.display = "block";
+      msg.style.background = "#fef2f2";
+      msg.style.color = "#991b1b";
+      msg.innerText = "Error submitting interest. Please contact us directly.";
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Submit Interest";
+    }
+  });
+})();
+</script>`;
+                    navigator.clipboard.writeText(code);
+                    setCopiedKey('widget-interest');
+                    setTimeout(() => setCopiedKey(null), 2500);
+                  }}
+                  className="w-full rounded-lg bg-amber-600 py-2.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors shadow-xs"
+                >
+                  {copiedKey === 'widget-interest' ? '✓ Copied to Clipboard!' : '📋 Copy Interest Form Widget Code'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Squarespace How-To Guide Box */}
