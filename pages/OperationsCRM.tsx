@@ -340,18 +340,17 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
 
     setIsBatchSendingPackets(true);
     try {
-      const results = await welcomePackageService.batchSendWelcomePackets(
+      const batchRes = await welcomePackageService.batchSendWelcomePackets(
         pendingStudents.map((s) => ({
           studentId: s.student_id,
           studentName: s.student_name,
           studentEmail: s.student_email,
-          className: 'Just The Funny Classes',
-        }))
+        })),
+        { className: 'Just The Funny Classes' }
       );
-      const successful = results.filter((r) => r.success).length;
       setMessage({
         type: 'success',
-        text: `Sent ${successful} of ${pendingStudents.length} welcome packets successfully.`,
+        text: `Sent ${batchRes.sent} of ${pendingStudents.length} welcome packets successfully.`,
       });
       loadTabData('welcome_packages');
     } catch (err: any) {

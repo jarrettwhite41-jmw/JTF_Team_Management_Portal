@@ -375,18 +375,18 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
     setIsBatchSendingRosterPackets(true);
     try {
-      const results = await welcomePackageService.batchSendWelcomePackets(
+      const className = classOffering?.LevelName || classOffering?.OfferingName || 'Just The Funny Classes';
+      const batchRes = await welcomePackageService.batchSendWelcomePackets(
         pendingStudents.map((s) => ({
           studentId: s.StudentID,
           studentName: `${s.FirstName} ${s.LastName}`.trim(),
           studentEmail: s.PrimaryEmail,
-          className: classOffering?.LevelName || classOffering?.OfferingName || 'Just The Funny Classes',
-        }))
+        })),
+        { className }
       );
-      const successful = results.filter((r) => r.success).length;
       setMessage({
         type: 'success',
-        text: `Sent ${successful} of ${pendingStudents.length} welcome packets successfully.`,
+        text: `Sent ${batchRes.sent} of ${pendingStudents.length} welcome packets successfully.`,
       });
       await loadEnrolledStudents();
     } catch (err: any) {

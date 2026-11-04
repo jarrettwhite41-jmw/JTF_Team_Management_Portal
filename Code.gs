@@ -5484,17 +5484,57 @@ function updateStudentLevel(studentId, levelId) {
 // =============================================================================
 
 var WELCOME_PACKAGE_TEMPLATE_ID = '1B_XbBI1iDgKTq3B9qoe03fpf-wSjsG84_PLkLsCNEfg';
-var WELCOME_PACKAGE_FOLDER_NAME = 'JTF Student Welcome Packets';
+var WELCOME_PACKAGE_DEFAULT_FOLDER_NAME = 'JTF Student Welcome Packets';
 
 /**
- * Ensures or creates a Google Drive folder for storing personalized student packets.
+ * Ensures or creates a Google Drive folder hierarchy for storing personalized student packets.
+ * Supports root folder or custom destination folder by ID or name, with optional class subfolder.
+ *
+ * @param {Object} options - { parentFolderId?: string, folderName?: string, className?: string }
+ * @returns {Folder} Drive Folder instance where packets should be stored
  */
-function getOrCreateWelcomePackageFolder_() {
-  var folders = DriveApp.getFoldersByName(WELCOME_PACKAGE_FOLDER_NAME);
-  if (folders.hasNext()) {
-    return folders.next();
+function getOrCreateWelcomePackageFolder_(options) {
+  options = options || {};
+
+  // 1. Determine root or base parent folder
+  var baseFolder = null;
+  if (options.parentFolderId && String(options.parentFolderId).trim() !== '') {
+    try {
+      baseFolder = DriveApp.getFolderById(String(options.parentFolderId).trim());
+    } catch (e) {
+      Logger.log('Warning: parentFolderId invalid or inaccessible, falling back to root. Error: ' + e.toString());
+    }
   }
-  return DriveApp.createFolder(WELCOME_PACKAGE_FOLDER_NAME);
+
+  // 2. Resolve or create primary folder (e.g., 'JTF Student Welcome Packets' or user-configured folderName)
+  var primaryFolderName = options.folderName && String(options.folderName).trim() !== ''
+    ? String(options.folderName).trim()
+    : WELCOME_PACKAGE_DEFAULT_FOLDER_NAME;
+
+  var targetFolder = null;
+  var searchScope = baseFolder ? baseFolder.getFoldersByName(primaryFolderName) : DriveApp.getFoldersByName(primaryFolderName);
+
+  if (searchScope.hasNext()) {
+    targetFolder = searchScope.next();
+  } else {
+    targetFolder = baseFolder ? baseFolder.createFolder(primaryFolderName) : DriveApp.createFolder(primaryFolderName);
+  }
+
+  // 3. If a class name or cycle is specified, organize into a class-specific subfolder
+  if (options.className && String(options.className).trim() !== '') {
+    var subfolderName = String(options.className).trim();
+    // Sanitize slashes or invalid folder characters
+    subfolderName = subfolderName.replace(/[\\/:*?"<>|]/g, '-').trim();
+
+    var subfolderSearch = targetFolder.getFoldersByName(subfolderName);
+    if (subfolderSearch.hasNext()) {
+      targetFolder = subfolderSearch.next();
+    } else {
+      targetFolder = targetFolder.createFolder(subfolderName);
+    }
+  }
+
+  return targetFolder;
 }
 
 /**
@@ -5505,8 +5545,8 @@ function getOrCreateWelcomePackageFolder_() {
  * - Page 6 printed name: "Student Printed Name: ____________________________" -> "Student Printed Name: [Student Name]"
  * - Page 6 date: "Date: ___________________________________________" -> "Date: [Formatted Date]"
  * 
- * @param {Object} params - { studentId, studentName, studentEmail, className, notes }
- * @returns {Object} { success: boolean, docUrl?: string, docId?: string, error?: string }
+ * @param {Object} params - { studentId, studentName, studentEmail, className, parentFolderId, folderName, notes }
+ * @returns {Object} { success: boolean, docUrl?: string, docId?: string, folderName?: string, error?: string }
  */
 function generateAndSendWelcomePacket(params) {
   try {
@@ -5528,9 +5568,14 @@ function generateAndSendWelcomePacket(params) {
       return { success: false, error: 'Welcome package template Google Doc not found.' };
     }
 
-    // 2. Clone into designated Drive Folder
-    var destFolder = getOrCreateWelcomePackageFolder_();
-    var newDocTitle = 'JTF Student Welcome Packet - ' + studentName;
+    // 2. Clone into designated Drive Folder (handles custom folder name, custom Drive ID, & class subfolder)
+    var destFolder = getOrCreateWelcomePackageFolder_({
+      parentFolderId: params.parentFolderId,
+      folderName: params.folderName,
+      className: className
+    });
+
+    var newDocTitle = 'JTF Student Welcome Packet - ' + studentName + (className ? ' (' + className + ')' : '');
     var clonedFile = templateFile.makeCopy(newDocTitle, destFolder);
     var clonedDocId = clonedFile.getId();
 

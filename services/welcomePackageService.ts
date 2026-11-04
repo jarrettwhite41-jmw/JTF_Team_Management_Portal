@@ -120,8 +120,10 @@ export const welcomePackageService = {
     studentEmail: string;
     className?: string;
     cycleName?: string;
+    folderName?: string;
+    parentFolderId?: string;
   }): Promise<SendPacketResult> {
-    const { studentId, studentName, studentEmail, className, cycleName } = params;
+    const { studentId, studentName, studentEmail, className, cycleName, folderName, parentFolderId } = params;
 
     // Check if running inside Google Apps Script iframe environment
     if (typeof (window as any).google !== 'undefined' && (window as any).google.script?.run) {
@@ -152,6 +154,8 @@ export const welcomePackageService = {
             studentEmail,
             className: className || 'Improv Conservatory',
             cycleName: cycleName || 'Current Cycle',
+            folderName: folderName || localStorage.getItem('JTF_WELCOME_PACKET_FOLDER_NAME') || undefined,
+            parentFolderId: parentFolderId || localStorage.getItem('JTF_WELCOME_PACKET_PARENT_FOLDER_ID') || undefined,
           });
       });
     }
@@ -175,6 +179,8 @@ export const welcomePackageService = {
             studentEmail,
             className: className || 'Improv Conservatory',
             cycleName: cycleName || 'Current Cycle',
+            folderName: folderName || localStorage.getItem('JTF_WELCOME_PACKET_FOLDER_NAME') || undefined,
+            parentFolderId: parentFolderId || localStorage.getItem('JTF_WELCOME_PACKET_PARENT_FOLDER_ID') || undefined,
           }),
         });
 
@@ -215,8 +221,12 @@ export const welcomePackageService = {
    */
   async batchSendWelcomePackets(
     students: Array<{ studentId: number; studentName: string; studentEmail: string }>,
-    className?: string
+    options?: { className?: string; folderName?: string; parentFolderId?: string } | string
   ): Promise<{ sent: number; failed: number; results: SendPacketResult[] }> {
+    const className = typeof options === 'string' ? options : options?.className;
+    const folderName = typeof options === 'object' ? options?.folderName : undefined;
+    const parentFolderId = typeof options === 'object' ? options?.parentFolderId : undefined;
+
     const results: SendPacketResult[] = [];
     let sent = 0;
     let failed = 0;
@@ -228,6 +238,8 @@ export const welcomePackageService = {
           studentName: s.studentName,
           studentEmail: s.studentEmail,
           className,
+          folderName,
+          parentFolderId,
         });
 
         results.push(res);
@@ -247,7 +259,7 @@ export const welcomePackageService = {
           student_id: s.studentId,
           student_name: s.studentName,
           student_email: s.studentEmail,
-          error: e?.message || 'Error sending packet',
+          error: e?.message || String(e),
         });
       }
     }
