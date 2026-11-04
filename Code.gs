@@ -5477,3 +5477,151 @@ function updateStudentLevel(studentId, levelId) {
     return { success: false, error: error.toString() };
   }
 }
+
+// =============================================================================
+// WELCOME PACKAGE AUTOMATION FUNCTIONS
+// Master Template: Google Doc ID 1B_XbBI1iDgKTq3B9qoe03fpf-wSjsG84_PLkLsCNEfg
+// =============================================================================
+
+var WELCOME_PACKAGE_TEMPLATE_ID = '1B_XbBI1iDgKTq3B9qoe03fpf-wSjsG84_PLkLsCNEfg';
+var WELCOME_PACKAGE_FOLDER_NAME = 'JTF Student Welcome Packets';
+
+/**
+ * Ensures or creates a Google Drive folder for storing personalized student packets.
+ */
+function getOrCreateWelcomePackageFolder_() {
+  var folders = DriveApp.getFoldersByName(WELCOME_PACKAGE_FOLDER_NAME);
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder(WELCOME_PACKAGE_FOLDER_NAME);
+}
+
+/**
+ * Automates cloning, personalizing, and emailing the JTF Student Welcome Packet.
+ * 
+ * Replaces Page 1 and Page 6 placeholder lines:
+ * - Page 1 header: "NAME: ____________________" -> "NAME: [Student Name]"
+ * - Page 6 printed name: "Student Printed Name: ____________________________" -> "Student Printed Name: [Student Name]"
+ * - Page 6 date: "Date: ___________________________________________" -> "Date: [Formatted Date]"
+ * 
+ * @param {Object} params - { studentId, studentName, studentEmail, className, notes }
+ * @returns {Object} { success: boolean, docUrl?: string, docId?: string, error?: string }
+ */
+function generateAndSendWelcomePacket(params) {
+  try {
+    Logger.log('=== generateAndSendWelcomePacket() called ===');
+    Logger.log('Params: ' + JSON.stringify(params));
+
+    if (!params || !params.studentEmail || !params.studentName) {
+      return { success: false, error: 'Student name and email are required to send welcome package.' };
+    }
+
+    var studentName = String(params.studentName).trim();
+    var studentEmail = String(params.studentEmail).trim();
+    var className = params.className ? String(params.className).trim() : 'Just The Funny Classes';
+    var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy');
+
+    // 1. Locate template
+    var templateFile = DriveApp.getFileById(WELCOME_PACKAGE_TEMPLATE_ID);
+    if (!templateFile) {
+      return { success: false, error: 'Welcome package template Google Doc not found.' };
+    }
+
+    // 2. Clone into designated Drive Folder
+    var destFolder = getOrCreateWelcomePackageFolder_();
+    var newDocTitle = 'JTF Student Welcome Packet - ' + studentName;
+    var clonedFile = templateFile.makeCopy(newDocTitle, destFolder);
+    var clonedDocId = clonedFile.getId();
+
+    // 3. Open cloned doc and populate personal information
+    var doc = DocumentApp.openById(clonedDocId);
+    var body = doc.getBody();
+
+    // Replace header on Page 1
+    // Matches NAME: followed by underscores or whitespace
+    body.replaceText('NAME:\\s*_{3,}', 'NAME: ' + studentName);
+
+    // Replace execution signature block on Page 6
+    body.replaceText('Student Printed Name:\\s*_{3,}', 'Student Printed Name: ' + studentName);
+    body.replaceText('Date:\\s*_{3,}', 'Date: ' + todayStr);
+
+    doc.saveAndClose();
+
+    // Allow student viewing / comment access
+    clonedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var docUrl = clonedFile.getUrl();
+
+    // 4. Send email with personalized link
+    var emailSubject = 'Welcome to Just The Funny! - Student Welcome Packet (' + studentName + ')';
+    var emailBody = 
+      'Hi ' + studentName + ',\n\n' +
+      'Welcome to Just The Funny! We are thrilled to have you joining us for ' + className + '.\n\n' +
+      'Please review your personalized Student Welcome Packet at the link below:\n' +
+      docUrl + '\n\n' +
+      'This packet covers essential class information, theater policies, attendance guidelines, and code of conduct.\n\n' +
+      'If you have any questions before class begins, reply directly to this email or reach out to your instructor.\n\n' +
+      'Best regards,\n' +
+      'Just The Funny Education Team\n' +
+      'classes@justthefunny.com';
+
+    var emailHtml = 
+      '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">' +
+        '<div style="background-color: #0f172a; padding: 16px; border-radius: 6px; text-align: center; margin-bottom: 20px;">' +
+          '<h1 style="color: #f8fafc; margin: 0; font-size: 20px; letter-spacing: 0.5px;">JUST THE FUNNY IMPROV & THEATER</h1>' +
+          '<p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Student Welcome Package</p>' +
+        '</div>' +
+        '<p style="font-size: 15px;">Hi <strong>' + studentName + '</strong>,</p>' +
+        '<p style="font-size: 14px;">Welcome to Just The Funny! We are excited to have you joining us for <strong>' + className + '</strong>.</p>' +
+        '<p style="font-size: 14px;">We have generated your personalized Student Welcome Packet. It details student expectations, theater etiquette, attendance policies, and class structure:</p>' +
+        '<div style="text-align: center; margin: 28px 0;">' +
+          '<a href="' + docUrl + '" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; font-weight: bold; font-size: 14px; border-radius: 6px; display: inline-block;">' +
+            '📄 View Your Student Welcome Packet' +
+          '</a>' +
+        '</div>' +
+        '<p style="font-size: 12px; color: #64748b;">Direct Link: <a href="' + docUrl + '" style="color: #2563eb;">' + docUrl + '</a></p>' +
+        '<hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />' +
+        '<p style="font-size: 13px; color: #475569;">Questions? Reply directly to this email or reach us at <a href="mailto:classes@justthefunny.com" style="color: #2563eb;">classes@justthefunny.com</a>.</p>' +
+        '<p style="font-size: 13px; color: #0f172a; margin-top: 16px;"><strong>Just The Funny Training Center</strong></p>' +
+      '</div>';
+
+    GmailApp.sendEmail(studentEmail, emailSubject, emailBody, {
+      htmlBody: emailHtml,
+      name: 'Just The Funny Training Center'
+    });
+
+    Logger.log('Welcome packet successfully generated and sent to: ' + studentEmail);
+
+    return {
+      success: true,
+      docId: clonedDocId,
+      docUrl: docUrl,
+      studentId: params.studentId
+    };
+  } catch (error) {
+    Logger.log('ERROR in generateAndSendWelcomePacket(): ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Web App entry point for dispatching actions such as welcome package sending from external web apps.
+ */
+function doPost(e) {
+  try {
+    var requestData = JSON.parse(e.postData.contents);
+    var action = requestData.action;
+
+    if (action === 'sendWelcomePacket') {
+      var result = generateAndSendWelcomePacket(requestData.payload);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Unknown action: ' + action }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}

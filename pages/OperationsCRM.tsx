@@ -17,6 +17,7 @@ import { supabaseService } from '../services/supabaseService';
 import { Personnel } from '../types';
 import { SpreadsheetImportModal } from '../components/SpreadsheetImportModal';
 import { PaginationControls } from '../components/common/PaginationControls';
+import { welcomePackageService } from '../services/welcomePackageService';
 
 export type CRMTab =
   | 'student_leads'
@@ -277,6 +278,9 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
     }
   };
 
+  const [sendingPacketStudentId, setSendingPacketStudentId] = useState<number | null>(null);
+  const [isBatchSendingPackets, setIsBatchSendingPackets] = useState<boolean>(false);
+
   const handleToggleWelcomePackage = async (studentId: number, signed: boolean) => {
     try {
       await crmService.updateStudentWelcomePackage(studentId, signed);
@@ -287,6 +291,73 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
       loadTabData('welcome_packages');
     } catch (err: any) {
       setMessage({ type: 'error', text: err?.message || 'Error updating welcome package status.' });
+    }
+  };
+
+  const handleSendWelcomePacket = async (student: any) => {
+    if (!student.student_email) {
+      setMessage({ type: 'error', text: `Cannot send welcome packet: No email address found for ${student.student_name}.` });
+      return;
+    }
+    setSendingPacketStudentId(student.student_id);
+    try {
+      const res = await welcomePackageService.sendWelcomePacket({
+        studentId: student.student_id,
+        studentName: student.student_name,
+        studentEmail: student.student_email,
+        className: 'Just The Funny Classes',
+      });
+      if (res.success) {
+        setMessage({
+          type: 'success',
+          text: `Welcome packet personalized and emailed to ${student.student_name} (${student.student_email})!`,
+        });
+        loadTabData('welcome_packages');
+      } else {
+        setMessage({
+          type: 'error',
+          text: res.error || `Failed to send welcome packet to ${student.student_name}.`,
+        });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error dispatching welcome packet.' });
+    } finally {
+      setSendingPacketStudentId(null);
+    }
+  };
+
+  const handleBatchSendPendingPackets = async () => {
+    const pendingStudents = welcomePackages.filter((s) => !s.welcome_package_signed && s.student_email);
+    if (pendingStudents.length === 0) {
+      setMessage({ type: 'info', text: 'No pending students with valid emails found.' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Send personalized welcome packets to ${pendingStudents.length} pending student(s)?`
+    );
+    if (!confirmed) return;
+
+    setIsBatchSendingPackets(true);
+    try {
+      const results = await welcomePackageService.batchSendWelcomePackets(
+        pendingStudents.map((s) => ({
+          studentId: s.student_id,
+          studentName: s.student_name,
+          studentEmail: s.student_email,
+          className: 'Just The Funny Classes',
+        }))
+      );
+      const successful = results.filter((r) => r.success).length;
+      setMessage({
+        type: 'success',
+        text: `Sent ${successful} of ${pendingStudents.length} welcome packets successfully.`,
+      });
+      loadTabData('welcome_packages');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error during batch packet dispatch.' });
+    } finally {
+      setIsBatchSendingPackets(false);
     }
   };
 
@@ -1611,6 +1682,25 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   Track students who have signed the conservatory welcome packet and code of conduct before classes begin.
                 </p>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBatchSendPendingPackets}
+                    disabled={isBatchSendingPackets || welcomePackages.filter((s) => !s.welcome_package_signed).length === 0}
+                    className="inline-flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate and email personalized welcome packets to all students with pending status"
+                  >
+                    {isBatchSendingPackets ? (
+                      <>
+                        <span className="animate-spin inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <span>✉️</span>
+                        Batch Send to Pending ({welcomePackages.filter((s) => !s.welcome_package_signed).length})
+                      </>
+                    )}
+                  </button>
                   <select
                     value={welcomeFilter}
                     onChange={(e) => setWelcomeFilter(e.target.value as any)}
@@ -1676,7 +1766,17 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                             </div>
                           </div>
 
-                          <div className="flex justify-end pt-1">
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            {!student.welcome_package_signed && (
+                              <button
+                                type="button"
+                                onClick={() => handleSendWelcomePacket(student)}
+                                disabled={sendingPacketStudentId === student.student_id}
+                                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              >
+                                {sendingPacketStudentId === student.student_id ? 'Sending...' : '✉️ Send Packet'}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
@@ -1699,12 +1799,12 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                       <table className="w-full text-left border-collapse text-sm table-fixed">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                            <th className="py-3 px-3 w-[24%]">Student</th>
-                            <th className="py-3 px-3 w-[26%]">Email</th>
-                            <th className="py-3 px-3 w-[12%]">Status</th>
-                            <th className="py-3 px-3 w-[16%]">Welcome Package</th>
+                            <th className="py-3 px-3 w-[22%]">Student</th>
+                            <th className="py-3 px-3 w-[24%]">Email</th>
+                            <th className="py-3 px-3 w-[10%]">Status</th>
+                            <th className="py-3 px-3 w-[14%]">Welcome Package</th>
                             <th className="py-3 px-3 w-[10%]">Date Signed</th>
-                            <th className="py-3 px-3 w-[12%] text-right">Quick Action</th>
+                            <th className="py-3 px-3 w-[20%] text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -1740,17 +1840,30 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                                     : '—'}
                                 </td>
                                 <td className="py-3 px-3 text-right">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
-                                    className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap ${
-                                      student.welcome_package_signed
-                                        ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
-                                        : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
-                                    }`}
-                                  >
-                                    {student.welcome_package_signed ? 'Mark Pending' : 'Mark Signed'}
-                                  </button>
+                                  <div className="inline-flex items-center justify-end gap-1.5">
+                                    {!student.welcome_package_signed && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSendWelcomePacket(student)}
+                                        disabled={sendingPacketStudentId === student.student_id}
+                                        className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap disabled:opacity-50"
+                                        title="Generate and email personalized Google Doc packet to student"
+                                      >
+                                        {sendingPacketStudentId === student.student_id ? 'Sending...' : '✉️ Send Packet'}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleWelcomePackage(student.student_id, !student.welcome_package_signed)}
+                                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap ${
+                                        student.welcome_package_signed
+                                          ? 'bg-slate-50 text-slate-600 border-slate-300 hover:bg-slate-100'
+                                          : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                                      }`}
+                                    >
+                                      {student.welcome_package_signed ? 'Mark Pending' : 'Mark Signed'}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             ))}

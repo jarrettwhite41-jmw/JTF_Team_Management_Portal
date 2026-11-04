@@ -4,6 +4,7 @@ import { Loader } from '../common/Loader';
 import { Message } from '../common/Message';
 import { ClassEditModal } from './ClassEditModal';
 import { gasService } from '../../services/googleAppsScript';
+import { welcomePackageService } from '../../services/welcomePackageService';
 
 interface ClassManagementModalProps {
   isOpen: boolean;
@@ -75,6 +76,8 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [addingNoteFor, setAddingNoteFor] = useState<number | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [sendingPacketStudentId, setSendingPacketStudentId] = useState<number | null>(null);
+  const [isBatchSendingRosterPackets, setIsBatchSendingRosterPackets] = useState(false);
 
   const [offeringStatus, setOfferingStatus] = useState<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>(
     classOffering?.Status || 'Upcoming',
@@ -323,6 +326,73 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
       setMessage({ type: 'error', text: 'Error adding students' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSendPacketToStudent = async (student: Student) => {
+    if (!student.PrimaryEmail) {
+      setMessage({ type: 'error', text: `Cannot send welcome packet: No email for ${student.FirstName} ${student.LastName}.` });
+      return;
+    }
+    setSendingPacketStudentId(student.StudentID);
+    try {
+      const res = await welcomePackageService.sendWelcomePacket({
+        studentId: student.StudentID,
+        studentName: `${student.FirstName} ${student.LastName}`.trim(),
+        studentEmail: student.PrimaryEmail,
+        className: classOffering?.LevelName || classOffering?.OfferingName || 'Just The Funny Classes',
+      });
+      if (res.success) {
+        setMessage({
+          type: 'success',
+          text: `Personalized welcome packet sent to ${student.FirstName} ${student.LastName}!`,
+        });
+        await loadEnrolledStudents();
+      } else {
+        setMessage({
+          type: 'error',
+          text: res.error || `Failed to send welcome packet to ${student.FirstName} ${student.LastName}.`,
+        });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error sending welcome packet.' });
+    } finally {
+      setSendingPacketStudentId(null);
+    }
+  };
+
+  const handleBatchSendRosterPackets = async () => {
+    const pendingStudents = enrolledStudents.filter((s) => !s.WelcomePackageSigned && s.PrimaryEmail);
+    if (pendingStudents.length === 0) {
+      setMessage({ type: 'info', text: 'All enrolled students have already signed or lack valid email addresses.' });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Send personalized welcome packets to ${pendingStudents.length} student(s) with pending status?`
+    );
+    if (!confirmed) return;
+
+    setIsBatchSendingRosterPackets(true);
+    try {
+      const results = await welcomePackageService.batchSendWelcomePackets(
+        pendingStudents.map((s) => ({
+          studentId: s.StudentID,
+          studentName: `${s.FirstName} ${s.LastName}`.trim(),
+          studentEmail: s.PrimaryEmail,
+          className: classOffering?.LevelName || classOffering?.OfferingName || 'Just The Funny Classes',
+        }))
+      );
+      const successful = results.filter((r) => r.success).length;
+      setMessage({
+        type: 'success',
+        text: `Sent ${successful} of ${pendingStudents.length} welcome packets successfully.`,
+      });
+      await loadEnrolledStudents();
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error during batch packet dispatch.' });
+    } finally {
+      setIsBatchSendingRosterPackets(false);
     }
   };
 
@@ -1073,66 +1143,102 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
             </div>
           ) : activeTab === 'roster' ? (
             filteredStudents.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Date</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Welcome Pkg</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredStudents.map((student: Student) => (
-                      <tr key={student.StudentID} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{student.FirstName} {student.LastName}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-600">{student.PrimaryEmail}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-600">{student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {student.WelcomePackageSigned ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
-                              ✓ Signed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
-                              ⏳ Pending
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <select
-                            value={student.CompletionStatus || 'Active'}
-                            onChange={(event) => handleStatusChange(student.EnrollmentID!, event.target.value)}
-                            className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                          >
-                            <option value="Active">Active</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Dropped">Dropped</option>
-                            <option value="Withdrawn">Withdrawn</option>
-                          </select>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            onClick={() => handleRemoveStudent(student.EnrollmentID!)}
-                            className="text-xs px-2 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
-                            title="Remove student from class"
-                          >
-                            Remove
-                          </button>
-                        </td>
+              <div className="space-y-3">
+                <div className="flex justify-end items-center">
+                  <button
+                    type="button"
+                    onClick={handleBatchSendRosterPackets}
+                    disabled={isBatchSendingRosterPackets || filteredStudents.filter((s: Student) => !s.WelcomePackageSigned).length === 0}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+                    title="Send welcome packets to all students in this class who haven't signed yet"
+                  >
+                    {isBatchSendingRosterPackets ? (
+                      <>
+                        <span className="animate-spin inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <span>✉️</span>
+                        Batch Send Welcome Packets ({filteredStudents.filter((s: Student) => !s.WelcomePackageSigned).length})
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Date</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Welcome Pkg</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredStudents.map((student: Student) => (
+                        <tr key={student.StudentID} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">{student.FirstName} {student.LastName}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-600">{student.PrimaryEmail}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-600">{student.EnrollmentDate ? new Date(student.EnrollmentDate).toLocaleDateString() : 'N/A'}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {student.WelcomePackageSigned ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                ✓ Signed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                                ⏳ Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <select
+                              value={student.CompletionStatus || 'Active'}
+                              onChange={(event) => handleStatusChange(student.EnrollmentID!, event.target.value)}
+                              className="text-sm border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                            >
+                              <option value="Active">Active</option>
+                              <option value="Completed">Completed</option>
+                              <option value="Dropped">Dropped</option>
+                              <option value="Withdrawn">Withdrawn</option>
+                            </select>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="inline-flex items-center justify-end gap-2">
+                              {!student.WelcomePackageSigned && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendPacketToStudent(student)}
+                                  disabled={sendingPacketStudentId === student.StudentID}
+                                  className="text-xs px-2.5 py-1 text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors disabled:opacity-50"
+                                  title="Send personalized welcome packet"
+                                >
+                                  {sendingPacketStudentId === student.StudentID ? 'Sending...' : '✉️ Send Packet'}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleRemoveStudent(student.EnrollmentID!)}
+                                className="text-xs px-2 py-1 text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                                title="Remove student from class"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
               <div className="text-center py-12">
