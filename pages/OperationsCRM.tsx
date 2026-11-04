@@ -16,6 +16,7 @@ import { Message } from '../components/common/Message';
 import { supabaseService } from '../services/supabaseService';
 import { Personnel } from '../types';
 import { SpreadsheetImportModal } from '../components/SpreadsheetImportModal';
+import { PaginationControls } from '../components/common/PaginationControls';
 
 export type CRMTab =
   | 'student_leads'
@@ -136,6 +137,19 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   const [studentLeadFilter, setStudentLeadFilter] = useState<string>('all');
   const [studentLeadLevelFilter, setStudentLeadLevelFilter] = useState<string>('all');
   const [studentLeadSearch, setStudentLeadSearch] = useState<string>('');
+  const [studentLeadPage, setStudentLeadPage] = useState<number>(1);
+  const [studentLeadPageSize, setStudentLeadPageSize] = useState<number>(25);
+
+  // Pagination states for other major suites
+  const [rentalPage, setRentalPage] = useState<number>(1);
+  const [rentalPageSize, setRentalPageSize] = useState<number>(20);
+  const [outreachPage, setOutreachPage] = useState<number>(1);
+  const [outreachPageSize, setOutreachPageSize] = useState<number>(20);
+  const [inquiryPage, setInquiryPage] = useState<number>(1);
+  const [inquiryPageSize, setInquiryPageSize] = useState<number>(20);
+  const [commPage, setCommPage] = useState<number>(1);
+  const [commPageSize, setCommPageSize] = useState<number>(20);
+
   const [isAddStudentLeadOpen, setIsAddStudentLeadOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isSavingStudentLead, setIsSavingStudentLead] = useState(false);
@@ -600,7 +614,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 w-full max-w-[1700px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
@@ -948,11 +962,18 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   );
                 }
 
+                // Slice active page
+                const totalItems = filtered.length;
+                const totalPages = Math.max(1, Math.ceil(totalItems / studentLeadPageSize));
+                const currentPageClamped = Math.min(Math.max(1, studentLeadPage), totalPages);
+                const startIndex = (currentPageClamped - 1) * studentLeadPageSize;
+                const pageSlice = filtered.slice(startIndex, startIndex + studentLeadPageSize);
+
                 return (
-                  <>
+                  <div className="space-y-3">
                     {/* Mobile Cards */}
-                    <div className="grid grid-cols-1 gap-3 md:hidden">
-                      {filtered.map((lead) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:hidden">
+                      {pageSlice.map((lead) => (
                         <div key={lead.lead_id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -1045,7 +1066,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filtered.map((lead) => (
+                            {pageSlice.map((lead) => (
                               <tr key={lead.lead_id} className="hover:bg-slate-50 align-top">
                                 <td className="py-3 px-3">
                                   <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1.5">
@@ -1136,7 +1157,21 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                         </table>
                       </div>
                     </div>
-                  </>
+
+                    {/* Pagination Controls */}
+                    <PaginationControls
+                      currentPage={currentPageClamped}
+                      totalItems={totalItems}
+                      pageSize={studentLeadPageSize}
+                      onPageChange={(page) => setStudentLeadPage(page)}
+                      onPageSizeChange={(newSize) => {
+                        setStudentLeadPageSize(newSize);
+                        setStudentLeadPage(1);
+                      }}
+                      label="student interest leads"
+                      pageSizeOptions={[15, 25, 50, 100]}
+                    />
+                  </div>
                 );
               })()}
             </div>
@@ -1891,17 +1926,24 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                     No bookings or opportunities matched your filters.
                   </div>
-                ) : (
-                  <>
-                    {/* Mobile Card View (< md) */}
-                    <div className="md:hidden space-y-3">
-                      {filteredRentals.map((ren) => {
-                        const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
-                        const hasSheetData = Boolean(ren.sheet_opportunity_id);
+                ) : (() => {
+                  const totalItems = filteredRentals.length;
+                  const totalPages = Math.max(1, Math.ceil(totalItems / rentalPageSize));
+                  const currentPageClamped = Math.min(Math.max(1, rentalPage), totalPages);
+                  const startIndex = (currentPageClamped - 1) * rentalPageSize;
+                  const pageSlice = filteredRentals.slice(startIndex, startIndex + rentalPageSize);
 
-                        return (
-                          <div key={ren.rental_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
-                            <div className="flex items-start justify-between gap-2">
+                  return (
+                    <div className="space-y-3">
+                      {/* Mobile Card View (< md) */}
+                      <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {pageSlice.map((ren) => {
+                          const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
+                          const hasSheetData = Boolean(ren.sheet_opportunity_id);
+
+                          return (
+                            <div key={ren.rental_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+                              <div className="flex items-start justify-between gap-2">
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <h4 className="font-bold text-slate-900 text-sm">{clientDisplay}</h4>
@@ -2003,7 +2045,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredRentals.map((ren) => {
+                            {pageSlice.map((ren) => {
                               const clientDisplay = ren.opportunity_name || ren.organization_name || ren.contact_name;
                               const hasSheetData = Boolean(ren.sheet_opportunity_id);
 
@@ -2132,8 +2174,23 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                         </table>
                       </div>
                     </div>
-                  </>
-                )}
+
+                    {/* Rental Pagination */}
+                    <PaginationControls
+                      currentPage={currentPageClamped}
+                      totalItems={totalItems}
+                      pageSize={rentalPageSize}
+                      onPageChange={(page) => setRentalPage(page)}
+                      onPageSizeChange={(newSize) => {
+                        setRentalPageSize(newSize);
+                        setRentalPage(1);
+                      }}
+                      label="venue rentals & deals"
+                      pageSizeOptions={[10, 20, 50, 100]}
+                    />
+                  </div>
+                );
+              })()}
               </div>
             );
           })()}
@@ -2312,11 +2369,18 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                   <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                     No outreach leads matched your filters.
                   </div>
-                ) : (
-                  <>
-                    {/* Mobile Card View (< md) */}
-                    <div className="md:hidden space-y-3">
-                      {filteredLeads.map((lead) => (
+                ) : (() => {
+                  const totalItems = filteredLeads.length;
+                  const totalPages = Math.ceil(totalItems / outreachLeadPageSize) || 1;
+                  const currentPageClamped = Math.min(outreachLeadPage, totalPages);
+                  const startIndex = (currentPageClamped - 1) * outreachLeadPageSize;
+                  const pageSlice = filteredLeads.slice(startIndex, startIndex + outreachLeadPageSize);
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Mobile Card View (< md) */}
+                      <div className="md:hidden space-y-3">
+                        {pageSlice.map((lead) => (
                         <div key={lead.lead_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
                           <div className="flex items-start justify-between gap-2">
                             <div>
@@ -2418,7 +2482,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
-                            {filteredLeads.map((lead) => (
+                            {pageSlice.map((lead) => (
                               <tr key={lead.lead_id} className="hover:bg-slate-50 transition-colors align-top">
                                 <td className="py-3 px-3">
                                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -2517,8 +2581,23 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                         </table>
                       </div>
                     </div>
-                  </>
-                )}
+
+                    {/* Outreach Pagination */}
+                    <PaginationControls
+                      currentPage={currentPageClamped}
+                      totalItems={totalItems}
+                      pageSize={outreachLeadPageSize}
+                      onPageChange={(page) => setOutreachLeadPage(page)}
+                      onPageSizeChange={(newSize) => {
+                        setOutreachLeadPageSize(newSize);
+                        setOutreachLeadPage(1);
+                      }}
+                      label="outreach prospects"
+                      pageSizeOptions={[15, 30, 50, 100]}
+                    />
+                  </div>
+                );
+              })()}
               </div>
             );
           })()}
@@ -2541,195 +2620,219 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                 <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                   No contact inquiries found.
                 </div>
-              ) : (
-                <>
-                  {/* Mobile Card View (< md) */}
-                  <div className="md:hidden space-y-3">
-                    {contactInquiries.map((inq) => {
-                      const dateDisplay = inq.submitted_at
-                        ? inq.submitted_at
-                        : inq.created_at
-                        ? new Date(inq.created_at).toLocaleString([], {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '—';
+              ) : (() => {
+                const totalItems = contactInquiries.length;
+                const totalPages = Math.ceil(totalItems / contactInquiryPageSize) || 1;
+                const currentPageClamped = Math.min(contactInquiryPage, totalPages);
+                const startIndex = (currentPageClamped - 1) * contactInquiryPageSize;
+                const pageSlice = contactInquiries.slice(startIndex, startIndex + contactInquiryPageSize);
 
-                      return (
-                        <div key={inq.log_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h4 className="font-bold text-slate-900 text-sm">{inq.customer_name || inq.staff_email || 'Website Visitor'}</h4>
-                              {inq.staff_email && (
-                                <a href={`mailto:${inq.staff_email}`} className="text-xs text-blue-600 hover:underline block truncate">
-                                  ✉️ {inq.staff_email}
-                                </a>
-                              )}
-                            </div>
-                            <span
-                              className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
-                                inq.status === 'open'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : inq.status === 'in_progress'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : inq.status === 'resolved'
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {inq.status.replace('_', ' ')}
-                            </span>
-                          </div>
+                return (
+                  <div className="space-y-4">
+                    {/* Mobile Card View (< md) - Neat 2-Column Responsive Grid */}
+                    <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {pageSlice.map((inq) => {
+                        const dateDisplay = inq.submitted_at
+                          ? inq.submitted_at
+                          : inq.created_at
+                          ? new Date(inq.created_at).toLocaleString([], {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '—';
 
-                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5 text-xs">
-                            <div className="flex items-center justify-between text-[11px] text-slate-500">
-                              <span>📅 {dateDisplay}</span>
-                            </div>
-                            <div className="font-semibold text-slate-900 text-xs">{inq.subject}</div>
-                            <p className="text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-4">
-                              {inq.body.replace(/^From: [^\n]+\n\n/, '')}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center justify-end gap-2 pt-1">
-                            {inq.status === 'open' && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
-                                className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                              >
-                                Mark In Progress
-                              </button>
-                            )}
-                            {inq.status === 'in_progress' && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
-                                className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-                              >
-                                Mark Resolved
-                              </button>
-                            )}
-                            {inq.status === 'resolved' && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
-                                className="px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
-                              >
-                                Archive
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Desktop Table View (>= md) */}
-                  <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-sm table-fixed">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                            <th className="py-3 px-3 w-[16%]">Submitted On</th>
-                            <th className="py-3 px-3 w-[20%]">Contact</th>
-                            <th className="py-3 px-3 w-[40%]">Subject & Message</th>
-                            <th className="py-3 px-3 w-[12%]">Status</th>
-                            <th className="py-3 px-3 w-[12%] text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {contactInquiries.map((inq) => {
-                            const dateDisplay = inq.submitted_at
-                              ? inq.submitted_at
-                              : inq.created_at
-                              ? new Date(inq.created_at).toLocaleString([], {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : '—';
-
-                            return (
-                              <tr key={inq.log_id} className="hover:bg-slate-50 align-top">
-                                <td className="py-3 px-3 text-xs text-slate-600 font-medium">
-                                  <div className="truncate">📅 {dateDisplay}</div>
-                                </td>
-                                <td className="py-3 px-3">
-                                  <div className="font-semibold text-slate-900 text-xs truncate">{inq.customer_name || inq.staff_email || 'Website Visitor'}</div>
+                        return (
+                          <div key={inq.log_id} className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3 flex flex-col justify-between">
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h4 className="font-bold text-slate-900 text-sm">{inq.customer_name || inq.staff_email || 'Website Visitor'}</h4>
                                   {inq.staff_email && (
-                                    <a
-                                      href={`mailto:${inq.staff_email}`}
-                                      className="text-[11px] text-blue-600 hover:underline block truncate"
-                                    >
+                                    <a href={`mailto:${inq.staff_email}`} className="text-xs text-blue-600 hover:underline block truncate">
                                       ✉️ {inq.staff_email}
                                     </a>
                                   )}
-                                </td>
-                                <td className="py-3 px-3">
-                                  <div className="font-semibold text-slate-900 text-xs mb-1 line-clamp-1">{inq.subject}</div>
-                                  <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-3 hover:line-clamp-none transition-all">
-                                    {inq.body.replace(/^From: [^\n]+\n\n/, '')}
-                                  </p>
-                                </td>
-                                <td className="py-3 px-3">
-                                  <span
-                                    className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                                      inq.status === 'open'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : inq.status === 'in_progress'
-                                        ? 'bg-blue-100 text-blue-800'
-                                        : inq.status === 'resolved'
-                                        ? 'bg-emerald-100 text-emerald-800'
-                                        : 'bg-slate-100 text-slate-700'
-                                    }`}
-                                  >
-                                    {inq.status.replace('_', ' ')}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-3 text-right space-x-1">
-                                  {inq.status === 'open' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
-                                      className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 whitespace-nowrap"
-                                    >
-                                      Start
-                                    </button>
-                                  )}
-                                  {inq.status === 'in_progress' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
-                                      className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 whitespace-nowrap"
-                                    >
-                                      Resolve
-                                    </button>
-                                  )}
-                                  {inq.status === 'resolved' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
-                                      className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 whitespace-nowrap"
-                                    >
-                                      Archive
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                </div>
+                                <span
+                                  className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold shrink-0 ${
+                                    inq.status === 'open'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : inq.status === 'in_progress'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : inq.status === 'resolved'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  {inq.status.replace('_', ' ')}
+                                </span>
+                              </div>
+
+                              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 space-y-1.5 text-xs">
+                                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                                  <span>📅 {dateDisplay}</span>
+                                </div>
+                                <div className="font-semibold text-slate-900 text-xs">{inq.subject}</div>
+                                <p className="text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-4">
+                                  {inq.body.replace(/^From: [^\n]+\n\n/, '')}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                              {inq.status === 'open' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
+                                  className="w-full px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                  Mark In Progress
+                                </button>
+                              )}
+                              {inq.status === 'in_progress' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
+                                  className="w-full px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                                >
+                                  Mark Resolved
+                                </button>
+                              )}
+                              {inq.status === 'resolved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
+                                  className="w-full px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors"
+                                >
+                                  Archive
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Desktop Table View (>= md) */}
+                    <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-sm table-fixed">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                              <th className="py-3 px-3 w-[16%]">Submitted On</th>
+                              <th className="py-3 px-3 w-[20%]">Contact</th>
+                              <th className="py-3 px-3 w-[40%]">Subject & Message</th>
+                              <th className="py-3 px-3 w-[12%]">Status</th>
+                              <th className="py-3 px-3 w-[12%] text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {pageSlice.map((inq) => {
+                              const dateDisplay = inq.submitted_at
+                                ? inq.submitted_at
+                                : inq.created_at
+                                ? new Date(inq.created_at).toLocaleString([], {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : '—';
+
+                              return (
+                                <tr key={inq.log_id} className="hover:bg-slate-50 align-top">
+                                  <td className="py-3 px-3 text-xs text-slate-600 font-medium">
+                                    <div className="truncate">📅 {dateDisplay}</div>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <div className="font-semibold text-slate-900 text-xs truncate">{inq.customer_name || inq.staff_email || 'Website Visitor'}</div>
+                                    {inq.staff_email && (
+                                      <a
+                                        href={`mailto:${inq.staff_email}`}
+                                        className="text-[11px] text-blue-600 hover:underline block truncate"
+                                      >
+                                        ✉️ {inq.staff_email}
+                                      </a>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <div className="font-semibold text-slate-900 text-xs mb-1 line-clamp-1">{inq.subject}</div>
+                                    <p className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed line-clamp-3 hover:line-clamp-none transition-all">
+                                      {inq.body.replace(/^From: [^\n]+\n\n/, '')}
+                                    </p>
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <span
+                                      className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                        inq.status === 'open'
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : inq.status === 'in_progress'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : inq.status === 'resolved'
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : 'bg-slate-100 text-slate-700'
+                                      }`}
+                                    >
+                                      {inq.status.replace('_', ' ')}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-3 text-right space-x-1">
+                                    {inq.status === 'open' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateContactStatus(inq.log_id!, 'in_progress')}
+                                        className="px-2 py-1 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 rounded-md hover:bg-blue-100 whitespace-nowrap"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+                                    {inq.status === 'in_progress' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateContactStatus(inq.log_id!, 'resolved')}
+                                        className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md hover:bg-emerald-100 whitespace-nowrap"
+                                      >
+                                        Resolve
+                                      </button>
+                                    )}
+                                    {inq.status === 'resolved' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleUpdateContactStatus(inq.log_id!, 'archived')}
+                                        className="px-2 py-1 text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200 rounded-md hover:bg-slate-100 whitespace-nowrap"
+                                      >
+                                        Archive
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Inquiries Pagination */}
+                    <PaginationControls
+                      currentPage={currentPageClamped}
+                      totalItems={totalItems}
+                      pageSize={contactInquiryPageSize}
+                      onPageChange={(page) => setContactInquiryPage(page)}
+                      onPageSizeChange={(newSize) => {
+                        setContactInquiryPageSize(newSize);
+                        setContactInquiryPage(1);
+                      }}
+                      label="contact inquiries"
+                      pageSizeOptions={[10, 25, 50, 100]}
+                    />
                   </div>
-                </>
-              )}
+                );
+              })()}
             </div>
           )}
 
@@ -2761,28 +2864,52 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                 <div className="bg-white p-8 rounded-xl border border-slate-200 text-center text-slate-500">
                   No communication threads logged.
                 </div>
-              ) : (
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="divide-y divide-slate-100">
-                    {commLogs.map((log) => (
-                      <div key={log.log_id} className="p-4 hover:bg-slate-50 transition-colors space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-slate-900">{log.subject}</span>
-                          <span className="text-xs text-slate-500">{new Date(log.created_at || '').toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className="font-semibold text-blue-700">👤 {log.customer_name}</span>
-                          <span>•</span>
-                          <span className="uppercase text-[11px] font-bold tracking-wide text-slate-500">Channel: {log.channel}</span>
-                          <span>•</span>
-                          <span className="capitalize text-[11px] font-medium text-purple-700">Category: {log.category.replace('_', ' ')}</span>
-                        </div>
-                        <p className="text-xs text-slate-700 pt-1 leading-relaxed">{log.body}</p>
+              ) : (() => {
+                const totalItems = commLogs.length;
+                const totalPages = Math.ceil(totalItems / commPageSize) || 1;
+                const currentPageClamped = Math.min(commPage, totalPages);
+                const startIndex = (currentPageClamped - 1) * commPageSize;
+                const pageSlice = commLogs.slice(startIndex, startIndex + commPageSize);
+
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                      <div className="divide-y divide-slate-100">
+                        {pageSlice.map((log) => (
+                          <div key={log.log_id} className="p-4 hover:bg-slate-50 transition-colors space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-sm text-slate-900">{log.subject}</span>
+                              <span className="text-xs text-slate-500">{new Date(log.created_at || '').toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className="font-semibold text-blue-700">👤 {log.customer_name}</span>
+                              <span>•</span>
+                              <span className="uppercase text-[11px] font-bold tracking-wide text-slate-500">Channel: {log.channel}</span>
+                              <span>•</span>
+                              <span className="capitalize text-[11px] font-medium text-purple-700">Category: {log.category.replace('_', ' ')}</span>
+                            </div>
+                            <p className="text-xs text-slate-700 pt-1 leading-relaxed">{log.body}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Communications Pagination */}
+                    <PaginationControls
+                      currentPage={currentPageClamped}
+                      totalItems={totalItems}
+                      pageSize={commPageSize}
+                      onPageChange={(page) => setCommPage(page)}
+                      onPageSizeChange={(newSize) => {
+                        setCommPageSize(newSize);
+                        setCommPage(1);
+                      }}
+                      label="communication records"
+                      pageSizeOptions={[10, 25, 50, 100]}
+                    />
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </>

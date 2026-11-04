@@ -136,7 +136,7 @@ export const ClassRegistration: React.FC<ClassRegistrationProps> = ({ onNavigate
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 w-full max-w-[1700px] mx-auto">
       {/* Header */}
       <div className="mb-4 sm:mb-6">
         <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
