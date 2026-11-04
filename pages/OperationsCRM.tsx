@@ -143,10 +143,10 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
   // Pagination states for other major suites
   const [rentalPage, setRentalPage] = useState<number>(1);
   const [rentalPageSize, setRentalPageSize] = useState<number>(20);
-  const [outreachPage, setOutreachPage] = useState<number>(1);
-  const [outreachPageSize, setOutreachPageSize] = useState<number>(20);
-  const [inquiryPage, setInquiryPage] = useState<number>(1);
-  const [inquiryPageSize, setInquiryPageSize] = useState<number>(20);
+  const [outreachLeadPage, setOutreachLeadPage] = useState<number>(1);
+  const [outreachLeadPageSize, setOutreachLeadPageSize] = useState<number>(20);
+  const [contactInquiryPage, setContactInquiryPage] = useState<number>(1);
+  const [contactInquiryPageSize, setContactInquiryPageSize] = useState<number>(20);
   const [commPage, setCommPage] = useState<number>(1);
   const [commPageSize, setCommPageSize] = useState<number>(20);
 
