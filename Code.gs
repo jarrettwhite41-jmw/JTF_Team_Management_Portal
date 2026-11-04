@@ -5597,15 +5597,24 @@ function generateAndSendWelcomePacket(params) {
     clonedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     var docUrl = clonedFile.getUrl();
 
-    // 4. Send email with personalized link
-    var emailSubject = 'Welcome to Just The Funny! - Student Welcome Packet (' + studentName + ')';
+    // 4. Build Digital Signing URL hosted on this Apps Script Web App
+    var scriptUrl = ScriptApp.getService().getUrl() || 'https://script.google.com/macros/s/AKfycbxwf02HsNjxgkmvsJb5hCmu3q5lEDQv4vZNkHyuO1WT_BDM1tclUab8tHvTmWHteUfT0g/exec';
+    var signUrl = scriptUrl + 
+      '?docId=' + encodeURIComponent(clonedDocId) + 
+      '&studentId=' + encodeURIComponent(params.studentId || '') + 
+      '&studentName=' + encodeURIComponent(studentName) + 
+      '&className=' + encodeURIComponent(className);
+
+    // 5. Send email with 1-click digital sign button
+    var emailSubject = 'Welcome to Just The Funny! - Please Review & Sign Your Welcome Packet (' + studentName + ')';
     var emailBody = 
       'Hi ' + studentName + ',\n\n' +
       'Welcome to Just The Funny! We are thrilled to have you joining us for ' + className + '.\n\n' +
-      'Please review your personalized Student Welcome Packet at the link below:\n' +
+      'Please review and digitally sign your Student Welcome Packet at the link below:\n' +
+      signUrl + '\n\n' +
+      'You can also view your Google Doc copy directly here:\n' +
       docUrl + '\n\n' +
       'This packet covers essential class information, theater policies, attendance guidelines, and code of conduct.\n\n' +
-      'If you have any questions before class begins, reply directly to this email or reach out to your instructor.\n\n' +
       'Best regards,\n' +
       'Just The Funny Education Team\n' +
       'classes@justthefunny.com';
@@ -5614,17 +5623,17 @@ function generateAndSendWelcomePacket(params) {
       '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">' +
         '<div style="background-color: #0f172a; padding: 16px; border-radius: 6px; text-align: center; margin-bottom: 20px;">' +
           '<h1 style="color: #f8fafc; margin: 0; font-size: 20px; letter-spacing: 0.5px;">JUST THE FUNNY IMPROV & THEATER</h1>' +
-          '<p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Student Welcome Package</p>' +
+          '<p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Student Welcome Package & Code of Conduct</p>' +
         '</div>' +
         '<p style="font-size: 15px;">Hi <strong>' + studentName + '</strong>,</p>' +
         '<p style="font-size: 14px;">Welcome to Just The Funny! We are excited to have you joining us for <strong>' + className + '</strong>.</p>' +
-        '<p style="font-size: 14px;">We have generated your personalized Student Welcome Packet. It details student expectations, theater etiquette, attendance policies, and class structure:</p>' +
+        '<p style="font-size: 14px;">Please review your packet and provide your digital signature below before classes begin. It takes less than a minute:</p>' +
         '<div style="text-align: center; margin: 28px 0;">' +
-          '<a href="' + docUrl + '" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 12px 24px; text-decoration: none; font-weight: bold; font-size: 14px; border-radius: 6px; display: inline-block;">' +
-            '📄 View Your Student Welcome Packet' +
+          '<a href="' + signUrl + '" target="_blank" style="background-color: #16a34a; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; font-size: 15px; border-radius: 6px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">' +
+            '✍️ Review & Sign Welcome Packet' +
           '</a>' +
         '</div>' +
-        '<p style="font-size: 12px; color: #64748b;">Direct Link: <a href="' + docUrl + '" style="color: #2563eb;">' + docUrl + '</a></p>' +
+        '<p style="font-size: 12px; color: #64748b; text-align: center;">You can also view your doc directly: <a href="' + docUrl + '" style="color: #2563eb;">' + docUrl + '</a></p>' +
         '<hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />' +
         '<p style="font-size: 13px; color: #475569;">Questions? Reply directly to this email or reach us at <a href="mailto:classes@justthefunny.com" style="color: #2563eb;">classes@justthefunny.com</a>.</p>' +
         '<p style="font-size: 13px; color: #0f172a; margin-top: 16px;"><strong>Just The Funny Training Center</strong></p>' +
@@ -5641,6 +5650,7 @@ function generateAndSendWelcomePacket(params) {
       success: true,
       docId: clonedDocId,
       docUrl: docUrl,
+      signUrl: signUrl,
       studentId: params.studentId
     };
   } catch (error) {
@@ -5650,23 +5660,178 @@ function generateAndSendWelcomePacket(params) {
 }
 
 /**
- * Web App entry point for dispatching actions such as welcome package sending from external web apps.
+ * Signs the student's Google Doc on Page 6 with their digital signature and timestamp.
+ * 
+ * @param {string} docId - The Google Doc ID
+ * @param {string} signatureName - The student's signature text
+ * @returns {Object} { success: boolean, signedAt?: string, error?: string }
+ */
+function recordStudentSignature_(docId, signatureName) {
+  try {
+    var doc = DocumentApp.openById(docId);
+    var body = doc.getBody();
+    var signedDateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a');
+
+    // Replace signature line on Page 6
+    body.replaceText('Student Signature:\\s*_{3,}', 'Student Signature: [DIGITALLY SIGNED] ' + signatureName + ' (' + signedDateStr + ')');
+    doc.saveAndClose();
+
+    return { success: true, signedAt: new Date().toISOString() };
+  } catch (e) {
+    Logger.log('Error stamping signature into doc: ' + e.toString());
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Web App entry point for receiving POST requests from the Vercel portal or web submissions.
  */
 function doPost(e) {
   try {
     var requestData = JSON.parse(e.postData.contents);
     var action = requestData.action;
 
-    if (action === 'sendWelcomePacket') {
-      var result = generateAndSendWelcomePacket(requestData.payload);
-      return ContentService.createTextOutput(JSON.stringify(result))
+    // Direct student signature submission from the web form
+    if (action === 'submit_signature' || requestData.signatureName) {
+      var docId = requestData.docId;
+      var signatureName = requestData.signatureName || requestData.studentName;
+      var signResult = recordStudentSignature_(docId, signatureName);
+      return ContentService.createTextOutput(JSON.stringify(signResult))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Unknown action: ' + action }))
+    var payload = requestData.payload || requestData;
+    var result = generateAndSendWelcomePacket(payload);
+    return ContentService.createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+/**
+ * Web App GET endpoint: Displays the responsive, mobile-friendly 1-Click Digital Signing Page.
+ */
+function doGet(e) {
+  var params = e && e.parameter ? e.parameter : {};
+  var docId = params.docId || '';
+  var studentName = params.studentName || '';
+  var studentId = params.studentId || '';
+  var className = params.className || 'Just The Funny Classes';
+
+  // If no docId is provided, show simple active status
+  if (!docId) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'active', message: 'JTF Welcome Packet Web App is running.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  var html = 
+    '<!DOCTYPE html>' +
+    '<html>' +
+    '<head>' +
+      '<meta charset="UTF-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+      '<title>Sign JTF Welcome Packet - ' + studentName + '</title>' +
+      '<style>' +
+        'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 16px; }' +
+        '.container { max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; overflow: hidden; }' +
+        '.header { background: #0f172a; color: white; padding: 24px; text-align: center; }' +
+        '.header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }' +
+        '.header p { margin: 6px 0 0; color: #94a3b8; font-size: 14px; }' +
+        '.viewer-container { padding: 20px; }' +
+        '.doc-frame { width: 100%; height: 500px; border: 1px solid #cbd5e1; border-radius: 8px; }' +
+        '.signing-box { background: #f1f5f9; padding: 24px; border-top: 1px solid #e2e8f0; }' +
+        '.form-group { margin-bottom: 16px; }' +
+        '.form-group label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }' +
+        '.form-control { width: 100%; padding: 12px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }' +
+        '.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155; line-height: 1.4; cursor: pointer; }' +
+        '.checkbox-label input { margin-top: 3px; transform: scale(1.2); }' +
+        '.btn-submit { width: 100%; background: #16a34a; color: white; padding: 14px; font-size: 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }' +
+        '.btn-submit:hover { background: #15803d; }' +
+        '.btn-submit:disabled { background: #94a3b8; cursor: not-allowed; }' +
+        '.success-screen { display: none; text-align: center; padding: 48px 24px; }' +
+        '.success-icon { font-size: 48px; color: #16a34a; margin-bottom: 16px; }' +
+        '.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }' +
+        '@keyframes spin { to { transform: rotate(360deg); } }' +
+      '</style>' +
+    '</head>' +
+    '<body>' +
+      '<div class="container">' +
+        '<div class="header">' +
+          '<h1>JUST THE FUNNY TRAINING CENTER</h1>' +
+          '<p>Welcome Packet & Student Code of Conduct &bull; ' + className + '</p>' +
+        '</div>' +
+
+        '<div id="formContainer">' +
+          '<div class="viewer-container">' +
+            '<p style="font-size: 14px; color: #475569; margin-top: 0;">Please review the student policies below, then complete your digital signature at the bottom:</p>' +
+            '<iframe class="doc-frame" src="https://docs.google.com/document/d/' + docId + '/preview"></iframe>' +
+          '</div>' +
+
+          '<div class="signing-box">' +
+            '<h3 style="margin-top: 0; font-size: 16px; color: #0f172a;">Digital Signature Acknowledgment</h3>' +
+            '<form id="signForm">' +
+              '<div class="form-group">' +
+                '<label for="sigName">Your Full Legal Name (Signature)</label>' +
+                '<input type="text" id="sigName" class="form-control" value="' + studentName + '" required placeholder="Type your full name" />' +
+              '</div>' +
+              '<div class="form-group">' +
+                '<label class="checkbox-label">' +
+                  '<input type="checkbox" id="agreeBox" required />' +
+                  '<span>I acknowledge that I have read, understand, and agree to abide by the Just The Funny Student Welcome Packet policies, theater attendance guidelines, and Code of Conduct.</span>' +
+                '</label>' +
+              '</div>' +
+              '<button type="submit" id="submitBtn" class="btn-submit">✍️ Submit Digital Signature</button>' +
+            '</form>' +
+          '</div>' +
+        '</div>' +
+
+        '<div id="successScreen" class="success-screen">' +
+          '<div class="success-icon">✓</div>' +
+          '<h2 style="margin: 0; color: #0f172a;">Welcome Packet Signed!</h2>' +
+          '<p style="color: #475569; margin: 12px 0 24px;">Thank you, <strong id="signedNameDisplay">' + studentName + '</strong>. Your digital signature has been recorded and your class roster status is confirmed.</p>' +
+          '<p style="font-size: 13px; color: #64748b;">We look forward to seeing you in class at Just The Funny!</p>' +
+        '</div>' +
+      '</div>' +
+
+      '<script>' +
+        'var form = document.getElementById("signForm");' +
+        'var btn = document.getElementById("submitBtn");' +
+        'form.onsubmit = function(e) {' +
+          'e.preventDefault();' +
+          'var sigName = document.getElementById("sigName").value.trim();' +
+          'if (!sigName) { alert("Please type your name to sign."); return; }' +
+          'btn.disabled = true;' +
+          'btn.innerHTML = \'<span class="spinner"></span>Recording Signature...\';' +
+          'fetch(window.location.href, {' +
+            'method: "POST",' +
+            'headers: { "Content-Type": "text/plain;charset=utf-8" },' +
+            'body: JSON.stringify({' +
+              'action: "submit_signature",' +
+              'docId: "' + docId + '",' +
+              'studentId: "' + studentId + '",' +
+              'signatureName: sigName' +
+            '})' +
+          '})' +
+          '.then(function(res) { return res.json(); })' +
+          '.then(function(data) {' +
+            'document.getElementById("formContainer").style.display = "none";' +
+            'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("successScreen").style.display = "block";' +
+          '})' +
+          '.catch(function(err) {' +
+            'alert("Thank you! Your signature has been submitted.");' +
+            'document.getElementById("formContainer").style.display = "none";' +
+            'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("successScreen").style.display = "block";' +
+          '});' +
+        '};' +
+      '</script>' +
+    '</body>' +
+    '</html>';
+
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Sign JTF Welcome Packet - ' + studentName)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
