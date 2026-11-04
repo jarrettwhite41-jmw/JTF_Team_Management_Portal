@@ -115,11 +115,26 @@ export function parseStudentInterestSpreadsheet(
   fileBuffer: ArrayBuffer,
   classDemand: ClassDemandSummary[],
   personnelRoster: Personnel[],
-  defaultTargetCycle: string = 'Current Cycle'
-): { parsedLeads: ParsedStudentInterestRow[]; skippedCount: number; errors: string[] } {
+  defaultTargetCycle: string = 'Current Cycle',
+  existingDatabaseLeads: StudentInterestLead[] = []
+): { parsedLeads: ParsedStudentInterestRow[]; skippedCount: number; duplicatesSkippedCount: number; errors: string[] } {
   const errors: string[] = [];
   const parsedLeads: ParsedStudentInterestRow[] = [];
   let skippedCount = 0;
+  let duplicatesSkippedCount = 0;
+
+  // Track unique keys across existing DB leads AND within the spreadsheet file to prevent duplicates
+  // Key format: (email || student_name) + '|' + (class_level_id || level_name) + '|' + target_cycle
+  const seenKeys = new Set<string>();
+
+  for (const existing of existingDatabaseLeads) {
+    const studentIdentifier = (existing.email || existing.student_name || '').trim().toLowerCase();
+    const courseIdentifier = String(existing.class_level_id || existing.level_name || 'general').trim().toLowerCase();
+    const cycleIdentifier = (existing.target_cycle || defaultTargetCycle).trim().toLowerCase();
+    if (studentIdentifier) {
+      seenKeys.add(`${studentIdentifier}|${courseIdentifier}|${cycleIdentifier}`);
+    }
+  }
 
   try {
     const workbook = XLSX.read(fileBuffer, { type: 'array' });
@@ -225,6 +240,18 @@ export function parseStudentInterestSpreadsheet(
         for (const entry of courseEntries) {
           const mapping = mapColumnToClassLevel(entry.colName, classDemand);
 
+          // Deduplication Check
+          const studentIdentifier = (email || rawName).trim().toLowerCase();
+          const courseIdentifier = String(mapping.class_level_id || mapping.level_name || 'general').trim().toLowerCase();
+          const cycleIdentifier = defaultTargetCycle.trim().toLowerCase();
+          const dedupKey = `${studentIdentifier}|${courseIdentifier}|${cycleIdentifier}`;
+
+          if (seenKeys.has(dedupKey)) {
+            duplicatesSkippedCount++;
+            continue;
+          }
+          seenKeys.add(dedupKey);
+
           let status: StudentInterestLead['status'] = 'inquired';
           if (entry.code === 'PAID') status = 'enrolled';
           else if (entry.code === 'G') status = 'contacted';
@@ -258,29 +285,39 @@ export function parseStudentInterestSpreadsheet(
         }
       } else {
         // No matrix columns checked, but has student row with notes / interest
-        parsedLeads.push({
-          student_name: rawName,
-          email,
-          phone,
-          student_type,
-          class_level_id: null,
-          level_name: 'General Inquiry',
-          preferred_days: 'Flexible',
-          preferred_time: 'Evenings',
-          target_cycle: defaultTargetCycle,
-          status: 'inquired',
-          notes: existingNotes ? `Imported notes: ${existingNotes}` : 'Imported general lead',
-          matched_personnel_id: matchedPersonnel?.PersonnelID || null,
-          matched_personnel_name: matchedPersonnel
-            ? `${matchedPersonnel.FirstName} ${matchedPersonnel.LastName}`.trim()
-            : null,
-          raw_code: '-',
-        });
+        const studentIdentifier = (email || rawName).trim().toLowerCase();
+        const courseIdentifier = 'general';
+        const cycleIdentifier = defaultTargetCycle.trim().toLowerCase();
+        const dedupKey = `${studentIdentifier}|${courseIdentifier}|${cycleIdentifier}`;
+
+        if (seenKeys.has(dedupKey)) {
+          duplicatesSkippedCount++;
+        } else {
+          seenKeys.add(dedupKey);
+          parsedLeads.push({
+            student_name: rawName,
+            email,
+            phone,
+            student_type,
+            class_level_id: null,
+            level_name: 'General Inquiry',
+            preferred_days: 'Flexible',
+            preferred_time: 'Evenings',
+            target_cycle: defaultTargetCycle,
+            status: 'inquired',
+            notes: existingNotes ? `Imported notes: ${existingNotes}` : 'Imported general lead',
+            matched_personnel_id: matchedPersonnel?.PersonnelID || null,
+            matched_personnel_name: matchedPersonnel
+              ? `${matchedPersonnel.FirstName} ${matchedPersonnel.LastName}`.trim()
+              : null,
+            raw_code: '-',
+          });
+        }
       }
     }
   } catch (err: any) {
     errors.push(err?.message || 'Error parsing spreadsheet.');
   }
 
-  return { parsedLeads, skippedCount, errors };
+  return { parsedLeads, skippedCount, duplicatesSkippedCount, errors };
 }

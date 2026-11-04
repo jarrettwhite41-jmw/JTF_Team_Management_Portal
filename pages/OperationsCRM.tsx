@@ -4031,6 +4031,7 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
         }}
         classDemand={classDemand}
         personnelRoster={personnelRoster}
+        existingLeads={studentLeads}
       />
 
       {/* Modal: Add Student Interest Lead */}

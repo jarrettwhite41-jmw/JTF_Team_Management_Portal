@@ -3,7 +3,7 @@ import {
   parseStudentInterestSpreadsheet,
   ParsedStudentInterestRow,
 } from '../services/spreadsheetImportService';
-import { crmService, ClassDemandSummary } from '../services/crmService';
+import { crmService, ClassDemandSummary, StudentInterestLead } from '../services/crmService';
 import { Personnel } from '../types';
 
 interface SpreadsheetImportModalProps {
@@ -12,6 +12,7 @@ interface SpreadsheetImportModalProps {
   onSuccess: (importedCount: number) => void;
   classDemand: ClassDemandSummary[];
   personnelRoster: Personnel[];
+  existingLeads?: StudentInterestLead[];
 }
 
 export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
@@ -20,6 +21,7 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
   onSuccess,
   classDemand,
   personnelRoster,
+  existingLeads = [],
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string>('');
@@ -30,6 +32,7 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [skippedRowsCount, setSkippedRowsCount] = useState<number>(0);
+  const [duplicatesSkippedCount, setDuplicatesSkippedCount] = useState<number>(0);
 
   if (!isOpen) return null;
 
@@ -41,6 +44,7 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
     setIsParsing(true);
     setParseErrors([]);
     setParsedRows([]);
+    setDuplicatesSkippedCount(0);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -48,11 +52,13 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
         arrayBuffer,
         classDemand,
         personnelRoster,
-        targetCycle
+        targetCycle,
+        existingLeads
       );
 
       setParsedRows(result.parsedLeads);
       setSkippedRowsCount(result.skippedCount);
+      setDuplicatesSkippedCount(result.duplicatesSkippedCount);
       setParseErrors(result.errors);
     } catch (err: any) {
       setParseErrors([err?.message || 'Failed to read file.']);
@@ -187,8 +193,15 @@ export const SpreadsheetImportModal: React.FC<SpreadsheetImportModalProps> = ({
         {!isParsing && parsedRows.length > 0 && (
           <div className="flex-1 min-h-0 flex flex-col space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 shrink-0 bg-amber-50/60 border border-amber-200 p-2.5 rounded-lg">
-              <div>
-                Found <strong className="text-amber-900">{parsedRows.length}</strong> active interest lead records from file ({skippedRowsCount} empty/header rows skipped).
+              <div className="flex items-center gap-2">
+                <span>
+                  Found <strong className="text-amber-900">{parsedRows.length}</strong> clean, deduplicated interest leads.
+                </span>
+                {duplicatesSkippedCount > 0 && (
+                  <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                    🛡️ {duplicatesSkippedCount} duplicates automatically prevented
+                  </span>
+                )}
               </div>
               <input
                 type="text"
