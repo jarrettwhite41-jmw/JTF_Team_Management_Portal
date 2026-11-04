@@ -161,19 +161,19 @@ export const welcomePackageService = {
     }
 
     // Web / Vercel environment:
-    // If you configure a deployed Apps Script Web App URL in your settings or localStorage:
+    // Configured via Vite env variable, window global, or localStorage fallback
     const gasWebAppUrl =
+      import.meta.env.VITE_GAS_WELCOME_PACKET_URL ||
       (window as any).__JTF_GAS_WEBAPP_URL__ ||
       localStorage.getItem('JTF_GAS_WEBAPP_URL') ||
-      '';
+      'https://script.google.com/macros/s/AKfycbxwf02HsNjxgkmvsJb5hCmu3q5lEDQv4vZNkHyuO1WT_BDM1tclUab8tHvTmWHteUfT0g/exec';
 
     if (gasWebAppUrl) {
       try {
         const response = await fetch(gasWebAppUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
-            action: 'send_welcome_packet',
             studentId,
             studentName,
             studentEmail,
