@@ -166,7 +166,7 @@ export const welcomePackageService = {
       import.meta.env.VITE_GAS_WELCOME_PACKET_URL ||
       (window as any).__JTF_GAS_WEBAPP_URL__ ||
       localStorage.getItem('JTF_GAS_WEBAPP_URL') ||
-      'https://script.google.com/macros/s/AKfycbxwf02HsNjxgkmvsJb5hCmu3q5lEDQv4vZNkHyuO1WT_BDM1tclUab8tHvTmWHteUfT0g/exec';
+      'https://script.google.com/macros/s/AKfycbxZK9VefAgD3mux46pDw0st-suRvcOBLmuIRkPB_WxaCdHw9LFpaKQ-b2ExB7Xf-PMDsg/exec';
 
     if (gasWebAppUrl) {
       try {
