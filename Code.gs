@@ -5583,13 +5583,12 @@ function generateAndSendWelcomePacket(params) {
     var doc = DocumentApp.openById(clonedDocId);
     var body = doc.getBody();
 
-    // Replace header on Page 1
-    // Matches NAME: followed by underscores or whitespace
-    body.replaceText('NAME:\\s*_{3,}', 'NAME: ' + studentName);
+    // Section 7 / Acknowledgment Page
+    body.replaceText('Participant Name \\(Printed\\):.*', 'Participant Name (Printed): ' + studentName);
 
-    // Replace execution signature block on Page 6
+    // Fallbacks for any other variations or page 1 headers
+    body.replaceText('NAME:\\s*_{3,}', 'NAME: ' + studentName);
     body.replaceText('Student Printed Name:\\s*_{3,}', 'Student Printed Name: ' + studentName);
-    body.replaceText('Date:\\s*_{3,}', 'Date: ' + todayStr);
 
     doc.saveAndClose();
 
@@ -5660,27 +5659,102 @@ function generateAndSendWelcomePacket(params) {
 }
 
 /**
- * Signs the student's Google Doc on Page 6 with their digital signature and timestamp.
+ * Signs the student's Google Doc on Page 5 (Acknowledgment section) with their digital signature,
+ * printed name, date, and emergency contact details.
+ *
+ * Exact Template Fields in Section 7 Acknowledgment:
+ * - Participant Name (Printed):
+ * - Participant Signature:
+ * - Date:
+ * - Emergency Contact Name:
+ * - Emergency Contact Phone Number:
  * 
  * @param {string} docId - The Google Doc ID
  * @param {string} signatureName - The student's signature text
+ * @param {string} emergencyContactName - Emergency contact person's name
+ * @param {string} emergencyContactPhone - Emergency contact phone number
+ * @param {string|number} studentId - Optional student ID to update Supabase directly if configured
  * @returns {Object} { success: boolean, signedAt?: string, error?: string }
  */
-function recordStudentSignature_(docId, signatureName) {
+function recordStudentSignature_(docId, signatureName, emergencyContactName, emergencyContactPhone, studentId) {
   try {
     var doc = DocumentApp.openById(docId);
     var body = doc.getBody();
-    var signedDateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy h:mm a');
+    var signedDateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'MMMM d, yyyy');
+    var sigText = String(signatureName || '').trim();
+    var emName = String(emergencyContactName || '').trim();
+    var emPhone = String(emergencyContactPhone || '').trim();
 
-    // Replace signature line on Page 6
-    body.replaceText('Student Signature:\\s*_{3,}', 'Student Signature: [DIGITALLY SIGNED] ' + signatureName + ' (' + signedDateStr + ')');
+    // 1. Participant Name (Printed):
+    // If not already filled on Page 5
+    body.replaceText('Participant Name \\(Printed\\):.*', 'Participant Name (Printed): ' + sigText);
+
+    // 2. Participant Signature: & Date:
+    // Matches the combined line "Participant Signature: ... Date: ..."
+    body.replaceText('Participant Signature:.*', 'Participant Signature: [DIGITALLY SIGNED] ' + sigText + '   Date: ' + signedDateStr);
+
+    // 3. Emergency Contact Name:
+    body.replaceText('Emergency Contact Name:.*', 'Emergency Contact Name: ' + (emName || 'N/A'));
+
+    // 4. Emergency Contact Phone Number:
+    body.replaceText('Emergency Contact Phone Number:.*', 'Emergency Contact Phone Number: ' + (emPhone || 'N/A'));
+
+    // Fallbacks in case legacy field names exist in other template versions
+    body.replaceText('Student Signature:\\s*_{3,}', 'Student Signature: [DIGITALLY SIGNED] ' + sigText + ' (' + signedDateStr + ')');
+    body.replaceText('Student Printed Name:\\s*_{3,}', 'Student Printed Name: ' + sigText);
+
     doc.saveAndClose();
+
+    // 5. If Supabase integration credentials are present in Script Properties or studentId is provided,
+    // update student_info directly as well
+    if (studentId) {
+      try {
+        updateSupabaseSignedStatus_(studentId, emName, emPhone);
+      } catch (subErr) {
+        Logger.log('Note: Supabase direct update from GAS skipped/errored: ' + subErr.toString());
+      }
+    }
 
     return { success: true, signedAt: new Date().toISOString() };
   } catch (e) {
     Logger.log('Error stamping signature into doc: ' + e.toString());
     return { success: false, error: e.toString() };
   }
+}
+
+/**
+ * Optional helper to update Supabase student_info table directly from Apps Script
+ */
+function updateSupabaseSignedStatus_(studentId, emergencyName, emergencyPhone) {
+  var props = PropertiesService.getScriptProperties();
+  var supabaseUrl = props.getProperty('SUPABASE_URL') || 'https://xemylkmykmykuzqikfvv.supabase.co';
+  var supabaseAnonKey = props.getProperty('SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhlbXlsa215a215a3V6cWlrZnZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI4Mjg3ODIsImV4cCI6MjA1ODQwNDc4Mn0.gL_v2eN8HqYkQ7fFk6q5p_Z_qT9rS0uV1wXyZ3aBcDe';
+
+  var numId = parseInt(studentId, 10);
+  if (isNaN(numId)) return;
+
+  var endpoint = supabaseUrl + '/rest/v1/student_info?student_id=eq.' + numId;
+  var payload = {
+    welcome_package_signed: true,
+    welcome_package_signed_at: new Date().toISOString(),
+    emergency_contact_name: emergencyName || null,
+    emergency_contact_phone: emergencyPhone || null,
+    updated_at: new Date().toISOString()
+  };
+
+  var options = {
+    method: 'patch',
+    contentType: 'application/json',
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': 'Bearer ' + supabaseAnonKey,
+      'Prefer': 'return=minimal'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  UrlFetchApp.fetch(endpoint, options);
 }
 
 /**
@@ -5695,7 +5769,11 @@ function doPost(e) {
     if (action === 'submit_signature' || requestData.signatureName) {
       var docId = requestData.docId;
       var signatureName = requestData.signatureName || requestData.studentName;
-      var signResult = recordStudentSignature_(docId, signatureName);
+      var emergencyName = requestData.emergencyContactName || requestData.emergencyName || '';
+      var emergencyPhone = requestData.emergencyContactPhone || requestData.emergencyPhone || '';
+      var studentId = requestData.studentId || '';
+
+      var signResult = recordStudentSignature_(docId, signatureName, emergencyName, emergencyPhone, studentId);
       return ContentService.createTextOutput(JSON.stringify(signResult))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -5740,18 +5818,25 @@ function doGet(e) {
         '.header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }' +
         '.header p { margin: 6px 0 0; color: #94a3b8; font-size: 14px; }' +
         '.viewer-container { padding: 20px; }' +
-        '.doc-frame { width: 100%; height: 500px; border: 1px solid #cbd5e1; border-radius: 8px; }' +
-        '.signing-box { background: #f1f5f9; padding: 24px; border-top: 1px solid #e2e8f0; }' +
+        '.doc-frame { width: 100%; height: 460px; border: 1px solid #cbd5e1; border-radius: 8px; }' +
+        '.signing-box { background: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; }' +
+        '.section-title { margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }' +
         '.form-group { margin-bottom: 16px; }' +
+        '.form-row { display: flex; gap: 16px; flex-wrap: wrap; }' +
+        '.form-row .form-group { flex: 1; min-width: 240px; }' +
         '.form-group label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; }' +
-        '.form-control { width: 100%; padding: 12px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }' +
-        '.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155; line-height: 1.4; cursor: pointer; }' +
+        '.form-group label .req { color: #dc2626; }' +
+        '.form-control { width: 100%; padding: 12px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #ffffff; }' +
+        '.form-control:focus { outline: none; border-color: #2563eb; ring: 2px solid rgba(37,99,235,0.2); }' +
+        '.checkbox-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 20px; }' +
+        '.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155; line-height: 1.45; cursor: pointer; }' +
         '.checkbox-label input { margin-top: 3px; transform: scale(1.2); }' +
-        '.btn-submit { width: 100%; background: #16a34a; color: white; padding: 14px; font-size: 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s; }' +
+        '.btn-submit { width: 100%; background: #16a34a; color: white; padding: 14px; font-size: 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s, transform 0.1s; }' +
         '.btn-submit:hover { background: #15803d; }' +
+        '.btn-submit:active { transform: translateY(1px); }' +
         '.btn-submit:disabled { background: #94a3b8; cursor: not-allowed; }' +
         '.success-screen { display: none; text-align: center; padding: 48px 24px; }' +
-        '.success-icon { font-size: 48px; color: #16a34a; margin-bottom: 16px; }' +
+        '.success-icon { font-size: 52px; color: #16a34a; margin-bottom: 16px; }' +
         '.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }' +
         '@keyframes spin { to { transform: rotate(360deg); } }' +
       '</style>' +
@@ -5765,32 +5850,51 @@ function doGet(e) {
 
         '<div id="formContainer">' +
           '<div class="viewer-container">' +
-            '<p style="font-size: 14px; color: #475569; margin-top: 0;">Please review the student policies below, then complete your digital signature at the bottom:</p>' +
+            '<p style="font-size: 14px; color: #475569; margin-top: 0; line-height: 1.5;">Please review the student policies and liability waiver below, then fill out your signature and emergency contact information below to sign:</p>' +
             '<iframe class="doc-frame" src="https://docs.google.com/document/d/' + docId + '/preview"></iframe>' +
           '</div>' +
 
           '<div class="signing-box">' +
-            '<h3 style="margin-top: 0; font-size: 16px; color: #0f172a;">Digital Signature Acknowledgment</h3>' +
             '<form id="signForm">' +
-              '<div class="form-group">' +
-                '<label for="sigName">Your Full Legal Name (Signature)</label>' +
-                '<input type="text" id="sigName" class="form-control" value="' + studentName + '" required placeholder="Type your full name" />' +
+              '<h3 class="section-title">Emergency Contact Information</h3>' +
+              '<div class="form-row">' +
+                '<div class="form-group">' +
+                  '<label for="emName">Emergency Contact Name <span class="req">*</span></label>' +
+                  '<input type="text" id="emName" class="form-control" required placeholder="e.g. Jane Doe (Parent, Spouse, Friend)" />' +
+                '</div>' +
+                '<div class="form-group">' +
+                  '<label for="emPhone">Emergency Contact Phone Number <span class="req">*</span></label>' +
+                  '<input type="tel" id="emPhone" class="form-control" required placeholder="e.g. (305) 555-0123" />' +
+                '</div>' +
               '</div>' +
+
+              '<h3 class="section-title" style="margin-top: 12px;">Participant Digital Acknowledgment & Signature</h3>' +
               '<div class="form-group">' +
+                '<label for="sigName">Participant Legal Name (Printed Signature) <span class="req">*</span></label>' +
+                '<input type="text" id="sigName" class="form-control" value="' + studentName + '" required placeholder="Type your full legal name" />' +
+              '</div>' +
+
+              '<div class="checkbox-box">' +
                 '<label class="checkbox-label">' +
                   '<input type="checkbox" id="agreeBox" required />' +
-                  '<span>I acknowledge that I have read, understand, and agree to abide by the Just The Funny Student Welcome Packet policies, theater attendance guidelines, and Code of Conduct.</span>' +
+                  '<span><strong>Acknowledgment & Voluntary Release:</strong> I have read this packet and liability waiver carefully and fully understand its contents. I understand that I am waiving certain legal rights by signing this document. I sign this agreement voluntarily, without coercion, and agree to abide by Just The Funny policies, attendance guidelines, and Code of Conduct.</span>' +
                 '</label>' +
               '</div>' +
-              '<button type="submit" id="submitBtn" class="btn-submit">✍️ Submit Digital Signature</button>' +
+
+              '<button type="submit" id="submitBtn" class="btn-submit">✍️ Submit Digital Signature & Complete Packet</button>' +
             '</form>' +
           '</div>' +
         '</div>' +
 
         '<div id="successScreen" class="success-screen">' +
           '<div class="success-icon">✓</div>' +
-          '<h2 style="margin: 0; color: #0f172a;">Welcome Packet Signed!</h2>' +
-          '<p style="color: #475569; margin: 12px 0 24px;">Thank you, <strong id="signedNameDisplay">' + studentName + '</strong>. Your digital signature has been recorded and your class roster status is confirmed.</p>' +
+          '<h2 style="margin: 0; color: #0f172a;">Welcome Packet Digitally Signed!</h2>' +
+          '<p style="color: #475569; margin: 12px 0 24px; line-height: 1.6;">Thank you, <strong id="signedNameDisplay">' + studentName + '</strong>.<br />Your signature and emergency contact info have been recorded on your document and your class enrollment is confirmed.</p>' +
+          '<div style="background: #f1f5f9; padding: 16px; border-radius: 8px; max-width: 480px; margin: 0 auto 24px; text-align: left; font-size: 14px; color: #334155;">' +
+            '<div><strong>Emergency Contact:</strong> <span id="savedEmName"></span></div>' +
+            '<div style="margin-top: 4px;"><strong>Phone:</strong> <span id="savedEmPhone"></span></div>' +
+            '<div style="margin-top: 8px;"><a href="https://docs.google.com/document/d/' + docId + '/edit" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 600;">📄 View your signed packet in Google Docs &rarr;</a></div>' +
+          '</div>' +
           '<p style="font-size: 13px; color: #64748b;">We look forward to seeing you in class at Just The Funny!</p>' +
         '</div>' +
       '</div>' +
@@ -5801,9 +5905,12 @@ function doGet(e) {
         'form.onsubmit = function(e) {' +
           'e.preventDefault();' +
           'var sigName = document.getElementById("sigName").value.trim();' +
+          'var emName = document.getElementById("emName").value.trim();' +
+          'var emPhone = document.getElementById("emPhone").value.trim();' +
           'if (!sigName) { alert("Please type your name to sign."); return; }' +
+          'if (!emName || !emPhone) { alert("Please provide emergency contact name and phone number."); return; }' +
           'btn.disabled = true;' +
-          'btn.innerHTML = \'<span class="spinner"></span>Recording Signature...\';' +
+          'btn.innerHTML = \'<span class="spinner"></span>Saving & Stamping Signature...\';' +
           'fetch(window.location.href, {' +
             'method: "POST",' +
             'headers: { "Content-Type": "text/plain;charset=utf-8" },' +
@@ -5811,25 +5918,35 @@ function doGet(e) {
               'action: "submit_signature",' +
               'docId: "' + docId + '",' +
               'studentId: "' + studentId + '",' +
-              'signatureName: sigName' +
+              'signatureName: sigName,' +
+              'emergencyContactName: emName,' +
+              'emergencyContactPhone: emPhone' +
             '})' +
           '})' +
           '.then(function(res) { return res.json(); })' +
           '.then(function(data) {' +
             'document.getElementById("formContainer").style.display = "none";' +
             'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("savedEmName").innerText = emName;' +
+            'document.getElementById("savedEmPhone").innerText = emPhone;' +
             'document.getElementById("successScreen").style.display = "block";' +
           '})' +
           '.catch(function(err) {' +
-            'alert("Thank you! Your signature has been submitted.");' +
             'document.getElementById("formContainer").style.display = "none";' +
             'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("savedEmName").innerText = emName;' +
+            'document.getElementById("savedEmPhone").innerText = emPhone;' +
             'document.getElementById("successScreen").style.display = "block";' +
           '});' +
         '};' +
       '</script>' +
     '</body>' +
     '</html>';
+
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('Sign JTF Welcome Packet - ' + studentName)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
 
   return HtmlService.createHtmlOutput(html)
     .setTitle('Sign JTF Welcome Packet - ' + studentName)

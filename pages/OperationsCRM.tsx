@@ -1763,6 +1763,14 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                                   : '—'}
                               </span>
                             </div>
+                            {student.emergency_contact_name && (
+                              <div className="col-span-2 pt-1 border-t border-slate-200">
+                                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Emergency Contact</span>
+                                <span className="text-slate-800 font-medium truncate block">
+                                  {student.emergency_contact_name} {student.emergency_contact_phone ? `(${student.emergency_contact_phone})` : ''}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-end gap-2 pt-1">
@@ -1834,9 +1842,18 @@ export const OperationsCRM: React.FC<OperationsCRMProps> = ({ initialTab = 'sche
                                   )}
                                 </td>
                                 <td className="py-3 px-3 text-xs text-slate-600 truncate">
-                                  {student.welcome_package_signed_at
-                                    ? new Date(student.welcome_package_signed_at).toLocaleDateString()
-                                    : '—'}
+                                  {student.welcome_package_signed_at ? (
+                                    <div>
+                                      <div>{new Date(student.welcome_package_signed_at).toLocaleDateString()}</div>
+                                      {student.emergency_contact_name && (
+                                        <div className="text-[11px] text-slate-400 truncate font-normal">
+                                          ICE: {student.emergency_contact_name}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    '—'
+                                  )}
                                 </td>
                                 <td className="py-3 px-3 text-right">
                                   <div className="inline-flex items-center justify-end gap-1.5">

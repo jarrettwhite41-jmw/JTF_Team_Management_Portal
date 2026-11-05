@@ -10,6 +10,8 @@ export interface WelcomePackageRecord {
   welcome_package_sent_at?: string | null;
   welcome_package_signed: boolean;
   welcome_package_signed_at: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
   welcome_package_doc_url?: string | null;
   welcome_package_pdf_url?: string | null;
 }
@@ -36,6 +38,8 @@ export const welcomePackageService = {
         status,
         welcome_package_signed,
         welcome_package_signed_at,
+        emergency_contact_name,
+        emergency_contact_phone,
         personnel:personnel_id (
           first_name,
           last_name,
@@ -64,6 +68,8 @@ export const welcomePackageService = {
         status: s.status,
         welcome_package_signed: Boolean(s.welcome_package_signed),
         welcome_package_signed_at: s.welcome_package_signed_at || null,
+        emergency_contact_name: s.emergency_contact_name || null,
+        emergency_contact_phone: s.emergency_contact_phone || null,
         // Optional extensions stored if column exists or handled via metadata
         welcome_package_sent: Boolean(s.welcome_package_signed || s.welcome_package_sent_at),
         welcome_package_sent_at: s.welcome_package_sent_at || null,
