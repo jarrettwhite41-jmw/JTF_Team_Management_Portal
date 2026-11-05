@@ -5662,12 +5662,8 @@ function generateAndSendWelcomePacket(params) {
  * Signs the student's Google Doc on Page 5 (Acknowledgment section) with their digital signature,
  * printed name, date, and emergency contact details.
  *
- * Exact Template Fields in Section 7 Acknowledgment:
- * - Participant Name (Printed):
- * - Participant Signature:
- * - Date:
- * - Emergency Contact Name:
- * - Emergency Contact Phone Number:
+ * Handles both plain text placeholders and Google Docs inline drawing/field boxes by
+ * directly targeting the paragraphs and replacing their contents with clear, stamped text.
  * 
  * @param {string} docId - The Google Doc ID
  * @param {string} signatureName - The student's signature text
@@ -5685,28 +5681,47 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
     var emName = String(emergencyContactName || '').trim();
     var emPhone = String(emergencyContactPhone || '').trim();
 
-    // 1. Participant Name (Printed):
-    // If not already filled on Page 5
+    // Loop through all paragraphs to find the exact signature block items
+    // and replace paragraph text completely (which cleanly removes any blank drawing/form boxes).
+    var paragraphs = body.getParagraphs();
+    for (var i = 0; i < paragraphs.length; i++) {
+      var p = paragraphs[i];
+      var rawText = p.getText().trim();
+
+      // 1. Participant Name (Printed)
+      if (rawText.indexOf('Participant Name') !== -1) {
+        p.setText('Participant Name (Printed): ' + sigText);
+      }
+      // 2. Participant Signature line
+      else if (rawText.indexOf('Participant Signature') !== -1) {
+        p.setText('Participant Signature: [DIGITALLY SIGNED] ' + sigText + '    Date: ' + signedDateStr);
+      }
+      // 3. Emergency Contact Name line
+      else if (rawText.indexOf('Emergency Contact Name') !== -1) {
+        p.setText('Emergency Contact Name: ' + (emName || 'N/A'));
+      }
+      // 4. Emergency Contact Phone Number line
+      else if (rawText.indexOf('Emergency Contact Phone') !== -1) {
+        p.setText('Emergency Contact Phone Number: ' + (emPhone || 'N/A'));
+      }
+      // Legacy template fallback
+      else if (rawText.indexOf('Student Signature') !== -1) {
+        p.setText('Student Signature: [DIGITALLY SIGNED] ' + sigText + ' (' + signedDateStr + ')');
+      }
+      else if (rawText.indexOf('Student Printed Name') !== -1) {
+        p.setText('Student Printed Name: ' + sigText);
+      }
+    }
+
+    // Secondary pass with replaceText for any inline occurrences or table cells
     body.replaceText('Participant Name \\(Printed\\):.*', 'Participant Name (Printed): ' + sigText);
-
-    // 2. Participant Signature: & Date:
-    // Matches the combined line "Participant Signature: ... Date: ..."
-    body.replaceText('Participant Signature:.*', 'Participant Signature: [DIGITALLY SIGNED] ' + sigText + '   Date: ' + signedDateStr);
-
-    // 3. Emergency Contact Name:
+    body.replaceText('Participant Signature:.*', 'Participant Signature: [DIGITALLY SIGNED] ' + sigText + '    Date: ' + signedDateStr);
     body.replaceText('Emergency Contact Name:.*', 'Emergency Contact Name: ' + (emName || 'N/A'));
-
-    // 4. Emergency Contact Phone Number:
     body.replaceText('Emergency Contact Phone Number:.*', 'Emergency Contact Phone Number: ' + (emPhone || 'N/A'));
-
-    // Fallbacks in case legacy field names exist in other template versions
-    body.replaceText('Student Signature:\\s*_{3,}', 'Student Signature: [DIGITALLY SIGNED] ' + sigText + ' (' + signedDateStr + ')');
-    body.replaceText('Student Printed Name:\\s*_{3,}', 'Student Printed Name: ' + sigText);
 
     doc.saveAndClose();
 
-    // 5. If Supabase integration credentials are present in Script Properties or studentId is provided,
-    // update student_info directly as well
+    // Direct Supabase status sync
     if (studentId) {
       try {
         updateSupabaseSignedStatus_(studentId, emName, emPhone);
