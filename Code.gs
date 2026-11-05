@@ -5660,20 +5660,20 @@ function generateAndSendWelcomePacket(params) {
 
 /**
  * Signs the student's Google Doc on Page 5 (Acknowledgment section) with their digital signature,
- * printed name, date, and emergency contact details.
+ * printed name, date, emergency contact details, and optional drawn signature image.
  *
- * Handles both plain text placeholders and Google Docs inline drawing boxes.
- * Replaces the blank drawing boxes with a clean, official Digital Signature & Acknowledgment Certificate
- * directly in the document, rendering all information clearly and eliminating blank boxes.
+ * It removes any empty inline drawing shapes, stamps the text and certificate block with the signature,
+ * and automatically converts and saves a permanent SIGNED PDF in the student's Google Drive folder.
  * 
  * @param {string} docId - The Google Doc ID
  * @param {string} signatureName - The student's signature text
  * @param {string} emergencyContactName - Emergency contact person's name
  * @param {string} emergencyContactPhone - Emergency contact phone number
  * @param {string|number} studentId - Optional student ID to update Supabase directly if configured
- * @returns {Object} { success: boolean, signedAt?: string, error?: string }
+ * @param {string} signatureImageBase64 - Optional Base64 PNG data URL of drawn signature
+ * @returns {Object} { success: boolean, signedAt?: string, pdfUrl?: string, pdfId?: string, error?: string }
  */
-function recordStudentSignature_(docId, signatureName, emergencyContactName, emergencyContactPhone, studentId) {
+function recordStudentSignature_(docId, signatureName, emergencyContactName, emergencyContactPhone, studentId, signatureImageBase64) {
   try {
     var doc = DocumentApp.openById(docId);
     var body = doc.getBody();
@@ -5682,8 +5682,19 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
     var emName = String(emergencyContactName || '').trim();
     var emPhone = String(emergencyContactPhone || '').trim();
 
-    // 1. First pass: Find any paragraphs with drawing boxes and remove any INLINE_DRAWING elements
-    // so no empty vector boxes remain in the document.
+    // Prepare optional drawn signature image blob
+    var signatureBlob = null;
+    if (signatureImageBase64 && signatureImageBase64.indexOf('base64,') !== -1) {
+      try {
+        var base64Data = signatureImageBase64.split('base64,')[1];
+        var decodedBytes = Utilities.base64Decode(base64Data);
+        signatureBlob = Utilities.newBlob(decodedBytes, 'image/png', 'signature.png');
+      } catch (imgErr) {
+        Logger.log('Could not decode signature image: ' + imgErr.toString());
+      }
+    }
+
+    // 1. Remove all empty INLINE_DRAWING shapes from paragraphs in the acknowledgment block
     var numChildren = body.getNumChildren();
     for (var i = 0; i < numChildren; i++) {
       var child = body.getChild(i);
@@ -5694,7 +5705,6 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
             pText.indexOf('Participant Signature') !== -1 || 
             pText.indexOf('Emergency Contact') !== -1) {
           
-          // Remove any inline drawing shapes from this paragraph
           for (var c = p.getNumChildren() - 1; c >= 0; c--) {
             var grandChild = p.getChild(c);
             if (grandChild.getType() === DocumentApp.ElementType.INLINE_DRAWING) {
@@ -5705,8 +5715,7 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
       }
     }
 
-    // 2. Second pass: Replace the acknowledgment lines with an official, styled
-    // Digital Signature Certificate Table or formatted paragraphs.
+    // 2. Replace the acknowledgment lines with clean, styled stamped text
     var paragraphs = body.getParagraphs();
     var ackIndex = -1;
 
@@ -5719,7 +5728,7 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
         pObj.setText('Participant Name (Printed):  ' + sigText);
         pObj.setBold(false);
         var pTextObj = pObj.editAsText();
-        pTextObj.setBold(0, 26, true); // Bold the label
+        pTextObj.setBold(0, 26, true);
       } else if (raw.indexOf('Participant Signature:') !== -1) {
         pObj.setText('Participant Signature:  ✍️ [DIGITALLY SIGNED] ' + sigText + '      Date: ' + signedDateStr);
         pObj.setBold(false);
@@ -5734,7 +5743,6 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
         pObj.setBold(false);
         pObj.editAsText().setBold(0, 23, true);
       } else if (raw.indexOf('Emergency Contact Phone Number:') !== -1) {
-        // Retain the trailing waiver notice if present
         var noticeIdx = raw.indexOf('Please sign this Waiver');
         var trailingNotice = noticeIdx !== -1 ? '\n\n' + raw.substring(noticeIdx).trim() : '';
         pObj.setText('Emergency Contact Phone Number:  ' + (emPhone || 'N/A') + trailingNotice);
@@ -5743,15 +5751,20 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
       }
     }
 
-    // 3. Official Certificate Table insertion:
-    // If an acknowledgment section exists, insert a certified, styled signature certificate table
-    // right after the section so that the document is officially and visibly signed beyond any doubt.
+    // 3. Official Certificate Table insertion
+    var foundAcknowledgment = false;
+    for (var k = 0; k < paragraphs.length; k++) {
+      if (paragraphs[k].getText().indexOf('7. Acknowledgment') !== -1) {
+        foundAcknowledgment = true;
+        break;
+      }
+    }
+
     if (foundAcknowledgment && ackIndex !== -1) {
-      // Check if a certificate table has already been inserted
       var tables = body.getTables();
       var certTableExists = false;
       for (var t = 0; t < tables.length; t++) {
-        if (tables[t].getText().indexOf('DIGITAL SIGNATURE & ACKNOWLEDGMENT CERTIFICATE') !== -1) {
+        if (tables[t].getText().indexOf('DIGITAL SIGNATURE & EMERGENCY CONTACT CERTIFICATE') !== -1) {
           certTableExists = true;
           break;
         }
@@ -5772,13 +5785,13 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
         table.setBorderColor('#334155');
         table.setBorderWidth(1.5);
 
-        // Merge header row across both columns
+        // Header row
         var headerRow = table.getRow(0);
         headerRow.getCell(0).setBackgroundColor('#0f172a');
         headerRow.getCell(0).editAsText().setForegroundColor('#ffffff').setBold(true).setFontSize(11);
         headerRow.getCell(1).setBackgroundColor('#0f172a');
 
-        // Style the data rows
+        // Data rows
         for (var r = 1; r < certRows.length; r++) {
           var row = table.getRow(r);
           var labelCell = row.getCell(0);
@@ -5791,9 +5804,19 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
           valCell.setBackgroundColor('#ffffff');
           valCell.editAsText().setFontSize(10).setForegroundColor('#0f172a');
           if (r === 2) {
-            valCell.editAsText().setBold(true).setForegroundColor('#15803d'); // Green for signature
+            valCell.editAsText().setBold(true).setForegroundColor('#15803d');
+            // If student drew their signature, attach the image right into the certificate row
+            if (signatureBlob) {
+              try {
+                var sigImg = valCell.appendInlineImage(signatureBlob);
+                sigImg.setWidth(150);
+                sigImg.setHeight(42);
+              } catch (eImg) {
+                Logger.log('Could not append signature image to cell: ' + eImg.toString());
+              }
+            }
           } else if (r === certRows.length - 1) {
-            valCell.editAsText().setBold(true).setForegroundColor('#1e40af'); // Blue for verified status
+            valCell.editAsText().setBold(true).setForegroundColor('#1e40af');
           }
         }
       }
@@ -5807,7 +5830,25 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
 
     doc.saveAndClose();
 
-    // Direct Supabase status sync
+    // 4. Generate finalized, sealed PDF and store in the student's class Google Drive folder
+    var pdfUrl = '';
+    var pdfId = '';
+    try {
+      var docFile = DriveApp.getFileById(docId);
+      var safeName = sigText.replace(/[^a-zA-Z0-9]/g, '_') || 'Student';
+      var pdfBlob = docFile.getAs('application/pdf');
+      pdfBlob.setName('Signed_Welcome_Packet_' + safeName + '.pdf');
+
+      var parentFolder = docFile.getParents().hasNext() ? docFile.getParents().next() : DriveApp.getRootFolder();
+      var pdfFile = parentFolder.createFile(pdfBlob);
+      pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      pdfUrl = pdfFile.getUrl();
+      pdfId = pdfFile.getId();
+    } catch (pdfErr) {
+      Logger.log('PDF generation note: ' + pdfErr.toString());
+    }
+
+    // 5. Direct Supabase status sync
     if (studentId) {
       try {
         updateSupabaseSignedStatus_(studentId, emName, emPhone);
@@ -5816,7 +5857,13 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
       }
     }
 
-    return { success: true, signedAt: new Date().toISOString() };
+    return { 
+      success: true, 
+      signedAt: new Date().toISOString(),
+      docUrl: 'https://docs.google.com/document/d/' + docId + '/edit',
+      pdfUrl: pdfUrl,
+      pdfId: pdfId
+    };
   } catch (e) {
     Logger.log('Error stamping signature into doc: ' + e.toString());
     return { success: false, error: e.toString() };
@@ -5873,8 +5920,9 @@ function doPost(e) {
       var emergencyName = requestData.emergencyContactName || requestData.emergencyName || '';
       var emergencyPhone = requestData.emergencyContactPhone || requestData.emergencyPhone || '';
       var studentId = requestData.studentId || '';
+      var signatureImage = requestData.signatureImage || '';
 
-      var signResult = recordStudentSignature_(docId, signatureName, emergencyName, emergencyPhone, studentId);
+      var signResult = recordStudentSignature_(docId, signatureName, emergencyName, emergencyPhone, studentId, signatureImage);
       return ContentService.createTextOutput(JSON.stringify(signResult))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -5912,14 +5960,17 @@ function doGet(e) {
       '<meta charset="UTF-8">' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
       '<title>Sign JTF Welcome Packet - ' + studentName + '</title>' +
+      '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+      '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+      '<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">' +
       '<style>' +
         'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #0f172a; margin: 0; padding: 16px; }' +
-        '.container { max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; overflow: hidden; }' +
+        '.container { max-width: 840px; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; overflow: hidden; }' +
         '.header { background: #0f172a; color: white; padding: 24px; text-align: center; }' +
         '.header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }' +
         '.header p { margin: 6px 0 0; color: #94a3b8; font-size: 14px; }' +
         '.viewer-container { padding: 20px; }' +
-        '.doc-frame { width: 100%; height: 460px; border: 1px solid #cbd5e1; border-radius: 8px; }' +
+        '.doc-frame { width: 100%; height: 480px; border: 1px solid #cbd5e1; border-radius: 8px; }' +
         '.signing-box { background: #f8fafc; padding: 24px; border-top: 1px solid #e2e8f0; }' +
         '.section-title { margin: 0 0 16px 0; font-size: 16px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }' +
         '.form-group { margin-bottom: 16px; }' +
@@ -5929,16 +5980,24 @@ function doGet(e) {
         '.form-group label .req { color: #dc2626; }' +
         '.form-control { width: 100%; padding: 12px; font-size: 15px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; background: #ffffff; }' +
         '.form-control:focus { outline: none; border-color: #2563eb; ring: 2px solid rgba(37,99,235,0.2); }' +
+        '.pad-tabs { display: flex; gap: 8px; margin-bottom: 10px; }' +
+        '.pad-tab { padding: 8px 16px; font-size: 13px; font-weight: 600; border: 1px solid #cbd5e1; background: #ffffff; border-radius: 6px; cursor: pointer; color: #475569; }' +
+        '.pad-tab.active { background: #0f172a; color: #ffffff; border-color: #0f172a; }' +
+        '.pad-wrapper { border: 2px dashed #94a3b8; border-radius: 8px; background: #ffffff; padding: 6px; position: relative; }' +
+        '#sigCanvas { width: 100%; height: 140px; display: block; cursor: crosshair; touch-action: none; background: #ffffff; }' +
+        '#typedSigPreview { width: 100%; height: 140px; display: none; align-items: center; justify-content: center; font-family: "Caveat", cursive; font-size: 44px; color: #1e3a8a; }' +
+        '.pad-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; color: #64748b; }' +
+        '.btn-clear { background: none; border: none; color: #dc2626; font-size: 12px; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0; }' +
         '.checkbox-box { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; margin-bottom: 20px; }' +
         '.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #334155; line-height: 1.45; cursor: pointer; }' +
         '.checkbox-label input { margin-top: 3px; transform: scale(1.2); }' +
-        '.btn-submit { width: 100%; background: #16a34a; color: white; padding: 14px; font-size: 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s, transform 0.1s; }' +
+        '.btn-submit { width: 100%; background: #16a34a; color: white; padding: 15px; font-size: 16px; font-weight: 700; border: none; border-radius: 6px; cursor: pointer; transition: background 0.2s, transform 0.1s; }' +
         '.btn-submit:hover { background: #15803d; }' +
         '.btn-submit:active { transform: translateY(1px); }' +
         '.btn-submit:disabled { background: #94a3b8; cursor: not-allowed; }' +
-        '.success-screen { display: none; text-align: center; padding: 48px 24px; }' +
-        '.success-icon { font-size: 52px; color: #16a34a; margin-bottom: 16px; }' +
-        '.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }' +
+        '.success-screen { display: none; text-align: center; padding: 40px 24px; }' +
+        '.success-icon { font-size: 56px; color: #16a34a; margin-bottom: 12px; }' +
+        '.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid white; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }' +
         '@keyframes spin { to { transform: rotate(360deg); } }' +
       '</style>' +
     '</head>' +
@@ -5951,13 +6010,13 @@ function doGet(e) {
 
         '<div id="formContainer">' +
           '<div class="viewer-container">' +
-            '<p style="font-size: 14px; color: #475569; margin-top: 0; line-height: 1.5;">Please review the student policies and liability waiver below, then fill out your signature and emergency contact information below to sign:</p>' +
+            '<p style="font-size: 14px; color: #475569; margin-top: 0; line-height: 1.5;">Please review the student policies and liability waiver below, then sign and complete your emergency contact details:</p>' +
             '<iframe class="doc-frame" src="https://docs.google.com/document/d/' + docId + '/preview"></iframe>' +
           '</div>' +
 
           '<div class="signing-box">' +
             '<form id="signForm">' +
-              '<h3 class="section-title">Emergency Contact Information</h3>' +
+              '<h3 class="section-title">1. Emergency Contact Information</h3>' +
               '<div class="form-row">' +
                 '<div class="form-group">' +
                   '<label for="emName">Emergency Contact Name <span class="req">*</span></label>' +
@@ -5969,10 +6028,26 @@ function doGet(e) {
                 '</div>' +
               '</div>' +
 
-              '<h3 class="section-title" style="margin-top: 12px;">Participant Digital Acknowledgment & Signature</h3>' +
+              '<h3 class="section-title" style="margin-top: 14px;">2. Participant Digital Signature</h3>' +
               '<div class="form-group">' +
-                '<label for="sigName">Participant Legal Name (Printed Signature) <span class="req">*</span></label>' +
+                '<label for="sigName">Participant Legal Printed Name <span class="req">*</span></label>' +
                 '<input type="text" id="sigName" class="form-control" value="' + studentName + '" required placeholder="Type your full legal name" />' +
+              '</div>' +
+
+              '<div class="form-group">' +
+                '<label>Draw or Type Your Signature <span class="req">*</span></label>' +
+                '<div class="pad-tabs">' +
+                  '<button type="button" id="tabDraw" class="pad-tab active" onclick="switchMode(\'draw\')">✍️ Draw Signature</button>' +
+                  '<button type="button" id="tabType" class="pad-tab" onclick="switchMode(\'type\')">⌨️ Type Signature</button>' +
+                '</div>' +
+                '<div class="pad-wrapper">' +
+                  '<canvas id="sigCanvas"></canvas>' +
+                  '<div id="typedSigPreview"></div>' +
+                '</div>' +
+                '<div class="pad-footer">' +
+                  '<span>Draw with finger, stylus, or mouse above</span>' +
+                  '<button type="button" class="btn-clear" onclick="clearCanvas()">Clear Signature</button>' +
+                '</div>' +
               '</div>' +
 
               '<div class="checkbox-box">' +
@@ -5982,25 +6057,132 @@ function doGet(e) {
                 '</label>' +
               '</div>' +
 
-              '<button type="submit" id="submitBtn" class="btn-submit">✍️ Submit Digital Signature & Complete Packet</button>' +
+              '<button type="submit" id="submitBtn" class="btn-submit">✍️ Adopt & Digitally Sign Welcome Packet (Generate Signed PDF)</button>' +
             '</form>' +
           '</div>' +
         '</div>' +
 
         '<div id="successScreen" class="success-screen">' +
           '<div class="success-icon">✓</div>' +
-          '<h2 style="margin: 0; color: #0f172a;">Welcome Packet Digitally Signed!</h2>' +
-          '<p style="color: #475569; margin: 12px 0 24px; line-height: 1.6;">Thank you, <strong id="signedNameDisplay">' + studentName + '</strong>.<br />Your signature and emergency contact info have been recorded on your document and your class enrollment is confirmed.</p>' +
-          '<div style="background: #f1f5f9; padding: 16px; border-radius: 8px; max-width: 480px; margin: 0 auto 24px; text-align: left; font-size: 14px; color: #334155;">' +
-            '<div><strong>Emergency Contact:</strong> <span id="savedEmName"></span></div>' +
-            '<div style="margin-top: 4px;"><strong>Phone:</strong> <span id="savedEmPhone"></span></div>' +
-            '<div style="margin-top: 8px;"><a href="https://docs.google.com/document/d/' + docId + '/edit" target="_blank" style="color: #2563eb; text-decoration: none; font-weight: 600;">📄 View your signed packet in Google Docs &rarr;</a></div>' +
+          '<h2 style="margin: 0; color: #0f172a; font-size: 24px;">Welcome Packet Successfully Signed!</h2>' +
+          '<p style="color: #475569; margin: 12px 0 24px; line-height: 1.6;">Thank you, <strong id="signedNameDisplay">' + studentName + '</strong>.<br />Your digital signature has been stamped and your <strong>Official Signed PDF</strong> is now archived in your class Google Drive.</p>' +
+          '<div style="background: #f1f5f9; padding: 20px; border-radius: 8px; max-width: 520px; margin: 0 auto 24px; text-align: left; font-size: 14px; color: #334155; border: 1px solid #cbd5e1;">' +
+            '<div><strong>Student Name:</strong> <span id="savedStudentName"></span></div>' +
+            '<div style="margin-top: 6px;"><strong>Emergency Contact:</strong> <span id="savedEmName"></span></div>' +
+            '<div style="margin-top: 6px;"><strong>Emergency Phone:</strong> <span id="savedEmPhone"></span></div>' +
+            '<div style="margin-top: 14px; display: flex; gap: 12px; flex-wrap: wrap;">' +
+              '<a id="viewPdfBtn" href="#" target="_blank" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; display: inline-block;">📄 View Official Signed PDF</a>' +
+              '<a id="viewDocBtn" href="https://docs.google.com/document/d/' + docId + '/edit" target="_blank" style="background: #ffffff; color: #334155; text-decoration: none; padding: 10px 18px; border-radius: 6px; font-weight: 600; border: 1px solid #cbd5e1; display: inline-block;">📝 View Google Doc</a>' +
+            '</div>' +
           '</div>' +
-          '<p style="font-size: 13px; color: #64748b;">We look forward to seeing you in class at Just The Funny!</p>' +
+          '<div id="pdfEmbedContainer" style="margin-top: 24px; display: none;">' +
+            '<iframe id="pdfEmbed" style="width: 100%; height: 500px; border: 1px solid #cbd5e1; border-radius: 8px;"></iframe>' +
+          '</div>' +
+          '<p style="font-size: 13px; color: #64748b; margin-top: 20px;">We look forward to seeing you in class at Just The Funny!</p>' +
         '</div>' +
       '</div>' +
 
       '<script>' +
+        'var canvas = document.getElementById("sigCanvas");' +
+        'var ctx = canvas.getContext("2d");' +
+        'var isDrawing = false;' +
+        'var hasDrawn = false;' +
+        'var currentMode = "draw";' +
+
+        'function resizeCanvas() {' +
+          'var rect = canvas.getBoundingClientRect();' +
+          'canvas.width = rect.width * 2;' +
+          'canvas.height = rect.height * 2;' +
+          'ctx.scale(2, 2);' +
+          'ctx.lineWidth = 2.5;' +
+          'ctx.lineCap = "round";' +
+          'ctx.lineJoin = "round";' +
+          'ctx.strokeStyle = "#1e3a8a";' +
+        '}' +
+        'window.addEventListener("resize", resizeCanvas);' +
+        'setTimeout(resizeCanvas, 100);' +
+
+        'function getPos(e) {' +
+          'var rect = canvas.getBoundingClientRect();' +
+          'var clientX = e.touches ? e.touches[0].clientX : e.clientX;' +
+          'var clientY = e.touches ? e.touches[0].clientY : e.clientY;' +
+          'return { x: clientX - rect.x, y: clientY - rect.y };' +
+        '}' +
+
+        'function startDraw(e) {' +
+          'isDrawing = true;' +
+          'hasDrawn = true;' +
+          'var pos = getPos(e);' +
+          'ctx.beginPath();' +
+          'ctx.moveTo(pos.x, pos.y);' +
+          'e.preventDefault();' +
+        '}' +
+
+        'function draw(e) {' +
+          'if (!isDrawing) return;' +
+          'var pos = getPos(e);' +
+          'ctx.lineTo(pos.x, pos.y);' +
+          'ctx.stroke();' +
+          'e.preventDefault();' +
+        '}' +
+
+        'function stopDraw(e) {' +
+          'isDrawing = false;' +
+        '}' +
+
+        'canvas.addEventListener("mousedown", startDraw);' +
+        'canvas.addEventListener("mousemove", draw);' +
+        'canvas.addEventListener("mouseup", stopDraw);' +
+        'canvas.addEventListener("mouseleave", stopDraw);' +
+        'canvas.addEventListener("touchstart", startDraw, { passive: false });' +
+        'canvas.addEventListener("touchmove", draw, { passive: false });' +
+        'canvas.addEventListener("touchend", stopDraw);' +
+
+        'function clearCanvas() {' +
+          'ctx.clearRect(0, 0, canvas.width, canvas.height);' +
+          'hasDrawn = false;' +
+        '}' +
+
+        'function switchMode(mode) {' +
+          'currentMode = mode;' +
+          'var drawBtn = document.getElementById("tabDraw");' +
+          'var typeBtn = document.getElementById("tabType");' +
+          'var typedPreview = document.getElementById("typedSigPreview");' +
+          'if (mode === "draw") {' +
+            'drawBtn.classList.add("active");' +
+            'typeBtn.classList.remove("active");' +
+            'canvas.style.display = "block";' +
+            'typedPreview.style.display = "none";' +
+          '} else {' +
+            'typeBtn.classList.add("active");' +
+            'drawBtn.classList.remove("active");' +
+            'canvas.style.display = "none";' +
+            'typedPreview.style.display = "flex";' +
+            'updateTypedPreview();' +
+          '}' +
+        '}' +
+
+        'function updateTypedPreview() {' +
+          'var name = document.getElementById("sigName").value.trim() || "' + studentName + '";' +
+          'document.getElementById("typedSigPreview").innerText = name;' +
+        '}' +
+        'document.getElementById("sigName").addEventListener("input", updateTypedPreview);' +
+
+        'function getSignatureImage() {' +
+          'if (currentMode === "draw" && hasDrawn) {' +
+            'return canvas.toDataURL("image/png");' +
+          '}' +
+          '// Generate typed image on offscreen canvas' +
+          'var off = document.createElement("canvas");' +
+          'off.width = 400; off.height = 100;' +
+          'var offCtx = off.getContext("2d");' +
+          'offCtx.font = "44px Caveat, cursive";' +
+          'offCtx.fillStyle = "#1e3a8a";' +
+          'offCtx.textBaseline = "middle";' +
+          'offCtx.fillText(document.getElementById("sigName").value.trim() || "' + studentName + '", 20, 50);' +
+          'return off.toDataURL("image/png");' +
+        '}' +
+
         'var form = document.getElementById("signForm");' +
         'var btn = document.getElementById("submitBtn");' +
         'form.onsubmit = function(e) {' +
@@ -6008,10 +6190,14 @@ function doGet(e) {
           'var sigName = document.getElementById("sigName").value.trim();' +
           'var emName = document.getElementById("emName").value.trim();' +
           'var emPhone = document.getElementById("emPhone").value.trim();' +
-          'if (!sigName) { alert("Please type your name to sign."); return; }' +
+          'if (!sigName) { alert("Please type your printed name to sign."); return; }' +
           'if (!emName || !emPhone) { alert("Please provide emergency contact name and phone number."); return; }' +
+          'if (currentMode === "draw" && !hasDrawn) {' +
+            'if (!confirm("You have not drawn a signature. Would you like to use your typed name as your digital signature?")) return;' +
+          '}' +
           'btn.disabled = true;' +
-          'btn.innerHTML = \'<span class="spinner"></span>Saving & Stamping Signature...\';' +
+          'btn.innerHTML = \'<span class="spinner"></span>Stamping Signature & Generating Signed PDF...\';' +
+          'var sigImg = getSignatureImage();' +
           'fetch(window.location.href, {' +
             'method: "POST",' +
             'headers: { "Content-Type": "text/plain;charset=utf-8" },' +
@@ -6021,22 +6207,32 @@ function doGet(e) {
               'studentId: "' + studentId + '",' +
               'signatureName: sigName,' +
               'emergencyContactName: emName,' +
-              'emergencyContactPhone: emPhone' +
+              'emergencyContactPhone: emPhone,' +
+              'signatureImage: sigImg' +
             '})' +
           '})' +
           '.then(function(res) { return res.json(); })' +
           '.then(function(data) {' +
             'document.getElementById("formContainer").style.display = "none";' +
             'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("savedStudentName").innerText = sigName;' +
             'document.getElementById("savedEmName").innerText = emName;' +
             'document.getElementById("savedEmPhone").innerText = emPhone;' +
+            'var pdfLink = data.pdfUrl || ("https://docs.google.com/document/d/' + docId + '/export?format=pdf");' +
+            'document.getElementById("viewPdfBtn").href = pdfLink;' +
+            'if (data.pdfId) {' +
+              'document.getElementById("pdfEmbed").src = "https://drive.google.com/file/d/" + data.pdfId + "/preview";' +
+              'document.getElementById("pdfEmbedContainer").style.display = "block";' +
+            '}' +
             'document.getElementById("successScreen").style.display = "block";' +
           '})' +
           '.catch(function(err) {' +
             'document.getElementById("formContainer").style.display = "none";' +
             'document.getElementById("signedNameDisplay").innerText = sigName;' +
+            'document.getElementById("savedStudentName").innerText = sigName;' +
             'document.getElementById("savedEmName").innerText = emName;' +
             'document.getElementById("savedEmPhone").innerText = emPhone;' +
+            'document.getElementById("viewPdfBtn").href = "https://docs.google.com/document/d/' + docId + '/export?format=pdf";' +
             'document.getElementById("successScreen").style.display = "block";' +
           '});' +
         '};' +
