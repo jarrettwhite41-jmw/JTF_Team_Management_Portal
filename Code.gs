@@ -6035,18 +6035,24 @@ function doGet(e) {
               '</div>' +
 
               '<div class="form-group">' +
-                '<label>Draw or Type Your Signature <span class="req">*</span></label>' +
+                '<label>Adopt Your Signature <span class="req">*</span></label>' +
                 '<div class="pad-tabs">' +
-                  '<button type="button" id="tabDraw" class="pad-tab active" onclick="switchMode(\'draw\')">✍️ Draw Signature</button>' +
-                  '<button type="button" id="tabType" class="pad-tab" onclick="switchMode(\'type\')">⌨️ Type Signature</button>' +
+                  '<button type="button" id="tabType" class="pad-tab active" onclick="switchMode(\'type\')">⌨️ Type Signature</button>' +
+                  '<button type="button" id="tabDraw" class="pad-tab" onclick="switchMode(\'draw\')">✍️ Draw with Mouse / Finger</button>' +
                 '</div>' +
                 '<div class="pad-wrapper">' +
-                  '<canvas id="sigCanvas"></canvas>' +
-                  '<div id="typedSigPreview"></div>' +
-                '</div>' +
-                '<div class="pad-footer">' +
-                  '<span>Draw with finger, stylus, or mouse above</span>' +
-                  '<button type="button" class="btn-clear" onclick="clearCanvas()">Clear Signature</button>' +
+                  '<div id="typeModeContainer">' +
+                    '<input type="text" id="typedSigInput" class="form-control" value="' + studentName + '" placeholder="Type your signature here" style="margin-bottom: 8px; font-weight: 600;" />' +
+                    '<div id="typedSigPreview" style="display: flex;">' + studentName + '</div>' +
+                    '<div style="font-size: 11px; color: #64748b; margin-top: 4px;">Stylized electronic signature preview</div>' +
+                  '</div>' +
+                  '<div id="drawModeContainer" style="display: none;">' +
+                    '<canvas id="sigCanvas"></canvas>' +
+                    '<div class="pad-footer">' +
+                      '<span>Draw inside the box above</span>' +
+                      '<button type="button" class="btn-clear" onclick="clearCanvas()">Clear Drawing</button>' +
+                    '</div>' +
+                  '</div>' +
                 '</div>' +
               '</div>' +
 
@@ -6087,20 +6093,21 @@ function doGet(e) {
         'var ctx = canvas.getContext("2d");' +
         'var isDrawing = false;' +
         'var hasDrawn = false;' +
-        'var currentMode = "draw";' +
+        'var currentMode = "type";' +
 
         'function resizeCanvas() {' +
           'var rect = canvas.getBoundingClientRect();' +
-          'canvas.width = rect.width * 2;' +
-          'canvas.height = rect.height * 2;' +
-          'ctx.scale(2, 2);' +
-          'ctx.lineWidth = 2.5;' +
-          'ctx.lineCap = "round";' +
-          'ctx.lineJoin = "round";' +
-          'ctx.strokeStyle = "#1e3a8a";' +
+          'if (rect.width > 0) {' +
+            'canvas.width = rect.width * 2;' +
+            'canvas.height = (rect.height || 140) * 2;' +
+            'ctx.scale(2, 2);' +
+            'ctx.lineWidth = 2.5;' +
+            'ctx.lineCap = "round";' +
+            'ctx.lineJoin = "round";' +
+            'ctx.strokeStyle = "#1e3a8a";' +
+          '}' +
         '}' +
         'window.addEventListener("resize", resizeCanvas);' +
-        'setTimeout(resizeCanvas, 100);' +
 
         'function getPos(e) {' +
           'var rect = canvas.getBoundingClientRect();' +
@@ -6115,7 +6122,7 @@ function doGet(e) {
           'var pos = getPos(e);' +
           'ctx.beginPath();' +
           'ctx.moveTo(pos.x, pos.y);' +
-          'e.preventDefault();' +
+          'if (e.cancelable) e.preventDefault();' +
         '}' +
 
         'function draw(e) {' +
@@ -6123,7 +6130,7 @@ function doGet(e) {
           'var pos = getPos(e);' +
           'ctx.lineTo(pos.x, pos.y);' +
           'ctx.stroke();' +
-          'e.preventDefault();' +
+          'if (e.cancelable) e.preventDefault();' +
         '}' +
 
         'function stopDraw(e) {' +
@@ -6147,39 +6154,50 @@ function doGet(e) {
           'currentMode = mode;' +
           'var drawBtn = document.getElementById("tabDraw");' +
           'var typeBtn = document.getElementById("tabType");' +
-          'var typedPreview = document.getElementById("typedSigPreview");' +
+          'var drawBox = document.getElementById("drawModeContainer");' +
+          'var typeBox = document.getElementById("typeModeContainer");' +
           'if (mode === "draw") {' +
             'drawBtn.classList.add("active");' +
             'typeBtn.classList.remove("active");' +
-            'canvas.style.display = "block";' +
-            'typedPreview.style.display = "none";' +
+            'drawBox.style.display = "block";' +
+            'typeBox.style.display = "none";' +
+            'setTimeout(resizeCanvas, 50);' +
           '} else {' +
             'typeBtn.classList.add("active");' +
             'drawBtn.classList.remove("active");' +
-            'canvas.style.display = "none";' +
-            'typedPreview.style.display = "flex";' +
+            'drawBox.style.display = "none";' +
+            'typeBox.style.display = "block";' +
             'updateTypedPreview();' +
           '}' +
         '}' +
 
         'function updateTypedPreview() {' +
-          'var name = document.getElementById("sigName").value.trim() || "' + studentName + '";' +
-          'document.getElementById("typedSigPreview").innerText = name;' +
+          'var inputVal = document.getElementById("typedSigInput").value.trim();' +
+          'var nameVal = document.getElementById("sigName").value.trim();' +
+          'var finalSig = inputVal || nameVal || "' + studentName + '";' +
+          'document.getElementById("typedSigPreview").innerText = finalSig;' +
         '}' +
-        'document.getElementById("sigName").addEventListener("input", updateTypedPreview);' +
+        'document.getElementById("typedSigInput").addEventListener("input", updateTypedPreview);' +
+        'document.getElementById("sigName").addEventListener("input", function() {' +
+          'var typed = document.getElementById("typedSigInput");' +
+          'if (!typed.value || typed.value === "' + studentName + '") {' +
+            'typed.value = this.value;' +
+          '}' +
+          'updateTypedPreview();' +
+        '});' +
 
         'function getSignatureImage() {' +
           'if (currentMode === "draw" && hasDrawn) {' +
             'return canvas.toDataURL("image/png");' +
           '}' +
-          '// Generate typed image on offscreen canvas' +
           'var off = document.createElement("canvas");' +
-          'off.width = 400; off.height = 100;' +
+          'off.width = 500; off.height = 120;' +
           'var offCtx = off.getContext("2d");' +
-          'offCtx.font = "44px Caveat, cursive";' +
+          'offCtx.font = "48px Caveat, cursive";' +
           'offCtx.fillStyle = "#1e3a8a";' +
           'offCtx.textBaseline = "middle";' +
-          'offCtx.fillText(document.getElementById("sigName").value.trim() || "' + studentName + '", 20, 50);' +
+          'var sigText = document.getElementById("typedSigInput").value.trim() || document.getElementById("sigName").value.trim() || "' + studentName + '";' +
+          'offCtx.fillText(sigText, 16, 60);' +
           'return off.toDataURL("image/png");' +
         '}' +
 
@@ -6192,9 +6210,6 @@ function doGet(e) {
           'var emPhone = document.getElementById("emPhone").value.trim();' +
           'if (!sigName) { alert("Please type your printed name to sign."); return; }' +
           'if (!emName || !emPhone) { alert("Please provide emergency contact name and phone number."); return; }' +
-          'if (currentMode === "draw" && !hasDrawn) {' +
-            'if (!confirm("You have not drawn a signature. Would you like to use your typed name as your digital signature?")) return;' +
-          '}' +
           'btn.disabled = true;' +
           'btn.innerHTML = \'<span class="spinner"></span>Stamping Signature & Generating Signed PDF...\';' +
           'var sigImg = getSignatureImage();' +
