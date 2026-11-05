@@ -5629,10 +5629,23 @@ function generateAndSendWelcomePacket(params) {
         '<p style="font-size: 13px; color: #0f172a; margin-top: 16px;"><strong>Just The Funny Training Center</strong></p>' +
       '</div>';
 
-    GmailApp.sendEmail(studentEmail, emailSubject, emailBody, {
+    var emailOptions = {
       htmlBody: emailHtml,
-      name: 'Just The Funny Training Center'
-    });
+      name: 'Just The Funny Training Center',
+      replyTo: 'classes@justthefunny.com'
+    };
+
+    // Check if classes@justthefunny.com is configured as a Send-As alias
+    try {
+      var aliases = GmailApp.getAliases();
+      if (aliases.indexOf('classes@justthefunny.com') !== -1) {
+        emailOptions.from = 'classes@justthefunny.com';
+      }
+    } catch (aliasErr) {
+      Logger.log('Could not check aliases: ' + aliasErr.toString());
+    }
+
+    GmailApp.sendEmail(studentEmail, emailSubject, emailBody, emailOptions);
 
     Logger.log('Welcome packet successfully generated and sent to: ' + studentEmail);
 
@@ -5853,6 +5866,21 @@ function recordStudentSignature(docId, signatureName, emergencyContactName, emer
       }
     }
 
+    // 6. Send email notification to classes@justthefunny.com
+    try {
+      sendSignedNotificationEmail_({
+        studentName: sigText,
+        emergencyContactName: emName,
+        emergencyContactPhone: emPhone,
+        signedDateStr: signedDateStr,
+        docUrl: 'https://docs.google.com/document/d/' + docId + '/edit',
+        pdfUrl: pdfUrl,
+        pdfBlob: pdfBlob
+      });
+    } catch (notifErr) {
+      Logger.log('Notification email note: ' + notifErr.toString());
+    }
+
     return { 
       success: true, 
       signedAt: new Date().toISOString(),
@@ -5864,6 +5892,69 @@ function recordStudentSignature(docId, signatureName, emergencyContactName, emer
     Logger.log('Error stamping signature into doc: ' + e.toString());
     return { success: false, error: e.toString() };
   }
+}
+
+/**
+ * Sends an email notification to classes@justthefunny.com when a student digitally signs their packet.
+ * Attaches the signed PDF if available.
+ */
+function sendSignedNotificationEmail_(info) {
+  var notifyTo = 'classes@justthefunny.com';
+  var subject = 'Signed Welcome Packet: ' + (info.studentName || 'Student');
+  
+  var plainBody = 
+    'Student Signed Welcome Packet Notification\n\n' +
+    'Student: ' + (info.studentName || 'N/A') + '\n' +
+    'Date Signed: ' + (info.signedDateStr || 'Today') + '\n' +
+    'Emergency Contact: ' + (info.emergencyContactName || 'N/A') + ' (' + (info.emergencyContactPhone || 'N/A') + ')\n\n' +
+    (info.pdfUrl ? 'Signed PDF: ' + info.pdfUrl + '\n' : '') +
+    'Google Doc: ' + (info.docUrl || 'N/A');
+
+  var htmlBody = 
+    '<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px;">' +
+      '<div style="background-color: #16a34a; padding: 14px; border-radius: 6px; text-align: center; margin-bottom: 20px;">' +
+        '<h2 style="color: #ffffff; margin: 0; font-size: 18px;">Student Welcome Packet Signed</h2>' +
+      '</div>' +
+      '<p style="font-size: 15px;"><strong>' + (info.studentName || 'Student') + '</strong> has reviewed and digitally signed their Student Welcome Packet.</p>' +
+      '<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin: 16px 0; font-size: 14px;">' +
+        '<div style="margin-bottom: 8px;"><strong>Student Name:</strong> ' + (info.studentName || 'N/A') + '</div>' +
+        '<div style="margin-bottom: 8px;"><strong>Date Signed:</strong> ' + (info.signedDateStr || 'Today') + '</div>' +
+        '<div style="margin-bottom: 8px;"><strong>Emergency Contact:</strong> ' + (info.emergencyContactName || 'N/A') + '</div>' +
+        '<div><strong>Emergency Phone:</strong> ' + (info.emergencyContactPhone || 'N/A') + '</div>' +
+      '</div>' +
+      '<div style="margin: 20px 0; display: flex; gap: 12px;">' +
+        (info.pdfUrl ? '<a href="' + info.pdfUrl + '" target="_blank" style="background-color: #2563eb; color: #ffffff; padding: 10px 18px; text-decoration: none; font-weight: bold; font-size: 13px; border-radius: 6px; display: inline-block;">📄 View Official Signed PDF</a> ' : '') +
+        '<a href="' + info.docUrl + '" target="_blank" style="background-color: #ffffff; color: #334155; padding: 10px 18px; text-decoration: none; font-weight: bold; font-size: 13px; border-radius: 6px; border: 1px solid #cbd5e1; display: inline-block;">📝 Open Google Doc</a>' +
+      '</div>' +
+      '<hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />' +
+      '<p style="font-size: 12px; color: #64748b; margin: 0;">Automated notification from JTF Operations Portal.</p>' +
+    '</div>';
+
+  var options = {
+    htmlBody: htmlBody,
+    name: 'JTF Operations Portal'
+  };
+
+  if (info.pdfBlob) {
+    try {
+      options.attachments = [info.pdfBlob];
+    } catch (attErr) {
+      Logger.log('Attachment error: ' + attErr.toString());
+    }
+  }
+
+  // Use classes@justthefunny.com alias if available
+  try {
+    var aliases = GmailApp.getAliases();
+    if (aliases.indexOf('classes@justthefunny.com') !== -1) {
+      options.from = 'classes@justthefunny.com';
+    }
+  } catch (aliasErr) {
+    Logger.log('Alias check error: ' + aliasErr.toString());
+  }
+
+  GmailApp.sendEmail(notifyTo, subject, plainBody, options);
+  Logger.log('Signed notification email sent to: ' + notifyTo);
 }
 
 /**
