@@ -254,16 +254,7 @@ function getSheet(sheetName) {
   }
 }
 
-/**
- * Serves the main HTML page - Required for Google Apps Script web apps
- * DATA SOURCE: Serves index.html file to browser
- */
-function doGet() {
-  Logger.log('doGet() called - serving index.html to user: jarrettwhite41-jmw');
-  return HtmlService.createHtmlOutputFromFile('index')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
-}
+// (Previous legacy doGet moved to unified doGet(e) at line 5948)
 
 // =============================================================================
 // CACHING & CONCURRENCY UTILITIES
@@ -5673,7 +5664,7 @@ function generateAndSendWelcomePacket(params) {
  * @param {string} signatureImageBase64 - Optional Base64 PNG data URL of drawn signature
  * @returns {Object} { success: boolean, signedAt?: string, pdfUrl?: string, pdfId?: string, error?: string }
  */
-function recordStudentSignature_(docId, signatureName, emergencyContactName, emergencyContactPhone, studentId, signatureImageBase64) {
+function recordStudentSignature(docId, signatureName, emergencyContactName, emergencyContactPhone, studentId, signatureImageBase64) {
   try {
     var doc = DocumentApp.openById(docId);
     var body = doc.getBody();
@@ -5927,7 +5918,7 @@ function doPost(e) {
       var studentId = requestData.studentId || '';
       var signatureImage = requestData.signatureImage || '';
 
-      var signResult = recordStudentSignature_(docId, signatureName, emergencyName, emergencyPhone, studentId, signatureImage);
+      var signResult = recordStudentSignature(docId, signatureName, emergencyName, emergencyPhone, studentId, signatureImage);
       return ContentService.createTextOutput(JSON.stringify(signResult))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -6253,7 +6244,7 @@ function doGet(e) {
                 '}' +
               '})' +
               '.withFailureHandler(handleSignatureError)' +
-              '.recordStudentSignature_( "' + docId + '", sigName, emName, emPhone, "' + studentId + '", sigImg );' +
+              '.recordStudentSignature( "' + docId + '", sigName, emName, emPhone, "' + studentId + '", sigImg );' +
           '} else {' +
             'fetch(window.location.href, {' +
               'method: "POST",' +
