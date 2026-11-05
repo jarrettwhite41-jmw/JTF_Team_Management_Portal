@@ -5760,7 +5760,7 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
       }
     }
 
-    if (foundAcknowledgment && ackIndex !== -1) {
+    if (foundAcknowledgment) {
       var tables = body.getTables();
       var certTableExists = false;
       for (var t = 0; t < tables.length; t++) {
@@ -5781,7 +5781,12 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
           ['Status:', 'VERIFIED & LEGALLY BINDING (JTF Student Portal)']
         ];
 
-        var table = body.insertTable(ackIndex + 4, certRows);
+        var table;
+        if (ackIndex !== -1 && (ackIndex + 1) <= body.getNumChildren()) {
+          table = body.insertTable(ackIndex + 1, certRows);
+        } else {
+          table = body.appendTable(certRows);
+        }
         table.setBorderColor('#334155');
         table.setBorderWidth(1.5);
 
@@ -5805,7 +5810,7 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
           valCell.editAsText().setFontSize(10).setForegroundColor('#0f172a');
           if (r === 2) {
             valCell.editAsText().setBold(true).setForegroundColor('#15803d');
-            // If student drew their signature, attach the image right into the certificate row
+            // If student drew or generated their signature, attach the image right into the certificate row
             if (signatureBlob) {
               try {
                 var sigImg = valCell.appendInlineImage(signatureBlob);
@@ -6203,6 +6208,28 @@ function doGet(e) {
 
         'var form = document.getElementById("signForm");' +
         'var btn = document.getElementById("submitBtn");' +
+
+        'function handleSignatureSuccess(data) {' +
+          'document.getElementById("formContainer").style.display = "none";' +
+          'document.getElementById("signedNameDisplay").innerText = data.studentName || document.getElementById("sigName").value.trim();' +
+          'document.getElementById("savedStudentName").innerText = data.studentName || document.getElementById("sigName").value.trim();' +
+          'document.getElementById("savedEmName").innerText = data.emergencyName || document.getElementById("emName").value.trim();' +
+          'document.getElementById("savedEmPhone").innerText = data.emergencyPhone || document.getElementById("emPhone").value.trim();' +
+          'var pdfLink = data.pdfUrl || ("https://docs.google.com/document/d/' + docId + '/export?format=pdf");' +
+          'document.getElementById("viewPdfBtn").href = pdfLink;' +
+          'if (data.pdfId) {' +
+            'document.getElementById("pdfEmbed").src = "https://drive.google.com/file/d/" + data.pdfId + "/preview";' +
+            'document.getElementById("pdfEmbedContainer").style.display = "block";' +
+          '}' +
+          'document.getElementById("successScreen").style.display = "block";' +
+        '}' +
+
+        'function handleSignatureError(err) {' +
+          'btn.disabled = false;' +
+          'btn.innerHTML = "✍️ Adopt & Digitally Sign Welcome Packet (Generate Signed PDF)";' +
+          'alert("Error recording signature: " + (err.message || err) + ". Please try again or contact classes@justthefunny.com.");' +
+        '}' +
+
         'form.onsubmit = function(e) {' +
           'e.preventDefault();' +
           'var sigName = document.getElementById("sigName").value.trim();' +
@@ -6213,43 +6240,47 @@ function doGet(e) {
           'btn.disabled = true;' +
           'btn.innerHTML = \'<span class="spinner"></span>Stamping Signature & Generating Signed PDF...\';' +
           'var sigImg = getSignatureImage();' +
-          'fetch(window.location.href, {' +
-            'method: "POST",' +
-            'headers: { "Content-Type": "text/plain;charset=utf-8" },' +
-            'body: JSON.stringify({' +
-              'action: "submit_signature",' +
-              'docId: "' + docId + '",' +
-              'studentId: "' + studentId + '",' +
-              'signatureName: sigName,' +
-              'emergencyContactName: emName,' +
-              'emergencyContactPhone: emPhone,' +
-              'signatureImage: sigImg' +
+          'if (typeof google !== "undefined" && google.script && google.script.run) {' +
+            'google.script.run' +
+              '.withSuccessHandler(function(res) {' +
+                'if (res && res.success) {' +
+                  'res.studentName = sigName;' +
+                  'res.emergencyName = emName;' +
+                  'res.emergencyPhone = emPhone;' +
+                  'handleSignatureSuccess(res);' +
+                '} else {' +
+                  'handleSignatureError(res && res.error ? res.error : "Unknown error");' +
+                '}' +
+              '})' +
+              '.withFailureHandler(handleSignatureError)' +
+              '.recordStudentSignature_( "' + docId + '", sigName, emName, emPhone, "' + studentId + '", sigImg );' +
+          '} else {' +
+            'fetch(window.location.href, {' +
+              'method: "POST",' +
+              'headers: { "Content-Type": "text/plain;charset=utf-8" },' +
+              'body: JSON.stringify({' +
+                'action: "submit_signature",' +
+                'docId: "' + docId + '",' +
+                'studentId: "' + studentId + '",' +
+                'signatureName: sigName,' +
+                'emergencyContactName: emName,' +
+                'emergencyContactPhone: emPhone,' +
+                'signatureImage: sigImg' +
+              '})' +
             '})' +
-          '})' +
-          '.then(function(res) { return res.json(); })' +
-          '.then(function(data) {' +
-            'document.getElementById("formContainer").style.display = "none";' +
-            'document.getElementById("signedNameDisplay").innerText = sigName;' +
-            'document.getElementById("savedStudentName").innerText = sigName;' +
-            'document.getElementById("savedEmName").innerText = emName;' +
-            'document.getElementById("savedEmPhone").innerText = emPhone;' +
-            'var pdfLink = data.pdfUrl || ("https://docs.google.com/document/d/' + docId + '/export?format=pdf");' +
-            'document.getElementById("viewPdfBtn").href = pdfLink;' +
-            'if (data.pdfId) {' +
-              'document.getElementById("pdfEmbed").src = "https://drive.google.com/file/d/" + data.pdfId + "/preview";' +
-              'document.getElementById("pdfEmbedContainer").style.display = "block";' +
-            '}' +
-            'document.getElementById("successScreen").style.display = "block";' +
-          '})' +
-          '.catch(function(err) {' +
-            'document.getElementById("formContainer").style.display = "none";' +
-            'document.getElementById("signedNameDisplay").innerText = sigName;' +
-            'document.getElementById("savedStudentName").innerText = sigName;' +
-            'document.getElementById("savedEmName").innerText = emName;' +
-            'document.getElementById("savedEmPhone").innerText = emPhone;' +
-            'document.getElementById("viewPdfBtn").href = "https://docs.google.com/document/d/' + docId + '/export?format=pdf";' +
-            'document.getElementById("successScreen").style.display = "block";' +
-          '});' +
+            '.then(function(res) { return res.json(); })' +
+            '.then(function(data) {' +
+              'if (data && data.success) {' +
+                'data.studentName = sigName;' +
+                'data.emergencyName = emName;' +
+                'data.emergencyPhone = emPhone;' +
+                'handleSignatureSuccess(data);' +
+              '} else {' +
+                'handleSignatureError(data && data.error ? data.error : "Failed to record signature");' +
+              '}' +
+            '})' +
+            '.catch(handleSignatureError);' +
+          '}' +
         '};' +
       '</script>' +
     '</body>' +
