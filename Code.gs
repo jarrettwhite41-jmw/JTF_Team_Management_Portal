@@ -5662,8 +5662,9 @@ function generateAndSendWelcomePacket(params) {
  * Signs the student's Google Doc on Page 5 (Acknowledgment section) with their digital signature,
  * printed name, date, and emergency contact details.
  *
- * Handles both plain text placeholders and Google Docs inline drawing/field boxes by
- * directly targeting the paragraphs and replacing their contents with clear, stamped text.
+ * Handles both plain text placeholders and Google Docs inline drawing boxes.
+ * Replaces the blank drawing boxes with a clean, official Digital Signature & Acknowledgment Certificate
+ * directly in the document, rendering all information clearly and eliminating blank boxes.
  * 
  * @param {string} docId - The Google Doc ID
  * @param {string} signatureName - The student's signature text
@@ -5681,43 +5682,128 @@ function recordStudentSignature_(docId, signatureName, emergencyContactName, eme
     var emName = String(emergencyContactName || '').trim();
     var emPhone = String(emergencyContactPhone || '').trim();
 
-    // Loop through all paragraphs to find the exact signature block items
-    // and replace paragraph text completely (which cleanly removes any blank drawing/form boxes).
-    var paragraphs = body.getParagraphs();
-    for (var i = 0; i < paragraphs.length; i++) {
-      var p = paragraphs[i];
-      var rawText = p.getText().trim();
-
-      // 1. Participant Name (Printed)
-      if (rawText.indexOf('Participant Name') !== -1) {
-        p.setText('Participant Name (Printed): ' + sigText);
-      }
-      // 2. Participant Signature line
-      else if (rawText.indexOf('Participant Signature') !== -1) {
-        p.setText('Participant Signature: [DIGITALLY SIGNED] ' + sigText + '    Date: ' + signedDateStr);
-      }
-      // 3. Emergency Contact Name line
-      else if (rawText.indexOf('Emergency Contact Name') !== -1) {
-        p.setText('Emergency Contact Name: ' + (emName || 'N/A'));
-      }
-      // 4. Emergency Contact Phone Number line
-      else if (rawText.indexOf('Emergency Contact Phone') !== -1) {
-        p.setText('Emergency Contact Phone Number: ' + (emPhone || 'N/A'));
-      }
-      // Legacy template fallback
-      else if (rawText.indexOf('Student Signature') !== -1) {
-        p.setText('Student Signature: [DIGITALLY SIGNED] ' + sigText + ' (' + signedDateStr + ')');
-      }
-      else if (rawText.indexOf('Student Printed Name') !== -1) {
-        p.setText('Student Printed Name: ' + sigText);
+    // 1. First pass: Find any paragraphs with drawing boxes and remove any INLINE_DRAWING elements
+    // so no empty vector boxes remain in the document.
+    var numChildren = body.getNumChildren();
+    for (var i = 0; i < numChildren; i++) {
+      var child = body.getChild(i);
+      if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+        var p = child.asParagraph();
+        var pText = p.getText();
+        if (pText.indexOf('Participant Name') !== -1 || 
+            pText.indexOf('Participant Signature') !== -1 || 
+            pText.indexOf('Emergency Contact') !== -1) {
+          
+          // Remove any inline drawing shapes from this paragraph
+          for (var c = p.getNumChildren() - 1; c >= 0; c--) {
+            var grandChild = p.getChild(c);
+            if (grandChild.getType() === DocumentApp.ElementType.INLINE_DRAWING) {
+              grandChild.removeFromParent();
+            }
+          }
+        }
       }
     }
 
-    // Secondary pass with replaceText for any inline occurrences or table cells
-    body.replaceText('Participant Name \\(Printed\\):.*', 'Participant Name (Printed): ' + sigText);
-    body.replaceText('Participant Signature:.*', 'Participant Signature: [DIGITALLY SIGNED] ' + sigText + '    Date: ' + signedDateStr);
-    body.replaceText('Emergency Contact Name:.*', 'Emergency Contact Name: ' + (emName || 'N/A'));
-    body.replaceText('Emergency Contact Phone Number:.*', 'Emergency Contact Phone Number: ' + (emPhone || 'N/A'));
+    // 2. Second pass: Replace the acknowledgment lines with an official, styled
+    // Digital Signature Certificate Table or formatted paragraphs.
+    var paragraphs = body.getParagraphs();
+    var ackIndex = -1;
+
+    for (var j = 0; j < paragraphs.length; j++) {
+      var pObj = paragraphs[j];
+      var raw = pObj.getText();
+
+      if (raw.indexOf('Participant Name (Printed)') !== -1) {
+        ackIndex = body.getChildIndex(pObj);
+        pObj.setText('Participant Name (Printed):  ' + sigText);
+        pObj.setBold(false);
+        var pTextObj = pObj.editAsText();
+        pTextObj.setBold(0, 26, true); // Bold the label
+      } else if (raw.indexOf('Participant Signature:') !== -1) {
+        pObj.setText('Participant Signature:  ✍️ [DIGITALLY SIGNED] ' + sigText + '      Date: ' + signedDateStr);
+        pObj.setBold(false);
+        var pSigText = pObj.editAsText();
+        pSigText.setBold(0, 22, true);
+        var dateIdx = pObj.getText().indexOf('Date:');
+        if (dateIdx !== -1) {
+          pSigText.setBold(dateIdx, dateIdx + 4, true);
+        }
+      } else if (raw.indexOf('Emergency Contact Name:') !== -1) {
+        pObj.setText('Emergency Contact Name:  ' + (emName || 'N/A'));
+        pObj.setBold(false);
+        pObj.editAsText().setBold(0, 23, true);
+      } else if (raw.indexOf('Emergency Contact Phone Number:') !== -1) {
+        // Retain the trailing waiver notice if present
+        var noticeIdx = raw.indexOf('Please sign this Waiver');
+        var trailingNotice = noticeIdx !== -1 ? '\n\n' + raw.substring(noticeIdx).trim() : '';
+        pObj.setText('Emergency Contact Phone Number:  ' + (emPhone || 'N/A') + trailingNotice);
+        pObj.setBold(false);
+        pObj.editAsText().setBold(0, 31, true);
+      }
+    }
+
+    // 3. Official Certificate Table insertion:
+    // If an acknowledgment section exists, insert a certified, styled signature certificate table
+    // right after the section so that the document is officially and visibly signed beyond any doubt.
+    if (foundAcknowledgment && ackIndex !== -1) {
+      // Check if a certificate table has already been inserted
+      var tables = body.getTables();
+      var certTableExists = false;
+      for (var t = 0; t < tables.length; t++) {
+        if (tables[t].getText().indexOf('DIGITAL SIGNATURE & ACKNOWLEDGMENT CERTIFICATE') !== -1) {
+          certTableExists = true;
+          break;
+        }
+      }
+
+      if (!certTableExists) {
+        var certRows = [
+          ['JTF DIGITAL SIGNATURE & EMERGENCY CONTACT CERTIFICATE', ''],
+          ['Participant Name (Printed):', sigText],
+          ['Digital Signature:', '✍️ [DIGITALLY SIGNED] ' + sigText],
+          ['Date Signed:', signedDateStr],
+          ['Emergency Contact Name:', emName || 'N/A'],
+          ['Emergency Contact Phone:', emPhone || 'N/A'],
+          ['Status:', 'VERIFIED & LEGALLY BINDING (JTF Student Portal)']
+        ];
+
+        var table = body.insertTable(ackIndex + 4, certRows);
+        table.setBorderColor('#334155');
+        table.setBorderWidth(1.5);
+
+        // Merge header row across both columns
+        var headerRow = table.getRow(0);
+        headerRow.getCell(0).setBackgroundColor('#0f172a');
+        headerRow.getCell(0).editAsText().setForegroundColor('#ffffff').setBold(true).setFontSize(11);
+        headerRow.getCell(1).setBackgroundColor('#0f172a');
+
+        // Style the data rows
+        for (var r = 1; r < certRows.length; r++) {
+          var row = table.getRow(r);
+          var labelCell = row.getCell(0);
+          var valCell = row.getCell(1);
+
+          labelCell.setBackgroundColor('#f8fafc');
+          labelCell.editAsText().setBold(true).setFontSize(10).setForegroundColor('#1e293b');
+          labelCell.setWidth(180);
+
+          valCell.setBackgroundColor('#ffffff');
+          valCell.editAsText().setFontSize(10).setForegroundColor('#0f172a');
+          if (r === 2) {
+            valCell.editAsText().setBold(true).setForegroundColor('#15803d'); // Green for signature
+          } else if (r === certRows.length - 1) {
+            valCell.editAsText().setBold(true).setForegroundColor('#1e40af'); // Blue for verified status
+          }
+        }
+      }
+    }
+
+    // Clean up any remaining legacy placeholders
+    body.replaceText('\\*\\s*Date:', 'Date:');
+    body.replaceText('\\[Student Signature\\]', '[DIGITALLY SIGNED] ' + sigText);
+    body.replaceText('\\[Student Name\\]', sigText);
+    body.replaceText('\\[Date\\]', signedDateStr);
 
     doc.saveAndClose();
 
