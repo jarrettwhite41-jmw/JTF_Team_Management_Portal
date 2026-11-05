@@ -6244,8 +6244,3 @@ function doGet(e) {
     .setTitle('Sign JTF Welcome Packet - ' + studentName)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
-
-  return HtmlService.createHtmlOutput(html)
-    .setTitle('Sign JTF Welcome Packet - ' + studentName)
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
