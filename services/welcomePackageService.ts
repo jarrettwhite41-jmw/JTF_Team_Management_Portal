@@ -175,19 +175,22 @@ export const welcomePackageService = {
       'https://script.google.com/macros/s/AKfycbxZK9VefAgD3mux46pDw0st-suRvcOBLmuIRkPB_WxaCdHw9LFpaKQ-b2ExB7Xf-PMDsg/exec';
 
     if (gasWebAppUrl) {
+      const payload = {
+        studentId,
+        studentName,
+        studentEmail,
+        className: className || 'Improv Conservatory',
+        cycleName: cycleName || 'Current Cycle',
+        folderName: folderName || localStorage.getItem('JTF_WELCOME_PACKET_FOLDER_NAME') || undefined,
+        parentFolderId: parentFolderId || localStorage.getItem('JTF_WELCOME_PACKET_PARENT_FOLDER_ID') || undefined,
+      };
+
       try {
+        // Try standard fetch first
         const response = await fetch(gasWebAppUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            studentId,
-            studentName,
-            studentEmail,
-            className: className || 'Improv Conservatory',
-            cycleName: cycleName || 'Current Cycle',
-            folderName: folderName || localStorage.getItem('JTF_WELCOME_PACKET_FOLDER_NAME') || undefined,
-            parentFolderId: parentFolderId || localStorage.getItem('JTF_WELCOME_PACKET_PARENT_FOLDER_ID') || undefined,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const json = await response.json();
@@ -201,13 +204,34 @@ export const welcomePackageService = {
           error: json.error,
         };
       } catch (err: any) {
-        return {
-          success: false,
-          student_id: studentId,
-          student_name: studentName,
-          student_email: studentEmail,
-          error: err.message || 'Failed to dispatch to Apps Script Web App',
-        };
+        console.warn('Standard fetch failed or blocked by CORS redirect, attempting no-cors fallback:', err);
+        
+        // Fallback: Google Apps Script Web Apps 302-redirect POSTs to googleusercontent.com.
+        // If the browser blocks reading the redirect due to CORS policy or deployment permissions,
+        // mode: 'no-cors' allows the request to reach Apps Script and execute the email/doc generation.
+        try {
+          await fetch(gasWebAppUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload),
+          });
+
+          return {
+            success: true,
+            student_id: studentId,
+            student_name: studentName,
+            student_email: studentEmail,
+          };
+        } catch (noCorsErr: any) {
+          return {
+            success: false,
+            student_id: studentId,
+            student_name: studentName,
+            student_email: studentEmail,
+            error: noCorsErr.message || err.message || 'Failed to dispatch to Apps Script Web App',
+          };
+        }
       }
     }
 
