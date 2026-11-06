@@ -1,4 +1,7 @@
-﻿import React from 'react';
+﻿import React, { useState } from 'react';
+import { supabaseService } from '../../services/supabaseService';
+import { gasService } from '../../services/googleAppsScript';
+import { printFirstDaySignInSheet } from '../../utils/printSignInSheet';
 
 interface ClassCardProps {
   classOffering: any;
@@ -7,6 +10,33 @@ interface ClassCardProps {
 }
 
 export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage, onDelete }) => {
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrintSignIn = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPrinting(true);
+    try {
+      let students: any[] = [];
+      // 1. Try Supabase first
+      const sbRes = await supabaseService.getEnrolledStudents(classOffering.OfferingID);
+      if (sbRes.success && sbRes.data && sbRes.data.length > 0) {
+        students = sbRes.data;
+      } else {
+        // 2. Fall back to Google Sheets / gasService
+        const gasRes = await gasService.getEnrolledStudents(classOffering.OfferingID);
+        if (gasRes.success && gasRes.data) {
+          students = gasRes.data;
+        }
+      }
+      printFirstDaySignInSheet(classOffering, students);
+    } catch (err) {
+      console.error('Failed to print sign-in sheet:', err);
+      // Even if fetch fails, print the sheet with header and blank lines
+      printFirstDaySignInSheet(classOffering, []);
+    } finally {
+      setIsPrinting(false);
+    }
+  };
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'upcoming':
@@ -111,19 +141,42 @@ export const ClassCard: React.FC<ClassCardProps> = ({ classOffering, onManage, o
         </div>
       </div>
 
-      {/* View Details Link */}
-      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+      {/* Actions */}
+      <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-2">
         <button className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center group-hover:translate-x-1 transition-transform">
           Manage Class
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
-        {onDelete && (
-          <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-sm text-red-500 hover:text-red-700 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">
-            Delete
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handlePrintSignIn}
+            disabled={isPrinting}
+            title="Print Day 1 Class Sign-In Sheet"
+            className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 border border-gray-200 rounded-md shadow-sm transition-colors"
+          >
+            {isPrinting ? (
+              <span className="inline-block w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-1" />
+            ) : (
+              <svg className="w-3.5 h-3.5 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            )}
+            Sign-In Sheet
           </button>
-        )}
+
+          {onDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="text-xs text-red-500 hover:text-red-700 font-medium px-2 py-1.5 rounded hover:bg-red-50 transition-colors"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
