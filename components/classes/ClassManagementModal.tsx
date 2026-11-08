@@ -52,7 +52,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('roster');
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<number>>(new Set());
@@ -199,8 +199,11 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     try {
       const response = await gasService.getAllStudentsWithDetails();
       if (response.success) {
-        const enrolledIds = enrolledStudents.map((student) => student.StudentID);
-        const available = (response.data || []).filter((student: Student) => !enrolledIds.includes(student.StudentID));
+        // Exclude only active enrollments so that students removed by admin (ADMIN status) can be re-enrolled
+        const activeEnrolledIds = enrolledStudents
+          .filter((student) => normalizeStatus(student.CompletionStatus) !== 'ADMIN')
+          .map((student) => student.StudentID);
+        const available = (response.data || []).filter((student: Student) => !activeEnrolledIds.includes(student.StudentID));
         setAvailableStudents(available);
       } else {
         setMessage({ type: 'error', text: response.error || 'Failed to load students' });
@@ -1277,7 +1280,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                       }`}
                     >
                       <StudentCard
-                        student={student}
+                        student={student as any}
                         isSelected={selectedStudentIds.has(student.StudentID)}
                         onToggle={() => toggleStudentSelection(student.StudentID)}
                       />

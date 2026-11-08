@@ -691,19 +691,266 @@ function updatePersonnel(personnelData) {
 /**
  * DELETE OPERATION: Deletes person from Personnel sheet
  * DATA FLOW: PersonnelID → finds matching row → deletes entire row
+ * Supports optional forceDelete parameter to clean up dependent records across role sheets.
  * @param {number} personnelId - The PersonnelID to delete
+ * @param {boolean} forceDelete - If true, cascades deletion across role sheets
  */
-function deletePersonnel(personnelId) {
+function deletePersonnel(personnelId, forceDelete) {
   try {
-    Logger.log(`deletePersonnel() called for PersonnelID: ${personnelId}`);
+    Logger.log(`deletePersonnel() called for PersonnelID: ${personnelId}, forceDelete: ${forceDelete}`);
+    const id = Number(personnelId);
+
+    if (!forceDelete) {
+      const depCheck = getPersonnelDeletionDependencies(id);
+      if (depCheck.success && depCheck.data && !depCheck.data.canDelete) {
+        return {
+          success: false,
+          error: `Cannot delete personnel. ${depCheck.data.totalReferences} related record(s) found. Use force delete to continue.`
+        };
+      }
+    } else {
+      // Force delete: clean up dependent child records across related sheets
+      try {
+        // 1. StudentInfo and Enrollments
+        const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+        const studentRows = sheetToObjects(studentInfoSheet).filter(s => s.PersonnelID == id);
+        const studentIds = studentRows.map(s => s.StudentID);
+
+        if (studentIds.length > 0) {
+          const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+          studentIds.forEach(sId => {
+            deleteRowsByCondition(enrollmentsSheet, 'StudentID', sId);
+          });
+          deleteRowsByCondition(studentInfoSheet, 'PersonnelID', id);
+        }
+
+        // 2. CastMemberInfo and Performances
+        const castSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+        const castRows = sheetToObjects(castSheet).filter(c => c.PersonnelID == id);
+        const castIds = castRows.map(c => c.CastMemberID);
+
+        if (castIds.length > 0) {
+          const perfsSheet = getSheet(SHEET_CONFIG.showPerformances);
+          castIds.forEach(cId => {
+            deleteRowsByCondition(perfsSheet, 'CastMemberID', cId);
+          });
+          deleteRowsByCondition(castSheet, 'PersonnelID', id);
+        }
+
+        // 3. Teachers
+        const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+        deleteRowsByCondition(teachersSheet, 'PersonnelID', id);
+
+        // 4. Directors
+        const directorsSheet = getSheet(SHEET_CONFIG.directors);
+        deleteRowsByCondition(directorsSheet, 'PersonnelID', id);
+
+        // 5. Bartenders
+        const bartendersSheet = getSheet(SHEET_CONFIG.bartenders);
+        deleteRowsByCondition(bartendersSheet, 'PersonnelID', id);
+
+        // 6. Crew Duties
+        const crewSheet = getSheet(SHEET_CONFIG.crewDuties);
+        deleteRowsByCondition(crewSheet, 'PersonnelID', id);
+      } catch (cascadeErr) {
+        Logger.log(`Warning during force delete cleanup for PersonnelID ${id}: ${cascadeErr.toString()}`);
+      }
+    }
+
     const sheet = getSheet(SHEET_CONFIG.personnel);
-    const result = deleteRow(sheet, personnelId, 0);
+    const result = deleteRow(sheet, id, 0);
     
     Logger.log(`Personnel deletion result: ${result ? 'SUCCESS' : 'FAILED - ID not found'}`);
-    return { success: result, data: null, message: result ? 'Personnel deleted successfully' : 'Personnel ID not found' };
+    return { success: result, data: { deleted: result }, message: result ? 'Personnel deleted successfully' : 'Personnel ID not found' };
   } catch (error) {
     Logger.log(`ERROR in deletePersonnel(): ${error.toString()}`);
     return { success: false, data: null, error: error.toString() };
+  }
+}
+
+/**
+ * READ OPERATION: Checks dependent records across all sheets for a given PersonnelID.
+ * Used by PersonnelDirectory before showing the delete confirmation / force-delete modal.
+ * @param {number} personnelId - The PersonnelID to check
+ * @returns {Object} { success, data: PersonnelDeletionDependencies }
+ */
+function getPersonnelDeletionDependencies(personnelId) {
+  try {
+    const id = Number(personnelId);
+    Logger.log(`=== getPersonnelDeletionDependencies(${id}) called ===`);
+
+    let castCount = 0;
+    let studentCount = 0;
+    let studentEnrollmentCount = 0;
+    let teacherCount = 0;
+    let directorCount = 0;
+    let showPerformanceCount = 0;
+    let crewDutyCount = 0;
+    let bartenderCount = 0;
+    let workshopRegistrationCount = 0;
+
+    // Check CastMemberInfo
+    try {
+      const castSheet = getSheet(SHEET_CONFIG.castMemberInfo);
+      const castRows = sheetToObjects(castSheet).filter(c => c.PersonnelID == id);
+      castCount = castRows.length;
+
+      if (castRows.length > 0) {
+        const castIds = new Set(castRows.map(c => c.CastMemberID));
+        const perfsSheet = getSheet(SHEET_CONFIG.showPerformances);
+        const perfs = sheetToObjects(perfsSheet).filter(p => castIds.has(p.CastMemberID) || p.PersonnelID == id);
+        showPerformanceCount = perfs.length;
+      }
+    } catch (e) {
+      Logger.log(`Could not check cast dependencies: ${e.toString()}`);
+    }
+
+    // Check StudentInfo and StudentEnrollments
+    try {
+      const studentSheet = getSheet(SHEET_CONFIG.studentInfo);
+      const studentRows = sheetToObjects(studentSheet).filter(s => s.PersonnelID == id);
+      studentCount = studentRows.length;
+
+      if (studentRows.length > 0) {
+        const studentIds = new Set(studentRows.map(s => s.StudentID));
+        const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
+        const enrollments = sheetToObjects(enrollmentsSheet).filter(e => studentIds.has(e.StudentID));
+        studentEnrollmentCount = enrollments.length;
+      }
+    } catch (e) {
+      Logger.log(`Could not check student dependencies: ${e.toString()}`);
+    }
+
+    // Check Teachers
+    try {
+      const teachersSheet = getSheet(SHEET_CONFIG.teachers);
+      teacherCount = sheetToObjects(teachersSheet).filter(t => t.PersonnelID == id).length;
+    } catch (e) {
+      Logger.log(`Could not check teacher dependencies: ${e.toString()}`);
+    }
+
+    // Check Directors
+    try {
+      const directorsSheet = getSheet(SHEET_CONFIG.directors);
+      directorCount = sheetToObjects(directorsSheet).filter(d => d.PersonnelID == id).length;
+    } catch (e) {
+      Logger.log(`Could not check director dependencies: ${e.toString()}`);
+    }
+
+    // Check Crew Duties
+    try {
+      const crewSheet = getSheet(SHEET_CONFIG.crewDuties);
+      crewDutyCount = sheetToObjects(crewSheet).filter(cd => cd.PersonnelID == id).length;
+    } catch (e) {
+      Logger.log(`Could not check crew dependencies: ${e.toString()}`);
+    }
+
+    // Check Bartenders
+    try {
+      const bartendersSheet = getSheet(SHEET_CONFIG.bartenders);
+      bartenderCount = sheetToObjects(bartendersSheet).filter(b => b.PersonnelID == id).length;
+    } catch (e) {
+      Logger.log(`Could not check bartender dependencies: ${e.toString()}`);
+    }
+
+    const references = {
+      castMember: castCount,
+      studentProfile: studentCount,
+      teacherRole: teacherCount,
+      directorRole: directorCount,
+      showPerformances: showPerformanceCount,
+      crewDuties: crewDutyCount,
+      bartenderAssignments: bartenderCount,
+      workshopRegistrations: workshopRegistrationCount,
+      studentEnrollments: studentEnrollmentCount
+    };
+
+    const totalReferences = Object.values(references).reduce((sum, val) => sum + val, 0);
+
+    return {
+      success: true,
+      data: {
+        canDelete: totalReferences === 0,
+        totalReferences: totalReferences,
+        references: references
+      }
+    };
+  } catch (error) {
+    Logger.log(`ERROR in getPersonnelDeletionDependencies(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * UPDATE OPERATION: Inactivates a person in the Personnel sheet.
+ * Sets the 'Active' or 'IsActive' column to false.
+ * @param {number} personnelId - The PersonnelID to inactivate
+ */
+function inactivatePersonnel(personnelId) {
+  try {
+    const id = Number(personnelId);
+    Logger.log(`inactivatePersonnel() called for PersonnelID: ${id}`);
+    const sheet = getSheet(SHEET_CONFIG.personnel);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    let activeColIndex = headers.indexOf('IsActive');
+    if (activeColIndex === -1) activeColIndex = headers.indexOf('Active');
+    
+    // If neither exists, add IsActive header
+    if (activeColIndex === -1) {
+      activeColIndex = headers.length;
+      sheet.getRange(1, activeColIndex + 1).setValue('IsActive');
+    }
+
+    const rowIndex = data.findIndex((row, idx) => idx > 0 && row[0] == id);
+    if (rowIndex < 1) {
+      return { success: false, error: 'Personnel ID not found' };
+    }
+
+    sheet.getRange(rowIndex + 1, activeColIndex + 1).setValue(false);
+    invalidateCacheForSheet(SHEET_CONFIG.personnel);
+
+    return { success: true, data: { inactivated: true } };
+  } catch (error) {
+    Logger.log(`ERROR in inactivatePersonnel(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * UPDATE OPERATION: Reactivates a person in the Personnel sheet.
+ * Sets the 'Active' or 'IsActive' column to true.
+ * @param {number} personnelId - The PersonnelID to reactivate
+ */
+function reactivatePersonnel(personnelId) {
+  try {
+    const id = Number(personnelId);
+    Logger.log(`reactivatePersonnel() called for PersonnelID: ${id}`);
+    const sheet = getSheet(SHEET_CONFIG.personnel);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    let activeColIndex = headers.indexOf('IsActive');
+    if (activeColIndex === -1) activeColIndex = headers.indexOf('Active');
+
+    if (activeColIndex === -1) {
+      activeColIndex = headers.length;
+      sheet.getRange(1, activeColIndex + 1).setValue('IsActive');
+    }
+
+    const rowIndex = data.findIndex((row, idx) => idx > 0 && row[0] == id);
+    if (rowIndex < 1) {
+      return { success: false, error: 'Personnel ID not found' };
+    }
+
+    sheet.getRange(rowIndex + 1, activeColIndex + 1).setValue(true);
+    invalidateCacheForSheet(SHEET_CONFIG.personnel);
+
+    return { success: true, data: { reactivated: true } };
+  } catch (error) {
+    Logger.log(`ERROR in reactivatePersonnel(): ${error.toString()}`);
+    return { success: false, error: error.toString() };
   }
 }
 
@@ -3832,26 +4079,44 @@ function getActiveClassOfferings() {
 /**
  * CREATE OPERATION: Enrolls a single student in a class
  * DATA FLOW: Creates new row in StudentEnrollments sheet
- * @param {number} studentId - PersonnelID of the student
- * @param {number} offeringId - OfferingID of the class
+ * Resilient to argument order: accepts either (offeringId, studentId/personnelId) or (personnelId/studentId, offeringId).
+ * @param {number} arg1 - offeringId OR personnelId/studentId
+ * @param {number} arg2 - studentId/personnelId OR offeringId
  */
-function enrollStudent(personnelId, offeringId) {
+function enrollStudent(arg1, arg2) {
   try {
-    Logger.log(`=== enrollStudent(personnelId: ${personnelId}, offeringId: ${offeringId}) called ===`);
-    Logger.log(`PersonnelID type: ${typeof personnelId}, OfferingID type: ${typeof offeringId}`);
+    Logger.log(`=== enrollStudent(arg1: ${arg1}, arg2: ${arg2}) called ===`);
     
-    // Get or create StudentInfo record for this person
-  const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
-  Logger.log(`Got StudentInfo sheet: ${studentInfoSheet.getName()}`);
+    // Resolve arguments: frontend calls gasService.enrollStudent(offeringId, studentId)
+    // Legacy internal calls or bulkEnrollStudents may call enrollStudent(personnelId, offeringId)
+    const offeringsSheet = getSheet(SHEET_CONFIG.classOfferings);
+    const allOfferings = sheetToObjects(offeringsSheet);
     
-  const allStudentInfo = sheetToObjects(studentInfoSheet);
-  Logger.log(`Found ${allStudentInfo.length} total student info records`);
+    let offeringId, personOrStudentId;
+    if (allOfferings.some(o => o.OfferingID == arg1)) {
+      offeringId = Number(arg1);
+      personOrStudentId = Number(arg2);
+    } else {
+      personOrStudentId = Number(arg1);
+      offeringId = Number(arg2);
+    }
     
-    let studentInfo = allStudentInfo.find(si => si.PersonnelID == personnelId);
+    Logger.log(`Resolved parameters: offeringId=${offeringId}, personOrStudentId=${personOrStudentId}`);
+    
+    // Get or create StudentInfo record for this person/student
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
+    Logger.log(`Got StudentInfo sheet: ${studentInfoSheet.getName()}`);
+    
+    const allStudentInfo = sheetToObjects(studentInfoSheet);
+    Logger.log(`Found ${allStudentInfo.length} total student info records`);
+    
+    // Check if the passed ID matches an existing StudentID or PersonnelID
+    let studentInfo = allStudentInfo.find(si => si.StudentID == personOrStudentId || si.PersonnelID == personOrStudentId);
     let studentId;
     
     if (!studentInfo) {
-      // Person is not in StudentInfo table yet - create a record
+      // Person is not in StudentInfo table yet - treat as PersonnelID and create record
+      const personnelId = personOrStudentId;
       Logger.log(`PersonnelID ${personnelId} not found in StudentInfo - creating new student record`);
       
       const newStudentData = {
@@ -3866,7 +4131,7 @@ function enrollStudent(personnelId, offeringId) {
       Logger.log(`Created new student record with StudentID: ${studentId}`);
     } else {
       studentId = studentInfo.StudentID;
-      Logger.log(`Found existing StudentID: ${studentId} for PersonnelID: ${personnelId}`);
+      Logger.log(`Found existing StudentID: ${studentId} for person/student ID: ${personOrStudentId}`);
     }
     
     // Check if student is already enrolled in this class
@@ -3951,7 +4216,7 @@ function getEnrolledStudents(offeringId) {
     const enrollmentsSheet = getSheet(SHEET_CONFIG.studentEnrollments);
     const allEnrollments = sheetToObjects(enrollmentsSheet);
     
-    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInformation);
+    const studentInfoSheet = getSheet(SHEET_CONFIG.studentInfo);
     const allStudentInfo = sheetToObjects(studentInfoSheet);
     
     const personnelSheet = getSheet(SHEET_CONFIG.personnel);

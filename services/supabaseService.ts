@@ -1655,6 +1655,66 @@ class SupabaseService {
             error: `Cannot delete personnel. ${dependenciesResponse.data.totalReferences} related record(s) found. Use force delete to continue.`,
           };
         }
+      } else {
+        // Cascade delete / unhook dependent child records before deleting personnel
+        // 1. Student related records
+        const { data: studentRows } = await this.client
+          .from('student_info')
+          .select('student_id')
+          .eq('personnel_id', personnelId);
+
+        const studentIds = (studentRows || []).map((s: any) => s.student_id).filter((id: number) => Number.isFinite(id));
+        if (studentIds.length > 0) {
+          // Find all enrollments for these student IDs
+          const { data: enrollmentRows } = await this.client
+            .from('student_enrollments')
+            .select('enrollment_id')
+            .in('student_id', studentIds);
+
+          const enrollmentIds = (enrollmentRows || []).map((e: any) => e.enrollment_id).filter((id: number) => Number.isFinite(id));
+          if (enrollmentIds.length > 0) {
+            await this.client.from('student_competencies').delete().in('enrollment_id', enrollmentIds);
+            await this.client.from('student_progress_notes').delete().in('enrollment_id', enrollmentIds);
+            await this.client.from('class_attendance').delete().in('enrollment_id', enrollmentIds);
+            await this.client.from('student_enrollments').delete().in('enrollment_id', enrollmentIds);
+          }
+
+          await this.client.from('class_level_progression').delete().in('student_id', studentIds);
+          await this.client.from('student_info').delete().eq('personnel_id', personnelId);
+        }
+
+        // 2. Teachers (unassign or delete)
+        const { data: teacherRows } = await this.client
+          .from('teachers')
+          .select('teacher_id')
+          .eq('personnel_id', personnelId);
+        const teacherIds = (teacherRows || []).map((t: any) => t.teacher_id).filter((id: number) => Number.isFinite(id));
+        if (teacherIds.length > 0) {
+          await this.client.from('class_offerings').update({ teacher_id: null }).in('teacher_id', teacherIds);
+          await this.client.from('teachers').delete().eq('personnel_id', personnelId);
+        }
+
+        // 3. Directors (unassign or delete)
+        const { data: directorRows } = await this.client
+          .from('directors')
+          .select('director_id')
+          .eq('personnel_id', personnelId);
+        const directorIds = (directorRows || []).map((d: any) => d.director_id).filter((id: number) => Number.isFinite(id));
+        if (directorIds.length > 0) {
+          await this.client.from('show_information').update({ director_id: null }).in('director_id', directorIds);
+          await this.client.from('directors').delete().eq('personnel_id', personnelId);
+        }
+
+        // 4. Role tables & assignments directly keyed to personnel_id
+        await this.client.from('cast_member_info').delete().eq('PersonnelID', personnelId);
+        await this.client.from('show_performances').delete().eq('personnel_id', personnelId);
+        await this.client.from('crew_duties').delete().eq('personnel_id', personnelId);
+        await this.client.from('bartenders').delete().eq('personnel_id', personnelId);
+        await this.client.from('workshop_registrations').delete().eq('personnel_id', personnelId);
+        await this.client.from('alumni').delete().eq('personnel_id', personnelId);
+
+        // 5. Portal user access (dissociate rather than delete access record)
+        await this.client.from('portal_user_access').update({ personnel_id: null }).eq('personnel_id', personnelId);
       }
 
       const { error } = await this.client
