@@ -25,6 +25,7 @@ import { OperationsCRM, CRMTab } from './pages/OperationsCRM';
 import { SeasonPlanner } from './pages/SeasonPlanner';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
+import { CorporateGigs } from './pages/CorporateGigs';
 import { Loader } from './components/common/Loader';
 import { ContextualHelpDrawer } from './components/common/ContextualHelpDrawer';
 import { TEAM_PORTAL_GUIDE_DATA } from './constants/portalGuides';
@@ -38,7 +39,7 @@ const HUB_URL = (import.meta.env.VITE_PORTAL_HUB_URL as string | undefined)?.tri
 
 const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
-  'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'workshops',
+  'class-management', 'classes', 'show-management', 'shows', 'corporate-gigs', 'ticketing', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
   'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'season-planner', 'crm-operations', 'settings',
 ]);
@@ -60,7 +61,7 @@ const getInitialSelectedStudent = (): number | null => {
 const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
   const adminPages: PageType[] = [
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
-    'class-management', 'classes', 'show-management', 'shows', 'ticketing', 'games', 'workshops',
+    'class-management', 'classes', 'show-management', 'shows', 'corporate-gigs', 'ticketing', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
     'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'season-planner', 'settings',
   ];
@@ -238,6 +239,8 @@ const App: React.FC = () => {
       case 'show-management':
       case 'shows':
         return <Shows onNavigate={navigateToPage} />;
+      case 'corporate-gigs':
+        return <CorporateGigs />;
       case 'ticketing':
         return <TicketingManagement />;
       case 'games':
@@ -348,6 +351,7 @@ const App: React.FC = () => {
       icon: '🎭',
       pages: ([
         { id: 'show-management' as PageType, label: 'Shows', icon: '🎬' },
+        { id: 'corporate-gigs' as PageType, label: 'Corporate Gigs', icon: '💼' },
         { id: 'ticketing' as PageType, label: 'Ticketing & Sales', icon: '🎟️' },
         { id: 'crew' as PageType, label: 'Crew Assignments', icon: '🛠️' },
         { id: 'cast' as PageType, label: 'Cast Management', icon: '🎭' },

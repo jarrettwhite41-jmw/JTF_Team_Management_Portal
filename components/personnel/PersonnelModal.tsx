@@ -249,6 +249,40 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
                   </p>
                 )}
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Emergency Contact Name
+                </label>
+                {isEditable ? (
+                  <input
+                    type="text"
+                    value={formData.EmergencyContactName || ''}
+                    onChange={(e) => handleInputChange('EmergencyContactName', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="e.g. Jane Doe (Parent/Spouse)"
+                  />
+                ) : (
+                  <p className="py-2 text-gray-900">{formData.EmergencyContactName || 'None'}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Emergency Contact Phone
+                </label>
+                {isEditable ? (
+                  <input
+                    type="tel"
+                    value={formData.EmergencyContactPhone || ''}
+                    onChange={(e) => handleInputChange('EmergencyContactPhone', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="(555) 000-0000"
+                  />
+                ) : (
+                  <p className="py-2 text-gray-900">{formData.EmergencyContactPhone || 'None'}</p>
+                )}
+              </div>
             </div>
             {mode === 'create' && (
               <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">

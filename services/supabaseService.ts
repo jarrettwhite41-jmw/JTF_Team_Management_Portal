@@ -159,6 +159,8 @@ class SupabaseService {
       LastName: row.last_name || '',
       PrimaryEmail: row.primary_email || '',
       PrimaryPhone: row.primary_phone || '',
+      EmergencyContactName: row.emergency_contact_name || '',
+      EmergencyContactPhone: row.emergency_contact_phone || '',
       Instagram: row.instagram || '',
       Birthday: row.birthday || '',
       IsActive: row.active !== false,
@@ -1537,6 +1539,8 @@ class SupabaseService {
             last_name: personnel.LastName,
             primary_email: personnel.PrimaryEmail,
             primary_phone: personnel.PrimaryPhone || null,
+            emergency_contact_name: personnel.EmergencyContactName || null,
+            emergency_contact_phone: personnel.EmergencyContactPhone || null,
             instagram: personnel.Instagram || null,
             birthday: personnel.Birthday || null,
           },
@@ -1561,6 +1565,8 @@ class SupabaseService {
       if (personnel.LastName !== undefined) updates.last_name = personnel.LastName;
       if (personnel.PrimaryEmail !== undefined) updates.primary_email = personnel.PrimaryEmail;
       if (personnel.PrimaryPhone !== undefined) updates.primary_phone = personnel.PrimaryPhone || null;
+      if (personnel.EmergencyContactName !== undefined) updates.emergency_contact_name = personnel.EmergencyContactName || null;
+      if (personnel.EmergencyContactPhone !== undefined) updates.emergency_contact_phone = personnel.EmergencyContactPhone || null;
       if (personnel.Instagram !== undefined) updates.instagram = personnel.Instagram || null;
       if (personnel.Birthday !== undefined) updates.birthday = personnel.Birthday || null;
 
@@ -3015,10 +3021,9 @@ class SupabaseService {
 
       if (attendanceRes.error) throw attendanceRes.error;
 
-      const toAttendanceStatus = (attended: boolean | null, notes: string | null): 'Present' | 'Absent' | 'Late' | 'Excused' => {
+      const toAttendanceStatus = (attended: boolean | null, notes: string | null): 'Present' | 'Absent' | 'Late' => {
         const notesValue = String(notes || '').trim().toLowerCase();
         if (notesValue === 'late') return 'Late';
-        if (notesValue === 'excused') return 'Excused';
         return attended ? 'Present' : 'Absent';
       };
 
@@ -3037,7 +3042,6 @@ class SupabaseService {
           ClassDate: row.ClassDate,
           PresentCount: 0,
           LateCount: 0,
-          ExcusedCount: 0,
           AbsentCount: 0,
           MarkedCount: 0,
           AttendancePct: 0,
@@ -3046,7 +3050,6 @@ class SupabaseService {
         current.MarkedCount += 1;
         if (row.AttendanceStatus === 'Present') current.PresentCount += 1;
         if (row.AttendanceStatus === 'Late') current.LateCount += 1;
-        if (row.AttendanceStatus === 'Excused') current.ExcusedCount += 1;
         if (row.AttendanceStatus === 'Absent') current.AbsentCount += 1;
 
         byDateMap.set(row.ClassDate, current);
@@ -3073,6 +3076,219 @@ class SupabaseService {
       };
     } catch (error) {
       console.error('Error fetching class offering details:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getClassSessionSubstitutes(offeringId: number, sessionDate?: string): Promise<ApiResponse<ClassSessionSubstitute[]>> {
+    try {
+      let query = this.client
+        .from('class_session_substitutes')
+        .select('*')
+        .eq('offering_id', offeringId);
+
+      if (sessionDate) {
+        query = query.eq('session_date', sessionDate);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: true });
+      if (error) throw error;
+
+      const formatted: ClassSessionSubstitute[] = (data || []).map((row: any) => ({
+        SubstituteID: row.substitute_id,
+        OfferingID: row.offering_id,
+        SessionDate: String(row.session_date || '').split('T')[0],
+        PersonnelID: row.personnel_id,
+        TeacherID: row.teacher_id,
+        SubstituteName: row.substitute_name,
+        Notes: row.notes || '',
+        CreatedAt: row.created_at,
+      }));
+
+      return { success: true, data: formatted };
+    } catch (error) {
+      console.error('Error fetching class session substitutes:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async addClassSessionSubstitute(sub: Omit<ClassSessionSubstitute, 'SubstituteID' | 'CreatedAt'>): Promise<ApiResponse<ClassSessionSubstitute>> {
+    try {
+      const { data, error } = await this.client
+        .from('class_session_substitutes')
+        .insert({
+          offering_id: sub.OfferingID,
+          session_date: sub.SessionDate,
+          personnel_id: sub.PersonnelID,
+          teacher_id: sub.TeacherID || null,
+          substitute_name: sub.SubstituteName,
+          notes: sub.Notes || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        data: {
+          SubstituteID: data.substitute_id,
+          OfferingID: data.offering_id,
+          SessionDate: String(data.session_date || '').split('T')[0],
+          PersonnelID: data.personnel_id,
+          TeacherID: data.teacher_id,
+          SubstituteName: data.substitute_name,
+          Notes: data.notes || '',
+          CreatedAt: data.created_at,
+        },
+      };
+    } catch (error) {
+      console.error('Error adding class session substitute:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async removeClassSessionSubstitute(substituteId: number): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('class_session_substitutes')
+        .delete()
+        .eq('substitute_id', substituteId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error removing class session substitute:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  // --- Corporate Gigs CRUD ---
+  async getCorporateGigs(): Promise<ApiResponse<CorporateGig[]>> {
+    try {
+      const { data: gigs, error: gigsErr } = await this.client
+        .from('corporate_gigs')
+        .select('*, personnel:lead_personnel_id(first_name, last_name)')
+        .order('gig_date', { ascending: false });
+
+      if (gigsErr) throw gigsErr;
+
+      const gigIds = (gigs || []).map((g: any) => g.gig_id);
+      let performersByGig: Record<number, CorporateGigPerformer[]> = {};
+
+      if (gigIds.length > 0) {
+        const { data: perfs, error: perfsErr } = await this.client
+          .from('corporate_gig_performers')
+          .select('*')
+          .in('gig_id', gigIds);
+
+        if (perfsErr) throw perfsErr;
+
+        (perfs || []).forEach((p: any) => {
+          if (!performersByGig[p.gig_id]) performersByGig[p.gig_id] = [];
+          performersByGig[p.gig_id].push({
+            PersonnelID: p.personnel_id,
+            FullName: p.performer_name,
+            Role: p.role,
+            PayoutAmount: Number(p.pay_amount || 0),
+            PayoutStatus: p.is_paid ? 'Paid' : 'Pending',
+          });
+        });
+      }
+
+      const formatted: CorporateGig[] = (gigs || []).map((g: any) => ({
+        GigID: g.gig_id,
+        ClientName: g.client_name,
+        GigTitle: g.event_title,
+        GigDate: String(g.gig_date || '').split('T')[0],
+        GigTime: g.start_time ? `${g.start_time}${g.end_time ? ' - ' + g.end_time : ''}` : '',
+        Location: g.location || '',
+        LeadPersonnelID: g.lead_personnel_id,
+        LeadName: g.personnel ? `${g.personnel.first_name} ${g.personnel.last_name}`.trim() : undefined,
+        Status: (g.status as any) || 'Confirmed',
+        TotalClientFee: Number(g.total_fee || 0),
+        Performers: performersByGig[g.gig_id] || [],
+        InternalNotes: g.internal_notes || g.notes || '',
+      }));
+
+      return { success: true, data: formatted };
+    } catch (error) {
+      console.error('Error fetching corporate gigs:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async saveCorporateGig(gig: Partial<CorporateGig> & { Performers?: CorporateGigPerformer[] }): Promise<ApiResponse<CorporateGig>> {
+    try {
+      const gigPayload = {
+        client_name: gig.ClientName,
+        event_title: gig.GigTitle,
+        gig_date: gig.GigDate,
+        start_time: gig.GigTime || null,
+        location: gig.Location || null,
+        lead_personnel_id: gig.LeadPersonnelID || null,
+        total_fee: gig.TotalClientFee || 0,
+        status: gig.Status || 'Confirmed',
+        internal_notes: gig.InternalNotes || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      let gigId: number;
+
+      if (gig.GigID) {
+        gigId = Number(gig.GigID);
+        const { error } = await this.client
+          .from('corporate_gigs')
+          .update(gigPayload)
+          .eq('gig_id', gigId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await this.client
+          .from('corporate_gigs')
+          .insert(gigPayload)
+          .select('gig_id')
+          .single();
+        if (error) throw error;
+        gigId = data.gig_id;
+      }
+
+      // Upsert/replace performers for this gig
+      if (gig.Performers) {
+        await this.client.from('corporate_gig_performers').delete().eq('gig_id', gigId);
+        if (gig.Performers.length > 0) {
+          const perfRows = gig.Performers.map((p) => ({
+            gig_id: gigId,
+            personnel_id: p.PersonnelID,
+            performer_name: p.FullName,
+            role: p.Role || 'Performer',
+            pay_amount: p.PayoutAmount || 0,
+            is_paid: p.PayoutStatus === 'Paid',
+          }));
+          const { error: insErr } = await this.client.from('corporate_gig_performers').insert(perfRows);
+          if (insErr) throw insErr;
+        }
+      }
+
+      const refetched = await this.getCorporateGigs();
+      const savedGig = (refetched.data || []).find((g) => Number(g.GigID) === gigId);
+      return { success: true, data: savedGig || (gig as CorporateGig) };
+    } catch (error) {
+      console.error('Error saving corporate gig:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async deleteCorporateGig(gigId: number): Promise<ApiResponse<{ success: boolean }>> {
+    try {
+      const { error } = await this.client
+        .from('corporate_gigs')
+        .delete()
+        .eq('gig_id', gigId);
+
+      if (error) throw error;
+      return { success: true, data: { success: true } };
+    } catch (error) {
+      console.error('Error deleting corporate gig:', error);
       return { success: false, error: this.getErrorMessage(error) };
     }
   }

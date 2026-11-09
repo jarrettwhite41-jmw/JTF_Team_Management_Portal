@@ -79,6 +79,13 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [sendingPacketStudentId, setSendingPacketStudentId] = useState<number | null>(null);
   const [isBatchSendingRosterPackets, setIsBatchSendingRosterPackets] = useState(false);
 
+  // Day-of Substitute Instructors state
+  const [sessionSubs, setSessionSubs] = useState<any[]>([]);
+  const [allTeachers, setAllTeachers] = useState<any[]>([]);
+  const [selectedSubTeacherId, setSelectedSubTeacherId] = useState<number | ''>('');
+  const [subNote, setSubNote] = useState('');
+  const [savingSub, setSavingSub] = useState(false);
+
   // Quick-create & enroll person state
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
@@ -140,7 +147,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         ClassDate: row.ClassDate,
         PresentCount: 0,
         LateCount: 0,
-        ExcusedCount: 0,
         AbsentCount: 0,
         MarkedCount: 0,
         AttendancePct: 0,
@@ -149,8 +155,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
       current.MarkedCount += 1;
       if (row.AttendanceStatus === 'Present') current.PresentCount += 1;
       if (row.AttendanceStatus === 'Late') current.LateCount += 1;
-      if (row.AttendanceStatus === 'Excused') current.ExcusedCount += 1;
-      if (row.AttendanceStatus === 'Absent') current.AbsentCount += 1;
+      if (row.AttendanceStatus === 'Absent' || row.AttendanceStatus === 'Excused') current.AbsentCount += 1;
 
       byDateMap.set(row.ClassDate, current);
     }
@@ -272,9 +277,13 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     const enrollmentIds = detailEnrollments.map((enrollment: any) => enrollment.EnrollmentID).filter(Boolean);
     setLoadingNotes(true);
 
-    const [logsRes, notesRes] = await Promise.all([
+    const [logsRes, notesRes, teachersRes, subsRes] = await Promise.all([
       gasService.getSessionLogsForOffering(classOffering.OfferingID),
       gasService.getProgressNotesForOffering(enrollmentIds, classOffering.OfferingID),
+      typeof gasService.getAllTeachers === 'function' ? gasService.getAllTeachers() : Promise.resolve({ success: true, data: [] }),
+      typeof gasService.getClassSessionSubstitutes === 'function' 
+        ? gasService.getClassSessionSubstitutes(classOffering.OfferingID) 
+        : Promise.resolve({ success: true, data: [] }),
     ]);
 
     if (logsRes.success && Array.isArray(logsRes.data)) {
@@ -285,7 +294,62 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
       setProgressNotes(notesRes.data);
     }
 
+    if (teachersRes.success && Array.isArray(teachersRes.data)) {
+      setAllTeachers(teachersRes.data);
+    }
+
+    if (subsRes.success && Array.isArray(subsRes.data)) {
+      setSessionSubs(subsRes.data);
+    }
+
     setLoadingNotes(false);
+  };
+
+  const handleAddSubstitute = async () => {
+    if (!selectedSubTeacherId) return;
+    const teacher = allTeachers.find((t: any) => t.TeacherID === Number(selectedSubTeacherId));
+    if (!teacher) return;
+
+    setSavingSub(true);
+    try {
+      const subName = `${teacher.FirstName || ''} ${teacher.LastName || ''}`.trim() || 'Substitute';
+      const res = await gasService.addClassSessionSubstitute({
+        OfferingID: classOffering.OfferingID,
+        SessionDate: sessionDate,
+        PersonnelID: teacher.PersonnelID,
+        TeacherID: teacher.TeacherID,
+        SubstituteName: subName,
+        Notes: subNote.trim(),
+      });
+
+      if (res.success) {
+        setMessage({ type: 'success', text: `Added substitute instructor ${subName} for ${sessionDate}.` });
+        setSelectedSubTeacherId('');
+        setSubNote('');
+        const subsRes = await gasService.getClassSessionSubstitutes(classOffering.OfferingID);
+        if (subsRes.success) setSessionSubs(subsRes.data || []);
+      } else {
+        setMessage({ type: 'error', text: res.error || 'Failed to add substitute.' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Error adding substitute instructor.' });
+    } finally {
+      setSavingSub(false);
+    }
+  };
+
+  const handleRemoveSubstitute = async (substituteId: number) => {
+    try {
+      const res = await gasService.removeClassSessionSubstitute(substituteId);
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Substitute removed.' });
+        setSessionSubs((prev) => prev.filter((s) => s.SubstituteID !== substituteId));
+      } else {
+        setMessage({ type: 'error', text: res.error || 'Failed to remove substitute.' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Error removing substitute.' });
+    }
   };
 
   useEffect(() => {
@@ -543,14 +607,14 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
     }
   };
 
-  const handleAttendance = async (enrollmentId: number, status: 'Present' | 'Absent' | 'Late' | 'Excused') => {
+  const handleAttendance = async (enrollmentId: number, status: 'Present' | 'Absent' | 'Late') => {
     setSavingAttendanceFor(enrollmentId);
     const response = await gasService.updateClassAttendance({
       enrollmentId,
       offeringId: classOffering.OfferingID,
       classDate: sessionDate,
       status,
-      notes: status === 'Late' || status === 'Excused' ? status : '',
+      notes: status === 'Late' ? status : '',
     });
 
     if (response.success) {
@@ -689,8 +753,7 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
       const records = attendanceRecords.filter((row: any) => row.EnrollmentID === enrollment.EnrollmentID);
       const present = records.filter((row: any) => row.AttendanceStatus === 'Present').length;
       const late = records.filter((row: any) => row.AttendanceStatus === 'Late').length;
-      const excused = records.filter((row: any) => row.AttendanceStatus === 'Excused').length;
-      const absent = records.filter((row: any) => row.AttendanceStatus === 'Absent').length;
+      const absent = records.filter((row: any) => row.AttendanceStatus === 'Absent' || row.AttendanceStatus === 'Excused').length;
       const marked = records.length;
 
       return {
@@ -699,7 +762,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         status: enrollment.Status,
         presentCount: present,
         lateCount: late,
-        excusedCount: excused,
         absentCount: absent,
         markedCount: marked,
         attendancePct: marked > 0 ? Math.round(((present + late) / marked) * 100) : 0,
@@ -830,17 +892,21 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                           </span>
                         </div>
                         <div className="flex gap-2 flex-wrap">
-                          {(['Present', 'Absent', 'Late', 'Excused'] as const).map((status) => {
+                          {(['Present', 'Absent', 'Late'] as const).map((status) => {
                             const isActive = attendanceForDate.get(enrollment.EnrollmentID) === status;
                             return (
                               <button
                                 key={status}
                                 disabled={savingAttendanceFor === enrollment.EnrollmentID}
                                 onClick={() => handleAttendance(enrollment.EnrollmentID, status)}
-                                className={`text-xs px-2 py-1 rounded border transition-colors ${
+                                className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors ${
                                   isActive
-                                    ? 'bg-primary-600 text-white border-primary-600'
-                                    : 'border-gray-300 hover:bg-primary-50 hover:border-primary-300 hover:text-primary-700'
+                                    ? status === 'Present'
+                                      ? 'bg-emerald-600 text-white border-emerald-600'
+                                      : status === 'Late'
+                                      ? 'bg-amber-600 text-white border-amber-600'
+                                      : 'bg-rose-600 text-white border-rose-600'
+                                    : 'border-gray-300 hover:bg-gray-100 hover:text-gray-900'
                                 } ${savingAttendanceFor === enrollment.EnrollmentID ? 'opacity-60 cursor-not-allowed' : ''}`}
                               >
                                 {status}
@@ -868,7 +934,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-gray-700">
                                 <p>Present: {summary.presentCount}</p>
                                 <p>Late: {summary.lateCount}</p>
-                                <p>Excused: {summary.excusedCount}</p>
                                 <p>Absent: {summary.absentCount}</p>
                                 <p>Marked: {summary.markedCount}/{classDates.length}</p>
                                 <p className="font-semibold text-primary-700">Attendance: {summary.attendancePct}%</p>
@@ -884,7 +949,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                 <th className="text-left px-2 py-2 font-semibold">Student</th>
                                 <th className="text-right px-2 py-2 font-semibold">Present</th>
                                 <th className="text-right px-2 py-2 font-semibold">Late</th>
-                                <th className="text-right px-2 py-2 font-semibold">Excused</th>
                                 <th className="text-right px-2 py-2 font-semibold">Absent</th>
                                 <th className="text-right px-2 py-2 font-semibold">Marked</th>
                                 <th className="text-right px-2 py-2 font-semibold">Attendance</th>
@@ -899,7 +963,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                                   </td>
                                   <td className="text-right px-2 py-2">{summary.presentCount}</td>
                                   <td className="text-right px-2 py-2">{summary.lateCount}</td>
-                                  <td className="text-right px-2 py-2">{summary.excusedCount}</td>
                                   <td className="text-right px-2 py-2">{summary.absentCount}</td>
                                   <td className="text-right px-2 py-2">{summary.markedCount}/{classDates.length}</td>
                                   <td className="text-right px-2 py-2 font-semibold text-primary-700">{summary.attendancePct}%</td>
@@ -927,7 +990,6 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                             <div className="flex gap-3 flex-wrap text-[11px] text-gray-600">
                               <span>Present: {day.PresentCount}</span>
                               <span>Late: {day.LateCount}</span>
-                              <span>Excused: {day.ExcusedCount}</span>
                               <span>Absent: {day.AbsentCount}</span>
                             </div>
                           </div>
@@ -1104,6 +1166,82 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
                       onChange={(event) => setSessionDate(event.target.value)}
                       className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
                     />
+                  </div>
+
+                  {/* Day-of Substitute Instructors Tracker */}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🔄</span>
+                        <h4 className="text-sm font-semibold text-amber-900">
+                          Substitute Instructors for {sessionDate}
+                        </h4>
+                      </div>
+                      <span className="text-xs text-amber-700 font-medium">
+                        Covers & Additional Faculty
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mb-3">
+                      Log any faculty member(s) subbing or co-teaching on this specific session date. Multiple subs can be added.
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <select
+                        value={selectedSubTeacherId}
+                        onChange={(e) => setSelectedSubTeacherId(e.target.value ? Number(e.target.value) : '')}
+                        className="text-xs border border-amber-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-800 font-medium outline-none focus:ring-2 focus:ring-amber-400"
+                      >
+                        <option value="">Select Instructor to Sub...</option>
+                        {allTeachers.map((teacher: any) => (
+                          <option key={teacher.TeacherID} value={teacher.TeacherID}>
+                            {teacher.FirstName} {teacher.LastName}
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="text"
+                        value={subNote}
+                        onChange={(e) => setSubNote(e.target.value)}
+                        placeholder="Notes (e.g. covering first hour, full session)"
+                        className="text-xs border border-amber-300 rounded-lg px-2.5 py-1.5 bg-white text-gray-800 flex-1 min-w-[180px] outline-none focus:ring-2 focus:ring-amber-400"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleAddSubstitute}
+                        disabled={!selectedSubTeacherId || savingSub}
+                        className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors shadow-sm"
+                      >
+                        {savingSub ? 'Adding...' : '+ Add Sub'}
+                      </button>
+                    </div>
+
+                    {sessionSubs.filter((sub: any) => String(sub.SessionDate) === String(sessionDate)).length === 0 ? (
+                      <p className="text-xs text-amber-600 italic">No substitutes logged for this date (regular instructor teaching).</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {sessionSubs
+                          .filter((sub: any) => String(sub.SessionDate) === String(sessionDate))
+                          .map((sub: any) => (
+                            <div
+                              key={sub.SubstituteID}
+                              className="flex items-center gap-2 bg-white border border-amber-300 px-2.5 py-1 rounded-lg text-xs shadow-sm"
+                            >
+                              <span className="font-semibold text-gray-900">{sub.SubstituteName}</span>
+                              {sub.Notes && <span className="text-gray-500 text-[11px]">({sub.Notes})</span>}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSubstitute(sub.SubstituteID)}
+                                className="text-gray-400 hover:text-red-600 font-bold ml-1"
+                                title="Remove substitute"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
                   {loadingNotes ? (

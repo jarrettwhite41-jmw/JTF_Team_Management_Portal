@@ -7,6 +7,8 @@ export interface Personnel {
   PrimaryPhone: string;
   Instagram: string;
   Birthday: Date | string;
+  EmergencyContactName?: string;
+  EmergencyContactPhone?: string;
   IsActive?: boolean;
 }
 
@@ -257,6 +259,44 @@ export interface WorkshopRegistration {
   RegistrationDate?: Date | string;
   RegistrationStatus?: 'Registered' | 'Canceled' | 'Waitlist';
   CheckedIn?: boolean;
+}
+
+export interface ClassSessionSubstitute {
+  SubstituteID?: number;
+  OfferingID: number;
+  SessionDate: string; // YYYY-MM-DD
+  PersonnelID: number;
+  TeacherID?: number | null;
+  SubstituteName: string;
+  Notes?: string;
+  CreatedAt?: string;
+}
+
+// Corporate Gig Tracking (Internal Management Only)
+export interface CorporateGigPerformer {
+  PersonnelID: number;
+  FullName: string;
+  Role?: string; // e.g. "Performer", "Host", "Musician"
+  PayoutAmount?: number;
+  PayoutStatus?: 'Pending' | 'Paid' | 'Waived';
+}
+
+export interface CorporateGig {
+  GigID: string | number;
+  ClientName: string;
+  GigTitle: string;
+  GigDate: string; // YYYY-MM-DD
+  GigTime?: string;
+  Location: string; // Venue / Client Address
+  LeadPersonnelID?: number | null;
+  LeadName?: string;
+  Status: 'Inquiry' | 'Confirmed' | 'Completed' | 'Cancelled';
+  TotalClientFee?: number;
+  PerformerPayRate?: number;
+  Performers: CorporateGigPerformer[];
+  Notes?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 // Extended Types for UI
@@ -528,6 +568,7 @@ export type PageType =
   | 'skills-management'
   | 'season-planner'
   | 'crm-operations'
+  | 'corporate-gigs'
   | 'settings';
 
 export interface NavigationItem {

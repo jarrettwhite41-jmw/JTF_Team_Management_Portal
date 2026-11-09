@@ -38,6 +38,12 @@ export const PersonCard: React.FC<PersonCardProps> = ({ person, onClick }) => {
             {person.FirstName} {person.LastName}
           </h3>
           <p className="text-sm text-gray-600">{person.PrimaryEmail}</p>
+          {person.EmergencyContactName && (
+            <p className="text-[11px] text-amber-700 mt-0.5 flex items-center gap-1">
+              <span>🚨</span>
+              <span>ICE: {person.EmergencyContactName} {person.EmergencyContactPhone ? `(${person.EmergencyContactPhone})` : ''}</span>
+            </p>
+          )}
         </div>
       </div>
       

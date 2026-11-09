@@ -48,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       defaultPage: 'show-management' as PageType,
       children: [
         { id: 'show-management', label: 'Shows', icon: '🎬' },
+        { id: 'corporate-gigs', label: 'Corporate Gigs', icon: '💼' },
         { id: 'ticketing', label: 'Ticketing & Sales', icon: '🎟️' },
         { id: 'crew', label: 'Crew Assignments', icon: '🛠️' },
         { id: 'cast', label: 'Cast Management', icon: '🎭' },
