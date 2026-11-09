@@ -79,6 +79,17 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
   const [sendingPacketStudentId, setSendingPacketStudentId] = useState<number | null>(null);
   const [isBatchSendingRosterPackets, setIsBatchSendingRosterPackets] = useState(false);
 
+  // Quick-create & enroll person state
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({
+    FirstName: '',
+    LastName: '',
+    PrimaryEmail: '',
+    PrimaryPhone: '',
+    SendWelcomePacket: true,
+  });
+
   const [offeringStatus, setOfferingStatus] = useState<'Upcoming' | 'In Progress' | 'Completed' | 'Cancelled'>(
     classOffering?.Status || 'Upcoming',
   );
@@ -329,6 +340,89 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
       setMessage({ type: 'error', text: 'Error adding students' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleQuickCreateAndEnroll = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickAddForm.FirstName.trim() || !quickAddForm.LastName.trim()) {
+      setMessage({ type: 'error', text: 'First name and last name are required.' });
+      return;
+    }
+
+    setIsSubmittingQuickAdd(true);
+    try {
+      // 1. Create or retrieve personnel
+      const personPayload = {
+        FirstName: quickAddForm.FirstName.trim(),
+        LastName: quickAddForm.LastName.trim(),
+        PrimaryEmail: quickAddForm.PrimaryEmail.trim(),
+        PrimaryPhone: quickAddForm.PrimaryPhone.trim(),
+      };
+
+      const personRes = await gasService.createPersonnel(personPayload);
+      if (!personRes.success || !personRes.data) {
+        throw new Error(personRes.error || 'Failed to create personnel record.');
+      }
+
+      const createdPersonnelId = personRes.data.PersonnelID;
+
+      // 2. Ensure StudentInfo profile exists
+      const studentRes = await gasService.addPersonAsStudent(createdPersonnelId);
+      if (!studentRes.success || !studentRes.data) {
+        throw new Error(studentRes.error || 'Failed to initialize student profile.');
+      }
+
+      const createdStudentId = studentRes.data.StudentID;
+
+      // 3. Enroll student directly in this class
+      const enrollRes = await gasService.enrollStudent(classOffering.OfferingID, createdStudentId);
+      if (!enrollRes.success) {
+        throw new Error(enrollRes.error || 'Failed to enroll student in class.');
+      }
+
+      // 4. Optionally dispatch Welcome Packet
+      let welcomePacketNotice = '';
+      if (quickAddForm.SendWelcomePacket && quickAddForm.PrimaryEmail.trim()) {
+        try {
+          const packetRes = await welcomePackageService.sendWelcomePacket({
+            studentId: createdStudentId,
+            studentName: `${personPayload.FirstName} ${personPayload.LastName}`.trim(),
+            studentEmail: personPayload.PrimaryEmail,
+            className: classOffering?.LevelName || classOffering?.OfferingName || 'Just The Funny Classes',
+          });
+          if (packetRes.success) {
+            welcomePacketNotice = ' & Welcome Packet emailed';
+          }
+        } catch (packetErr) {
+          console.warn('Welcome packet error during quick-enroll:', packetErr);
+        }
+      }
+
+      // Refresh rosters
+      await loadEnrolledStudents();
+      await loadAvailableStudents();
+      await loadClassDetails();
+      onRefresh();
+
+      setMessage({
+        type: 'success',
+        text: `Student ${personPayload.FirstName} ${personPayload.LastName} created, enrolled${welcomePacketNotice}!`,
+      });
+
+      // Reset & close quick-add form
+      setQuickAddForm({
+        FirstName: '',
+        LastName: '',
+        PrimaryEmail: '',
+        PrimaryPhone: '',
+        SendWelcomePacket: true,
+      });
+      setIsQuickAddOpen(false);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err?.message || 'Error quick-enrolling student.' });
+    } finally {
+      setIsSubmittingQuickAdd(false);
     }
   };
 
@@ -672,19 +766,35 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
         </div>
 
         {showSearch && (
-          <div className="px-6 py-4">
-            <div className="relative">
+          <div className="px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
               <input
                 type="text"
                 placeholder="Search students..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
               />
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
+            {activeTab === 'add' && (
+              <button
+                type="button"
+                onClick={() => setIsQuickAddOpen((prev) => !prev)}
+                className={`px-3.5 py-2 text-sm font-semibold rounded-lg border transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                  isQuickAddOpen
+                    ? 'bg-primary-50 text-primary-700 border-primary-300'
+                    : 'bg-primary-600 text-white border-primary-600 hover:bg-primary-700'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isQuickAddOpen ? "M6 18L18 6M6 6l12 12" : "M12 4v16m8-8H4"} />
+                </svg>
+                {isQuickAddOpen ? 'Close Quick Add' : '+ Quick Add & Enroll New Person'}
+              </button>
+            )}
           </div>
         )}
 
@@ -1249,14 +1359,111 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
               </div>
             )
           ) : activeTab === 'add' ? (
-            filteredStudents.length > 0 ? (
-              <>
-                <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
-                  <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={filteredStudents.length > 0 && filteredStudents.every((student) => selectedStudentIds.has(student.StudentID))}
-                      onChange={(event) => {
+            <div>
+              {/* In-place quick create & enroll form */}
+              {isQuickAddOpen && (
+                <div className="mb-6 p-4 bg-primary-50/70 border border-primary-200 rounded-xl shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 bg-primary-600 text-white rounded-md text-xs font-bold">NEW</span>
+                      <h3 className="text-sm font-bold text-gray-900">Quick Add Person & Enroll In This Class</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsQuickAddOpen(false)}
+                      className="text-gray-400 hover:text-gray-600 text-sm font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Creates the company roster record, sets up their student profile, and enrolls them into{' '}
+                    <strong className="text-gray-800">{classOffering.LevelName || 'this class'}</strong> in one step.
+                  </p>
+                  <form onSubmit={handleQuickCreateAndEnroll} className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">First Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={quickAddForm.FirstName}
+                          onChange={(e) => setQuickAddForm((prev) => ({ ...prev, FirstName: e.target.value }))}
+                          placeholder="e.g. Alex"
+                          className="w-full text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Last Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={quickAddForm.LastName}
+                          onChange={(e) => setQuickAddForm((prev) => ({ ...prev, LastName: e.target.value }))}
+                          placeholder="e.g. Rivera"
+                          className="w-full text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={quickAddForm.PrimaryEmail}
+                          onChange={(e) => setQuickAddForm((prev) => ({ ...prev, PrimaryEmail: e.target.value }))}
+                          placeholder="alex@example.com"
+                          className="w-full text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={quickAddForm.PrimaryPhone}
+                          onChange={(e) => setQuickAddForm((prev) => ({ ...prev, PrimaryPhone: e.target.value }))}
+                          placeholder="305-555-0199"
+                          className="w-full text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-primary-100">
+                      <label className="inline-flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={quickAddForm.SendWelcomePacket}
+                          onChange={(e) => setQuickAddForm((prev) => ({ ...prev, SendWelcomePacket: e.target.checked }))}
+                          className="w-3.5 h-3.5 rounded text-primary-600 border-gray-300 focus:ring-primary-500"
+                        />
+                        <span>Send Welcome Packet email immediately</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsQuickAddOpen(false)}
+                          className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmittingQuickAdd}
+                          className="px-4 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                        >
+                          {isSubmittingQuickAdd ? 'Enrolling...' : 'Create & Enroll Now'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              )}
+
+              {filteredStudents.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={filteredStudents.length > 0 && filteredStudents.every((student) => selectedStudentIds.has(student.StudentID))}
+                        onChange={(event) => {
                         if (event.target.checked) {
                           setSelectedStudentIds(new Set(filteredStudents.map((student) => student.StudentID)));
                         } else {
@@ -1290,9 +1497,32 @@ export const ClassManagementModal: React.FC<ClassManagementModalProps> = ({
               </>
             ) : (
               <div className="text-center py-12">
-                <p className="text-gray-500">{searchTerm ? 'No students found matching your search' : 'No available students to add'}</p>
+                <p className="text-gray-500 mb-4">{searchTerm ? 'No students found matching your search' : 'No available students to add'}</p>
+                {!isQuickAddOpen && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (searchTerm.includes(' ')) {
+                        const parts = searchTerm.trim().split(/\s+/);
+                        setQuickAddForm(prev => ({ ...prev, FirstName: parts[0], LastName: parts.slice(1).join(' ') }));
+                      } else if (searchTerm.includes('@')) {
+                        setQuickAddForm(prev => ({ ...prev, PrimaryEmail: searchTerm.trim() }));
+                      } else if (searchTerm.trim()) {
+                        setQuickAddForm(prev => ({ ...prev, FirstName: searchTerm.trim() }));
+                      }
+                      setIsQuickAddOpen(true);
+                    }}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors inline-flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    + Quick Add Person & Enroll
+                  </button>
+                )}
               </div>
-            )
+            )}
+            </div>
           ) : filteredStudents.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredStudents.map((student) => (

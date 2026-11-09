@@ -7,7 +7,7 @@ interface PersonnelModalProps {
   mode: ModalMode;
   person?: Personnel;
   onClose: () => void;
-  onSave: (person: Personnel | Omit<Personnel, 'PersonnelID'>) => Promise<void>;
+  onSave: (person: Personnel | Omit<Personnel, 'PersonnelID'>, roles?: { isStudent?: boolean; isCast?: boolean; isTeacher?: boolean; isDirector?: boolean; isBartender?: boolean }) => Promise<void>;
   onEdit?: () => void;
   onDelete?: () => void;
   onReactivate?: () => void;
@@ -35,6 +35,15 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successCount, setSuccessCount] = useState(0);
 
+  // Initial role assignment flags for new personnel creation
+  const [assignRoles, setAssignRoles] = useState({
+    isStudent: false,
+    isCast: false,
+    isTeacher: false,
+    isDirector: false,
+    isBartender: false,
+  });
+
   const emptyForm = {
     FirstName: '',
     LastName: '',
@@ -47,6 +56,13 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
   useEffect(() => {
     setErrorMessage(null);
     setSuccessCount(0);
+    setAssignRoles({
+      isStudent: false,
+      isCast: false,
+      isTeacher: false,
+      isDirector: false,
+      isBartender: false,
+    });
     if (person) {
       setFormData(person);
     } else {
@@ -64,7 +80,7 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
     setErrorMessage(null);
     try {
       if (mode === 'create') {
-        await onSave(formData as Omit<Personnel, 'PersonnelID'>);
+        await onSave(formData as Omit<Personnel, 'PersonnelID'>, assignRoles);
       } else {
         await onSave(formData as Personnel);
       }
@@ -81,9 +97,16 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      await onSave(formData as Omit<Personnel, 'PersonnelID'>);
+      await onSave(formData as Omit<Personnel, 'PersonnelID'>, assignRoles);
       setSuccessCount(prev => prev + 1);
       setFormData(emptyForm);
+      setAssignRoles({
+        isStudent: false,
+        isCast: false,
+        isTeacher: false,
+        isDirector: false,
+        isBartender: false,
+      });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'An error occurred. Please try again.');
     } finally {
@@ -227,7 +250,61 @@ export const PersonnelModal: React.FC<PersonnelModalProps> = ({
                 )}
               </div>
             </div>
-
+            {mode === 'create' && (
+              <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm font-semibold text-gray-800">Assign Initial Roles</span>
+                  <span className="text-xs text-gray-500">(Optional - provisions profiles immediately upon creation)</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-1">
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={assignRoles.isStudent}
+                      onChange={(e) => setAssignRoles(prev => ({ ...prev, isStudent: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span>🎓 Student</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={assignRoles.isCast}
+                      onChange={(e) => setAssignRoles(prev => ({ ...prev, isCast: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span>🎭 Cast Member</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={assignRoles.isTeacher}
+                      onChange={(e) => setAssignRoles(prev => ({ ...prev, isTeacher: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span>🧑‍🏫 Instructor</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={assignRoles.isDirector}
+                      onChange={(e) => setAssignRoles(prev => ({ ...prev, isDirector: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span>🎬 Director</span>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={assignRoles.isBartender}
+                      onChange={(e) => setAssignRoles(prev => ({ ...prev, isBartender: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span>🍺 Bartender</span>
+                  </label>
+                </div>
+              </div>
+            )}
             <div className="flex justify-end gap-3">
               <button
                 type="button"

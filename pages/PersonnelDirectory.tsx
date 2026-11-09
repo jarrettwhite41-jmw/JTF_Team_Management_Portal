@@ -193,7 +193,10 @@ export const PersonnelDirectory: React.FC = () => {
     }
   };
 
-  const handleSavePerson = async (personData: Personnel | Omit<Personnel, 'PersonnelID'>) => {
+  const handleSavePerson = async (
+    personData: Personnel | Omit<Personnel, 'PersonnelID'>,
+    roles?: { isStudent?: boolean; isCast?: boolean; isTeacher?: boolean; isDirector?: boolean; isBartender?: boolean }
+  ) => {
     const normalized = normalizePersonnelPayload(personData);
     const emailToCheck = (normalized as Personnel).PrimaryEmail?.trim().toLowerCase();
     const duplicate = personnel.find(p => {
@@ -212,10 +215,60 @@ export const PersonnelDirectory: React.FC = () => {
         response = await gasService.updatePersonnel(normalized as Personnel);
       }
 
-      if (response.success) {
+      if (response.success && response.data) {
+        const savedPersonnelId = response.data.PersonnelID;
+        const activatedRoleNames: string[] = [];
+
+        // If roles were selected on creation, provision them automatically
+        if (modalMode === 'create' && roles && savedPersonnelId) {
+          if (roles.isStudent) {
+            try {
+              const res = await gasService.addPersonAsStudent(savedPersonnelId);
+              if (res.success) activatedRoleNames.push('Student');
+            } catch (err) {
+              console.warn('Error provisioning student role:', err);
+            }
+          }
+          if (roles.isCast) {
+            try {
+              const res = await gasService.addPersonAsCastMember(savedPersonnelId);
+              if (res.success) activatedRoleNames.push('Cast Member');
+            } catch (err) {
+              console.warn('Error provisioning cast member role:', err);
+            }
+          }
+          if (roles.isTeacher) {
+            try {
+              const res = await gasService.addPersonAsTeacher(savedPersonnelId);
+              if (res.success) activatedRoleNames.push('Instructor');
+            } catch (err) {
+              console.warn('Error provisioning instructor role:', err);
+            }
+          }
+          if (roles.isDirector) {
+            try {
+              const res = await gasService.addPersonAsDirector(savedPersonnelId);
+              if (res.success) activatedRoleNames.push('Director');
+            } catch (err) {
+              console.warn('Error provisioning director role:', err);
+            }
+          }
+          if (roles.isBartender) {
+            try {
+              const res = await gasService.addPersonAsBartender(savedPersonnelId, false, 'Active');
+              if (res.success) activatedRoleNames.push('Bartender');
+            } catch (err) {
+              console.warn('Error provisioning bartender role:', err);
+            }
+          }
+        }
+
+        const roleSuffix = activatedRoleNames.length > 0 ? ` (provisioned: ${activatedRoleNames.join(', ')})` : '';
         setMessage({ 
           type: 'success', 
-          text: modalMode === 'create' ? 'Personnel created successfully' : 'Personnel updated successfully'
+          text: modalMode === 'create' 
+            ? `Personnel created successfully${roleSuffix}` 
+            : 'Personnel updated successfully'
         });
         await loadPersonnel();
       } else {

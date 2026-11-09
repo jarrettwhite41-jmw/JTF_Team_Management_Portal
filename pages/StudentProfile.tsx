@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { ClassLevels, StudentProfileData } from '../types';
+import { ClassLevels, ClassOfferings, StudentProfileData } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 interface StudentProfileProps {
@@ -23,6 +23,13 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
   const [skillRatings, setSkillRatings] = useState<any[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [skillsLoading, setSkillsLoading] = useState(false);
+
+  // Enroll in class state
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [availableOfferings, setAvailableOfferings] = useState<ClassOfferings[]>([]);
+  const [selectedOfferingId, setSelectedOfferingId] = useState<number | ''>('');
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [loadingOfferings, setLoadingOfferings] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -118,6 +125,48 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
       setMessage({ type: 'error', text: res.error || 'Failed to update welcome package status.' });
     }
     setSavingWelcome(false);
+  };
+
+  const handleOpenEnrollModal = async () => {
+    setIsEnrollModalOpen(true);
+    setSelectedOfferingId('');
+    setLoadingOfferings(true);
+    try {
+      const res = await gasService.getAllClassOfferings();
+      if (res.success && Array.isArray(res.data)) {
+        // Filter offerings where student is not already actively enrolled
+        const activeIds = new Set(
+          (profile?.Enrollments || [])
+            .filter((e: any) => e.Status === 'Active')
+            .map((e: any) => e.OfferingID)
+        );
+        const eligible = res.data.filter((o: ClassOfferings) => !activeIds.has(o.OfferingID));
+        setAvailableOfferings(eligible);
+      }
+    } catch (err) {
+      console.error('Error fetching offerings:', err);
+    } finally {
+      setLoadingOfferings(false);
+    }
+  };
+
+  const handleDirectEnroll = async () => {
+    if (!profile || !selectedOfferingId) return;
+    setIsEnrolling(true);
+    try {
+      const res = await gasService.enrollStudent(Number(selectedOfferingId), profile.StudentID);
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Student successfully enrolled in class!' });
+        setIsEnrollModalOpen(false);
+        await loadProfile();
+      } else {
+        setMessage({ type: 'error', text: res.error || 'Failed to enroll student.' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error enrolling student.' });
+    } finally {
+      setIsEnrolling(false);
+    }
   };
 
   const fmtDate = (d?: Date | string) => {
@@ -301,9 +350,18 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
 
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-xl shadow-sm border p-5">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">
-              Active Enrollments <span className="text-gray-400 font-normal">({activeEnrollments.length})</span>
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-700">
+                Active Enrollments <span className="text-gray-400 font-normal">({activeEnrollments.length})</span>
+              </h2>
+              <button
+                type="button"
+                onClick={handleOpenEnrollModal}
+                className="px-3 py-1 bg-primary-600 hover:bg-primary-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+              >
+                <span>+ Enroll in Class</span>
+              </button>
+            </div>
             {activeEnrollments.length === 0 ? (
               <p className="text-sm text-gray-400">No active enrollments.</p>
             ) : (
@@ -412,6 +470,77 @@ export const StudentProfile: React.FC<StudentProfileProps> = ({ studentId, onBac
           )}
         </div>
       </div>
+
+      {/* Enroll in Class Modal */}
+      {isEnrollModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-md w-full p-6 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">Enroll Student in Class</h3>
+              <button
+                type="button"
+                onClick={() => setIsEnrollModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 rounded-lg p-1 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4">
+              <p className="text-sm text-gray-600">
+                Directly enroll <strong className="text-gray-900">{profile.FirstName} {profile.LastName}</strong> into an active class offering:
+              </p>
+
+              {loadingOfferings ? (
+                <div className="py-8 flex justify-center">
+                  <Loader size="md" />
+                </div>
+              ) : availableOfferings.length === 0 ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  No available or non-enrolled classes found. Create an offering in Class Management first.
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                    Select Class Offering
+                  </label>
+                  <select
+                    value={selectedOfferingId}
+                    onChange={(e) => setSelectedOfferingId(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white"
+                  >
+                    <option value="">-- Choose a class --</option>
+                    {availableOfferings.map((o) => (
+                      <option key={o.OfferingID} value={o.OfferingID}>
+                        {(o as any).ClassLevelName || (o as any).ClassName || `Level ${o.ClassLevelID}`} - {(o as any).DayOfWeek || ''} {(o as any).StartTime ? `(${(o as any).StartTime})` : ''} - {fmtDate(o.StartDate)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setIsEnrollModalOpen(false)}
+                disabled={isEnrolling}
+                className="px-4 py-2 text-sm text-gray-700 font-medium hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDirectEnroll}
+                disabled={!selectedOfferingId || isEnrolling}
+                className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
+              >
+                {isEnrolling ? 'Enrolling...' : 'Confirm Enrollment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
