@@ -569,6 +569,7 @@ export type PageType =
   | 'season-planner'
   | 'crm-operations'
   | 'corporate-gigs'
+  | 'business-metrics'
   | 'settings';
 
 export interface NavigationItem {

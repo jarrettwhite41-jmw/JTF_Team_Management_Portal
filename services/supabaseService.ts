@@ -3382,6 +3382,143 @@ class SupabaseService {
     }
   }
 
+  async getInstructorTeachingHistory(filters?: { startDate?: string; endDate?: string }): Promise<ApiResponse<any>> {
+    try {
+      // 1. Fetch class offerings with teacher details and class level
+      const { data: offerings, error: offErr } = await this.client
+        .from('class_offerings')
+        .select('offering_id, teacher_id, start_date, end_date, status, teachers(teacher_id, personnel_id, personnel(first_name, last_name, primary_email)), class_levels(level_name)')
+        .order('start_date', { ascending: false });
+
+      if (offErr) throw offErr;
+
+      // 2. Fetch session substitutes
+      const { data: substitutes, error: subErr } = await this.client
+        .from('class_session_substitutes')
+        .select('*')
+        .order('session_date', { ascending: false });
+
+      if (subErr) throw subErr;
+
+      // 3. Fetch unique attendance dates per offering (to know actual sessions held)
+      const { data: attendanceDates, error: attErr } = await this.client
+        .from('class_attendance')
+        .select('class_date, student_enrollments!inner(offering_id)')
+        .order('class_date', { ascending: false });
+
+      if (attErr) throw attErr;
+
+      // Map session dates per offering
+      const sessionsByOffering = new Map<number, Set<string>>();
+      (attendanceDates || []).forEach((row: any) => {
+        const offId = row.student_enrollments?.offering_id;
+        const dt = String(row.class_date || '').split('T')[0];
+        if (offId && dt) {
+          if (!sessionsByOffering.has(offId)) sessionsByOffering.set(offId, new Set());
+          sessionsByOffering.get(offId)!.add(dt);
+        }
+      });
+
+      return {
+        success: true,
+        data: {
+          offerings: offerings || [],
+          substitutes: substitutes || [],
+          sessionsByOffering: Array.from(sessionsByOffering.entries()).map(([offeringId, dates]) => ({
+            offeringId,
+            dates: Array.from(dates),
+          })),
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching instructor teaching history:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
+  async getBusinessMetrics(): Promise<ApiResponse<any>> {
+    try {
+      const [
+        studentsRes,
+        enrollmentsRes,
+        offeringsRes,
+        showsRes,
+        ticketOrdersRes,
+        personnelRes,
+        corpGigsRes,
+      ] = await Promise.all([
+        this.client.from('student_info').select('student_id, current_level_id, is_active, created_at'),
+        this.client.from('student_enrollments').select('enrollment_id, offering_id, status, enrollment_date'),
+        this.client.from('class_offerings').select('offering_id, status, start_date, end_date'),
+        this.client.from('show_information').select('show_id, show_date, program_category, is_special_event'),
+        this.client.from('ticket_orders').select('order_id, ticket_quantity, total_amount, payment_status, created_at'),
+        this.client.from('personnel').select('personnel_id, active, created_at'),
+        this.client.from('corporate_gigs').select('gig_id, total_fee, status, gig_date'),
+      ]);
+
+      const totalStudents = studentsRes.data?.length || 0;
+      const activeStudents = studentsRes.data?.filter((s) => s.is_active !== false).length || 0;
+      const totalEnrollments = enrollmentsRes.data?.length || 0;
+      const activeEnrollments = enrollmentsRes.data?.filter((e) => e.status === 'Active' || e.status === 'Enrolled').length || 0;
+      const totalClasses = offeringsRes.data?.length || 0;
+      const activeClasses = offeringsRes.data?.filter((c) => c.status === 'In Progress' || c.status === 'Open').length || 0;
+
+      const totalShows = showsRes.data?.length || 0;
+      const totalPersonnel = personnelRes.data?.length || 0;
+      const activePersonnel = personnelRes.data?.filter((p) => p.active !== false).length || 0;
+
+      const ticketOrders = ticketOrdersRes.data || [];
+      const totalTicketsSold = ticketOrders.reduce((sum, o) => sum + Number(o.ticket_quantity || 0), 0);
+      const totalTicketRevenue = ticketOrders
+        .filter((o) => o.payment_status === 'paid' || o.payment_status === 'completed' || !o.payment_status)
+        .reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+
+      const corpGigs = corpGigsRes.data || [];
+      const totalCorpGigs = corpGigs.length;
+      const totalCorpRevenue = corpGigs
+        .filter((g) => g.status !== 'Cancelled')
+        .reduce((sum, g) => sum + Number(g.total_fee || 0), 0);
+
+      return {
+        success: true,
+        data: {
+          students: {
+            total: totalStudents,
+            active: activeStudents,
+            inactive: totalStudents - activeStudents,
+          },
+          enrollments: {
+            total: totalEnrollments,
+            active: activeEnrollments,
+          },
+          classes: {
+            total: totalClasses,
+            active: activeClasses,
+          },
+          shows: {
+            total: totalShows,
+          },
+          tickets: {
+            totalOrders: ticketOrders.length,
+            totalQuantity: totalTicketsSold,
+            revenue: totalTicketRevenue,
+          },
+          corporateGigs: {
+            total: totalCorpGigs,
+            revenue: totalCorpRevenue,
+          },
+          personnel: {
+            total: totalPersonnel,
+            active: activePersonnel,
+          },
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching business metrics:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+
   async saveStudentCompetency(data: {
     EnrollmentID: number;
     StudentID: number;

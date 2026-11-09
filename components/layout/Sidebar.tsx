@@ -35,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
   const topLevelItems: NavigationItem[] = useMemo(() => [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'business-metrics', label: 'Insights & Metrics', icon: '📈' },
     { id: 'scheduling', label: 'Schedule', icon: '📅' },
     { id: 'crm-operations', label: 'Theater CRM & Ops', icon: '🏢' },
     { id: 'inventory', label: 'Inventory', icon: '📦' },

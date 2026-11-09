@@ -26,6 +26,7 @@ import { SeasonPlanner } from './pages/SeasonPlanner';
 import { Login } from './pages/Login';
 import { SkillsManagement } from './pages/SkillsManagement';
 import { CorporateGigs } from './pages/CorporateGigs';
+import { BusinessMetrics } from './pages/BusinessMetrics';
 import { Loader } from './components/common/Loader';
 import { ContextualHelpDrawer } from './components/common/ContextualHelpDrawer';
 import { TEAM_PORTAL_GUIDE_DATA } from './constants/portalGuides';
@@ -41,7 +42,7 @@ const TEAM_PAGE_SET = new Set<PageType>([
   'dashboard', 'games', 'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
   'class-management', 'classes', 'show-management', 'shows', 'corporate-gigs', 'ticketing', 'workshops',
   'special-guests', 'teacher-management', 'director-management', 'portal-access',
-  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'season-planner', 'crm-operations', 'settings',
+  'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'account-recovery', 'skills-management', 'season-planner', 'crm-operations', 'business-metrics', 'settings',
 ]);
 
 const getInitialTeamPage = (): PageType => {
@@ -63,7 +64,7 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
     'personnel-management', 'personnel', 'cast', 'crew', 'bartenders',
     'class-management', 'classes', 'show-management', 'shows', 'corporate-gigs', 'ticketing', 'games', 'workshops',
     'special-guests', 'teacher-management', 'director-management', 'portal-access',
-    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'season-planner', 'settings',
+    'data-import', 'inventory', 'scheduling', 'student-directory', 'student-profile', 'skills-management', 'season-planner', 'business-metrics', 'settings',
   ];
 
   if (role === 'admin' || role === 'manager') return true;
@@ -241,6 +242,8 @@ const App: React.FC = () => {
         return <Shows onNavigate={navigateToPage} />;
       case 'corporate-gigs':
         return <CorporateGigs />;
+      case 'business-metrics':
+        return <BusinessMetrics />;
       case 'ticketing':
         return <TicketingManagement />;
       case 'games':
@@ -339,6 +342,7 @@ const App: React.FC = () => {
 
   const mobileTopLevelSections = ([
     { id: 'dashboard' as PageType, label: 'Dashboard', icon: '📊' },
+    { id: 'business-metrics' as PageType, label: 'Insights & Metrics', icon: '📈' },
     { id: 'scheduling' as PageType, label: 'Schedule', icon: '📅' },
     { id: 'ticketing' as PageType, label: 'Ticketing & Sales', icon: '🎟️' },
     { id: 'inventory' as PageType, label: 'Inventory', icon: '📦' },
