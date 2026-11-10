@@ -103,14 +103,19 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
         <h4 className="text-xs font-medium text-gray-700 mb-1.5">Cast Members</h4>
         {show.CastMembers && show.CastMembers.length > 0 ? (
           <div className="flex flex-wrap gap-1">
-            {show.CastMembers.slice(0, 3).map((member, index) => (
-              <span
-                key={index}
-                className="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] rounded-full"
-              >
-                {member.FirstName} {member.LastName}
-              </span>
-            ))}
+            {show.CastMembers.slice(0, 3).map((member, index) => {
+              const firstName = (member as any).first_name || member.FirstName || '';
+              const lastName = (member as any).last_name || member.LastName || '';
+              const fullName = `${firstName} ${lastName}`.trim() || member.FullName || 'Unknown';
+              return (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] rounded-full"
+                >
+                  {fullName}
+                </span>
+              );
+            })}
             {show.CastMembers.length > 3 && (
               <span className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] rounded-full">
                 +{show.CastMembers.length - 3} more

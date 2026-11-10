@@ -19,6 +19,8 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
   const [filteredShows, setFilteredShows] = useState<ShowWithDetails[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('all');
+  const [directorFilter, setDirectorFilter] = useState<string>('all');
+  const [castMemberFilter, setCastMemberFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showEditorOpen, setShowEditorOpen] = useState(false);
@@ -61,7 +63,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
   useEffect(() => {
     applyFilters();
-  }, [shows, filter, categoryFilter, showSearch]);
+  }, [shows, filter, categoryFilter, directorFilter, castMemberFilter, showSearch]);
 
   const getProgramCategory = (show: ShowWithDetails): ProgramCategory => {
     if (show.ProgramCategory === 'jtf_presents') {
@@ -117,6 +119,11 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     const normalizedSearch = showSearch.trim().toLowerCase();
     if (normalizedSearch) {
       filtered = filtered.filter((show) => {
+        const castNames = (show.CastMembers || []).map((m) => {
+          const first = (m as any).first_name || m.FirstName || '';
+          const last = (m as any).last_name || m.LastName || '';
+          return `${first} ${last}`.trim() || m.FullName || '';
+        });
         const searchableFields = [
           show.ShowTypeName,
           show.Venue,
@@ -124,6 +131,7 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
           show.Status,
           show.ShowDate,
           show.Notes,
+          ...castNames,
         ];
         return searchableFields.some((field) =>
           String(field ?? '').toLowerCase().includes(normalizedSearch),
@@ -144,6 +152,33 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
 
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(s => getProgramCategory(s) === categoryFilter);
+    }
+
+    // Apply director filter
+    if (directorFilter !== 'all') {
+      if (directorFilter === 'unassigned') {
+        filtered = filtered.filter(s => !s.DirectorName || s.DirectorName.trim() === '' || s.DirectorName.toLowerCase() === 'unassigned');
+      } else {
+        filtered = filtered.filter(s => s.DirectorName === directorFilter);
+      }
+    }
+
+    // Apply cast member filter (by personnel ID or full name match)
+    if (castMemberFilter !== 'all') {
+      const targetCastId = Number(castMemberFilter);
+      filtered = filtered.filter(s => {
+        if (!s.CastMembers || s.CastMembers.length === 0) return false;
+        return s.CastMembers.some(member => {
+          const mId = (member as any).personnel_id || member.PersonnelID;
+          if (Number.isFinite(targetCastId) && targetCastId > 0 && mId === targetCastId) {
+            return true;
+          }
+          const mFirst = (member as any).first_name || member.FirstName || '';
+          const mLast = (member as any).last_name || member.LastName || '';
+          const mFullName = `${mFirst} ${mLast}`.trim() || member.FullName || '';
+          return mFullName.toLowerCase() === castMemberFilter.toLowerCase();
+        });
+      });
     }
 
     setFilteredShows(filtered);
@@ -248,6 +283,42 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
       setJtfWorkflowSaving(false);
     }
   };
+
+  // Derive unique directors and cast members across all loaded shows
+  const availableDirectors = React.useMemo(() => {
+    const directorMap = new Map<string, number>(); // name -> count
+    shows.forEach((s) => {
+      const name = (s.DirectorName || '').trim();
+      if (name && name.toLowerCase() !== 'unassigned') {
+        directorMap.set(name, (directorMap.get(name) || 0) + 1);
+      }
+    });
+    return Array.from(directorMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [shows]);
+
+  const availableCastMembers = React.useMemo(() => {
+    const castMap = new Map<string, { id: number; name: string; count: number }>();
+    shows.forEach((s) => {
+      (s.CastMembers || []).forEach((m) => {
+        const id = Number((m as any).personnel_id || m.PersonnelID);
+        const first = (m as any).first_name || m.FirstName || '';
+        const last = (m as any).last_name || m.LastName || '';
+        const name = `${first} ${last}`.trim() || m.FullName || '';
+        if (!name) return;
+
+        const key = id && id > 0 ? String(id) : name.toLowerCase();
+        const existing = castMap.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          castMap.set(key, { id: id || 0, name, count: 1 });
+        }
+      });
+    });
+    return Array.from(castMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [shows]);
 
   const sortByMostRecent = (items: ShowWithDetails[]) => [...items].sort((a, b) => {
     const aDate = new Date(String(a.ShowDate || '').slice(0, 10)).getTime();
@@ -465,37 +536,86 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
         </div>
       </section>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-[220px] flex-1">
           <label className="mb-1 block text-sm font-medium text-gray-700">Search shows</label>
           <input
             type="search"
             value={showSearch}
             onChange={(event) => setShowSearch(event.target.value)}
-            placeholder="Search by name, venue, date, or director"
+            placeholder="Search by name, venue, date, director, or cast"
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none"
           />
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="text-sm font-medium text-gray-700">Recent view</label>
+
+        <div className="min-w-[180px]">
+          <label className="mb-1 block text-sm font-medium text-gray-700">Filter by Director</label>
           <select
-            value={String(visibleShowCount)}
-            onChange={(event) => setVisibleShowCount(event.target.value === 'all' ? 'all' : Number(event.target.value))}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+            value={directorFilter}
+            onChange={(event) => setDirectorFilter(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
           >
-            <option value="4">4 shows</option>
-            <option value="6">6 shows</option>
-            <option value="8">8 shows</option>
-            <option value="12">12 shows</option>
-            <option value="all">All shows</option>
+            <option value="all">All Directors ({shows.length})</option>
+            <option value="unassigned">Unassigned Director</option>
+            {availableDirectors.map((d) => (
+              <option key={d.name} value={d.name}>
+                {d.name} ({d.count} show{d.count === 1 ? '' : 's'})
+              </option>
+            ))}
           </select>
+        </div>
+
+        <div className="min-w-[200px]">
+          <label className="mb-1 block text-sm font-medium text-gray-700">Filter by Cast Member</label>
+          <select
+            value={castMemberFilter}
+            onChange={(event) => setCastMemberFilter(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
+          >
+            <option value="all">All Cast Members</option>
+            {availableCastMembers.map((c) => (
+              <option key={c.id || c.name} value={c.id > 0 ? String(c.id) : c.name}>
+                {c.name} ({c.count} show{c.count === 1 ? '' : 's'})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Recent view</label>
+            <select
+              value={String(visibleShowCount)}
+              onChange={(event) => setVisibleShowCount(event.target.value === 'all' ? 'all' : Number(event.target.value))}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700"
+            >
+              <option value="4">4 shows</option>
+              <option value="6">6 shows</option>
+              <option value="8">8 shows</option>
+              <option value="12">12 shows</option>
+              <option value="all">All shows</option>
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => setShowPastShows((current) => !current)}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 h-[38px] mt-auto"
           >
             {showPastShows ? 'Hide older shows' : 'Show older shows'}
           </button>
+          {(directorFilter !== 'all' || castMemberFilter !== 'all' || showSearch !== '') && (
+            <button
+              type="button"
+              onClick={() => {
+                setDirectorFilter('all');
+                setCastMemberFilter('all');
+                setShowSearch('');
+              }}
+              className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 hover:bg-red-100 h-[38px] mt-auto"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       </div>
 

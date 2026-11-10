@@ -1840,8 +1840,37 @@ class SupabaseService {
       }
 
       const transformed = data?.map((show: any) => {
-          const castMembers = show.show_performances?.map((perf: any) => perf.personnel) || [];
-          const crewMembers = show.crew_duties?.map((crew: any) => crew.personnel) || [];
+          const castMembers = (show.show_performances || [])
+            .map((perf: any) => {
+              const p = perf.personnel;
+              if (!p) return null;
+              return {
+                PersonnelID: p.personnel_id,
+                FirstName: p.first_name || '',
+                LastName: p.last_name || '',
+                FullName: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+                Email: p.primary_email || '',
+                Active: p.active ?? true,
+                Role: perf.role || '',
+              };
+            })
+            .filter(Boolean);
+
+          const crewMembers = (show.crew_duties || [])
+            .map((crew: any) => {
+              const p = crew.personnel;
+              if (!p) return null;
+              return {
+                PersonnelID: p.personnel_id,
+                FirstName: p.first_name || '',
+                LastName: p.last_name || '',
+                FullName: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+                Email: p.primary_email || '',
+                DutyName: crew.crew_duty_types?.duty_name || '',
+              };
+            })
+            .filter(Boolean);
+
           const castCount = Array.isArray(show.show_performances) ? show.show_performances.length : castMembers.length;
 
           const crewPersonnelIds = new Set<number>((show.crew_duties || [])

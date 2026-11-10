@@ -227,6 +227,11 @@ async function generate() {
   const newDirectorRows = [];
 
   for (const s of rawData.shows) {
+    // Samuel was mistakenly listed as director for SHW-047 (Encore); Samuel is cast only, not a director
+    if (s.director_name === 'Samuel') {
+      s.director_name = null;
+    }
+
     const dirName = s.director_name;
     if (!dirName || dirName === 'Unassigned') continue;
     const pId = personToId.get(dirName);

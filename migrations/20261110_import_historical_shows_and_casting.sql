@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- JTF HISTORICAL SHOW CASTING, CREW DUTIES, AND DIRECTORS IMPORT MIGRATION
 -- Source: 'JTF Show Casting & Crew History & Database Analytics.xlsx'
--- Generated on: 2026-11-10T12:53:36.852Z
+-- Generated on: 2026-11-10T12:59:30.067Z
 -- ==============================================================================
 
 BEGIN;
@@ -51,8 +51,7 @@ INSERT INTO public.directors (director_id, personnel_id) VALUES
   (15, 32),
   (16, 73),
   (17, 25),
-  (18, 85),
-  (19, 53)
+  (18, 53)
 ON CONFLICT (director_id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('public.directors', 'director_id'), (SELECT MAX(director_id) FROM public.directors), true);
@@ -107,7 +106,7 @@ INSERT INTO public.show_information (
   (144, '2026-08-21', '21:15:00', 7, 4, 'Main Stage', 'Completed', '8-person Spanish improv ensemble', false, 'standard'),
   (145, '2026-08-22', '20:30:00', 2, 3, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
   (146, '2026-08-28', '21:15:00', 1, 16, 'Main Stage', 'Completed', 'Markee & Shari joint Box/House', false, 'standard'),
-  (147, '2026-08-28', '21:15:00', 11, 18, 'Main Stage', 'Completed', '11pm Encore late night show', true, 'standard'),
+  (147, '2026-08-28', '21:15:00', 11, NULL, 'Main Stage', 'Completed', '11pm Encore late night show', true, 'standard'),
   (148, '2026-08-29', '20:30:00', 3, 5, 'Main Stage', 'Completed', 'Carol Musical Director', false, 'standard'),
   (149, '2026-09-18', '21:15:00', 1, 4, 'Main Stage', 'Completed', '2-person cast', false, 'standard'),
   (150, '2026-09-19', '20:30:00', 2, 2, 'Main Stage', 'Completed', '7-person ensemble', false, 'standard'),
@@ -117,7 +116,7 @@ INSERT INTO public.show_information (
   (154, '2026-10-02', '21:15:00', 9, 14, 'Main Stage', 'Completed', 'Full 4-role crew tournament format', false, 'standard'),
   (155, '2026-10-03', '20:30:00', 2, 3, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
   (156, '2026-10-09', '21:15:00', 1, 9, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
-  (157, '2026-10-10', '20:30:00', 2, 19, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
+  (157, '2026-10-10', '20:30:00', 2, 18, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
   (158, '2026-10-23', '21:15:00', 1, 3, 'Main Stage', 'Completed', 'Standard production', false, 'standard'),
   (159, '2026-10-24', '20:30:00', 3, 5, 'Main Stage', 'Completed', 'Halloween themed Cheap Trills', false, 'standard'),
   (160, '2026-10-30', '21:15:00', 11, 1, 'Main Stage', 'Completed', 'Halloween FearProv special', true, 'standard'),
