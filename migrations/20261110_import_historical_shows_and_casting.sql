@@ -1,10 +1,20 @@
 -- ==============================================================================
 -- JTF HISTORICAL SHOW CASTING, CREW DUTIES, AND DIRECTORS IMPORT MIGRATION
 -- Source: 'JTF Show Casting & Crew History & Database Analytics.xlsx'
--- Generated on: 2026-11-10T04:39:27.885Z
+-- Generated on: 2026-11-10T11:49:37.005Z
 -- ==============================================================================
 
 BEGIN;
+
+-- 0. Schema Pre-flight checks (Idempotent column additions to ensure compatibility)
+ALTER TABLE IF EXISTS public.personnel 
+  ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE IF EXISTS public.show_information 
+  ADD COLUMN IF NOT EXISTS is_special_event BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS program_category VARCHAR(50) DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS workflow_profile VARCHAR(50) DEFAULT 'default',
+  ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Completed';
 
 -- 1. Ensure required show types exist (FearProv, Specials)
 INSERT INTO public.show_types (show_type_id, show_type_name) VALUES
