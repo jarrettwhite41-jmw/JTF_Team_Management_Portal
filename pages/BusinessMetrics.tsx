@@ -21,14 +21,16 @@ export const BusinessMetrics: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'teaching' | 'overview'>('teaching');
+  const [activeTab, setActiveTab] = useState<'teaching' | 'overview' | 'stage_analytics'>('teaching');
+  const [stageAnalytics, setStageAnalytics] = useState<any>(null);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [metricsRes, teachingRes] = await Promise.all([
+      const [metricsRes, teachingRes, stageRes] = await Promise.all([
         gasService.getBusinessMetrics(),
         gasService.getInstructorTeachingHistory(),
+        gasService.getStageAnalytics(),
       ]);
 
       if (metricsRes.success && metricsRes.data) {
@@ -41,6 +43,10 @@ export const BusinessMetrics: React.FC = () => {
         setTeachingHistory(teachingRes.data);
       } else {
         setMessage({ type: 'error', text: teachingRes.error || 'Failed to load teaching records' });
+      }
+
+      if (stageRes && stageRes.success && stageRes.data) {
+        setStageAnalytics(stageRes.data);
       }
     } catch {
       setMessage({ type: 'error', text: 'Error fetching metrics and teaching data' });
@@ -217,6 +223,16 @@ export const BusinessMetrics: React.FC = () => {
             }`}
           >
             📈 Company Metrics & Health
+          </button>
+          <button
+            onClick={() => setActiveTab('stage_analytics')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              activeTab === 'stage_analytics'
+                ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            🎭 Stage & Cast Analytics
           </button>
         </div>
       </div>
@@ -415,7 +431,7 @@ export const BusinessMetrics: React.FC = () => {
             )}
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'overview' ? (
         /* COMPANY HEALTH & METRICS OVERVIEW TAB */
         <div className="space-y-6">
           {metrics && (
@@ -509,6 +525,108 @@ export const BusinessMetrics: React.FC = () => {
               </div>
             </>
           )}
+        </div>
+      ) : (
+        /* STAGE & CAST ANALYTICS TAB (Theater Ensemble, Formats, Directors & Cast Chemistry) */
+        <div className="space-y-6">
+          {/* Header Summary Banner */}
+          <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase font-bold tracking-wider text-blue-200">Ensemble Intelligence</div>
+              <h2 className="text-xl font-extrabold mt-1">Stage Production & Cast Chemistry</h2>
+              <p className="text-xs text-blue-100 mt-1 max-w-xl">
+                Ensemble show counts, format distribution, director casting tendencies, and chemistry pairing statistics.
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-xl text-center">
+                <div className="text-2xl font-black">{stageAnalytics?.totalShowsCataloged || 0}</div>
+                <div className="text-[10px] uppercase font-bold text-blue-200">Cataloged Shows</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-xl text-center">
+                <div className="text-2xl font-black">{stageAnalytics?.totalPerformancesRecorded || 0}</div>
+                <div className="text-[10px] uppercase font-bold text-blue-200">Cast Appearances</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Top of the Cast Leaderboard (2 cols) */}
+            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">🏆 Top of the Cast</h3>
+                  <p className="text-xs text-gray-500">Performers ranked by total stage appearances and format diversity</p>
+                </div>
+              </div>
+
+              {stageAnalytics?.leaderboard && stageAnalytics.leaderboard.length > 0 ? (
+                <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto pr-1">
+                  {stageAnalytics.leaderboard.map((performer: any, idx: number) => (
+                    <div key={performer.personnel_id} className="py-3 flex items-center justify-between gap-4 hover:bg-gray-50/80 px-2 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3">
+                        <span className={`w-7 text-xs font-black ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-700' : 'text-gray-400'}`}>
+                          #{idx + 1}
+                        </span>
+                        <div>
+                          <div className="text-sm font-bold text-gray-900">{performer.full_name}</div>
+                          <div className="text-xs text-gray-500 flex flex-wrap gap-2 mt-0.5">
+                            {performer.shows_directed > 0 && <span className="bg-purple-50 text-purple-700 font-semibold px-1.5 py-0.5 rounded text-[10px]">{performer.shows_directed} directed</span>}
+                            {performer.crew_shifts > 0 && <span className="bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 rounded text-[10px]">{performer.crew_shifts} crew shifts</span>}
+                            {performer.top_partner_name && (
+                              <span className="text-gray-600">Top partner: <strong className="text-gray-800">{performer.top_partner_name}</strong> ({performer.top_partner_count})</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right flex-shrink-0">
+                        <span className="text-base font-black text-primary-700">{performer.total_shows}</span>
+                        <span className="text-[10px] uppercase font-bold text-gray-500 block">shows</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-gray-400 text-xs">
+                  No stage performances recorded yet. Historical email records will populate the ensemble leaderboard.
+                </div>
+              )}
+            </div>
+
+            {/* Directors & Frequent Casts (1 col) */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col">
+              <div className="mb-4">
+                <h3 className="text-base font-bold text-gray-900">🎬 Directors & Call Lists</h3>
+                <p className="text-xs text-gray-500">Shows directed and most frequently cast performers</p>
+              </div>
+
+              {stageAnalytics?.directors && stageAnalytics.directors.length > 0 ? (
+                <div className="space-y-4 overflow-y-auto max-h-[600px] pr-1">
+                  {stageAnalytics.directors.map((dir: any) => (
+                    <div key={dir.director_id} className="p-3.5 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex justify-between items-baseline mb-2">
+                        <div className="text-sm font-bold text-gray-900">{dir.director_name}</div>
+                        <div className="text-xs font-bold text-primary-700">{dir.shows_count} directed</div>
+                      </div>
+                      <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cast Most:</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {dir.top_cast.map((tc: any) => (
+                          <span key={tc.name} className="bg-white border border-gray-200 text-gray-700 text-[11px] px-2 py-0.5 rounded-md shadow-2xs">
+                            {tc.name} <strong className="text-gray-900">({tc.count})</strong>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-gray-400 text-xs">
+                  Director call lists will appear once historical show directors and casts are loaded.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

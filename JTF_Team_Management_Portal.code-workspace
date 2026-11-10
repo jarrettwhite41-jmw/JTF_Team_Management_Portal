@@ -16,5 +16,12 @@
         "path": "../JTF_Cast_Portal"
     }
 ],
-"settings": {}
+"settings": {
+    "chat.tools.terminal.autoApprove": {
+        "/^git -C \"c:\\\\Users\\\\tatta\\\\JTF_Team_Management_Portal\" add \\. ; git -C \"c:\\\\Users\\\\tatta\\\\JTF_Team_Management_Portal\" commit -m \"feat: add stage production and cast chemistry analytics to business metrics\" ; git -C \"c:\\\\Users\\\\tatta\\\\JTF_Team_Management_Portal\" push origin feat/intuitive-theater-ux$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
 }
