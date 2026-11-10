@@ -278,6 +278,9 @@ async function generate() {
   // Cast appearances
   let nextPerformanceId = 1001;
   const castRows = [];
+  const assignedPerformersPerShow = new Map(); // showId -> Set(personnelId)
+
+  // 1. Add existing cast from Excel
   for (const c of rawData.cast) {
     const dbShowId = excelShowIdToDbShowId.get(c.show_id);
     const pId = personToId.get(c.performer_name);
@@ -292,6 +295,37 @@ async function generate() {
       personnel_id: pId,
       role,
     });
+
+    if (!assignedPerformersPerShow.has(dbShowId)) {
+      assignedPerformersPerShow.set(dbShowId, new Set());
+    }
+    assignedPerformersPerShow.get(dbShowId).add(pId);
+  }
+
+  // 2. Directors also play in/host their shows: ensure director has on-stage performance row
+  let directorsAddedCount = 0;
+  for (const s of rawData.shows) {
+    const dbShowId = excelShowIdToDbShowId.get(s.show_id);
+    const dirName = s.director_name;
+    if (!dbShowId || !dirName || dirName === 'Unassigned') continue;
+
+    const dirPId = personToId.get(dirName);
+    if (!dirPId) continue;
+
+    const alreadyInCast = assignedPerformersPerShow.has(dbShowId) && assignedPerformersPerShow.get(dbShowId).has(dirPId);
+    if (!alreadyInCast) {
+      castRows.push({
+        performance_id: nextPerformanceId++,
+        show_id: dbShowId,
+        personnel_id: dirPId,
+        role: 'Director / On-Stage Player',
+      });
+      directorsAddedCount++;
+      if (!assignedPerformersPerShow.has(dbShowId)) {
+        assignedPerformersPerShow.set(dbShowId, new Set());
+      }
+      assignedPerformersPerShow.get(dbShowId).add(dirPId);
+    }
   }
 
   // Crew shifts

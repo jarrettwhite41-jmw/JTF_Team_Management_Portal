@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- JTF HISTORICAL SHOW CASTING, CREW DUTIES, AND DIRECTORS IMPORT MIGRATION
 -- Source: 'JTF Show Casting & Crew History & Database Analytics.xlsx'
--- Generated on: 2026-11-10T11:49:37.005Z
+-- Generated on: 2026-11-10T12:53:36.852Z
 -- ==============================================================================
 
 BEGIN;
@@ -497,7 +497,67 @@ INSERT INTO public.show_performances (performance_id, show_id, personnel_id, rol
   (1355, 164, 26, 'Mainstage Cast'),
   (1356, 164, 36, 'Mainstage Cast'),
   (1357, 164, 85, 'Billed as Sam'),
-  (1358, 164, 149, 'Mainstage Cast')
+  (1358, 164, 149, 'Mainstage Cast'),
+  (1359, 101, 47, 'Director / On-Stage Player'),
+  (1360, 102, 14, 'Director / On-Stage Player'),
+  (1361, 103, 48, 'Director / On-Stage Player'),
+  (1362, 104, 17, 'Director / On-Stage Player'),
+  (1363, 105, 36, 'Director / On-Stage Player'),
+  (1364, 106, 42, 'Director / On-Stage Player'),
+  (1365, 107, 48, 'Director / On-Stage Player'),
+  (1366, 108, 47, 'Director / On-Stage Player'),
+  (1367, 109, 29, 'Director / On-Stage Player'),
+  (1368, 110, 29, 'Director / On-Stage Player'),
+  (1369, 111, 48, 'Director / On-Stage Player'),
+  (1370, 112, 42, 'Director / On-Stage Player'),
+  (1371, 113, 21, 'Director / On-Stage Player'),
+  (1372, 114, 29, 'Director / On-Stage Player'),
+  (1373, 115, 47, 'Director / On-Stage Player'),
+  (1374, 116, 21, 'Director / On-Stage Player'),
+  (1375, 117, 49, 'Director / On-Stage Player'),
+  (1376, 118, 29, 'Director / On-Stage Player'),
+  (1377, 119, 34, 'Director / On-Stage Player'),
+  (1378, 120, 32, 'Director / On-Stage Player'),
+  (1379, 121, 17, 'Director / On-Stage Player'),
+  (1380, 122, 29, 'Director / On-Stage Player'),
+  (1381, 123, 32, 'Director / On-Stage Player'),
+  (1382, 124, 42, 'Director / On-Stage Player'),
+  (1383, 125, 36, 'Director / On-Stage Player'),
+  (1384, 126, 29, 'Director / On-Stage Player'),
+  (1385, 127, 47, 'Director / On-Stage Player'),
+  (1386, 128, 48, 'Director / On-Stage Player'),
+  (1387, 129, 29, 'Director / On-Stage Player'),
+  (1388, 130, 34, 'Director / On-Stage Player'),
+  (1389, 132, 17, 'Director / On-Stage Player'),
+  (1390, 133, 36, 'Director / On-Stage Player'),
+  (1391, 134, 73, 'Director / On-Stage Player'),
+  (1392, 135, 9, 'Director / On-Stage Player'),
+  (1393, 136, 21, 'Director / On-Stage Player'),
+  (1394, 137, 25, 'Director / On-Stage Player'),
+  (1395, 138, 29, 'Director / On-Stage Player'),
+  (1396, 139, 36, 'Director / On-Stage Player'),
+  (1397, 140, 42, 'Director / On-Stage Player'),
+  (1398, 141, 17, 'Director / On-Stage Player'),
+  (1399, 142, 48, 'Director / On-Stage Player'),
+  (1400, 143, 47, 'Director / On-Stage Player'),
+  (1401, 144, 17, 'Director / On-Stage Player'),
+  (1402, 145, 29, 'Director / On-Stage Player'),
+  (1403, 146, 73, 'Director / On-Stage Player'),
+  (1404, 148, 36, 'Director / On-Stage Player'),
+  (1405, 149, 17, 'Director / On-Stage Player'),
+  (1406, 150, 48, 'Director / On-Stage Player'),
+  (1407, 151, 73, 'Director / On-Stage Player'),
+  (1408, 152, 17, 'Director / On-Stage Player'),
+  (1409, 153, 48, 'Director / On-Stage Player'),
+  (1410, 154, 21, 'Director / On-Stage Player'),
+  (1411, 155, 29, 'Director / On-Stage Player'),
+  (1412, 156, 42, 'Director / On-Stage Player'),
+  (1413, 157, 53, 'Director / On-Stage Player'),
+  (1414, 158, 29, 'Director / On-Stage Player'),
+  (1415, 160, 47, 'Director / On-Stage Player'),
+  (1416, 161, 17, 'Director / On-Stage Player'),
+  (1417, 162, 48, 'Director / On-Stage Player'),
+  (1418, 163, 29, 'Director / On-Stage Player')
 ON CONFLICT (performance_id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('public.show_performances', 'performance_id'), (SELECT MAX(performance_id) FROM public.show_performances), true);
