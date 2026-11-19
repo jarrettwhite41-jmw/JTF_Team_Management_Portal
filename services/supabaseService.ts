@@ -204,6 +204,27 @@ class SupabaseService {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+  private async fetchAllRows<T = any>(tableName: string, selectColumns: string, orderByColumn?: string): Promise<T[]> {
+    const pageSize = 1000;
+    let from = 0;
+    const allRows: T[] = [];
+
+    while (true) {
+      let query = this.client.from(tableName).select(selectColumns).range(from, from + pageSize - 1);
+      if (orderByColumn) {
+        query = query.order(orderByColumn, { ascending: true });
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      const batch = (data || []) as T[];
+      allRows.push(...batch);
+      if (batch.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return allRows;
+  }
+
   private toShowDateTime(showDate: string | null | undefined, showTime: string | null | undefined): Date | null {
     const date = String(showDate || '').slice(0, 10);
     if (!date) return null;
@@ -1963,10 +1984,48 @@ class SupabaseService {
       }
 
       if (error) throw error;
+
+      // Automatically include the assigned director in show_performances (directors play in their shows by default)
+      if (directorId && data?.show_id) {
+        await this.ensureDirectorInShowPerformances(Number(data.show_id), directorId);
+      }
+
       return { success: true, data };
     } catch (error) {
       console.error('Error creating show:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  private async ensureDirectorInShowPerformances(showId: number, directorId: number): Promise<void> {
+    try {
+      const { data: dirRow } = await this.client
+        .from('directors')
+        .select('personnel_id')
+        .eq('director_id', directorId)
+        .maybeSingle();
+
+      const directorPersonnelId = Number(dirRow?.personnel_id);
+      if (!Number.isFinite(directorPersonnelId) || directorPersonnelId <= 0) return;
+
+      const { data: existingPerf } = await this.client
+        .from('show_performances')
+        .select('performance_id')
+        .eq('show_id', showId)
+        .eq('personnel_id', directorPersonnelId)
+        .maybeSingle();
+
+      if (!existingPerf) {
+        await this.client
+          .from('show_performances')
+          .insert([{
+            show_id: showId,
+            personnel_id: directorPersonnelId,
+            role: 'Director / On-Stage Player',
+          }]);
+      }
+    } catch (err) {
+      console.warn('Could not auto-sync director into show_performances:', err);
     }
   }
 
@@ -2014,7 +2073,7 @@ class SupabaseService {
 
   async getAllDirectors(): Promise<ApiResponse<any[]>> {
     try {
-      const [directorsRes, showsRes, perfRes] = await Promise.all([
+      const [directorsRes, showsRes, perfRows] = await Promise.all([
         this.client
           .from('directors')
           .select(`
@@ -2024,13 +2083,13 @@ class SupabaseService {
           `)
           .order('director_id', { ascending: true }),
         this.client.from('show_information').select('show_id, show_date, director_id'),
-        this.client.from('show_performances').select('show_id, personnel_id, personnel(first_name, last_name)'),
+        this.fetchAllRows('show_performances', 'show_id, personnel_id, personnel(first_name, last_name)', 'performance_id'),
       ]);
 
       if (directorsRes.error) throw directorsRes.error;
 
       const shows = showsRes.data || [];
-      const perfs = perfRes.data || [];
+      const perfs = perfRows || [];
 
       const showCountByDirId = new Map<number, number>();
       const lastDateByDirId = new Map<number, string>();
@@ -2307,6 +2366,11 @@ class SupabaseService {
       }
 
       if (error) throw error;
+
+      if (updates.director_id) {
+        await this.ensureDirectorInShowPerformances(showId, Number(updates.director_id));
+      }
+
       return { success: true, data };
     } catch (error) {
       console.error('Error updating show:', error);
@@ -3607,24 +3671,19 @@ class SupabaseService {
 
   async getStageAnalytics(): Promise<ApiResponse<any>> {
     try {
-      const [performancesRes, showsRes, directorsRes, crewRes, personnelRes, gamesPlayedRes, masterGamesRes] = await Promise.all([
-        this.client.from('show_performances').select('performance_id, show_id, personnel_id, role'),
+      const [performances, showsRes, directorsRes, crew, personnelRes, gamesPlayed, masterGamesRes] = await Promise.all([
+        this.fetchAllRows('show_performances', 'performance_id, show_id, personnel_id, role', 'performance_id'),
         this.client.from('show_information').select('show_id, show_date, venue, director_id, program_category, show_types(show_type_name)'),
         this.client.from('directors').select('director_id, personnel_id, personnel(first_name, last_name)'),
-        this.client.from('crew_duties').select('duty_id, show_id, personnel_id'),
+        this.fetchAllRows('crew_duties', 'duty_id, show_id, personnel_id', 'duty_id'),
         this.client.from('personnel').select('personnel_id, first_name, last_name, active'),
-        this.client.from('games_played').select('games_played_id, show_id, game_id, order_in_show, notes'),
+        this.fetchAllRows('games_played', 'games_played_id, show_id, game_id, order_in_show, notes', 'games_played_id'),
         this.client.from('master_game_list').select('game_id, game_name, category'),
       ]);
 
-      if (performancesRes.error) throw performancesRes.error;
-
-      const performances = performancesRes.data || [];
       const shows = showsRes.data || [];
       const directors = directorsRes.data || [];
-      const crew = crewRes.data || [];
       const personnelList = personnelRes.data || [];
-      const gamesPlayed = gamesPlayedRes.data || [];
       const masterGames = masterGamesRes.data || [];
 
       const nameMap = new Map<number, string>();
@@ -3810,6 +3869,7 @@ class SupabaseService {
           const dirCast = directorCastCounts.get(d.director_id) || new Map();
           const sortedCast: Array<{ personnel_id: number; name: string; count: number }> = [];
           dirCast.forEach((count, pId) => {
+            if (pId === d.personnel_id) return;
             sortedCast.push({ personnel_id: pId, name: nameMap.get(pId) || `Performer #${pId}`, count });
           });
           sortedCast.sort((a, b) => b.count - a.count);
@@ -4959,17 +5019,16 @@ class SupabaseService {
 
   async getAllCrewMembers(): Promise<ApiResponse<CrewMemberWithDetails[]>> {
     try {
-      const { data, error } = await this.client
-        .from('crew_duties')
-        .select(`
+      const data = await this.fetchAllRows(
+        'crew_duties',
+        `
           *,
           personnel(*),
           crew_duty_types(duty_name),
           show_information(show_date, venue)
-        `)
-        .order('duty_id');
-
-      if (error) throw error;
+        `,
+        'duty_id'
+      );
 
       const transformed = data?.map((crew: any) => ({
         DutyID: crew.duty_id,
@@ -4999,7 +5058,7 @@ class SupabaseService {
 
   async getAllCastMembers(): Promise<ApiResponse<any>> {
     try {
-      const [castRes, perfRes, crewRes, showsRes, directorsRes] = await Promise.all([
+      const [castRes, performances, crewDuties, showsRes, directorsRes] = await Promise.all([
         this.client
           .from('cast_member_info')
           .select(`
@@ -5014,8 +5073,8 @@ class SupabaseService {
             )
           `)
           .order('"CastMemberID"', { ascending: true }),
-        this.client.from('show_performances').select('show_id, personnel_id, role'),
-        this.client.from('crew_duties').select('show_id, personnel_id'),
+        this.fetchAllRows('show_performances', 'show_id, personnel_id, role', 'performance_id'),
+        this.fetchAllRows('crew_duties', 'show_id, personnel_id', 'duty_id'),
         this.client.from('show_information').select('show_id, show_date, director_id'),
         this.client.from('directors').select('director_id, personnel_id, personnel(first_name, last_name)'),
       ]);
@@ -5023,8 +5082,6 @@ class SupabaseService {
       if (castRes.error) throw castRes.error;
 
       const data = castRes.data || [];
-      const performances = perfRes.data || [];
-      const crewDuties = crewRes.data || [];
       const shows = showsRes.data || [];
       const directors = directorsRes.data || [];
 
@@ -5079,8 +5136,10 @@ class SupabaseService {
           const dirName = directorNameById.get(showInfo.directorId);
           if (dirName) {
             if (!directorCountsByPid.has(pid)) directorCountsByPid.set(pid, new Map());
-            const dMap = directorCountsByPid.get(pid)!;
-            dMap.set(dirName, (dMap.get(dirName) || 0) + 1);
+            const dPersonnelId = directorPersonnelById.get(showInfo.directorId);
+          const dirName = directorNameById.get(showInfo.directorId);
+          // Exclude self-directed shows when ranking who directed this cast member most
+          if (dirName && dirPersonnelId !== piddirName, (dMap.get(dirName) || 0) + 1);
           }
         }
       });
@@ -5128,12 +5187,12 @@ class SupabaseService {
         }
       });
 
-      // Reference date for 60-day rolling compliance: latest completed show date or today
-      const allPastDates = Array.from(showById.values())
+      // Reference date for 60-day rolling compliance: latest show date on record or today
+      const allShowDates = Array.from(showById.values())
         .map((v) => v.date)
-        .filter((d) => d && d <= '2026-04-30')
+        .filter(Boolean)
         .sort();
-      const refDateStr = allPastDates[allPastDates.length - 1] || new Date().toISOString().slice(0, 10);
+      const refDateStr = allShowDates[allShowDates.length - 1] || new Date().toISOString().slice(0, 10);
       const refMs = new Date(`${refDateStr}T00:00:00`).getTime();
 
       const transformed = data.map((row: any) => {
@@ -5182,13 +5241,13 @@ class SupabaseService {
             name: nameByPersonnelId.get(otherPid) || `Performer #${otherPid}`,
             count,
           }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 5);
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+          .slice(0, 6);
 
         const dirsMap = directorCountsByPid.get(pid) || new Map<string, number>();
         const topDirectors = Array.from(dirsMap.entries())
           .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => b.count - a.count)
+          .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
           .slice(0, 4);
 
         return {
