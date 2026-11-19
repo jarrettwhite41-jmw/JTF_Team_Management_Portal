@@ -5133,13 +5133,13 @@ class SupabaseService {
         }
 
         if (showInfo?.directorId) {
-          const dirName = directorNameById.get(showInfo.directorId);
-          if (dirName) {
-            if (!directorCountsByPid.has(pid)) directorCountsByPid.set(pid, new Map());
-            const dPersonnelId = directorPersonnelById.get(showInfo.directorId);
+          const dirPersonnelId = directorPersonnelById.get(showInfo.directorId);
           const dirName = directorNameById.get(showInfo.directorId);
           // Exclude self-directed shows when ranking who directed this cast member most
-          if (dirName && dirPersonnelId !== piddirName, (dMap.get(dirName) || 0) + 1);
+          if (dirName && dirPersonnelId !== pid) {
+            if (!directorCountsByPid.has(pid)) directorCountsByPid.set(pid, new Map());
+            const dMap = directorCountsByPid.get(pid)!;
+            dMap.set(dirName, (dMap.get(dirName) || 0) + 1);
           }
         }
       });
