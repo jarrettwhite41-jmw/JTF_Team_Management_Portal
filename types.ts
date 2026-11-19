@@ -323,8 +323,18 @@ export interface CastMemberWithDetails extends ShowPerformances {
   OutOfTown?: number;
   LimitedInactive?: number;
   ImageURL?: string;
-  // Show details
+  // Show & relationship details
   LastShowDate?: string;
+  ShowCount?: number;
+  CrewDutyCount?: number;
+  LastCrewDate?: string;
+  DirectedCount?: number;
+  LastDirectedDate?: string;
+  DaysSinceCrewOrDirecting?: number | null;
+  EligibilityStatus?: string;
+  MilestoneBadge?: string | null;
+  TopCoStars?: Array<{ personnelId: number; name: string; count: number }>;
+  TopDirectors?: Array<{ name: string; count: number }>;
   Status: string;
 }
 
@@ -576,6 +586,30 @@ export interface NavigationItem {
   id: PageType;
   label: string;
   icon: string;
+}
+
+export interface PortalNavigationContext {
+  crmTab?:
+    | 'student_leads'
+    | 'rentals'
+    | 'outreach_leads'
+    | 'scheduling'
+    | 'refunds'
+    | 'credits'
+    | 'makeups'
+    | 'welcome_packages'
+    | 'contact_inquiries'
+    | 'communications';
+  directorFilter?: string;
+  castMemberFilter?: string;
+  showSearch?: string;
+  castSearch?: string;
+  castPersonnelId?: number;
+  crewSearch?: string;
+  crewShowName?: string;
+  gameId?: number;
+  gameSearch?: string;
+  metricsTab?: 'teaching' | 'overview' | 'stage_analytics';
 }
 
 export type TicketingPlatform = 'eventbrite' | 'ticketweb' | 'square' | 'box_office';

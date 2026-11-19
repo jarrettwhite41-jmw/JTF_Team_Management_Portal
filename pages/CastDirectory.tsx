@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { CastCard } from '../components/cast/CastCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { CastMemberWithDetails, MasterGame, MasterGameInput, Personnel } from '../types';
+import { CastMemberWithDetails, MasterGame, MasterGameInput, PageType, Personnel, PortalNavigationContext } from '../types';
 import { supabaseService as gasService } from '../services/supabaseService';
 
 interface CastDirectoryProps {
   canManageGames?: boolean;
+  onNavigate?: (page: PageType, context?: PortalNavigationContext) => void;
+  initialSearch?: string;
+  initialPersonnelId?: number;
 }
 
 const createEmptyGameForm = (): MasterGameInput => ({
@@ -20,12 +23,17 @@ const createEmptyGameForm = (): MasterGameInput => ({
   DifficultyLevel: null,
 });
 
-export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = false }) => {
+export const CastDirectory: React.FC<CastDirectoryProps> = ({
+  canManageGames = false,
+  onNavigate,
+  initialSearch,
+  initialPersonnelId,
+}) => {
   const [castMembers, setCastMembers] = useState<CastMemberWithDetails[]>([]);
   const [filteredCastMembers, setFilteredCastMembers] = useState<CastMemberWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [nameSortOrder, setNameSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [searchTerm, setSearchTerm] = useState(initialSearch || '');
+  const [nameSortOrder, setNameSortOrder] = useState<'asc' | 'desc' | 'shows' | 'crew'>('asc');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedCastMember, setSelectedCastMember] = useState<CastMemberWithDetails | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,6 +69,21 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
   }, []);
 
   useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchTerm(initialSearch);
+    }
+  }, [initialSearch]);
+
+  useEffect(() => {
+    if (initialPersonnelId && castMembers.length > 0) {
+      const match = castMembers.find((m) => Number(m.PersonnelID) === Number(initialPersonnelId));
+      if (match) {
+        handleCastMemberClick(match);
+      }
+    }
+  }, [initialPersonnelId, castMembers]);
+
+  useEffect(() => {
     const normalizedQuery = searchTerm.toLowerCase();
     const displayName = (member: CastMemberWithDetails) =>
       `${member.FirstName || ''} ${member.LastName || (member as any).Lastname || ''}`.trim();
@@ -69,13 +92,22 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
       .filter((member) =>
         displayName(member).toLowerCase().includes(normalizedQuery) ||
         (member.PrimaryEmail || '').toLowerCase().includes(normalizedQuery) ||
-        (member.PrimaryPhone || '').toLowerCase().includes(normalizedQuery)
+        (member.PrimaryPhone || '').toLowerCase().includes(normalizedQuery) ||
+        (member.MilestoneBadge || '').toLowerCase().includes(normalizedQuery) ||
+        (member.EligibilityStatus || '').toLowerCase().includes(normalizedQuery)
       )
       .sort((a, b) => {
+        if (nameSortOrder === 'shows') {
+          const diff = (b.ShowCount || 0) - (a.ShowCount || 0);
+          if (diff !== 0) return diff;
+        } else if (nameSortOrder === 'crew') {
+          const diff = (b.CrewDutyCount || 0) - (a.CrewDutyCount || 0);
+          if (diff !== 0) return diff;
+        }
         const left = displayName(a).toLowerCase();
         const right = displayName(b).toLowerCase();
         const baseCompare = left.localeCompare(right, undefined, { sensitivity: 'base' });
-        return nameSortOrder === 'asc' ? baseCompare : -baseCompare;
+        return nameSortOrder === 'desc' ? -baseCompare : baseCompare;
       });
 
     setFilteredCastMembers(filtered);
@@ -779,20 +811,22 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
       <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
         <input
           type="text"
-          placeholder="Search by name, email, or phone..."
+          placeholder="Search by name, email, phone, or standing..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full sm:max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         />
         <select
           value={nameSortOrder}
-          onChange={(e) => setNameSortOrder(e.target.value as 'asc' | 'desc')}
+          onChange={(e) => setNameSortOrder(e.target.value as 'asc' | 'desc' | 'shows' | 'crew')}
           className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
           aria-label="Sort cast names"
           title="Sort cast names"
         >
           <option value="asc">Name: A to Z</option>
           <option value="desc">Name: Z to A</option>
+          <option value="shows">Most Shows Performed</option>
+          <option value="crew">Most Crew Duties</option>
         </select>
 
         {/* View Mode Toggle: Spreadsheet Table vs Cards */}
@@ -852,8 +886,9 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   <th className="py-3 px-4">Cast Member</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4">Phone</th>
+                  <th className="py-3 px-4">Stage & Crew</th>
+                  <th className="py-3 px-4">60-Day / Apprentice Standing</th>
+                  <th className="py-3 px-4">Last Show</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-center">Flags</th>
                   <th className="py-3 px-4 text-right">Actions</th>
@@ -864,6 +899,8 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
                   const displayName = `${castMember.FirstName || ''} ${castMember.LastName || (castMember as any).Lastname || ''}`.trim() || 'Unnamed';
                   const isOutOfTown = Boolean(castMember.OutOfTown);
                   const isLimited = Boolean(castMember.LimitedInactive);
+                  const showCount = castMember.ShowCount ?? 0;
+                  const crewCount = castMember.CrewDutyCount ?? 0;
 
                   return (
                     <tr
@@ -876,14 +913,53 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
                           <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold text-xs flex items-center justify-center flex-shrink-0">
                             {castMember.FirstName?.charAt(0) || 'C'}
                           </div>
-                          <span>{displayName}</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span>{displayName}</span>
+                              {castMember.MilestoneBadge && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                  {castMember.MilestoneBadge}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-normal text-gray-500">{castMember.PrimaryEmail || '—'}</div>
+                          </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs">
-                        {castMember.PrimaryEmail || '—'}
+                      <td className="py-3 px-4 whitespace-nowrap text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-800 font-semibold border border-purple-200">
+                            🎭 {showCount} show{showCount === 1 ? '' : 's'}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 font-semibold border border-teal-200">
+                            🛠️ {crewCount} crew
+                          </span>
+                          {(castMember.DirectedCount || 0) > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 font-semibold border border-indigo-200">
+                              🎬 {castMember.DirectedCount} dir
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap text-xs">
+                        {castMember.EligibilityStatus ? (
+                          <span
+                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                              castMember.EligibilityStatus.includes('60d') || castMember.EligibilityStatus.includes('Fri Eligible')
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : castMember.EligibilityStatus.includes('>60d')
+                                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                : 'bg-gray-50 text-gray-700 border-gray-200'
+                            }`}
+                          >
+                            {castMember.EligibilityStatus}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs">
-                        {castMember.PrimaryPhone || '—'}
+                        {castMember.LastShowDate ? formatDate(castMember.LastShowDate) : '—'}
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
                         <span
@@ -915,6 +991,21 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
                       </td>
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
+                          {onNavigate && showCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onNavigate('shows', {
+                                  castMemberFilter: castMember.PersonnelID ? String(castMember.PersonnelID) : displayName,
+                                });
+                              }}
+                              className="px-2.5 py-1 text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded transition-colors"
+                              title={`View ${displayName}'s shows`}
+                            >
+                              🎬 Shows
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -923,13 +1014,13 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
                             }}
                             className="px-2.5 py-1 text-xs font-medium bg-purple-50 hover:bg-purple-100 text-purple-700 rounded transition-colors"
                           >
-                            Status
+                            Profile & Status
                           </button>
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRemoveClick(castMember);
+                              handleRemoveClick(castMember.CastMemberID);
                             }}
                             className="px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                             title="Remove from cast"
@@ -947,14 +1038,25 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredCastMembers.map((castMember) => (
-            <CastCard
-              key={`${castMember.PerformanceID}-${castMember.CastMemberID}`}
-              castMember={castMember}
-              onClick={() => handleCastMemberClick(castMember)}
-              onRemove={handleRemoveClick}
-            />
-          ))}
+          {filteredCastMembers.map((castMember) => {
+            const displayName = `${castMember.FirstName || ''} ${castMember.LastName || (castMember as any).Lastname || ''}`.trim() || 'Unnamed';
+            return (
+              <CastCard
+                key={`${castMember.PerformanceID}-${castMember.CastMemberID}`}
+                castMember={castMember}
+                onClick={() => handleCastMemberClick(castMember)}
+                onRemove={handleRemoveClick}
+                onViewShows={
+                  onNavigate
+                    ? () =>
+                        onNavigate('shows', {
+                          castMemberFilter: castMember.PersonnelID ? String(castMember.PersonnelID) : displayName,
+                        })
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
 
@@ -1099,8 +1201,22 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
             className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Cast Member Details</h2>
+            <div className="flex justify-between items-start mb-5">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {`${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || (selectedCastMember as any).Lastname || ''}`.trim() || 'Unknown'}
+                  </h2>
+                  {selectedCastMember.MilestoneBadge && (
+                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                      {selectedCastMember.MilestoneBadge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Cast Profile & Stage Relationships
+                </p>
+              </div>
               <button
                 onClick={handleCloseModal}
                 className="text-gray-400 hover:text-gray-600 text-xl"
@@ -1109,15 +1225,145 @@ export const CastDirectory: React.FC<CastDirectoryProps> = ({ canManageGames = f
               </button>
             </div>
 
+            {/* Stage & Crew Summary KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+              <div className="rounded-lg border border-purple-200 bg-purple-50/70 p-3">
+                <p className="text-[11px] font-semibold uppercase text-purple-700">Shows Performed</p>
+                <p className="text-xl font-bold text-purple-900 mt-0.5">{selectedCastMember.ShowCount ?? 0}</p>
+                <p className="text-[11px] text-purple-700 mt-0.5">
+                  Last: {selectedCastMember.LastShowDate ? formatDate(selectedCastMember.LastShowDate) : '—'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-3">
+                <p className="text-[11px] font-semibold uppercase text-teal-700">Crew Duties</p>
+                <p className="text-xl font-bold text-teal-900 mt-0.5">{selectedCastMember.CrewDutyCount ?? 0}</p>
+                <p className="text-[11px] text-teal-700 mt-0.5">
+                  Last: {selectedCastMember.LastCrewDate ? formatDate(selectedCastMember.LastCrewDate) : '—'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 p-3">
+                <p className="text-[11px] font-semibold uppercase text-indigo-700">Shows Directed</p>
+                <p className="text-xl font-bold text-indigo-900 mt-0.5">{selectedCastMember.DirectedCount ?? 0}</p>
+                <p className="text-[11px] text-indigo-700 mt-0.5">
+                  Last: {selectedCastMember.LastDirectedDate ? formatDate(selectedCastMember.LastDirectedDate) : '—'}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3">
+                <p className="text-[11px] font-semibold uppercase text-emerald-700">Standing</p>
+                <p className="text-xs font-bold text-emerald-900 mt-1 leading-snug">
+                  {selectedCastMember.EligibilityStatus || 'Active Cast'}
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Cross-Navigation Bar */}
+            {onNavigate && (
+              <div className="mb-5 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fullName = `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || (selectedCastMember as any).Lastname || ''}`.trim();
+                    handleCloseModal();
+                    onNavigate('shows', {
+                      castMemberFilter: selectedCastMember.PersonnelID ? String(selectedCastMember.PersonnelID) : fullName,
+                    });
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  🎬 View All {selectedCastMember.ShowCount ?? 0} Shows →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fullName = `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || (selectedCastMember as any).Lastname || ''}`.trim();
+                    handleCloseModal();
+                    onNavigate('crew', { crewSearch: fullName });
+                  }}
+                  className="px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50 text-teal-800 text-xs font-semibold hover:bg-teal-100 transition-colors"
+                >
+                  🛠️ View {selectedCastMember.CrewDutyCount ?? 0} Crew Duties →
+                </button>
+                {(selectedCastMember.DirectedCount || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fullName = `${selectedCastMember.FirstName || ''} ${selectedCastMember.LastName || (selectedCastMember as any).Lastname || ''}`.trim();
+                      handleCloseModal();
+                      onNavigate('shows', { directorFilter: fullName });
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-purple-300 bg-purple-50 text-purple-800 text-xs font-semibold hover:bg-purple-100 transition-colors"
+                  >
+                    🎬 View {selectedCastMember.DirectedCount} Directed Shows →
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Stage Chemistry: Top Co-Stars & Top Directors */}
+            {((selectedCastMember.TopCoStars && selectedCastMember.TopCoStars.length > 0) ||
+              (selectedCastMember.TopDirectors && selectedCastMember.TopDirectors.length > 0)) && (
+              <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {selectedCastMember.TopCoStars && selectedCastMember.TopCoStars.length > 0 && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+                      🤝 Top Stage Co-Stars
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCastMember.TopCoStars.map((coStar) => (
+                        <button
+                          key={coStar.personnelId}
+                          type="button"
+                          onClick={() => {
+                            const target = castMembers.find((m) => Number(m.PersonnelID) === Number(coStar.personnelId));
+                            if (target) {
+                              handleCastMemberClick(target);
+                            } else if (onNavigate) {
+                              handleCloseModal();
+                              onNavigate('shows', { castMemberFilter: String(coStar.personnelId) });
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-white hover:bg-purple-50 border border-gray-200 hover:border-purple-300 text-xs text-gray-800 font-medium transition-colors"
+                          title={`Switch to ${coStar.name}`}
+                        >
+                          {coStar.name} <strong className="text-purple-700">({coStar.count})</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedCastMember.TopDirectors && selectedCastMember.TopDirectors.length > 0 && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3.5">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+                      🎬 Most Frequent Directors
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedCastMember.TopDirectors.map((dir) => (
+                        <button
+                          key={dir.name}
+                          type="button"
+                          onClick={() => {
+                            if (!onNavigate) return;
+                            const pid = selectedCastMember.PersonnelID;
+                            handleCloseModal();
+                            onNavigate('shows', {
+                              directorFilter: dir.name,
+                              castMemberFilter: pid ? String(pid) : undefined,
+                            });
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 text-xs text-gray-800 font-medium transition-colors"
+                          title={`View shows directed by ${dir.name} with ${selectedCastMember.FirstName}`}
+                        >
+                          {dir.name} <strong className="text-indigo-700">({dir.count})</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <p className="text-gray-900">{`${selectedCastMember.FirstName || ''} ${(selectedCastMember as any).Lastname || ''}`.trim() || 'Unknown'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Show Date</label>
-                <p className="text-gray-900">{formatDate((selectedCastMember as any).LastShowDate)}</p>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
                 <p className="text-gray-900">{formatDate((selectedCastMember as any).Birthday)}</p>

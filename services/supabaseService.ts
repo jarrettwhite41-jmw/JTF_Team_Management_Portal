@@ -2014,24 +2014,81 @@ class SupabaseService {
 
   async getAllDirectors(): Promise<ApiResponse<any[]>> {
     try {
-      const { data, error } = await this.client
-        .from('directors')
-        .select(`
-          director_id,
-          personnel_id,
-          personnel(first_name, last_name, primary_email)
-        `)
-        .order('director_id', { ascending: true });
+      const [directorsRes, showsRes, perfRes] = await Promise.all([
+        this.client
+          .from('directors')
+          .select(`
+            director_id,
+            personnel_id,
+            personnel(first_name, last_name, primary_email)
+          `)
+          .order('director_id', { ascending: true }),
+        this.client.from('show_information').select('show_id, show_date, director_id'),
+        this.client.from('show_performances').select('show_id, personnel_id, personnel(first_name, last_name)'),
+      ]);
 
-      if (error) throw error;
+      if (directorsRes.error) throw directorsRes.error;
 
-      const transformed = (data || []).map((director: any) => ({
-        DirectorID: director.director_id,
-        PersonnelID: director.personnel_id,
-        FirstName: director.personnel?.first_name || '',
-        LastName: director.personnel?.last_name || '',
-        PrimaryEmail: director.personnel?.primary_email || '',
-      }));
+      const shows = showsRes.data || [];
+      const perfs = perfRes.data || [];
+
+      const showCountByDirId = new Map<number, number>();
+      const lastDateByDirId = new Map<number, string>();
+      const dirIdByShowId = new Map<number, number>();
+
+      shows.forEach((s: any) => {
+        if (!s.director_id) return;
+        const did = Number(s.director_id);
+        const sid = Number(s.show_id);
+        dirIdByShowId.set(sid, did);
+        showCountByDirId.set(did, (showCountByDirId.get(did) || 0) + 1);
+        const d = String(s.show_date || '').slice(0, 10);
+        if (d) {
+          const prev = lastDateByDirId.get(did);
+          if (!prev || d > prev) lastDateByDirId.set(did, d);
+        }
+      });
+
+      const castCountByDirId = new Map<number, Map<number, { name: string; count: number }>>();
+      perfs.forEach((row: any) => {
+        const sid = Number(row.show_id);
+        const pid = Number(row.personnel_id);
+        const did = dirIdByShowId.get(sid);
+        if (!did || !pid) return;
+        const p = row.personnel;
+        const name = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : '';
+        if (!name) return;
+        if (!castCountByDirId.has(did)) castCountByDirId.set(did, new Map());
+        const cMap = castCountByDirId.get(did)!;
+        const existing = cMap.get(pid);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          cMap.set(pid, { name, count: 1 });
+        }
+      });
+
+      const transformed = (directorsRes.data || []).map((director: any) => {
+        const did = Number(director.director_id);
+        const dirPersonnelId = Number(director.personnel_id);
+        const cMap = castCountByDirId.get(did) || new Map();
+        const topCast = Array.from(cMap.entries())
+          .filter(([pid]) => pid !== dirPersonnelId)
+          .map(([personnelId, info]) => ({ personnelId, name: info.name, count: info.count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        return {
+          DirectorID: did,
+          PersonnelID: dirPersonnelId,
+          FirstName: director.personnel?.first_name || '',
+          LastName: director.personnel?.last_name || '',
+          PrimaryEmail: director.personnel?.primary_email || '',
+          ShowsCount: showCountByDirId.get(did) || 0,
+          LastDirectedDate: lastDateByDirId.get(did) || '',
+          TopCast: topCast,
+        };
+      });
 
       return { success: true, data: transformed };
     } catch (error) {
@@ -3550,12 +3607,14 @@ class SupabaseService {
 
   async getStageAnalytics(): Promise<ApiResponse<any>> {
     try {
-      const [performancesRes, showsRes, directorsRes, crewRes, personnelRes] = await Promise.all([
+      const [performancesRes, showsRes, directorsRes, crewRes, personnelRes, gamesPlayedRes, masterGamesRes] = await Promise.all([
         this.client.from('show_performances').select('performance_id, show_id, personnel_id, role'),
         this.client.from('show_information').select('show_id, show_date, venue, director_id, program_category, show_types(show_type_name)'),
         this.client.from('directors').select('director_id, personnel_id, personnel(first_name, last_name)'),
         this.client.from('crew_duties').select('duty_id, show_id, personnel_id'),
         this.client.from('personnel').select('personnel_id, first_name, last_name, active'),
+        this.client.from('games_played').select('games_played_id, show_id, game_id, order_in_show, notes'),
+        this.client.from('master_game_list').select('game_id, game_name, category'),
       ]);
 
       if (performancesRes.error) throw performancesRes.error;
@@ -3565,6 +3624,8 @@ class SupabaseService {
       const directors = directorsRes.data || [];
       const crew = crewRes.data || [];
       const personnelList = personnelRes.data || [];
+      const gamesPlayed = gamesPlayedRes.data || [];
+      const masterGames = masterGamesRes.data || [];
 
       const nameMap = new Map<number, string>();
       personnelList.forEach((p) => {
@@ -3574,6 +3635,14 @@ class SupabaseService {
 
       const showMap = new Map<number, any>();
       shows.forEach((s) => showMap.set(s.show_id, s));
+
+      const gameMap = new Map<number, { name: string; category: string }>();
+      masterGames.forEach((g: any) => {
+        gameMap.set(g.game_id, {
+          name: g.game_name || `Game #${g.game_id}`,
+          category: g.category || 'Improv',
+        });
+      });
 
       const dirNameMap = new Map<number, string>();
       const dirPersonnelMap = new Map<number, number>();
@@ -3587,9 +3656,13 @@ class SupabaseService {
       });
 
       const showCounts = new Map<number, number>();
+      const lastShowDates = new Map<number, string>();
       const formatCounts = new Map<number, Record<string, number>>();
       const directedCounts = new Map<number, number>();
+      const showsByDirectorId = new Map<number, number>();
+      const lastDirectedByDirectorId = new Map<number, string>();
       const crewCounts = new Map<number, number>();
+      const lastCrewDates = new Map<number, string>();
       const pairingCounts = new Map<string, number>();
 
       const showCastMap = new Map<number, number[]>();
@@ -3604,6 +3677,12 @@ class SupabaseService {
         showCounts.set(pId, (showCounts.get(pId) || 0) + 1);
 
         const s = showMap.get(sId);
+        const sDate = String(s?.show_date || '').slice(0, 10);
+        if (sDate) {
+          const prev = lastShowDates.get(pId);
+          if (!prev || sDate > prev) lastShowDates.set(pId, sDate);
+        }
+
         const format = s?.show_types?.show_type_name || (s?.program_category === 'jtf_presents' ? 'JTF Presents' : 'Mainstage');
         if (!formatCounts.has(pId)) {
           formatCounts.set(pId, {});
@@ -3614,6 +3693,12 @@ class SupabaseService {
 
       shows.forEach((s) => {
         if (s.director_id) {
+          showsByDirectorId.set(s.director_id, (showsByDirectorId.get(s.director_id) || 0) + 1);
+          const sDate = String(s.show_date || '').slice(0, 10);
+          if (sDate) {
+            const prev = lastDirectedByDirectorId.get(s.director_id);
+            if (!prev || sDate > prev) lastDirectedByDirectorId.set(s.director_id, sDate);
+          }
           const dirPId = dirPersonnelMap.get(s.director_id);
           if (dirPId) {
             directedCounts.set(dirPId, (directedCounts.get(dirPId) || 0) + 1);
@@ -3623,6 +3708,12 @@ class SupabaseService {
 
       crew.forEach((c) => {
         crewCounts.set(c.personnel_id, (crewCounts.get(c.personnel_id) || 0) + 1);
+        const s = showMap.get(c.show_id);
+        const sDate = String(s?.show_date || '').slice(0, 10);
+        if (sDate) {
+          const prev = lastCrewDates.get(c.personnel_id);
+          if (!prev || sDate > prev) lastCrewDates.set(c.personnel_id, sDate);
+        }
       });
 
       showCastMap.forEach((castList) => {
@@ -3651,6 +3742,15 @@ class SupabaseService {
         }
       });
 
+      const getMilestoneBadge = (totalShows: number): string | null => {
+        if (totalShows >= 100) return '🏆 100+ Club';
+        if (totalShows >= 50) return '⭐ 50+ Shows';
+        if (totalShows >= 25) return '✨ 25+ Shows';
+        if (totalShows >= 10) return '🎭 10+ Shows';
+        if (totalShows >= 1) return '🌱 Stage Debut';
+        return null;
+      };
+
       const leaderboard = personnelList
         .map((p) => {
           const pId = p.personnel_id;
@@ -3669,6 +3769,7 @@ class SupabaseService {
           });
 
           let topPartnerName = '';
+          let topPartnerId = 0;
           let topPartnerCount = 0;
           nameMap.forEach((otherName, otherId) => {
             if (otherId === pId) return;
@@ -3676,6 +3777,7 @@ class SupabaseService {
             if (count > topPartnerCount) {
               topPartnerCount = count;
               topPartnerName = otherName;
+              topPartnerId = otherId;
             }
           });
 
@@ -3685,6 +3787,10 @@ class SupabaseService {
             total_shows: totalShows,
             shows_directed: showsDirected,
             crew_shifts: crewShifts,
+            last_show_date: lastShowDates.get(pId) || '',
+            last_crew_date: lastCrewDates.get(pId) || '',
+            milestone_badge: getMilestoneBadge(totalShows),
+            top_partner_id: topPartnerId,
             top_partner_name: topPartnerName,
             top_partner_count: topPartnerCount,
             top_format_name: topFormat,
@@ -3692,7 +3798,8 @@ class SupabaseService {
             format_counts: fc,
           };
         })
-        .sort((a, b) => b.total_shows - a.total_shows || a.full_name.localeCompare(b.full_name));
+        .filter((entry) => entry.total_shows > 0 || entry.shows_directed > 0 || entry.crew_shifts > 0)
+        .sort((a, b) => b.total_shows - a.total_shows || b.shows_directed - a.shows_directed || a.full_name.localeCompare(b.full_name));
 
       leaderboard.forEach((entry, idx) => {
         (entry as any).rank = idx + 1;
@@ -3701,27 +3808,79 @@ class SupabaseService {
       const directorStats = directors
         .map((d) => {
           const dirCast = directorCastCounts.get(d.director_id) || new Map();
-          const sortedCast: Array<{ name: string; count: number }> = [];
+          const sortedCast: Array<{ personnel_id: number; name: string; count: number }> = [];
           dirCast.forEach((count, pId) => {
-            sortedCast.push({ name: nameMap.get(pId) || `Performer #${pId}`, count });
+            sortedCast.push({ personnel_id: pId, name: nameMap.get(pId) || `Performer #${pId}`, count });
           });
           sortedCast.sort((a, b) => b.count - a.count);
 
           return {
             director_id: d.director_id,
+            personnel_id: d.personnel_id,
             director_name: dirNameMap.get(d.director_id) || `Director #${d.director_id}`,
-            shows_count: sortedCast.reduce((max, c) => Math.max(max, c.count), 0),
+            shows_count: showsByDirectorId.get(d.director_id) || sortedCast.reduce((max, c) => Math.max(max, c.count), 0),
+            last_directed_date: lastDirectedByDirectorId.get(d.director_id) || '',
             top_cast: sortedCast.slice(0, 6),
           };
         })
-        .filter((d) => d.top_cast.length > 0)
-        .sort((a, b) => (b.top_cast[0]?.count || 0) - (a.top_cast[0]?.count || 0));
+        .filter((d) => d.shows_count > 0 || d.top_cast.length > 0)
+        .sort((a, b) => b.shows_count - a.shows_count || a.director_name.localeCompare(b.director_name));
+
+      // Aggregate setlist game intelligence
+      const gamePlayCounts = new Map<number, number>();
+      const categoryCounts = new Map<string, number>();
+      const callerCounts = new Map<string, number>();
+
+      gamesPlayed.forEach((gp: any) => {
+        if (!gp.game_id) return;
+        gamePlayCounts.set(gp.game_id, (gamePlayCounts.get(gp.game_id) || 0) + 1);
+        const gInfo = gameMap.get(gp.game_id);
+        const cat = gInfo?.category || 'Improv';
+        categoryCounts.set(cat, (categoryCounts.get(cat) || 0) + 1);
+
+        const notesStr = String(gp.notes || '');
+        const callerMatch = notesStr.match(/Caller:\s*([^|]+)/i);
+        if (callerMatch && callerMatch[1]) {
+          callerMatch[1]
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .forEach((caller) => {
+              callerCounts.set(caller, (callerCounts.get(caller) || 0) + 1);
+            });
+        }
+      });
+
+      const topGames = Array.from(gamePlayCounts.entries())
+        .map(([gameId, count]) => ({
+          game_id: gameId,
+          game_name: gameMap.get(gameId)?.name || `Game #${gameId}`,
+          category: gameMap.get(gameId)?.category || 'Improv',
+          count,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12);
+
+      const topCallers = Array.from(callerCounts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      const categories = Array.from(categoryCounts.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count);
 
       return {
         success: true,
         data: {
           leaderboard,
           directors: directorStats,
+          games: {
+            totalLoggedInstances: gamesPlayed.length,
+            topGames,
+            topCallers,
+            categories,
+          },
           totalPerformancesRecorded: performances.length,
           totalShowsCataloged: shows.length,
         },
@@ -4840,34 +4999,204 @@ class SupabaseService {
 
   async getAllCastMembers(): Promise<ApiResponse<any>> {
     try {
-      const { data, error } = await this.client
-        .from('cast_member_info')
-        .select(`
-          "CastMemberID",
-          "PersonnelID",
-          "YearJoined",
-          "OutOfTown",
-          "Limited/Inactive",
-          "ImageURL",
-          personnel!CastMemberInfo_PersonnelID_fkey(
-            personnel_id, first_name, last_name, primary_email, primary_phone, birthday
-          )
-        `)
-        .order('"CastMemberID"', { ascending: true });
+      const [castRes, perfRes, crewRes, showsRes, directorsRes] = await Promise.all([
+        this.client
+          .from('cast_member_info')
+          .select(`
+            "CastMemberID",
+            "PersonnelID",
+            "YearJoined",
+            "OutOfTown",
+            "Limited/Inactive",
+            "ImageURL",
+            personnel!CastMemberInfo_PersonnelID_fkey(
+              personnel_id, first_name, last_name, primary_email, primary_phone, birthday
+            )
+          `)
+          .order('"CastMemberID"', { ascending: true }),
+        this.client.from('show_performances').select('show_id, personnel_id, role'),
+        this.client.from('crew_duties').select('show_id, personnel_id'),
+        this.client.from('show_information').select('show_id, show_date, director_id'),
+        this.client.from('directors').select('director_id, personnel_id, personnel(first_name, last_name)'),
+      ]);
 
-      if (error) throw error;
+      if (castRes.error) throw castRes.error;
 
-      const transformed = (data || []).map((row: any) => {
+      const data = castRes.data || [];
+      const performances = perfRes.data || [];
+      const crewDuties = crewRes.data || [];
+      const shows = showsRes.data || [];
+      const directors = directorsRes.data || [];
+
+      const showById = new Map<number, { date: string; directorId: number | null }>();
+      shows.forEach((s: any) => {
+        showById.set(Number(s.show_id), {
+          date: String(s.show_date || '').slice(0, 10),
+          directorId: s.director_id ? Number(s.director_id) : null,
+        });
+      });
+
+      const directorNameById = new Map<number, string>();
+      const directorPersonnelById = new Map<number, number>();
+      directors.forEach((d: any) => {
+        const p = d.personnel;
+        const name = p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : '';
+        if (name) directorNameById.set(Number(d.director_id), name);
+        if (d.personnel_id) directorPersonnelById.set(Number(d.director_id), Number(d.personnel_id));
+      });
+
+      const nameByPersonnelId = new Map<number, string>();
+      data.forEach((row: any) => {
         const p = row.personnel || {};
+        const pid = Number(row['PersonnelID'] || p.personnel_id);
+        if (pid) {
+          nameByPersonnelId.set(pid, `${p.first_name || ''} ${p.last_name || ''}`.trim());
+        }
+      });
+
+      const showCountByPid = new Map<number, number>();
+      const lastShowDateByPid = new Map<number, string>();
+      const castByShowId = new Map<number, number[]>();
+      const directorCountsByPid = new Map<number, Map<string, number>>();
+
+      performances.forEach((perf: any) => {
+        const pid = Number(perf.personnel_id);
+        const sid = Number(perf.show_id);
+        if (!pid || !sid) return;
+
+        showCountByPid.set(pid, (showCountByPid.get(pid) || 0) + 1);
+
+        if (!castByShowId.has(sid)) castByShowId.set(sid, []);
+        castByShowId.get(sid)!.push(pid);
+
+        const showInfo = showById.get(sid);
+        if (showInfo?.date) {
+          const prev = lastShowDateByPid.get(pid);
+          if (!prev || showInfo.date > prev) lastShowDateByPid.set(pid, showInfo.date);
+        }
+
+        if (showInfo?.directorId) {
+          const dirName = directorNameById.get(showInfo.directorId);
+          if (dirName) {
+            if (!directorCountsByPid.has(pid)) directorCountsByPid.set(pid, new Map());
+            const dMap = directorCountsByPid.get(pid)!;
+            dMap.set(dirName, (dMap.get(dirName) || 0) + 1);
+          }
+        }
+      });
+
+      const coStarCountsByPid = new Map<number, Map<number, number>>();
+      castByShowId.forEach((pids) => {
+        for (let i = 0; i < pids.length; i++) {
+          for (let j = i + 1; j < pids.length; j++) {
+            const a = pids[i];
+            const b = pids[j];
+            if (a === b) continue;
+            if (!coStarCountsByPid.has(a)) coStarCountsByPid.set(a, new Map());
+            if (!coStarCountsByPid.has(b)) coStarCountsByPid.set(b, new Map());
+            coStarCountsByPid.get(a)!.set(b, (coStarCountsByPid.get(a)!.get(b) || 0) + 1);
+            coStarCountsByPid.get(b)!.set(a, (coStarCountsByPid.get(b)!.get(a) || 0) + 1);
+          }
+        }
+      });
+
+      const crewCountByPid = new Map<number, number>();
+      const lastCrewDateByPid = new Map<number, string>();
+      crewDuties.forEach((c: any) => {
+        const pid = Number(c.personnel_id);
+        const sid = Number(c.show_id);
+        if (!pid) return;
+        crewCountByPid.set(pid, (crewCountByPid.get(pid) || 0) + 1);
+        const showInfo = showById.get(sid);
+        if (showInfo?.date) {
+          const prev = lastCrewDateByPid.get(pid);
+          if (!prev || showInfo.date > prev) lastCrewDateByPid.set(pid, showInfo.date);
+        }
+      });
+
+      const directedCountByPid = new Map<number, number>();
+      const lastDirectedDateByPid = new Map<number, string>();
+      shows.forEach((s: any) => {
+        if (!s.director_id) return;
+        const pid = directorPersonnelById.get(Number(s.director_id));
+        if (!pid) return;
+        directedCountByPid.set(pid, (directedCountByPid.get(pid) || 0) + 1);
+        const d = String(s.show_date || '').slice(0, 10);
+        if (d) {
+          const prev = lastDirectedDateByPid.get(pid);
+          if (!prev || d > prev) lastDirectedDateByPid.set(pid, d);
+        }
+      });
+
+      // Reference date for 60-day rolling compliance: latest completed show date or today
+      const allPastDates = Array.from(showById.values())
+        .map((v) => v.date)
+        .filter((d) => d && d <= '2026-04-30')
+        .sort();
+      const refDateStr = allPastDates[allPastDates.length - 1] || new Date().toISOString().slice(0, 10);
+      const refMs = new Date(`${refDateStr}T00:00:00`).getTime();
+
+      const transformed = data.map((row: any) => {
+        const p = row.personnel || {};
+        const pid = Number(row['PersonnelID']);
         let status = 'Active';
         if (row['Limited/Inactive']) status = 'Limited/Inactive';
         if (row['OutOfTown']) status = 'Out of Town';
+
+        const showCount = showCountByPid.get(pid) || 0;
+        const lastShowDate = lastShowDateByPid.get(pid) || '';
+        const crewCount = crewCountByPid.get(pid) || 0;
+        const lastCrewDate = lastCrewDateByPid.get(pid) || '';
+        const directedCount = directedCountByPid.get(pid) || 0;
+        const lastDirectedDate = lastDirectedDateByPid.get(pid) || '';
+
+        const latestSupportDate = [lastCrewDate, lastDirectedDate].filter(Boolean).sort().pop() || '';
+        const daysSinceSupport = latestSupportDate
+          ? Math.max(0, Math.round((refMs - new Date(`${latestSupportDate}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24)))
+          : null;
+
+        let eligibilityStatus = 'Active Cast';
+        if (directedCount > 0 && daysSinceSupport !== null && daysSinceSupport <= 60) {
+          eligibilityStatus = 'Director · 60d Eligible';
+        } else if (showCount === 0 && crewCount > 0 && crewCount < 4) {
+          eligibilityStatus = `Apprentice (${crewCount}/8 duties)`;
+        } else if (showCount <= 3 && crewCount >= 4 && crewCount < 8) {
+          eligibilityStatus = `Apprentice (${crewCount}/8 · Fri Eligible)`;
+        } else if (daysSinceSupport !== null && daysSinceSupport <= 60) {
+          eligibilityStatus = `60d Compliant (${daysSinceSupport}d ago)`;
+        } else if (crewCount > 0 || directedCount > 0) {
+          eligibilityStatus = `Crew Window >60d`;
+        }
+
+        let milestoneBadge: string | null = null;
+        if (showCount >= 100) milestoneBadge = '🏆 100+ Club';
+        else if (showCount >= 50) milestoneBadge = '⭐ 50+ Shows';
+        else if (showCount >= 25) milestoneBadge = '✨ 25+ Shows';
+        else if (showCount >= 10) milestoneBadge = '🎭 10+ Shows';
+        else if (showCount >= 1) milestoneBadge = '🌱 Stage Debut';
+
+        const coStarsMap = coStarCountsByPid.get(pid) || new Map<number, number>();
+        const topCoStars = Array.from(coStarsMap.entries())
+          .map(([otherPid, count]) => ({
+            personnelId: otherPid,
+            name: nameByPersonnelId.get(otherPid) || `Performer #${otherPid}`,
+            count,
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5);
+
+        const dirsMap = directorCountsByPid.get(pid) || new Map<string, number>();
+        const topDirectors = Array.from(dirsMap.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 4);
+
         return {
           CastMemberID: row['CastMemberID'],
           PerformanceID: row['CastMemberID'],
           ShowID: 0,
           Role: 'Cast Member',
-          PersonnelID: row['PersonnelID'],
+          PersonnelID: pid,
           FirstName: p.first_name || '',
           Lastname: p.last_name || '',
           LastName: p.last_name || '',
@@ -4879,7 +5208,17 @@ class SupabaseService {
           OutOfTown: row['OutOfTown'],
           LimitedInactive: row['Limited/Inactive'],
           ImageURL: row['ImageURL'],
-          LastShowDate: '',
+          LastShowDate: lastShowDate,
+          ShowCount: showCount,
+          CrewDutyCount: crewCount,
+          LastCrewDate: lastCrewDate,
+          DirectedCount: directedCount,
+          LastDirectedDate: lastDirectedDate,
+          DaysSinceCrewOrDirecting: daysSinceSupport,
+          EligibilityStatus: eligibilityStatus,
+          MilestoneBadge: milestoneBadge,
+          TopCoStars: topCoStars,
+          TopDirectors: topDirectors,
           Status: status,
         };
       });
@@ -4888,6 +5227,135 @@ class SupabaseService {
     } catch (error) {
       console.error('Error fetching cast members:', error);
       return { success: false, error: error.toString() };
+    }
+  }
+
+  async getAllGamesStageHistory(): Promise<ApiResponse<Record<number, {
+    playCount: number;
+    lastPlayedDate: string;
+    topCallers: Array<{ name: string; count: number }>;
+    topPlayers: Array<{ name: string; count: number }>;
+    shows: Array<{ showId: number; showDate: string; venue: string; directorName: string; orderInShow: number | null; notes: string }>;
+  }>>> {
+    try {
+      const [gpRes, showsRes] = await Promise.all([
+        this.client
+          .from('games_played')
+          .select('games_played_id, show_id, game_id, order_in_show, notes')
+          .order('show_id', { ascending: false }),
+        this.client
+          .from('show_information')
+          .select('show_id, show_date, venue, directors(personnel(first_name, last_name))'),
+      ]);
+
+      if (gpRes.error) throw gpRes.error;
+
+      const showById = new Map<number, { date: string; venue: string; directorName: string }>();
+      (showsRes.data || []).forEach((s: any) => {
+        const dp = s.directors?.personnel;
+        const directorName = dp ? `${dp.first_name || ''} ${dp.last_name || ''}`.trim() : '';
+        showById.set(Number(s.show_id), {
+          date: String(s.show_date || '').slice(0, 10),
+          venue: s.venue || `Show #${s.show_id}`,
+          directorName,
+        });
+      });
+
+      const result: Record<number, {
+        playCount: number;
+        lastPlayedDate: string;
+        callerMap: Map<string, number>;
+        playerMap: Map<string, number>;
+        shows: Array<{ showId: number; showDate: string; venue: string; directorName: string; orderInShow: number | null; notes: string }>;
+      }> = {};
+
+      (gpRes.data || []).forEach((row: any) => {
+        const gid = Number(row.game_id);
+        const sid = Number(row.show_id);
+        if (!gid || !sid) return;
+
+        if (!result[gid]) {
+          result[gid] = {
+            playCount: 0,
+            lastPlayedDate: '',
+            callerMap: new Map(),
+            playerMap: new Map(),
+            shows: [],
+          };
+        }
+
+        const entry = result[gid];
+        entry.playCount += 1;
+
+        const showInfo = showById.get(sid);
+        const showDate = showInfo?.date || '';
+        if (showDate && (!entry.lastPlayedDate || showDate > entry.lastPlayedDate)) {
+          entry.lastPlayedDate = showDate;
+        }
+
+        const notesStr = String(row.notes || '');
+        const playersMatch = notesStr.match(/Players:\s*([^|]+)/i);
+        if (playersMatch && playersMatch[1]) {
+          playersMatch[1]
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .forEach((pName) => {
+              entry.playerMap.set(pName, (entry.playerMap.get(pName) || 0) + 1);
+            });
+        }
+
+        const callerMatch = notesStr.match(/Caller:\s*([^|]+)/i);
+        if (callerMatch && callerMatch[1]) {
+          callerMatch[1]
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .forEach((cName) => {
+              entry.callerMap.set(cName, (entry.callerMap.get(cName) || 0) + 1);
+            });
+        }
+
+        entry.shows.push({
+          showId: sid,
+          showDate,
+          venue: showInfo?.venue || `Show #${sid}`,
+          directorName: showInfo?.directorName || '',
+          orderInShow: row.order_in_show ?? null,
+          notes: notesStr,
+        });
+      });
+
+      const formatted: Record<number, {
+        playCount: number;
+        lastPlayedDate: string;
+        topCallers: Array<{ name: string; count: number }>;
+        topPlayers: Array<{ name: string; count: number }>;
+        shows: Array<{ showId: number; showDate: string; venue: string; directorName: string; orderInShow: number | null; notes: string }>;
+      }> = {};
+
+      Object.entries(result).forEach(([gidStr, entry]) => {
+        const gid = Number(gidStr);
+        entry.shows.sort((a, b) => b.showDate.localeCompare(a.showDate));
+        formatted[gid] = {
+          playCount: entry.playCount,
+          lastPlayedDate: entry.lastPlayedDate,
+          topCallers: Array.from(entry.callerMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5),
+          topPlayers: Array.from(entry.playerMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 6),
+          shows: entry.shows,
+        };
+      });
+
+      return { success: true, data: formatted };
+    } catch (error) {
+      console.error('Error fetching game stage history:', error);
+      return { success: false, error: this.getErrorMessage(error) };
     }
   }
 

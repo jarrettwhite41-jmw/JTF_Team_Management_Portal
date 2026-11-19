@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { CrewCard } from '../components/crew/CrewCard';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { CrewMemberWithDetails } from '../types';
+import { CrewMemberWithDetails, PageType, PortalNavigationContext } from '../types';
 import { gasService } from '../services/googleAppsScript';
 
 // Palette of Tailwind badge class sets — one per show (cycles if > 8 shows)
@@ -29,13 +29,23 @@ const SHOW_HEADER_COLORS = [
   'bg-cyan-600 text-white',
 ];
 
-export const CrewDirectory: React.FC = () => {
+interface CrewDirectoryProps {
+  onNavigate?: (page: PageType, context?: PortalNavigationContext) => void;
+  initialSearch?: string;
+  initialShowName?: string;
+}
+
+export const CrewDirectory: React.FC<CrewDirectoryProps> = ({
+  onNavigate,
+  initialSearch,
+  initialShowName,
+}) => {
   const [crewMembers, setCrewMembers] = useState<CrewMemberWithDetails[]>([]);
   const [filteredCrewMembers, setFilteredCrewMembers] = useState<CrewMemberWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearch || '');
   const [dutyFilter, setDutyFilter] = useState<string>('all');
-  const [showFilter, setShowFilter] = useState<string>('all');
+  const [showFilter, setShowFilter] = useState<string>(initialShowName || 'all');
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [dateSortOrder, setDateSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'grid' | 'grouped' | 'byShow'>('grid');
@@ -70,6 +80,15 @@ export const CrewDirectory: React.FC = () => {
   useEffect(() => {
     loadCrewMembers();
   }, []);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearchTerm(initialSearch);
+    }
+    if (initialShowName !== undefined) {
+      setShowFilter(initialShowName || 'all');
+    }
+  }, [initialSearch, initialShowName]);
 
   useEffect(() => {
     let filtered = crewMembers;
@@ -456,27 +475,110 @@ export const CrewDirectory: React.FC = () => {
 
             {/* All duty assignments for this person */}
             {(() => {
-              const allDuties = crewMembers.filter(m => m.PersonnelID === selectedCrewMember.PersonnelID);
-              if (allDuties.length <= 1) return null;
+              const allDuties = crewMembers
+                .filter(m => m.PersonnelID === selectedCrewMember.PersonnelID)
+                .sort((a, b) => {
+                  const aTime = parseDateLocal(a.ShowDate || a.LastShowDate || '')?.getTime() ?? 0;
+                  const bTime = parseDateLocal(b.ShowDate || b.LastShowDate || '')?.getTime() ?? 0;
+                  return bTime - aTime;
+                });
+              const dutyCount = allDuties.length;
+              const progressPct = Math.min(100, Math.round((dutyCount / 8) * 100));
               return (
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    All Duty Assignments ({allDuties.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {allDuties.map((duty, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-medium text-gray-900">{duty.DutyName || 'Unassigned'}</span>
-                          {duty.ShowName && (
-                            <span className={`px-2 py-0.5 text-xs rounded-full border ${getShowBadgeClasses(duty.ShowName)}`}>
-                              {duty.ShowName}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatDate(duty.ShowDate || duty.LastShowDate)}</span>
+                <div className="space-y-4">
+                  {/* Apprentice 4/8 Duty Progress & Cross-Navigation */}
+                  <div className="rounded-lg border border-teal-200 bg-teal-50/60 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-teal-800">
+                          Crew Standing & Apprentice Progress
+                        </span>
+                        <p className="text-xs text-teal-700 mt-0.5">
+                          {dutyCount >= 8
+                            ? `✓ Completed ${dutyCount} duties (8-duty Mainstage graduation threshold met)`
+                            : dutyCount >= 4
+                            ? `${dutyCount}/8 duties logged — Friday Show Eligible (${8 - dutyCount} more for Saturday Big Show graduation)`
+                            : `${dutyCount}/8 duties logged (${4 - dutyCount} more for Friday eligibility)`}
+                        </p>
                       </div>
-                    ))}
+                      <span className="px-2.5 py-1 rounded-full bg-teal-700 text-white text-xs font-bold">
+                        {dutyCount} {dutyCount === 1 ? 'Duty' : 'Duties'}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-teal-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-teal-600 rounded-full transition-all"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    {onNavigate && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = getDisplayName(selectedCrewMember);
+                            setIsDetailModalOpen(false);
+                            onNavigate('cast', {
+                              castPersonnelId: selectedCrewMember.PersonnelID,
+                              castSearch: name,
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors"
+                        >
+                          🎭 Open Cast Profile →
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = getDisplayName(selectedCrewMember);
+                            setIsDetailModalOpen(false);
+                            onNavigate('shows', {
+                              castMemberFilter: selectedCrewMember.PersonnelID
+                                ? String(selectedCrewMember.PersonnelID)
+                                : name,
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors"
+                        >
+                          🎬 View Shows Performed →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                      All Duty Assignments ({allDuties.length})
+                    </h3>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {allDuties.map((duty, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                            <span className="font-medium text-gray-900">{duty.DutyName || 'Unassigned'}</span>
+                            {duty.ShowName && (
+                              onNavigate ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsDetailModalOpen(false);
+                                    onNavigate('shows', { showSearch: duty.ShowDate || duty.ShowName });
+                                  }}
+                                  className={`px-2 py-0.5 text-xs rounded-full border hover:opacity-80 transition-opacity ${getShowBadgeClasses(toDateKey(duty.ShowDate || duty.LastShowDate))}`}
+                                  title="Open show in Shows"
+                                >
+                                  {duty.ShowName} →
+                                </button>
+                              ) : (
+                                <span className={`px-2 py-0.5 text-xs rounded-full border ${getShowBadgeClasses(toDateKey(duty.ShowDate || duty.LastShowDate))}`}>
+                                  {duty.ShowName}
+                                </span>
+                              )
+                            )}
+                          </div>
+                          <span className="text-sm text-gray-500 flex-shrink-0 ml-2">{formatDate(duty.ShowDate || duty.LastShowDate)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               );

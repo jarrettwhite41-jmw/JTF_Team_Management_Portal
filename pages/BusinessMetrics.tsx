@@ -2,8 +2,17 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { gasService } from '../services/googleAppsScript';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
+import { PageType, PortalNavigationContext } from '../types';
 
-export const BusinessMetrics: React.FC = () => {
+interface BusinessMetricsProps {
+  onNavigate?: (page: PageType, context?: PortalNavigationContext) => void;
+  initialTab?: 'teaching' | 'overview' | 'stage_analytics';
+}
+
+export const BusinessMetrics: React.FC<BusinessMetricsProps> = ({
+  onNavigate,
+  initialTab,
+}) => {
   const [metrics, setMetrics] = useState<any>(null);
   const [teachingHistory, setTeachingHistory] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,8 +30,14 @@ export const BusinessMetrics: React.FC = () => {
     return d.toISOString().split('T')[0];
   });
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'teaching' | 'overview' | 'stage_analytics'>('teaching');
+  const [activeTab, setActiveTab] = useState<'teaching' | 'overview' | 'stage_analytics'>(initialTab || 'teaching');
   const [stageAnalytics, setStageAnalytics] = useState<any>(null);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -538,7 +553,7 @@ export const BusinessMetrics: React.FC = () => {
                 Ensemble show counts, format distribution, director casting tendencies, and chemistry pairing statistics.
               </p>
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-3">
               <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-xl text-center">
                 <div className="text-2xl font-black">{stageAnalytics?.totalShowsCataloged || 0}</div>
                 <div className="text-[10px] uppercase font-bold text-blue-200">Cataloged Shows</div>
@@ -546,6 +561,10 @@ export const BusinessMetrics: React.FC = () => {
               <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-xl text-center">
                 <div className="text-2xl font-black">{stageAnalytics?.totalPerformancesRecorded || 0}</div>
                 <div className="text-[10px] uppercase font-bold text-blue-200">Cast Appearances</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm border border-white/20 px-4 py-2.5 rounded-xl text-center">
+                <div className="text-2xl font-black">{stageAnalytics?.games?.totalLoggedInstances || 0}</div>
+                <div className="text-[10px] uppercase font-bold text-blue-200">Setlist Games</div>
               </div>
             </div>
           </div>
@@ -556,7 +575,7 @@ export const BusinessMetrics: React.FC = () => {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-base font-bold text-gray-900">🏆 Top of the Cast</h3>
-                  <p className="text-xs text-gray-500">Performers ranked by total stage appearances and format diversity</p>
+                  <p className="text-xs text-gray-500">Click any performer, partner, or badge to jump to their profile or shows</p>
                 </div>
               </div>
 
@@ -564,26 +583,85 @@ export const BusinessMetrics: React.FC = () => {
                 <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto pr-1">
                   {stageAnalytics.leaderboard.map((performer: any, idx: number) => (
                     <div key={performer.personnel_id} className="py-3 flex items-center justify-between gap-4 hover:bg-gray-50/80 px-2 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-7 text-xs font-black ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-700' : 'text-gray-400'}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className={`w-7 text-xs font-black flex-shrink-0 ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-gray-400' : idx === 2 ? 'text-amber-700' : 'text-gray-400'}`}>
                           #{idx + 1}
                         </span>
-                        <div>
-                          <div className="text-sm font-bold text-gray-900">{performer.full_name}</div>
-                          <div className="text-xs text-gray-500 flex flex-wrap gap-2 mt-0.5">
-                            {performer.shows_directed > 0 && <span className="bg-purple-50 text-purple-700 font-semibold px-1.5 py-0.5 rounded text-[10px]">{performer.shows_directed} directed</span>}
-                            {performer.crew_shifts > 0 && <span className="bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 rounded text-[10px]">{performer.crew_shifts} crew shifts</span>}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onNavigate?.('cast', {
+                                  castPersonnelId: performer.personnel_id,
+                                  castSearch: performer.full_name,
+                                })
+                              }
+                              className="text-sm font-bold text-gray-900 hover:text-purple-700 hover:underline text-left"
+                              title={`Open ${performer.full_name} in Cast Directory`}
+                            >
+                              {performer.full_name}
+                            </button>
+                            {performer.milestone_badge && (
+                              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                                {performer.milestone_badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 flex flex-wrap items-center gap-2 mt-1">
+                            {performer.shows_directed > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigate?.('shows', { directorFilter: performer.full_name })}
+                                className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-semibold px-1.5 py-0.5 rounded text-[10px] transition-colors"
+                              >
+                                🎬 {performer.shows_directed} directed
+                              </button>
+                            )}
+                            {performer.crew_shifts > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigate?.('crew', { crewSearch: performer.full_name })}
+                                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded text-[10px] transition-colors"
+                              >
+                                🛠️ {performer.crew_shifts} crew shifts
+                              </button>
+                            )}
                             {performer.top_partner_name && (
-                              <span className="text-gray-600">Top partner: <strong className="text-gray-800">{performer.top_partner_name}</strong> ({performer.top_partner_count})</span>
+                              <span className="text-gray-600">
+                                Top partner:{' '}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onNavigate?.('shows', {
+                                      castMemberFilter: performer.top_partner_id
+                                        ? String(performer.top_partner_id)
+                                        : performer.top_partner_name,
+                                    })
+                                  }
+                                  className="font-bold text-gray-800 hover:text-indigo-700 hover:underline"
+                                >
+                                  {performer.top_partner_name} ({performer.top_partner_count})
+                                </button>
+                              </span>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div className="text-right flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onNavigate?.('shows', {
+                            castMemberFilter: String(performer.personnel_id),
+                          })
+                        }
+                        className="text-right flex-shrink-0 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                        title={`View ${performer.full_name}'s ${performer.total_shows} shows`}
+                      >
                         <span className="text-base font-black text-primary-700">{performer.total_shows}</span>
-                        <span className="text-[10px] uppercase font-bold text-gray-500 block">shows</span>
-                      </div>
+                        <span className="text-[10px] uppercase font-bold text-gray-500 block">shows →</span>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -598,7 +676,7 @@ export const BusinessMetrics: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex flex-col">
               <div className="mb-4">
                 <h3 className="text-base font-bold text-gray-900">🎬 Directors & Call Lists</h3>
-                <p className="text-xs text-gray-500">Shows directed and most frequently cast performers</p>
+                <p className="text-xs text-gray-500">Click any director or performer pill to view those shows</p>
               </div>
 
               {stageAnalytics?.directors && stageAnalytics.directors.length > 0 ? (
@@ -606,15 +684,38 @@ export const BusinessMetrics: React.FC = () => {
                   {stageAnalytics.directors.map((dir: any) => (
                     <div key={dir.director_id} className="p-3.5 bg-gray-50 rounded-xl border border-gray-200">
                       <div className="flex justify-between items-baseline mb-2">
-                        <div className="text-sm font-bold text-gray-900">{dir.director_name}</div>
-                        <div className="text-xs font-bold text-primary-700">{dir.shows_count} directed</div>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate?.('shows', { directorFilter: dir.director_name })}
+                          className="text-sm font-bold text-gray-900 hover:text-indigo-700 hover:underline text-left"
+                        >
+                          {dir.director_name}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onNavigate?.('shows', { directorFilter: dir.director_name })}
+                          className="text-xs font-bold text-primary-700 hover:underline"
+                        >
+                          {dir.shows_count} directed →
+                        </button>
                       </div>
                       <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Cast Most:</div>
                       <div className="flex flex-wrap gap-1.5">
                         {dir.top_cast.map((tc: any) => (
-                          <span key={tc.name} className="bg-white border border-gray-200 text-gray-700 text-[11px] px-2 py-0.5 rounded-md shadow-2xs">
+                          <button
+                            key={`${dir.director_id}-${tc.personnel_id || tc.name}`}
+                            type="button"
+                            onClick={() =>
+                              onNavigate?.('shows', {
+                                directorFilter: dir.director_name,
+                                castMemberFilter: tc.personnel_id ? String(tc.personnel_id) : tc.name,
+                              })
+                            }
+                            className="bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 text-gray-700 text-[11px] px-2 py-0.5 rounded-md shadow-2xs transition-colors"
+                            title={`View shows directed by ${dir.director_name} featuring ${tc.name}`}
+                          >
                             {tc.name} <strong className="text-gray-900">({tc.count})</strong>
-                          </span>
+                          </button>
                         ))}
                       </div>
                     </div>
@@ -627,6 +728,90 @@ export const BusinessMetrics: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Setlist & Game Intelligence Row */}
+          {stageAnalytics?.games && stageAnalytics.games.topGames && stageAnalytics.games.topGames.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-gray-900">🎲 Most Played Games on Stage</h3>
+                    <p className="text-xs text-gray-500">Click any game to inspect its full stage history, callers, and shows</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('games')}
+                    className="text-xs font-semibold text-indigo-700 hover:underline"
+                  >
+                    Open Master Game Library →
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {stageAnalytics.games.topGames.map((g: any, i: number) => (
+                    <button
+                      key={g.game_id}
+                      type="button"
+                      onClick={() => onNavigate?.('games', { gameId: g.game_id, gameSearch: g.game_name })}
+                      className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-amber-300 hover:bg-amber-50/40 text-left transition-colors"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="text-xs font-bold text-gray-900 truncate">
+                          #{i + 1} {g.game_name}
+                        </div>
+                        <div className="text-[11px] text-gray-500">{g.category}</div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold flex-shrink-0">
+                        {g.count} plays
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">🎤 Top Game Callers & Categories</h3>
+                  <p className="text-xs text-gray-500">Most frequent game hosts and setlist mix</p>
+                </div>
+
+                {stageAnalytics.games.topCallers && stageAnalytics.games.topCallers.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                      Most Frequent Game Callers
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {stageAnalytics.games.topCallers.map((caller: any) => (
+                        <button
+                          key={caller.name}
+                          type="button"
+                          onClick={() => onNavigate?.('cast', { castSearch: caller.name })}
+                          className="px-2.5 py-1 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-medium transition-colors"
+                        >
+                          {caller.name} <strong>({caller.count})</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {stageAnalytics.games.categories && stageAnalytics.games.categories.length > 0 && (
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2">
+                      Setlist Category Breakdown
+                    </div>
+                    <div className="space-y-1.5">
+                      {stageAnalytics.games.categories.map((cat: any) => (
+                        <div key={cat.category} className="flex items-center justify-between text-xs bg-gray-50 px-2.5 py-1.5 rounded border border-gray-100">
+                          <span className="font-medium text-gray-800">{cat.category}</span>
+                          <span className="font-bold text-indigo-700">{cat.count} games</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

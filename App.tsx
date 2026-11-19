@@ -32,7 +32,7 @@ import { ContextualHelpDrawer } from './components/common/ContextualHelpDrawer';
 import { TEAM_PORTAL_GUIDE_DATA } from './constants/portalGuides';
 import { authService } from './services/authService';
 import { isSupabaseConfigured } from './services/supabaseClient';
-import { PageType, PortalAccessRole } from './types';
+import { PageType, PortalAccessRole, PortalNavigationContext } from './types';
 
 const TEAM_PAGE_STORAGE_KEY = 'team:current-page';
 const TEAM_STUDENT_STORAGE_KEY = 'team:selected-student';
@@ -79,6 +79,7 @@ const canAccessPage = (role: PortalAccessRole, page: PageType): boolean => {
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<PageType>(getInitialTeamPage);
   const [crmInitialTab, setCrmInitialTab] = useState<CRMTab>('scheduling');
+  const [navContext, setNavContext] = useState<PortalNavigationContext>({});
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(getInitialSelectedStudent);
   const [pageHistory, setPageHistory] = useState<PageType[]>([]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -165,7 +166,11 @@ const App: React.FC = () => {
     }
   }, [currentPage, selectedStudentId]);
 
-  const navigateToPage = (page: PageType) => {
+  const navigateToPage = (page: PageType, context?: PortalNavigationContext) => {
+    if (context?.crmTab) {
+      setCrmInitialTab(context.crmTab);
+    }
+    setNavContext(context || {});
     setPageHistory((prev) => (page !== currentPage ? [...prev, currentPage].slice(-20) : prev));
     setCurrentPage(page);
     if (page !== 'student-profile') setSelectedStudentId(null);
@@ -223,9 +228,22 @@ const App: React.FC = () => {
       case 'personnel':
         return <PersonnelDirectory />;
       case 'cast':
-        return <CastDirectory canManageGames={userRole === 'admin' || userRole === 'manager'} />;
+        return (
+          <CastDirectory
+            canManageGames={userRole === 'admin' || userRole === 'manager'}
+            onNavigate={navigateToPage}
+            initialSearch={navContext.castSearch}
+            initialPersonnelId={navContext.castPersonnelId}
+          />
+        );
       case 'crew':
-        return <CrewDirectory />;
+        return (
+          <CrewDirectory
+            onNavigate={navigateToPage}
+            initialSearch={navContext.crewSearch}
+            initialShowName={navContext.crewShowName}
+          />
+        );
       case 'bartenders':
         return <BartendersPage />;
       case 'teacher-management':
@@ -239,15 +257,33 @@ const App: React.FC = () => {
         return <ClassRegistration onNavigate={navigateToPage} />;
       case 'show-management':
       case 'shows':
-        return <Shows onNavigate={navigateToPage} />;
+        return (
+          <Shows
+            onNavigate={navigateToPage}
+            initialDirectorFilter={navContext.directorFilter}
+            initialCastMemberFilter={navContext.castMemberFilter}
+            initialSearch={navContext.showSearch}
+          />
+        );
       case 'corporate-gigs':
         return <CorporateGigs />;
       case 'business-metrics':
-        return <BusinessMetrics />;
+        return (
+          <BusinessMetrics
+            onNavigate={navigateToPage}
+            initialTab={navContext.metricsTab}
+          />
+        );
       case 'ticketing':
         return <TicketingManagement />;
       case 'games':
-        return <Games />;
+        return (
+          <Games
+            onNavigate={navigateToPage}
+            initialGameId={navContext.gameId}
+            initialSearch={navContext.gameSearch}
+          />
+        );
       case 'workshops':
         return <Workshops />;
       case 'special-guests':

@@ -5,10 +5,23 @@ import { gasService } from '../../services/googleAppsScript';
 interface ShowCardProps {
   show: ShowWithDetails;
   onManageCast: () => void;
+  onFilterDirector?: (directorName: string) => void;
+  onFilterCastMember?: (personnelId: number, fullName: string) => void;
+  onViewCrewMember?: (fullName: string) => void;
+  onSelectGame?: (gameId: number, gameName: string) => void;
 }
 
-export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
+export const ShowCard: React.FC<ShowCardProps> = ({
+  show,
+  onManageCast,
+  onFilterDirector,
+  onFilterCastMember,
+  onViewCrewMember,
+  onSelectGame,
+}) => {
   const [gamesPlayed, setGamesPlayed] = useState<ShowGame[]>([]);
+  const [expandCast, setExpandCast] = useState(false);
+  const [expandGames, setExpandGames] = useState(false);
   const castCount = show.CastCount ?? show.CastMembers?.length ?? 0;
   const crewCount = show.CrewCount ?? show.CrewMembers?.length ?? 0;
 
@@ -73,8 +86,20 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
             {show.ShowTypeName || 'Show'} #{show.ShowID}
           </h3>
           <p className="text-xs text-gray-600">{show.Venue}</p>
-          <p className="text-xs text-gray-600">
-            Director: {show.DirectorName || 'TBD'}
+          <p className="text-xs text-gray-600 flex items-center gap-1 flex-wrap">
+            <span>Director:</span>
+            {show.DirectorName && show.DirectorName !== 'TBD' && onFilterDirector ? (
+              <button
+                type="button"
+                onClick={() => onFilterDirector(show.DirectorName!)}
+                className="font-semibold text-indigo-700 hover:text-indigo-900 hover:underline transition-colors"
+                title={`Filter shows directed by ${show.DirectorName}`}
+              >
+                {show.DirectorName}
+              </button>
+            ) : (
+              <span className="font-medium text-gray-800">{show.DirectorName || 'TBD'}</span>
+            )}
           </p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <span className={`px-2 py-1 rounded-full text-[10px] font-medium ${isJtfPresents ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-700'}`}>
@@ -100,32 +125,80 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
       </div>
 
       <div className="mb-3">
-        <h4 className="text-xs font-medium text-gray-700 mb-1.5">Cast Members</h4>
+        <h4 className="text-xs font-medium text-gray-700 mb-1.5">Cast Members ({castCount})</h4>
         {show.CastMembers && show.CastMembers.length > 0 ? (
           <div className="flex flex-wrap gap-1">
-            {show.CastMembers.slice(0, 3).map((member, index) => {
+            {(expandCast ? show.CastMembers : show.CastMembers.slice(0, 4)).map((member, index) => {
+              const personnelId = Number((member as any).personnel_id || member.PersonnelID || 0);
               const firstName = (member as any).first_name || member.FirstName || '';
               const lastName = (member as any).last_name || member.LastName || '';
-              const fullName = `${firstName} ${lastName}`.trim() || member.FullName || 'Unknown';
-              return (
+              const fullName = `${firstName} ${lastName}`.trim() || (member as any).FullName || 'Unknown';
+              return onFilterCastMember ? (
+                <button
+                  key={`${personnelId}-${index}`}
+                  type="button"
+                  onClick={() => onFilterCastMember(personnelId, fullName)}
+                  className="px-2 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-800 text-[10px] font-medium rounded-full transition-colors"
+                  title={`Filter shows with ${fullName}`}
+                >
+                  {fullName}
+                </button>
+              ) : (
                 <span
-                  key={index}
-                  className="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] rounded-full"
+                  key={`${personnelId}-${index}`}
+                  className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] rounded-full"
                 >
                   {fullName}
                 </span>
               );
             })}
-            {show.CastMembers.length > 3 && (
-              <span className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] rounded-full">
-                +{show.CastMembers.length - 3} more
-              </span>
+            {show.CastMembers.length > 4 && (
+              <button
+                type="button"
+                onClick={() => setExpandCast((prev) => !prev)}
+                className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-medium rounded-full transition-colors"
+              >
+                {expandCast ? 'Show less' : `+${show.CastMembers.length - 4} more`}
+              </button>
             )}
           </div>
         ) : (
           <p className="text-xs text-gray-500">No cast assigned</p>
         )}
       </div>
+
+      {show.CrewMembers && show.CrewMembers.length > 0 && (
+        <div className="mb-3">
+          <h4 className="text-xs font-medium text-gray-700 mb-1.5">Crew ({crewCount})</h4>
+          <div className="flex flex-wrap gap-1">
+            {show.CrewMembers.map((crew, index) => {
+              const firstName = (crew as any).first_name || crew.FirstName || '';
+              const lastName = (crew as any).last_name || crew.LastName || '';
+              const fullName = `${firstName} ${lastName}`.trim() || (crew as any).FullName || 'Unknown';
+              const dutyName = (crew as any).DutyName || '';
+              const label = dutyName ? `${dutyName}: ${fullName}` : fullName;
+              return onViewCrewMember ? (
+                <button
+                  key={`crew-${index}`}
+                  type="button"
+                  onClick={() => onViewCrewMember(fullName)}
+                  className="px-2 py-0.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-[10px] font-medium rounded-full transition-colors"
+                  title={`View ${fullName} in Crew Directory`}
+                >
+                  {label}
+                </button>
+              ) : (
+                <span
+                  key={`crew-${index}`}
+                  className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 text-[10px] rounded-full"
+                >
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mb-3 grid grid-cols-2 gap-2 text-[10px]">
         <div className="rounded-md bg-blue-50 px-2 py-1.5 text-blue-700">
@@ -145,21 +218,42 @@ export const ShowCard: React.FC<ShowCardProps> = ({ show, onManageCast }) => {
 
       {isCompletedShow && (
         <div className="mb-3">
-          <h4 className="text-xs font-medium text-gray-700 mb-1.5">Games Played</h4>
+          <h4 className="text-xs font-medium text-gray-700 mb-1.5">
+            Games Played {gamesPlayed.length > 0 ? `(${gamesPlayed.length})` : ''}
+          </h4>
           {gamesPlayed.length > 0 ? (
             <div className="flex flex-wrap gap-1">
-              {gamesPlayed.slice(0, 3).map((game, index) => (
-                <span
-                  key={game.GamesPlayedID || `${game.GameID || game.GameName}-${index}`}
-                  className="px-2 py-1 bg-amber-100 text-amber-800 text-[10px] rounded-full"
-                >
-                  {game.GameName || game.CustomGameName || 'Game'}
-                </span>
-              ))}
+              {(expandGames ? gamesPlayed : gamesPlayed.slice(0, 3)).map((game, index) => {
+                const gameName = game.GameName || game.CustomGameName || 'Game';
+                const gameId = Number(game.GameID || 0);
+                return onSelectGame && gameId > 0 ? (
+                  <button
+                    key={game.GamesPlayedID || `${gameId || gameName}-${index}`}
+                    type="button"
+                    onClick={() => onSelectGame(gameId, gameName)}
+                    className="px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-medium rounded-full transition-colors"
+                    title={game.Notes ? `${gameName} — ${game.Notes}` : `Open ${gameName} in Game Library`}
+                  >
+                    {gameName}
+                  </button>
+                ) : (
+                  <span
+                    key={game.GamesPlayedID || `${gameId || gameName}-${index}`}
+                    className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] rounded-full"
+                    title={game.Notes || undefined}
+                  >
+                    {gameName}
+                  </span>
+                );
+              })}
               {gamesPlayed.length > 3 && (
-                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] rounded-full">
-                  +{gamesPlayed.length - 3} more
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setExpandGames((prev) => !prev)}
+                  className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-[10px] font-medium rounded-full transition-colors"
+                >
+                  {expandGames ? 'Show less' : `+${gamesPlayed.length - 3} more`}
+                </button>
               )}
             </div>
           ) : (

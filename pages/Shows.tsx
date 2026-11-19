@@ -4,31 +4,43 @@ import { ShowEditModal } from '../components/shows/ShowEditModal';
 import { ShowManagementModal } from '../components/shows/ShowManagementModal';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
-import { PageType, ProgramCategory, JtfPresentsOpenDate, JtfPresentsRequest, ShowWithDetails } from '../types';
+import { PageType, PortalNavigationContext, ProgramCategory, JtfPresentsOpenDate, JtfPresentsRequest, ShowWithDetails } from '../types';
 import { supabaseService } from '../services/supabaseService';
 
 type FilterType = 'all' | 'next-up' | 'upcoming' | 'completed';
 type CategoryFilterType = 'all' | ProgramCategory;
 
 interface ShowsProps {
-  onNavigate?: (page: PageType) => void;
+  onNavigate?: (page: PageType, context?: PortalNavigationContext) => void;
+  initialDirectorFilter?: string;
+  initialCastMemberFilter?: string;
+  initialSearch?: string;
 }
 
-export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
+export const Shows: React.FC<ShowsProps> = ({
+  onNavigate,
+  initialDirectorFilter,
+  initialCastMemberFilter,
+  initialSearch,
+}) => {
   const [shows, setShows] = useState<ShowWithDetails[]>([]);
   const [filteredShows, setFilteredShows] = useState<ShowWithDetails[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>('all');
-  const [directorFilter, setDirectorFilter] = useState<string>('all');
-  const [castMemberFilter, setCastMemberFilter] = useState<string>('all');
+  const [directorFilter, setDirectorFilter] = useState<string>(initialDirectorFilter || 'all');
+  const [castMemberFilter, setCastMemberFilter] = useState<string>(initialCastMemberFilter || 'all');
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showEditorOpen, setShowEditorOpen] = useState(false);
   const [showManagementOpen, setShowManagementOpen] = useState(false);
   const [selectedShow, setSelectedShow] = useState<ShowWithDetails | null>(null);
-  const [showSearch, setShowSearch] = useState('');
-  const [visibleShowCount, setVisibleShowCount] = useState<number | 'all'>(4);
-  const [showPastShows, setShowPastShows] = useState(false);
+  const [showSearch, setShowSearch] = useState(initialSearch || '');
+  const [visibleShowCount, setVisibleShowCount] = useState<number | 'all'>(
+    initialDirectorFilter || initialCastMemberFilter || initialSearch ? 'all' : 4
+  );
+  const [showPastShows, setShowPastShows] = useState(
+    Boolean(initialDirectorFilter || initialCastMemberFilter || initialSearch)
+  );
   const [jtfRequests, setJtfRequests] = useState<JtfPresentsRequest[]>([]);
   const [jtfOpenDates, setJtfOpenDates] = useState<JtfPresentsOpenDate[]>([]);
   const [jtfWorkflowLoading, setJtfWorkflowLoading] = useState(true);
@@ -60,6 +72,24 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     loadShows();
     loadJtfWorkflow();
   }, []);
+
+  useEffect(() => {
+    if (initialDirectorFilter) {
+      setDirectorFilter(initialDirectorFilter);
+      setShowPastShows(true);
+      setVisibleShowCount('all');
+    }
+    if (initialCastMemberFilter) {
+      setCastMemberFilter(initialCastMemberFilter);
+      setShowPastShows(true);
+      setVisibleShowCount('all');
+    }
+    if (initialSearch !== undefined && initialSearch !== '') {
+      setShowSearch(initialSearch);
+      setShowPastShows(true);
+      setVisibleShowCount('all');
+    }
+  }, [initialDirectorFilter, initialCastMemberFilter, initialSearch]);
 
   useEffect(() => {
     applyFilters();
@@ -319,6 +349,33 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
     });
     return Array.from(castMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [shows]);
+
+  const handleFilterDirectorFromCard = (directorName: string) => {
+    setDirectorFilter(directorName);
+    setShowPastShows(true);
+    setVisibleShowCount('all');
+  };
+
+  const handleFilterCastMemberFromCard = (personnelId: number, fullName: string) => {
+    setCastMemberFilter(personnelId > 0 ? String(personnelId) : fullName);
+    setShowPastShows(true);
+    setVisibleShowCount('all');
+  };
+
+  const handleViewCrewMemberFromCard = (fullName: string) => {
+    onNavigate?.('crew', { crewSearch: fullName });
+  };
+
+  const handleSelectGameFromCard = (gameId: number, gameName: string) => {
+    onNavigate?.('games', { gameId, gameSearch: gameName });
+  };
+
+  const activeCastMemberInfo = React.useMemo(() => {
+    if (castMemberFilter === 'all') return null;
+    return availableCastMembers.find(
+      (c) => (c.id > 0 && String(c.id) === castMemberFilter) || c.name.toLowerCase() === castMemberFilter.toLowerCase()
+    ) || null;
+  }, [availableCastMembers, castMemberFilter]);
 
   const sortByMostRecent = (items: ShowWithDetails[]) => [...items].sort((a, b) => {
     const aDate = new Date(String(a.ShowDate || '').slice(0, 10)).getTime();
@@ -698,6 +755,78 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Active Relationship Context Banner when filtering by Director or Cast Member */}
+      {(directorFilter !== 'all' || castMemberFilter !== 'all') && (
+        <div className="mb-5 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-purple-50 p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100 px-2.5 py-0.5 rounded-full">
+                Active Relationship View
+              </span>
+              {directorFilter !== 'all' && (
+                <span className="text-sm font-semibold text-gray-900">
+                  🎬 Director: <span className="text-indigo-700">{directorFilter}</span>
+                </span>
+              )}
+              {activeCastMemberInfo && (
+                <span className="text-sm font-semibold text-gray-900">
+                  🎭 Cast Member: <span className="text-purple-700">{activeCastMemberInfo.name}</span> ({activeCastMemberInfo.count} total shows)
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-600">
+              Showing <span className="font-semibold text-gray-900">{filteredShows.length}</span> matching show{filteredShows.length === 1 ? '' : 's'}. Click any cast, director, crew, or game pill on a show card to pivot relationships.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {activeCastMemberInfo && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate?.('cast', {
+                      castPersonnelId: activeCastMemberInfo.id,
+                      castSearch: activeCastMemberInfo.name,
+                    })
+                  }
+                  className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 transition-colors"
+                >
+                  Open in Cast Directory →
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onNavigate?.('crew', {
+                      crewSearch: activeCastMemberInfo.name,
+                    })
+                  }
+                  className="px-3 py-1.5 rounded-lg border border-teal-300 bg-teal-50 text-teal-800 text-xs font-semibold hover:bg-teal-100 transition-colors"
+                >
+                  View Crew Duties →
+                </button>
+              </>
+            )}
+            {directorFilter !== 'all' && directorFilter !== 'unassigned' && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.('director-management')}
+                className="px-3 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-800 text-xs font-semibold hover:bg-indigo-100 transition-colors"
+              >
+                Director Management →
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onNavigate?.('business-metrics', { metricsTab: 'stage_analytics' })}
+              className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Stage & Chemistry Analytics →
+            </button>
+          </div>
+        </div>
+      )}
+
       {categoryFilter === 'all' ? (
         <div className="space-y-8">
           <section>
@@ -715,6 +844,10 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
                     key={show.ShowID}
                     show={show}
                     onManageCast={() => handleManageCast(show)}
+                    onFilterDirector={handleFilterDirectorFromCard}
+                    onFilterCastMember={handleFilterCastMemberFromCard}
+                    onViewCrewMember={handleViewCrewMemberFromCard}
+                    onSelectGame={handleSelectGameFromCard}
                   />
                 ))}
               </div>
@@ -740,6 +873,10 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
                     key={show.ShowID}
                     show={show}
                     onManageCast={() => handleManageCast(show)}
+                    onFilterDirector={handleFilterDirectorFromCard}
+                    onFilterCastMember={handleFilterCastMemberFromCard}
+                    onViewCrewMember={handleViewCrewMemberFromCard}
+                    onSelectGame={handleSelectGameFromCard}
                   />
                 ))}
               </div>
@@ -757,6 +894,10 @@ export const Shows: React.FC<ShowsProps> = ({ onNavigate }) => {
               key={show.ShowID}
               show={show}
               onManageCast={() => handleManageCast(show)}
+              onFilterDirector={handleFilterDirectorFromCard}
+              onFilterCastMember={handleFilterCastMemberFromCard}
+              onViewCrewMember={handleViewCrewMemberFromCard}
+              onSelectGame={handleSelectGameFromCard}
             />
           ))}
         </div>

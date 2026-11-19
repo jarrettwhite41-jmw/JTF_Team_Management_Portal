@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Loader } from '../components/common/Loader';
 import { Message } from '../components/common/Message';
 import { gasService } from '../services/googleAppsScript';
-import { PageType } from '../types';
+import { PageType, PortalNavigationContext } from '../types';
 
 interface DirectorManagementProps {
-  onNavigate?: (page: PageType) => void;
+  onNavigate?: (page: PageType, context?: PortalNavigationContext) => void;
 }
 
 interface DirectorRecord {
@@ -14,6 +14,9 @@ interface DirectorRecord {
   FirstName: string;
   LastName: string;
   PrimaryEmail: string;
+  ShowsCount?: number;
+  LastDirectedDate?: string;
+  TopCast?: Array<{ personnelId: number; name: string; count: number }>;
 }
 
 interface CastRecord {
@@ -188,25 +191,69 @@ export const DirectorManagement: React.FC<DirectorManagementProps> = ({ onNaviga
       </div>
 
       <div className="space-y-3 md:hidden">
-        {filteredDirectors.map((director) => (
-          <article key={director.DirectorID} className="rounded-xl border bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-gray-900">{`${director.FirstName || ''} ${director.LastName || ''}`.trim()}</h2>
-                <p className="mt-1 break-all text-sm text-gray-600">{director.PrimaryEmail || '-'}</p>
+        {filteredDirectors.map((director) => {
+          const fullName = `${director.FirstName || ''} ${director.LastName || ''}`.trim();
+          const showCount = director.ShowsCount ?? 0;
+          return (
+            <article key={director.DirectorID} className="rounded-xl border bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-gray-900">{fullName}</h2>
+                  <p className="mt-1 break-all text-sm text-gray-600">{director.PrimaryEmail || '-'}</p>
+                </div>
+                <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                  🎬 {showCount} show{showCount === 1 ? '' : 's'}
+                </span>
               </div>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">#{director.DirectorID}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleRemoveDirector(director.DirectorID, `${director.FirstName || ''} ${director.LastName || ''}`.trim())}
-              disabled={isSubmitting}
-              className="mt-4 w-full rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-            >
-              Remove
-            </button>
-          </article>
-        ))}
+              {director.TopCast && director.TopCast.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[11px] font-semibold uppercase text-gray-500 mb-1">Most Frequently Cast:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {director.TopCast.map((tc) => (
+                      <button
+                        key={tc.personnelId}
+                        type="button"
+                        onClick={() =>
+                          onNavigate?.('shows', {
+                            directorFilter: fullName,
+                            castMemberFilter: String(tc.personnelId),
+                          })
+                        }
+                        className="px-2 py-0.5 rounded-full bg-gray-100 hover:bg-indigo-50 text-[11px] text-gray-700 font-medium"
+                      >
+                        {tc.name} ({tc.count})
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('shows', { directorFilter: fullName })}
+                  className="flex-1 rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                >
+                  🎬 View Shows ({showCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('cast', { castPersonnelId: director.PersonnelID, castSearch: fullName })}
+                  className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-xs font-semibold text-purple-700 hover:bg-purple-100"
+                >
+                  🎭 Cast Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveDirector(director.DirectorID, fullName)}
+                  disabled={isSubmitting}
+                  className="rounded-lg border border-red-300 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </div>
+            </article>
+          );
+        })}
 
         {filteredDirectors.length === 0 && (
           <div className="rounded-xl border bg-white px-4 py-10 text-center text-gray-500 shadow-sm">No directors found.</div>
@@ -217,32 +264,83 @@ export const DirectorManagement: React.FC<DirectorManagementProps> = ({ onNaviga
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Director ID</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Director</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Shows Directed</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frequent Cast</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredDirectors.map((director) => (
-              <tr key={director.DirectorID} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {`${director.FirstName || ''} ${director.LastName || ''}`.trim()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{director.PrimaryEmail || '-'}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">#{director.DirectorID}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDirector(director.DirectorID, `${director.FirstName || ''} ${director.LastName || ''}`.trim())}
-                    disabled={isSubmitting}
-                    className="rounded-lg border border-red-300 px-3 py-1.5 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {filteredDirectors.map((director) => {
+              const fullName = `${director.FirstName || ''} ${director.LastName || ''}`.trim();
+              const showCount = director.ShowsCount ?? 0;
+              return (
+                <tr key={director.DirectorID} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-semibold text-gray-900">{fullName}</div>
+                    <div className="text-xs text-gray-500">{director.PrimaryEmail || '-'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                      🎬 {showCount} show{showCount === 1 ? '' : 's'}
+                    </span>
+                    {director.LastDirectedDate && (
+                      <div className="text-[11px] text-gray-500 mt-1">Last: {director.LastDirectedDate}</div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {director.TopCast && director.TopCast.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-md">
+                        {director.TopCast.map((tc) => (
+                          <button
+                            key={tc.personnelId}
+                            type="button"
+                            onClick={() =>
+                              onNavigate?.('shows', {
+                                directorFilter: fullName,
+                                castMemberFilter: String(tc.personnelId),
+                              })
+                            }
+                            className="px-2 py-0.5 rounded-full bg-gray-100 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 text-xs text-gray-700 font-medium transition-colors"
+                            title={`View shows directed by ${fullName} featuring ${tc.name}`}
+                          >
+                            {tc.name} <strong className="text-indigo-700">({tc.count})</strong>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onNavigate?.('shows', { directorFilter: fullName })}
+                        className="rounded-lg bg-indigo-50 border border-indigo-200 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+                      >
+                        🎬 View Shows ({showCount})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onNavigate?.('cast', { castPersonnelId: director.PersonnelID, castSearch: fullName })}
+                        className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 transition-colors"
+                      >
+                        🎭 Cast Profile
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDirector(director.DirectorID, fullName)}
+                        disabled={isSubmitting}
+                        className="rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
